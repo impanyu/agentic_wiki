@@ -1,0 +1,25 @@
+import test from 'node:test';import assert from 'node:assert/strict';import {DatabaseSync} from 'node:sqlite';import {readFileSync,readdirSync} from 'node:fs';import ts from 'typescript';import {z} from 'zod';
+const load=async s=>import('data:text/javascript;base64,'+Buffer.from(ts.transpile(s,{module:ts.ModuleKind.ESNext,target:ts.ScriptTarget.ES2022})).toString('base64'));
+const strip=p=>readFileSync(p,'utf8').replace(/import [\s\S]*?from ['"][^'"]+['"];?/g,'');
+test('attachments follow wiki access and isolate app sessions; page index only returns owned contexts',async()=>{
+ const db=new DatabaseSync(':memory:');db.exec('PRAGMA foreign_keys=ON');for(const f of readdirSync('drizzle').filter(f=>f.endsWith('.sql')).sort())db.exec(readFileSync('drizzle/'+f,'utf8'));
+ const page=db.prepare("INSERT INTO pages(id,owner_id,question,title,summary,body,category,sources,visibility,created_at,language,kind) VALUES(?,?,'query',?,'','','History','[]',?,'2026-01-01','en',?)");page.run('wiki','alice','History','private','static');page.run('app','alice','App','public','dynamic');page.run('other','bob','Other history','public','static');
+ db.exec("INSERT INTO components VALUES('upload','data',1,'alice','private','en','File','','{\"fileName\":\"notes.txt\"}','now');INSERT INTO page_files VALUES('w','wiki','upload','alice','','now'),('a','app','upload','alice','alice','now')");
+ const {contextFilesSql}=await load(strip('app/context-files/server.ts'));const {myContextsSql,filterContexts}=await load(strip('app/context-index/server.ts'));
+ assert.equal(db.prepare(contextFilesSql).all('wiki','bob','bob').length,0);db.exec("UPDATE pages SET visibility='public' WHERE id='wiki'");assert.equal(db.prepare(contextFilesSql).all('wiki','bob','bob').length,1);assert.equal(db.prepare(contextFilesSql).all('app','bob','bob').length,0);assert.equal(db.prepare(contextFilesSql).all('app','alice','alice').length,1);
+ const own=db.prepare(myContextsSql).all('alice','static','static');assert.deepEqual(own.map(p=>p.id),['wiki']);assert.equal(filterContexts(own,['history']).length,1);assert.equal(filterContexts(own,['astronomy']).length,0);db.close();
+});
+test('app edits stage a reviewable revision without changing the app; nonowners cannot stage',async()=>{
+ const objects=new Map(),page={id:'p',owned:true,title:'Chat',summary:'Help',body:'',question:'Help me',language:'en',labels:{templateId:'chat-v1'},dynamic:{template:'agent-chat-v1'}};
+ globalThis.appEditTest={z,env:{FILES:{get:async key=>objects.has(key)?{json:async()=>JSON.parse(objects.get(key))}:null,put:async(key,value)=>objects.set(key,value),delete:async key=>objects.delete(key)}},askAgent:async()=>({intent:'revise',changeType:'session',reply:'Please review.',instructions:'Explain with short examples.',templateId:'chat-v1'}),sandboxStatus:()=>({configured:false,allowed:false})};
+ const m=await load('const {z,env,askAgent,sandboxStatus}=globalThis.appEditTest;\n'+strip('app/page-programs/edit-app.ts'));
+ const result=await m.discussAppEdit(page,'Use short examples',{}, {id:'session',ownerId:'alice'});assert.ok(result.editDraft.id);assert.equal(page.dynamic.sessionInstructions,undefined);assert.equal((await m.readAppDraft({id:'session',ownerId:'alice'},'p')).body,'Explain with short examples.');
+ const other=await m.discussAppEdit({...page,owned:false},'Change behavior',{}, {id:'other',ownerId:'bob'});assert.equal(other.editDraft,null);assert.equal(objects.size,1);delete globalThis.appEditTest;
+});
+test('session routing table records question-to-session bindings independently per user',async()=>{
+ const db=new DatabaseSync(':memory:');for(const f of readdirSync('drizzle').filter(f=>f.endsWith('.sql')).sort())db.exec(readFileSync('drizzle/'+f,'utf8'));
+ db.exec("INSERT INTO pages(id,owner_id,question,title,summary,body,category,sources,visibility,created_at,kind) VALUES('chat','alice','Career planning','Career','','','Chat','[]','public','now','dynamic');INSERT INTO questions(id,page_id,normalized,question,embedding,created_at,routing_scope) VALUES('q','chat','career planning','Career planning','[]','now','session')");
+ globalThis.sessionDb=()=>({prepare:sql=>({bind:(...args)=>({first:async()=>db.prepare(sql).get(...args),run:async()=>db.prepare(sql).run(...args)})})});const s=await load('const database=globalThis.sessionDb;\n'+strip('app/chat/session.ts'));
+ const alice=await s.ensurePageSession('chat','alice');await s.rememberSessionRoutes('chat','alice',alice.id);const again=await s.ensurePageSession('chat','alice');assert.equal(again.id,alice.id);
+ const bob=await s.ensurePageSession('chat','bob');await s.rememberSessionRoutes('chat','bob',bob.id);assert.notEqual(alice.id,bob.id);assert.equal(db.prepare('SELECT count(*) n FROM session_routes').get().n,2);assert.equal(db.prepare("SELECT session_id FROM session_routes WHERE owner_id='alice' AND question_id='q'").get().session_id,alice.id);db.close();delete globalThis.sessionDb;
+});

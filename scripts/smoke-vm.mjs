@@ -1,0 +1,41 @@
+import assert from 'node:assert/strict';
+import { mkdtemp, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join, resolve } from 'node:path';
+import { randomBytes, createHash } from 'node:crypto';
+import { spawn } from 'node:child_process';
+import { createServer } from 'node:net';
+import { migrate } from './migrate.mjs';
+import { SqliteDatabase } from '../server/sqlite.mjs';
+import { FileBucket } from '../server/files.mjs';
+const dir=await mkdtemp(join(tmpdir(),'agenticwiki-http-'));
+const listener=createServer();await new Promise(r=>listener.listen(0,'127.0.0.1',r));const port=listener.address().port;await new Promise(r=>listener.close(r));
+const origin='http://localhost:'+port,path=join(dir,'agenticwiki.sqlite');migrate(path);
+const db=new SqliteDatabase(path),session=randomBytes(32).toString('base64url');
+await db.prepare('INSERT INTO auth_sessions VALUES(?,?,?)').bind(createHash('sha256').update(session).digest('hex'),JSON.stringify({userId:'google:smoke',email:'smoke@example.com',displayName:'Smoke',fullName:'Smoke'}),Date.now()+60000).run();
+for(const [id,visibility] of [['11111111-1111-4111-8111-111111111111','private'],['22222222-2222-4222-8222-222222222222','public']])await db.prepare("INSERT INTO pages(id,owner_id,question,title,summary,body,category,sources,visibility,created_at,language) VALUES(?,?,?,?,?,?,?,'[]',?,?,'en')").bind(id,'google:smoke','Test article','Test article','Overview','Article body','Test',visibility,new Date().toISOString()).run();
+const bucket=new FileBucket(join(dir,'objects'));await bucket.put('uploads/smoke','private file bytes');
+await db.prepare("INSERT INTO components(id,type,owner_id,visibility,language,title,description,payload,created_at) VALUES('smoke-file','data','google:smoke','private','en','file','test',?,?)").bind(JSON.stringify({kind:'data-reference',location:'r2://FILES/uploads/smoke',fileName:'test.txt',size:18}),new Date().toISOString()).run();
+await db.prepare("INSERT INTO page_files VALUES('smoke-attachment','11111111-1111-4111-8111-111111111111','smoke-file','google:smoke','',?)").bind(new Date().toISOString()).run();
+const child=spawn(process.execPath,[resolve('.next/standalone/server.js')],{env:{...process.env,NODE_ENV:'production',HOSTNAME:'127.0.0.1',PORT:String(port),APP_URL:origin,DATA_DIR:dir,OPENAI_API_KEY:'',GOOGLE_CLIENT_ID:'',GOOGLE_CLIENT_SECRET:''},stdio:['ignore','pipe','pipe']});
+let logs='';child.stdout.on('data',b=>logs+=b);child.stderr.on('data',b=>logs+=b);
+try{
+ let ready=false;for(let i=0;i<100;i++){if(child.exitCode!==null)throw Error('Server stopped: '+logs);try{if((await fetch(origin+'/api/health')).ok){ready=true;break;}}catch{}await new Promise(r=>setTimeout(r,100));}assert.ok(ready,'Server readiness timed out');
+ assert.equal((await fetch(origin+'/')).status,200);assert.equal((await fetch(origin+'/favicon.svg')).status,200);
+ const privateUrl=origin+'/api/pages/11111111-1111-4111-8111-111111111111';
+ assert.equal((await fetch(privateUrl)).status,404);
+ assert.equal((await fetch(privateUrl,{headers:{'oai-authenticated-user-id':'google:smoke','oai-authenticated-user-email':'smoke@example.com'}})).status,404);
+ assert.equal((await fetch(privateUrl,{headers:{cookie:'agenticwiki_session='+session}})).status,200);
+ assert.equal((await fetch(origin+'/api/pages/22222222-2222-4222-8222-222222222222')).status,200);
+ const download=origin+'/api/pages/11111111-1111-4111-8111-111111111111/files/smoke-attachment';
+ assert.equal((await fetch(download)).status,404);
+ assert.equal(await (await fetch(download,{headers:{cookie:'agenticwiki_session='+session}})).text(),'private file bytes');
+ const visit=await fetch(origin+'/api/history',{method:'POST',headers:{origin,'Content-Type':'application/json',cookie:'agenticwiki_session='+session},body:JSON.stringify({id:'33333333-3333-4333-8333-333333333333',pageId:'11111111-1111-4111-8111-111111111111',question:'Test article'})});assert.equal(visit.status,200);
+ assert.equal((await (await fetch(origin+'/api/history',{headers:{cookie:'agenticwiki_session='+session}})).json()).entries.length,1);
+ assert.equal((await fetch(origin+'/auth/google',{redirect:'manual'})).status,503);
+ assert.equal((await fetch(origin+'/auth/signout',{method:'POST',headers:{origin:'https://evil.example',cookie:'agenticwiki_session='+session}})).status,403);
+ const loggedOut=await fetch(origin+'/auth/signout',{method:'POST',headers:{origin,cookie:'agenticwiki_session='+session},redirect:'manual'});assert.equal(loggedOut.status,303);
+ assert.equal((await fetch(privateUrl,{headers:{cookie:'agenticwiki_session='+session}})).status,404);
+ console.log('VM HTTP smoke passed: health, home/assets, public/private ACL, spoofed-header rejection, session access, private file download, persistent history, OAuth setup state and logout revocation.');
+}catch(error){console.error(logs);throw error;}
+finally{child.kill('SIGTERM');await new Promise(r=>{if(child.exitCode!==null)r();else child.once('exit',r);});db.close();await rm(dir,{recursive:true,force:true});}

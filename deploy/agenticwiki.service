@@ -1,0 +1,21 @@
+[Unit]
+Description=AgenticWiKi
+After=network.target
+
+[Service]
+Type=simple
+User=agenticwiki
+Group=agenticwiki
+WorkingDirectory=/opt/agenticwiki
+Environment=NODE_ENV=production
+Environment=HOSTNAME=127.0.0.1
+Environment=PORT=3000
+ExecStart=/usr/bin/node /opt/agenticwiki/scripts/start.mjs
+Restart=on-failure
+TimeoutStopSec=120
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

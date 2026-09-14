@@ -1,0 +1,12 @@
+import test from 'node:test';import assert from 'node:assert/strict';import {DatabaseSync} from 'node:sqlite';import {readFileSync,readdirSync} from 'node:fs';import ts from 'typescript';
+const source=ts.transpile(readFileSync('db/known-mapping-repairs.ts','utf8'),{module:ts.ModuleKind.ESNext,target:ts.ScriptTarget.ES2022});const {repairKnownMappings}=await import('data:text/javascript;base64,'+Buffer.from(source).toString('base64'));
+for(const [id,q,original,title] of [['dbe32256-5dcf-4cf3-a9b9-3bcfe921f024','中国人民银行行长历任名单','中国人民银行行长','中国人民银行现任行长'],['4560e6ed-b943-45a0-8350-a6cb93530a00','印度','习近平访问印度','习近平访印事实']])test('repair '+q+' preserves other mappings/pages and is repeatable',async()=>{
+const db=new DatabaseSync(':memory:');for(const f of readdirSync('drizzle').filter(f=>f.endsWith('.sql')).sort())db.exec(readFileSync('drizzle/'+f,'utf8'));
+const owner='guest:c74e6ba9-d433-4d9b-a3ed-193a1d95b680';
+db.prepare("INSERT INTO pages(id,owner_id,question,title,summary,body,category,sources,created_at) VALUES(?,?,?,?,'','Original body','人物','[]','2026')").run(id,owner,original,title);
+for(const [qid,text] of [['wrong',q],['original',original]]){db.prepare("INSERT INTO questions(id,page_id,normalized,question,embedding,created_at) VALUES(?,?,?,?, '[]','2026')").run(qid,id,text,text);db.prepare("INSERT INTO internal_links(id,source_id,target_id,quote,segments,created_at) VALUES(?,?,?,?,'[]','2026')").run(qid,id,id,text);}
+const adapter={prepare(sql){return {bind(...args){return {sql,args};}};},async batch(stmts){for(const s of stmts)db.prepare(s.sql).run(...s.args);}};
+await repairKnownMappings(adapter,'different-user');assert.equal(db.prepare('SELECT count(*) n FROM questions').get().n,2);
+await repairKnownMappings(adapter,owner);await repairKnownMappings(adapter,owner);assert.deepEqual(db.prepare('SELECT id FROM questions').all().map(r=>r.id),['original']);assert.deepEqual(db.prepare('SELECT id FROM internal_links').all().map(r=>r.id),['original']);assert.equal(db.prepare('SELECT count(*) n FROM pages').get().n,1);
+db.prepare("UPDATE pages SET updated_at='2026-09-13'").run();db.prepare("INSERT INTO questions(id,page_id,normalized,question,embedding,created_at,match_version,capability,parameters) VALUES('edited',?,?,?,'[]','2026',6,'article','{}')").run(id,q,q);await repairKnownMappings(adapter,owner);assert.equal(db.prepare('SELECT count(*) n FROM questions').get().n,2);db.close();
+});

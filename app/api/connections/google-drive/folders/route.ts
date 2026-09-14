@@ -1,0 +1,2 @@
+import {getActor} from '@/app/actor';import {reply} from '@/db/store';import {listFolders} from '@/app/connections/google-drive/service';
+export async function GET(request:Request){const a=await getActor(request);try{return a.finish(reply(await listFolders(a.userId,new URL(request.url).searchParams.get('pageToken')||undefined)));}catch(e){return a.finish(reply({error:e instanceof Error&&e.message.startsWith('GOOGLE_DRIVE_')?e.message:'Google Drive is unavailable.'},400));}}

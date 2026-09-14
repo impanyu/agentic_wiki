@@ -1,0 +1,38 @@
+import test from 'node:test';import assert from 'node:assert/strict';import {DatabaseSync} from 'node:sqlite';import {readFileSync,readdirSync} from 'node:fs';import ts from 'typescript';
+const load=async source=>import('data:text/javascript;base64,'+Buffer.from(ts.transpile(source,{module:ts.ModuleKind.ESNext,target:ts.ScriptTarget.ES2022})).toString('base64'));
+const routingTables=await load(readFileSync('db/routing-tables.ts','utf8'));
+const nodes=await load(readFileSync('app/internal-links.ts','utf8'));
+const ranking=await load(readFileSync('app/api/ask/ranking.ts','utf8'));
+test('top five questions then mapped page; refresh updates in place and preserves mappings',async()=>{
+ const db=new DatabaseSync(':memory:');for(const f of readdirSync('drizzle').filter(f=>f.endsWith('.sql')).sort())db.exec(readFileSync('drizzle/'+f,'utf8'));
+ const database=()=>({prepare(sql){return {bind(...args){return {sql,args,first:async()=>db.prepare(sql).get(...args),all:async()=>({results:db.prepare(sql).all(...args)}),run:async()=>db.prepare(sql).run(...args)};}};},async batch(stmts){db.exec('BEGIN');try{for(const s of stmts)db.prepare(s.sql).run(...s.args);db.exec('COMMIT');}catch(e){db.exec('ROLLBACK');throw e;}}});
+ for(let i=0;i<8;i++){db.prepare("INSERT INTO pages(id,owner_id,question,title,summary,body,category,sources,language,created_at) VALUES(?,'u',?,'Title','summary','Old China body','country','[]',?,'2020-01-01')").run('p'+i,'question'+i,i===7?'zh-Hans':'en');db.prepare("INSERT INTO questions(id,page_id,normalized,question,embedding,created_at) VALUES(?,?,?,?,?,'2020')").run('q'+i,'p'+i,'question'+i,'question'+i,JSON.stringify([i]));}
+ let seen=[],reviews=0,researches=0,fail=false;
+ const getPage=async(id,user)=>{const p=db.prepare('SELECT * FROM pages WHERE id=?').get(id);return {...p,owned:p.owner_id===user,createdAt:p.created_at,updatedAt:p.updated_at,checkedAt:p.checked_at,sources:JSON.parse(p.sources)};};
+ globalThis.simpleRouting={...nodes,...routingTables,database,getPage,lock:async()=>{db.prepare("INSERT OR REPLACE INTO generation_locks VALUES('refresh','lease',?)").run(Date.now()+100000);return 'lease';},unlock:async()=>{},reviewAnswer:async()=>{reviews++;return {accepted:false,reason:'old'};},research:async()=>{researches++;if(fail)throw new Error("Provider unavailable");return {title:'China',summary:'Summary',body:'A revised China article.',category:'Country',sources:[],labels:{}};},reviewMappedPage:async(q,p)=>({accepted:!p.labels?.includes?.('disambiguation-v1'),reason:"Checked mapped page"}),recordAction:async()=>{},spawnAgent:async()=>({id:'updater'}),cosine:(_a,b)=>b[0],nearestQuestions:ranking.nearestQuestions,assessQuestion:async(_q,c)=>{seen=c;return {questionId:c[0]?.id||null,confidence:"high",reason:"Equivalent"};}};
+ const refresh=await load(readFileSync('app/api/ask/refresh-matched-page.ts','utf8').replace(/^import .*;$/gm,'')+'\nconst {articleNodes,database,getPage,lock,unlock,reviewAnswer,research,recordAction,spawnAgent}=globalThis.simpleRouting;');
+ const search=await load(readFileSync('app/api/ask/question-search.ts','utf8').replace(/^import .*;$/gm,'')+'\nconst normalize=s=>s.trim().toLowerCase();const repairKnownMappings=async()=>{};const importSessionRoutes=async()=>{};const {importWikiRoutes,ensureRoutingScopes,database,getPage,reviewMappedPage,cosine,assessQuestion,nearestQuestions,recordAction}=globalThis.simpleRouting;');
+ assert.equal(await search.matchQuestion('input',[0],'en','u',{}),'p6');assert.deepEqual(seen.map(c=>c.id),['q6','q5','q4','q3','q2']);
+ db.prepare("UPDATE pages SET kind='dynamic',dynamic_config=? WHERE id='p6'").run(JSON.stringify({template:'agent-chat-v1'}));
+ db.exec("INSERT INTO agent_instances VALUES('session6','page:p6','u',NULL,'now'); INSERT INTO session_routes VALUES('r6','u','q6','session6','p6','now')");
+ assert.equal(await search.matchQuestion('input',[0],'en','u',{},undefined,'wiki'),'p5');assert.equal(await search.matchQuestion('input',[0],'en','u',{},undefined,'session'),'p6');assert.equal(await search.matchQuestion('input',[0],'en','u',{},undefined,'app'),null);
+ db.exec("UPDATE pages SET kind='static',dynamic_config=NULL WHERE id='p6'");
+ db.prepare("UPDATE pages SET question='Chinese',labels=? WHERE id='p6'").run(JSON.stringify({templateId:'disambiguation-v1',indexEntries:[{question:'Chinese people'},{question:'Chinese language'}]}));
+ db.prepare("UPDATE questions SET question='Chinese people',normalized='chinese people' WHERE id='q6'").run();
+ await search.matchQuestion('Chinese people',[0],'en','u',{});assert.ok(!seen.some(c=>c.id==='q6'),'narrow index alias is excluded');
+ db.prepare("UPDATE questions SET question='Chinese',normalized='chinese' WHERE id='q6'").run();
+ await search.matchQuestion('Chinese',[0],'en','u',{});assert.ok(seen.some(c=>c.id==='q6'),'canonical index question remains searchable');
+ assert.equal(await search.matchQuestion('Chinese people',[0],'en','u',{}),null,'an index child cannot match its parent even with high model confidence');
+ assert.equal(seen[0].capability,'disambiguation');assert.deepEqual(seen[0].indexMeanings,['Chinese people','Chinese language']);
+ db.prepare("UPDATE pages SET labels='{}' WHERE id='p6'").run();
+ const before=db.prepare('SELECT id,page_id FROM questions ORDER BY id').all();
+ const page=await getPage('p6','u');assert.equal(refresh.needsReview({...page,createdAt:new Date().toISOString()},false),false);assert.equal(refresh.needsReview({...page,owned:false},true),false);
+ const updated=await refresh.refreshMatchedPage(page,'input',true,'u',{});
+ assert.equal(updated.id,'p6');assert.equal(updated.body,'A revised China article.');assert.equal(db.prepare('SELECT count(*) n FROM pages').get().n,8);assert.deepEqual(db.prepare('SELECT id,page_id FROM questions ORDER BY id').all(),before);assert.equal(reviews,1);assert.equal(researches,1);
+ await refresh.refreshMatchedPage(updated,'input',false,'u',{});assert.equal(reviews,1);
+ assert.deepEqual(refresh.relocateQuote('China',[{node:'line0.0',start:4,end:9}],{title:'Other',summary:'',body:'A revised China article.'}),[{node:'line0.0',start:10,end:15}]);
+ assert.deepEqual(refresh.relocateQuote('missing',[],{title:'Other',summary:'',body:'A revised China article.'}),[]);
+ fail=true;const retained=await refresh.refreshMatchedPage(updated,'input',true,'u',{});assert.equal(retained.id,updated.id);assert.equal(retained.body,updated.body);assert.equal(db.prepare('SELECT count(*) n FROM pages').get().n,8);
+ assert.equal(db.prepare('SELECT count(*) n FROM page_replacements').get().n,0);
+ db.close();delete globalThis.simpleRouting;
+});

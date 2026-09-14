@@ -1,0 +1,2 @@
+import {getActor} from '@/app/actor';import {getPage,reply} from '@/db/store';import {listContextFiles} from '@/app/context-files/server';
+export async function GET(request:Request,{params}:{params:Promise<{id:string}>}){const a=await getActor(request);try{const page=await getPage((await params).id,a.userId);if(!page)return a.finish(reply({error:'Page unavailable.'},404));return a.finish(reply({files:await listContextFiles(page.id,a.userId)}));}catch{return a.finish(reply({error:'Could not load context files.'},503));}}

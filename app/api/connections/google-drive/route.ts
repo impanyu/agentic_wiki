@@ -1,0 +1,3 @@
+import {getActor} from '@/app/actor';import {reply,sameOrigin} from '@/db/store';import {connectionStatus,disconnect} from '@/app/connections/google-drive/service';
+export async function GET(request:Request){const a=await getActor(request);try{return a.finish(reply(await connectionStatus(a.userId)));}catch{return a.finish(reply({error:'Could not read the Google Drive connection.'},503));}}
+export async function DELETE(request:Request){const a=await getActor(request);if(!sameOrigin(request))return a.finish(reply({error:'Invalid request origin.'},403));try{await disconnect(a.userId);return a.finish(reply({ok:true}));}catch{return a.finish(reply({error:'Could not disconnect Google Drive.'},400));}}

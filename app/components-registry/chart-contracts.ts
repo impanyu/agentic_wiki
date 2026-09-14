@@ -1,0 +1,7 @@
+import {z} from 'zod';
+const key=z.string().regex(/^[a-z][a-z0-9_]{0,39}$/);
+export const chartSchema=z.object({kind:z.literal('chart'),xLabel:z.string().min(1).max(120),unit:z.string().max(120),series:z.array(z.object({key,label:z.string().min(1).max(120)})).min(1).max(8),labels:z.object({line:z.string(),bar:z.string(),data:z.string(),download:z.string()})}).strict().superRefine((v,c)=>{if(new Set(v.series.map(s=>s.key)).size!==v.series.length)c.addIssue({code:'custom',message:'Duplicate series'});});
+export const datasetSchema=z.object({rows:z.array(z.object({x:z.string().min(1).max(120),values:z.record(z.number().finite().nullable()),sources:z.array(z.number().int().positive()).min(1)})).min(1).max(200),sources:z.array(z.object({title:z.string().min(1),url:z.string().url().refine(u=>u.startsWith('https://'))})).min(1).max(40),notes:z.string().max(4000)}).strict();
+export type ChartDefinition=z.infer<typeof chartSchema>;
+export type ChartDataset=z.infer<typeof datasetSchema>;
+export function validateChartData(chart:ChartDefinition,input:unknown){const data=datasetSchema.parse(input);for(const row of data.rows){if(Object.keys(row.values).length!==chart.series.length||chart.series.some(s=>!Object.hasOwn(row.values,s.key))||row.sources.some(n=>n>data.sources.length))throw new Error('Invalid chart data mapping');}if(!data.rows.some(r=>Object.values(r.values).some(v=>v!==null)))throw new Error('No verified observations');return data;}

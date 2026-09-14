@@ -1,0 +1,19 @@
+import test from 'node:test';import assert from 'node:assert/strict';import {DatabaseSync} from 'node:sqlite';import {readFileSync,readdirSync} from 'node:fs';import ts from 'typescript';
+test('root targets branches or apps, never wiki pages or sessions; routes are user scoped and revoked apps are excluded',async()=>{
+ const db=new DatabaseSync(':memory:');for(const f of readdirSync('drizzle').filter(f=>f.endsWith('.sql')).sort())db.exec(readFileSync('drizzle/'+f,'utf8'));
+ let confidence='high',classified=0,candidates=[];
+ globalThis.rootRoutingTest={database:()=>({prepare(sql){return {bind(...args){return {all:async()=>({results:db.prepare(sql).all(...args)}),run:async()=>db.prepare(sql).run(...args)}}}}}),normalize:s=>s.toLowerCase(),cosine:()=>1,nearestQuestions:c=>c.slice(0,5),assessQuestion:async(q,c)=>{candidates=c;return {questionId:c[0]?.id,confidence}},pageIntent:async()=>{classified++;return {route:'wiki',kind:'article',fresh:false,service:'none'}},recordAction:async()=>{}};
+ const source=readFileSync('app/routing/root-table.ts','utf8').replace(/^import .*;$/gm,'')+'\nconst {database,normalize,cosine,nearestQuestions,assessQuestion,pageIntent,recordAction}=globalThis.rootRoutingTest;';
+ const mod=await import('data:text/javascript;base64,'+Buffer.from(ts.transpile(source,{module:ts.ModuleKind.ESNext,target:ts.ScriptTarget.ES2022})).toString('base64'));
+ const wiki={route:'wiki',kind:'article',fresh:false,service:'none'},session={...wiki,route:'session',kind:'application'};
+ await mod.rememberRootRoute('China',[1],'en','alice','wiki','wiki-page',wiki);
+ await mod.rememberRootRoute('Help me plan',[1],'en','bob','session','session-page',session);
+ const rows=db.prepare('SELECT * FROM root_routes ORDER BY owner_id').all();assert.equal(rows[0].target_type,'wiki_router');assert.equal(rows[0].app_id,null);assert.equal(rows[1].target_type,'session_router');assert.equal(rows[1].app_id,null);
+ assert.equal((await mod.resolveRootRoute('China',[1],'en','alice',{})).intent.route,'wiki');assert.equal(candidates.length,1);assert.equal(candidates[0].question,'China');assert.equal(classified,0);
+ confidence='uncertain';await mod.resolveRootRoute('China today',[1],'en','alice',{});assert.equal(classified,1);
+ db.exec("INSERT INTO pages(id,owner_id,question,title,summary,body,category,sources,language,created_at,kind,visibility) VALUES('app','alice','files','Files','','','App','[]','en','now','dynamic','public')");
+ await mod.rememberRootRoute('Files',[1],'en','bob','app','app',{...session,route:'app'});
+ db.exec("UPDATE pages SET visibility='private' WHERE id='app'");
+ confidence='high';await mod.resolveRootRoute('Files',[1],'en','bob',{});assert.equal(candidates.some(c=>c.question==='Files'),false);
+ db.close();delete globalThis.rootRoutingTest;
+});

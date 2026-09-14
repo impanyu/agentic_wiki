@@ -1,0 +1,2 @@
+import {getActor} from '@/app/actor';import {reply,sameOrigin} from '@/db/store';import {executeStorage} from '@/app/storage/service';
+export async function POST(r:Request){const a=await getActor(r);if(!sameOrigin(r))return a.finish(reply({error:'Same-origin request required.'},403));try{return a.finish(reply({result:await executeStorage(await r.json(),a.userId)}));}catch(e){return a.finish(reply({error:e instanceof Error&&e.message.startsWith('STORAGE_')?e.message:'Storage request failed.'},400));}}

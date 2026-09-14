@@ -1,0 +1,13 @@
+import {askAgent,type Agent} from '@/app/components-registry/agents';
+import {createComponent,type AgentContext} from '@/app/components-registry/registry';
+import type {DynamicConfig,ConverterLabels} from '@/app/dynamic/units';
+export async function composeDrive(context:AgentContext,router:Agent){
+ const keys=['title','summary','connect','disconnect','refresh','more','empty','setup','signIn','name','modified','loading'];
+ const labels=await askAgent(router,'Translate these Google Drive interface labels into language '+context.language+'. title: Google Drive folders; summary: Browse the folders available to your connected Google Drive account.; connect: Connect Google Drive; disconnect: Disconnect; refresh: Refresh folders; more: Load more; empty: No folders found.; setup: Google Drive connection needs server setup. Configure the Google OAuth client before connecting an account.; signIn: Sign in to AgenticWiKi before connecting Google Drive.; name: Folder; modified: Modified; loading: Loading folders…',{task:'Google Drive folder list interface'}, {type:'object',additionalProperties:false,properties:Object.fromEntries(keys.map(k=>[k,{type:'string'}])),required:keys});
+ const credential=await createComponent('Google Drive OAuth connection reference','credential',{provider:'google_drive',connectionRef:'google_drive'},context);
+ const api=await createComponent('Google Drive API: list accessible folders using read-only metadata','api_adapter',{kind:'external-api',name:'Google Drive folders',baseUrl:'https://www.googleapis.com',documentationUrl:'https://developers.google.com/workspace/drive/api/reference/rest/v3/files/list',operations:['List accessible folders with pagination'],authentication:'oauth',execution:'requires-registered-adapter'},context,[{role:'credential',component:credential}]);
+ const backend=await createComponent('Google Drive folder listing for the current authenticated user','backend_code',{kind:'registered',implementation:'google-drive-folders-v1'},context,[{role:'api',component:api}]);
+ const frontend=await createComponent('Google Drive folders connection and listing interface','frontend_template',{kind:'registered',implementation:'google-drive-folders-v1',labels},context);
+ const config:DynamicConfig={template:'google-drive-folders-v1',executor:'google-drive-folders-v1',version:1,capability:'google-drive-folders',labels:{overview:context.language.startsWith('zh')?'概述':'Overview',invalid:labels.setup} as ConverterLabels,components:{frontend:{id:frontend.id,version:frontend.version},backend:{id:backend.id,version:backend.version}}};
+ return {title:labels.title,summary:labels.summary,config,parameters:{},components:[{role:'frontend',component:frontend},{role:'backend',component:backend}]};
+}

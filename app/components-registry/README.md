@@ -1,0 +1,40 @@
+# Typed component memory and agents
+
+The durable notebook is `components` + `component_questions` + `component_dependencies`.
+A mapping key is `(access scope, language, normalized question, component type)` and resolves to exactly one component. Public and each owner's private scope are distinct to avoid exposing private mappings. Equivalent aliases may point to one component. Existing page IDs remain unchanged; the `pages` table is the article/application subtype. SQLite triggers keep legacy page/question writes synchronized during the migration.
+
+## Search and composition
+
+`searchComponent` is an internal server agent tool. It embeds the query, retrieves the top five **question records** of the requested type/language within access permissions, asks the LLM to judge equivalence, then resolves the component. The browser defaults to `page` and exposes a component-type selector, including Data and any accessible custom types. `/api/ask` validates the selected type and applies the same access checks used by agents. Non-page searches return saved resources without creating an unrelated article. Component inspection displays definitions and native links; credential inspection exposes only a secret reference.
+
+The routing agent first resolves pages. On a miss it either researches a static article, composes a converter from registered components, or delegates a supported interactive tool to a coding agent. The coding agent writes and validates a form and expression program, searches for interchangeable frontend/backend/workflow components, stores missing definitions and their question aliases, and returns pinned component references. Saved page dependencies execute directly without another semantic search. New component IDs are immutable versions; a replacement uses a new ID, while existing pages keep their pinned references.
+
+Generated frontend definitions, backend expression programs and workflow steps are stored as JSON **in the component pool**, not just in deployed source. Registered converter components reference the versioned implementation that remains in source. Components include ownership, visibility, language, descriptions, versions and payloads. Private dependency access is rechecked when executing. Publishing a private page promotes its owned reusable dependencies; credentials cannot be promoted.
+
+## Execution boundary
+
+Generated programs currently support bounded arithmetic and string expressions, with earlier-output references for multi-step calculations. They are validated before storage and interpreted on the server. No generated JavaScript, eval, imports, loops, filesystem access or arbitrary HTTP requests run inside the Node.js server. Workflows can sequence up to twelve stored backend programs, passing earlier results onward. The coding agent supplies an example input/output that the server checks; this catches malformed programs and inconsistent examples but is not a proof of formula correctness.
+
+`api_adapter` components are created independently by a dedicated API-discovery agent when a task requires external services. It researches official documentation, then stores each API’s endpoint, operations, authentication requirements and documentation URL with its own typed question mapping. The resulting page retains dependencies on those API components. Discovery records knowledge; it does not grant execution permission. `credential` is a separate private resource type. Credential registration accepts only `{provider, secretRef: "COMPONENT_SECRET_..."}` and forces private storage; never store, embed or return secret values. Generic configured HTTP API execution and credential-reference resolution are implemented; see `API-EXECUTION.md`. Secret provisioning and unrestricted generated code execution are **not implemented**. Requests outside supported tool operations currently use the existing researched reference-page path. An HTTP API needs a stored operation definition plus an operator-controlled endpoint/credential grant; it does not require per-provider server code.
+
+## Agent short-term memory
+
+`agent_instances` records each agent role, owner and optional parent. `agent_memory` is a durable FIFO of at most twelve recent action/result pairs per instance, selected oldest-to-newest into every subsequent agent prompt. Individual entries are bounded and oversized results are summarized. Routing and coding agents are per composition task; in-page agents persist per signed-in user/page or guest cookie/page. `spawnAgent` supports additional dedicated roles and parent-child delegation.
+
+The coding agent receives bounded validation feedback and retries once. Routing memory records searches and delegated results. The page agent receives the current form, current inputs and its own FIFO; it clarifies missing values, invokes the saved workflow and explains the actual calculated result. Its bottom chatbox is separate from the top navigation input. The page agent does not create arbitrary code or act outside the page.
+
+Page-agent sessions use an HttpOnly SameSite cookie for guests and account identity for signed-in users. Page access is checked on every conversation read and execution. A per-agent lease serializes turns. Chat displays recent user/reply pairs retained in the FIFO; it is not an unlimited transcript. Request inputs/results remain in private agent memory and navigation history, not in the shared component definition.
+
+## General notebook tools
+
+`useNotebook` is a model-driven tool loop exposing search_components, inspect_component, remember_component, link_components and delegate_task. The coding agent consults it before authoring. Resource types are open-ended names, not a closed enum. Additional types store inert JSON data until an executor is explicitly registered. Each tool result enters the invoking agent’s FIFO before its next prompt. Delegated notebook subtasks get independent child agents and FIFOs. Tool rounds and delegation depth are bounded. Search filters by type, language and access; the browser searches and inspects resources through its access-checked routes, while agent tool execution remains server-side.
+
+Native links use `component_dependencies` with a named relationship and pinned target ID/version. Inspection returns only links whose targets the current user can access. Agents may add links only to components they own. An API may link to a private credential without exposing that credential link to other users. Such a link does not itself grant permission to execute an API or read a secret. Existing page/frontend/workflow/backend compositions use the same native edge table.
+
+## Private ownership, data and uploads
+
+All newly created components, including pages, start private. Every agent uses the initiating user’s exact resource principal; role and delegation confer no additional access. Signed-in users use their account ID; guests use the same HttpOnly `samepage_visitor` identity for pages, components, history, uploads and page agents. Existing public resources remain reusable. Owners can explicitly publish a resource; credential references always remain private.
+
+Data components store `{kind:"data-reference",location,format?,fileName?,mimeType?,size?,description?}`. Locations may reference server paths or external URIs; storing a path does not grant filesystem or network access. The Upload control stores files up to 10 MB in the private `FILES` filesystem object store. The component stores only `r2://FILES/...` and metadata; contents never enter embeddings or agent prompts during upload. An access-checked download route returns bytes as an attachment. Uploaded filenames are indexed as private question aliases. Resource visits and native-link navigation participate in the existing history and Back/Forward flow.
+
+Secrets remain outside the component pool: hosted server secret bindings or ignored local secret files. Credential components contain only their provider and secret reference. The registry rejects known credential-value fields and never resolves secret references into notebook prompts or browser responses.

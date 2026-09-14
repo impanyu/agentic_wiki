@@ -1,0 +1,3 @@
+import {database} from '@/db/store';
+export async function startJob(ownerId:string,kind:string,title:string,pageId?:string){const id=crypto.randomUUID(),now=new Date().toISOString();await database().prepare('INSERT INTO context_jobs(id,owner_id,kind,title,page_id,state,created_at,updated_at,expires) VALUES(?,?,?,?,?,?,?,?,?)').bind(id,ownerId,kind,title.slice(0,500),pageId||null,'running',now,now,Date.now()+10*60*1000).run();return id;}
+export async function finishJob(id:string,state='completed'){await database().prepare('UPDATE context_jobs SET state=?,updated_at=? WHERE id=?').bind(state,new Date().toISOString(),id).run();}

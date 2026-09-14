@@ -1,0 +1,2 @@
+import {getActor} from '@/app/actor';import {reply,sameOrigin} from '@/db/store';import {approveStorage} from '@/app/storage/service';
+export async function POST(r:Request,{params}:{params:Promise<{id:string}>}){const a=await getActor(r);if(!sameOrigin(r))return a.finish(reply({error:'Same-origin request required.'},403));try{return a.finish(reply({result:await approveStorage((await params).id,a.userId)}));}catch(e){return a.finish(reply({error:e instanceof Error&&e.message.startsWith('STORAGE_')?e.message:'Storage action failed.'},400));}}
