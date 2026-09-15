@@ -54,6 +54,9 @@ test('saved URL lookup reuses canonical identity with access checks and determin
  assert.equal(await m.matchSourceUrl('https://example.org/Paper?a=2','alice'),null);
  assert.equal(await m.matchSourceUrl('ordinary question','alice'),null);
  assert.equal(lookups,3);
+ assert.equal((await m.matchSourceUrl('介绍一下 https://example.org/Paper?a=1，谢谢','alice')).id,'own');
+ assert.equal((await m.matchSourceUrl('Read [this](https://example.org/Paper?a=1).','alice')).id,'own');
+ assert.equal(await m.matchSourceUrl('Compare https://example.org/Paper?a=1 and https://example.org/other','alice'),null);
  db.prepare("UPDATE pages SET visibility='private' WHERE id='public'").run();assert.equal(await m.matchSourceUrl(url,'visitor'),null);
  db.close();
 });
