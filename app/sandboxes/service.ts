@@ -19,7 +19,7 @@ async function state(id:string,status:string,providerId?:string){await database(
 export async function runProgram(raw:unknown,input:unknown,context:Pick<AgentContext,'userId'|'agent'>,uploads:{path:string;data:ArrayBuffer}[]=[]){
  if(uploads.some(f=>!/^\/home\/user\/context\/[a-zA-Z0-9._-]+$/.test(f.path))||uploads.reduce((n,f)=>n+f.data.byteLength,0)>40*1024*1024)throw Error('INVALID_CONTEXT_FILES');
  const apiKey=access(context),program=codeSchema.parse(raw),id=await reserve(context.userId,'code');let cleanupPending=false;
- try{const result=await runOpenAIProgram(program,input,uploads,apiKey,setting('OPENAI_SANDBOX_MODEL')||model(),async providerId=>state(id,'active',providerId),async providerId=>{cleanupPending=true;await state(id,'cleanup_pending',providerId);});return {...result,...(cleanupPending?{cleanupPending:true}:{})};}
+ try{const result=await runOpenAIProgram(program,input,uploads,apiKey,setting('OPENAI_SANDBOX_MODEL')||model('page-backend-coding'),async providerId=>state(id,'active',providerId),async providerId=>{cleanupPending=true;await state(id,'cleanup_pending',providerId);});return {...result,...(cleanupPending?{cleanupPending:true}:{})};}
  catch(e){if(e instanceof OpenAISandboxError)throw e;throw new Error('OPENAI_SANDBOX_EXECUTION_FAILED');}
  finally{if(!cleanupPending)await state(id,'closed').catch(()=>{});}
 }
