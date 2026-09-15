@@ -1,0 +1,1 @@
+export const customDesign={accent:'#e6ac4c',tint:'#29394a',canvas:'#101820',surface:'#192631',text:'#edf4fa',muted:'#b3c3d2',border:'#526479',headingFont:'serif',bodyFont:'sans',radius:10,spacing:24,width:1200,header:'panel',density:'comfortable',shadow:'flat',cardLayout:'stack'};

@@ -1,10 +1,11 @@
+import {customStyleSchema,customStyleFormat,normalizeCustomStyle} from './custom-style';
 import {visualThemes,visualStyleInstructions} from './visual-style';
 import type {SourceDocument} from '@/app/url-content';
 import {z} from 'zod';
 import {askAgent,type Agent} from '@/app/components-registry/agents';
 const strings=z.array(z.string().trim().min(1).max(600)).max(12);
 export const generationIntentSchema=z.object({
- visualTheme:z.enum(visualThemes).default('auto'),
+ visualTheme:z.enum(visualThemes).default('auto'),visualDesign:customStyleSchema.nullable().optional().default(null),
  subject:z.string().min(1).max(800),subjectType:z.string().min(1).max(100),
  goal:z.string().min(1).max(1200),explicitConstraints:strings,assumptions:strings,uncertainties:strings,
  mustCover:strings.min(1),sourceRequirements:strings,
@@ -16,7 +17,7 @@ export const generationIntentSchema=z.object({
 export type GenerationIntent=z.infer<typeof generationIntentSchema>;
 const list={type:'array',items:{type:'string'},maxItems:12};
 const properties={
- visualTheme:{type:'string',enum:visualThemes},
+ visualTheme:{type:'string',enum:visualThemes},visualDesign:customStyleFormat,
  subject:{type:'string'},subjectType:{type:'string'},goal:{type:'string'},
  explicitConstraints:list,assumptions:list,uncertainties:list,mustCover:{...list,minItems:1},sourceRequirements:list,
  outputKind:{type:'string',enum:['article','chart','application','conversation']},
@@ -30,6 +31,7 @@ export async function analyzeGenerationIntent(question:string,language:string,ge
   {question,language,sourceDocument,asOf:new Date().toISOString()},
   {type:'object',additionalProperties:false,properties,required:Object.keys(properties)},
   AbortSignal.any([signal,AbortSignal.timeout(60000)]),undefined,[],{webSearch:'auto'}));
+ if(intent.visualTheme==='custom')intent.visualDesign=normalizeCustomStyle(intent.visualDesign);else intent.visualDesign=null;
  const multiple=new Set(intent.interpretations.map(s=>s.toLocaleLowerCase())).size>1;
  if(sourceDocument)return {...intent,outputKind:'article' as const,service:'none' as const,fresh:false,needsDisambiguation:false};
  return {...intent,needsDisambiguation:intent.needsDisambiguation||!intent.singleMeaningCertain||multiple};

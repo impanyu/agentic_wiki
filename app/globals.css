@@ -262,3 +262,28 @@ a{color:inherit;text-decoration:none}button,a,input{touch-action:manipulation}bu
 .dynamic-answer[data-app-theme=creative] .metric-card{box-shadow:0 8px 24px #7440aa0a}
 @media(max-width:600px){.answer.dynamic-answer[data-app-theme]{padding:16px;margin-top:20px}.dynamic-answer[data-app-header=panel] .wiki-heading{padding:18px}.dynamic-answer[data-app-theme] .page-agent.page-chat{padding:16px}.dynamic-answer[data-app-theme] .program-view{padding:14px}.dynamic-answer[data-app-theme=notion] h1{font-size:30px}}
 .dynamic-answer[data-app-theme] :is(.context-actions>span,.selection-tools,.page-meta,.saved-note,.chat-message-meta,.chat-composer-actions>span){color:#566273}
+
+/* Generated designs use validated tokens, with foregrounds resolved per surface. */
+.answer.dynamic-answer[data-app-theme=custom]{max-width:var(--app-width);padding:var(--app-spacing);font-family:var(--app-body-font);color:var(--app-canvas-ink);box-shadow:var(--app-shadow)}
+.dynamic-answer[data-app-theme=custom] :is(h1,h2,h3,p,li,.lead,.wiki-label,.context-actions>span,.selection-tools,.page-meta,.saved-note){color:inherit}
+.dynamic-answer[data-app-theme=custom] a{color:var(--app-canvas-link)}
+.dynamic-answer[data-app-theme=custom] :is(.component-form,.program-view,.converter,.interactive-chart,.file-browser,.page-agent.page-chat,.file-explorer){background:var(--app-surface);color:var(--app-text);--muted-foreground:var(--app-muted)}
+.dynamic-answer[data-app-theme=custom] :is(.component-form,.program-view,.page-agent.page-chat){padding:var(--app-spacing)}
+.dynamic-answer[data-app-theme=custom] :is(.component-form,.program-view,.converter,.interactive-chart,.file-browser,.page-agent,.file-explorer) a{color:var(--app-link)}
+.dynamic-answer[data-app-theme=custom] :is(button,input:not([type=checkbox]):not([type=radio]),select,textarea,.file-browser aside button,.file-explorer-form){background:var(--app-surface);color:var(--app-text);border-color:var(--app-border);font-family:var(--app-body-font)}
+.dynamic-answer[data-app-theme=custom] :is(.metric-card,.component-results,.converter-result,.chat-user-bubble,.file-browser aside,.chart-toolbar button[aria-pressed=true],.chart-table th){background:var(--app-tint);color:var(--app-tint-ink)}
+.dynamic-answer[data-app-theme=custom][data-app-header=panel] .wiki-heading{color:var(--app-tint-ink);padding:var(--app-spacing)}
+.dynamic-answer[data-app-theme=custom] :is(.metric-card,.component-results,.converter-result,.chat-user-bubble,.file-browser aside) :is(a,strong){color:var(--app-tint-link)}
+.dynamic-answer[data-app-theme=custom][data-app-header=panel] .wiki-heading a{color:var(--app-tint-link)}
+.dynamic-answer[data-app-theme=custom] :is(.component-form button,.program-view>button,.program-view form button,.converter-submit,.page-agent .chat-composer-actions button:not(:disabled),.page-agent .edit-proposal>button){background:var(--app-accent);color:var(--app-on-accent)}
+.dynamic-answer[data-app-theme=custom] .page-chat form.chat-composer{background:var(--app-surface);color:var(--app-text)}
+.dynamic-answer[data-app-theme=custom] :is(.chat-assistant-text,.chat-message-meta,.chat-composer-actions>span,.file-entry,.chart-table td){color:var(--app-text)}
+.dynamic-answer[data-app-theme=custom] :is(input,textarea)::placeholder{color:var(--app-muted)}
+.dynamic-answer[data-app-theme=custom] :is(.file-entry>svg,.metric-card small,.metric-card span){color:inherit}
+.dynamic-answer[data-app-theme=custom] .metric-cards{gap:var(--app-spacing)}
+.dynamic-answer[data-app-theme=custom][data-app-cards=stack] .metric-cards{grid-template-columns:1fr}
+.dynamic-answer[data-app-theme=custom][data-app-density=compact] :is(.metric-card,.file-browser-main,.component-form,.program-view){padding:calc(var(--app-spacing) * .7)}
+@media(max-width:600px){.answer.dynamic-answer[data-app-theme=custom]{padding:min(var(--app-spacing),16px)}.dynamic-answer[data-app-theme=custom] :is(.page-agent.page-chat,.program-view){padding:14px}}
+.dynamic-answer[data-app-theme=custom] .selection-tools{background:var(--app-canvas);color:var(--app-canvas-ink);border-color:var(--app-border)}
+.dynamic-answer[data-app-theme=custom] .recharts-cartesian-axis-tick text{fill:var(--app-muted)}
+.dynamic-answer[data-app-theme=custom] .recharts-default-tooltip{background:var(--app-surface)!important;color:var(--app-text);border-color:var(--app-border)!important}

@@ -1,3 +1,4 @@
+import {customDesign} from './fixtures/custom-style.mjs';
 import test from 'node:test';import assert from 'node:assert/strict';import {readFileSync} from 'node:fs';import ts from 'typescript';import {z} from 'zod';
 const strip=p=>readFileSync(p,'utf8').replace(/^import .*;$/gm,'');
 const load=s=>import('data:text/javascript;base64,'+Buffer.from(ts.transpile(s,{module:ts.ModuleKind.ESNext,target:ts.ScriptTarget.ES2022})).toString('base64'));
@@ -5,12 +6,15 @@ const base={subject:'SigPID: significant permission identification for android m
 test('analysis preserves original query, permits research, validates structure and normalizes ambiguity',async()=>{
  let answer=base,task,options;
  globalThis.intentUnit={z,askAgent:async(a,i,t,s,signal,onReply,files,o)=>{task=t;options=o;return answer;}};
- const m=await load('const {z,askAgent}=globalThis.intentUnit;\n'+strip('app/page-programs/visual-style.ts')+'\n'+strip('app/page-programs/generation-intent.ts'));
+ const m=await load('const {z,askAgent}=globalThis.intentUnit;\n'+strip('app/page-programs/custom-style.ts')+'\n'+strip('app/page-programs/visual-style.ts')+'\n'+strip('app/page-programs/generation-intent.ts'));
  const signal=new AbortController().signal;
  const plan=await m.analyzeGenerationIntent(base.subject,'en',{},signal);
  assert.equal(task.question,base.subject);assert.equal(options.webSearch,'auto');assert.deepEqual(plan.mustCover,base.mustCover);
  answer={...base,subject:'china',interpretations:['Country','Porcelain']};
  assert.equal((await m.analyzeGenerationIntent('china','en',{},signal)).needsDisambiguation,true);
+ answer={...base,visualTheme:'custom',visualDesign:customDesign};
+ assert.deepEqual((await m.analyzeGenerationIntent('Custom observatory','en',{},signal)).visualDesign,customDesign);
+ answer={...base,visualTheme:'custom'};await assert.rejects(m.analyzeGenerationIntent('Missing design','en',{},signal));
  answer={...base,mustCover:[]};await assert.rejects(m.analyzeGenerationIntent('query','en',{},signal));
  answer={requirements:[{index:0,satisfied:true,evidence:'The paper identity is present.'}],reason:'Experiments are missing'};
  assert.equal((await m.reviewGeneratedDefinition('query',base,{}, {},signal)).accepted,false);
@@ -25,9 +29,9 @@ test('new-page analysis can correct initial presentation and drives generation p
  const ctx={userId:'u',ownerId:'u',language:'en'},signal=new AbortController().signal;
  const paper=await m.generateContext({question:base.subject,templateId:'form-v1',route:'app',fresh:false},ctx,{},undefined,signal);
  assert.equal(paper.templateId,'wiki-v1');assert.equal(seen.q,base.subject);assert.deepEqual(seen.i,base);assert.equal(compositions,0);
- intent={...base,outputKind:'conversation',mustCover:['Compare the requested choices']};
+ intent={...base,visualTheme:'custom',visualDesign:customDesign,outputKind:'conversation',mustCover:['Compare the requested choices']};
  const app=await m.generateContext({question:'Help me compare options',templateId:'wiki-v1',route:'wiki',fresh:false},ctx,{},undefined,signal);
- assert.equal(app.templateId,'chat-v1');assert.equal(compositions,2);assert.equal(seen.generationFeedback,'Preserve the requested comparison criteria.');assert.deepEqual(seen.generationIntent,intent);
+ assert.equal(app.definition.config.visualTheme,'custom');assert.deepEqual(app.definition.config.visualDesign,customDesign);assert.equal(app.templateId,'chat-v1');assert.equal(compositions,2);assert.equal(seen.generationFeedback,'Preserve the requested comparison criteria.');assert.deepEqual(seen.generationIntent,intent);
  reviews=10;await assert.rejects(m.generateContext({question:'Help',templateId:'chat-v1',fresh:false},ctx,{},undefined,signal),/INCOMPLETE_ANSWER/);
  delete globalThis.intentFlow;
 });
