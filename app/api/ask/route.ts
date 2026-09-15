@@ -4,7 +4,6 @@ import {ensurePageSession,rememberSessionRoutes} from '@/app/chat/session';
 import {startJob,finishJob} from '@/app/context-index/jobs';
 import {routeInputs,programNavigationInput} from '@/app/page-programs/inputs';
 import {answerStream} from '@/app/answer-stream';
-import {assessAmbiguity} from '@/app/disambiguation';
 import {generateContext} from '@/app/page-programs/generate-context';
 import {selectTemplate} from '@/app/templates/select';
 import {matchQuestion} from './question-search';
@@ -110,23 +109,21 @@ async function routeAnswer(request:Request,actor:Awaited<ReturnType<typeof getAc
 
   let matched=fork?null:await findMatch();
   if(matched){const page=await resolvePage(matched);if(!page)return respond({error:'This page is no longer accessible. Please try again.'},404);await remember(page.id,page);const updated=await refreshMatchedPage(page,destination,requested.fresh,uid,router);return respond({page:updated,reused:true,destination});}
-  // Disambiguation is a generation choice after the routing table has missed.
-  const ambiguityDecision=requested.kind==='article'?await assessAmbiguity(destination,language,router):null;
-  const ambiguity=ambiguityDecision?.needed===true;
-  const presentation=ambiguity?'disambiguation-v1':domain==='session'?'chat-v1':requested.service==='google_drive_folders'?'files-v1':['context_pages','user_jobs'].includes(requested.service)?'wiki-v1':await selectTemplate(destination,router,undefined,requested.kind);
+  // The content generator chooses article versus disambiguation after reuse misses.
+  const presentation=requested.kind==='article'?'wiki-v1':domain==='session'?'chat-v1':requested.service==='google_drive_folders'?'files-v1':['context_pages','user_jobs'].includes(requested.service)?'wiki-v1':await selectTemplate(destination,router,undefined,requested.kind);
   const visibility='private' as const;
   const keyBytes=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(JSON.stringify([language,destinationKey,uid])));
   const generationKey=fork?'fork:'+fork.requestId:'question:'+Array.from(new Uint8Array(keyBytes),b=>b.toString(16).padStart(2,'0')).join('');
-  token=await lock(generationKey);
+  token=await lock(generationKey,300000);
   if(!token)return respond({error:'This question is already being prepared.',retryAfter:2},409);
   const lease=token;
-  const deadline=AbortSignal.timeout(180000);
+  const deadline=AbortSignal.timeout(240000);
 
   async function generate(emit?:(event:ResearchUpdate)=>void,signal?:AbortSignal){
    signal=signal?AbortSignal.any([signal,deadline]):deadline;
    signal.throwIfAborted();
    if(domain==='app')await recordAction(router,'Return app cache miss to root',{question:destination,rootAgentId:rootRouter.id});
-   const generated=await generateContext({question:destination,templateId:presentation,interpretations:ambiguityDecision?.interpretations,fresh:requested.fresh,service:requested.service,route:domain},context,domain==='app'?rootRouter:router,emit,signal);
+   const generated=await generateContext({question:destination,templateId:presentation,fresh:requested.fresh,service:requested.service,route:domain},context,domain==='app'?rootRouter:router,emit,signal);
    const {answer,definition}=generated,dependencies=definition?.components||[],id=fork?.requestId||crypto.randomUUID(),now=new Date().toISOString();
   const active=await database().prepare("SELECT token FROM generation_locks WHERE token=? AND expires>?").bind(lease,Date.now()).first();
   if(!active)throw new Error('The request took too long. Please try again.');

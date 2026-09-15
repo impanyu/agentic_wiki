@@ -20,6 +20,6 @@ test('explicit forks obey visibility and allow owner-only removal',async()=>{
  const standalone=await removeFork('duplicate','alice');assert.equal(standalone.nextPageId,null);assert.equal(await getPage('duplicate','alice'),null);
  db.close();delete globalThis.forkTest;
 });
-test('disambiguation is evaluated only after match reuse, including final reconciliation',()=>{const source=readFileSync('app/api/ask/route.ts','utf8');assert.ok(source.indexOf('const ambiguity=')>source.indexOf('if(matched){const page=await resolvePage'));assert.doesNotMatch(source,/if\(ambiguity&&page\?\.labels/);assert.doesNotMatch(source,/if\(matched\)\{const candidate=.*ambiguity/);});
+test('only the generator decides ambiguity after page reuse misses',()=>{const source=readFileSync('app/api/ask/route.ts','utf8');assert.doesNotMatch(source,/assessAmbiguity|needsDisambiguation/);const generation=readFileSync('app/page-programs/generate-context.ts','utf8');assert.match(generation,/assessAmbiguity\(brief.question,context.language,generator,signal\)/);});
 
 test('forks generate from the question, bypass both matches and do not replace routing aliases',()=>{const s=readFileSync('app/api/ask/route.ts','utf8');assert.match(s,/matched=fork\?null:await findMatch/);assert.match(s,/existing=fork\?null:await findMatch/);assert.match(s,/\(fork\?\[\]:entries\)/);assert.match(s,/if\(!fork\)await rememberRootRoute/);assert.match(s,/generateContext\(\{question:destination/);assert.doesNotMatch(s,/source\.body|source\.dynamic|source\.links/);});

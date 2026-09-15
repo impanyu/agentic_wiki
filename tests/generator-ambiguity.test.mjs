@@ -1,0 +1,29 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {readFileSync} from 'node:fs';
+import ts from 'typescript';
+const load=source=>import('data:text/javascript;base64,'+Buffer.from(ts.transpile(source,{module:ts.ModuleKind.ESNext,target:ts.ScriptTarget.ES2022})).toString('base64'));
+test('content generator chooses index or article and passes verified interpretations',async()=>{
+ let ambiguous=true,researches=0,indices=0;
+ const generator={id:'g',role:'content-generation'},signal=new AbortController().signal;
+ globalThis.generatorTest={spawnAgent:async()=>generator,recordAction:async()=>{},assessAmbiguity:async(q,l,a,s)=>{assert.equal(a,generator);assert.equal(s,signal);return {needed:ambiguous,interpretations:['Country','Porcelain']};},classifyAmbiguity:async(q,l,a,required,meanings,s)=>{indices++;assert.equal(required,true);assert.deepEqual(meanings,['Country','Porcelain']);assert.equal(s,signal);return {title:'Index'};},indexAnswer:i=>i,research:async()=>{researches++;return {title:'Article',sources:[]};}};
+ const source=readFileSync('app/page-programs/generate-context.ts','utf8').replace(/^import .*;$/gm,'');
+ const m=await load('const {'+Object.keys(globalThis.generatorTest).join(',')+'}=globalThis.generatorTest;\n'+source);
+ const context={ownerId:'u',userId:'u',language:'en'};
+ assert.equal((await m.generateContext({question:'china',templateId:'wiki-v1',fresh:false,route:'wiki'},context,{},undefined,signal)).templateId,'disambiguation-v1');
+ assert.equal(researches,0);ambiguous=false;
+ assert.equal((await m.generateContext({question:'photosynthesis',templateId:'wiki-v1',fresh:false,route:'wiki'},context,{},undefined,signal)).templateId,'wiki-v1');
+ assert.equal(researches,1);assert.equal(indices,1);delete globalThis.generatorTest;
+});
+test('search-enabled agent requests web search and rejects missing search evidence',async()=>{
+ let completed=true,payload;
+ globalThis.searchAgentTest={model:()=> 'test-model',memory:async()=>[],recordAction:async()=>{},output:()=> '{"needed":false}',api:async(path,p)=>{payload=p;return {output:completed?[{type:'web_search_call',status:'completed'}]:[]};}};
+ const source=readFileSync('app/components-registry/agents.ts','utf8').split('export async function askAgent')[1];
+ const m=await load('const {'+Object.keys(globalThis.searchAgentTest).join(',')+'}=globalThis.searchAgentTest;\nexport async function askAgent'+source);
+ const agent={role:'content-generation'};
+ await m.askAgent(agent,'Check meanings',{}, {},undefined,undefined,[],{webSearch:true});
+ assert.deepEqual(payload.tools,[{type:'web_search'}]);assert.equal(payload.tool_choice,'required');
+ completed=false;await assert.rejects(()=>m.askAgent(agent,'Check meanings',{}, {},undefined,undefined,[],{webSearch:true}),/AI_UNAVAILABLE/);
+ await m.askAgent(agent,'Ordinary task',{},{});assert.equal(payload.tools,undefined);
+ delete globalThis.searchAgentTest;
+});
