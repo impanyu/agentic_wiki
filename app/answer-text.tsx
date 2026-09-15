@@ -1,11 +1,12 @@
 'use client';
+import {SourceMediaView} from './url-content/media-view';
 import {availableConcepts} from './concepts/ranges';
 import {useState, type ReactNode} from 'react';
 import {pageAddress} from './dynamic/units';
 import {CornerUpLeft} from 'lucide-react';
 import {inlineParts,linkPattern,isSourceLabel,linkLevels,type Highlight,type InternalLink} from './internal-links';
 export type {Highlight} from './internal-links';
-export function AnswerText({body,title,summary,labels,sources,highlights,links=[],concepts=[],onJump,onOpen,children}:{children?:React.ReactNode;body:string;title:string;summary:string;labels:{overview?:string;contents?:string;sources?:string};sources:{title:string;url:string}[];highlights:Highlight[];links?:InternalLink[];concepts?:Highlight[];onJump:(highlight:Highlight)=>void;onOpen:(link:InternalLink)=>void}){
+export function AnswerText({body,title,summary,labels,sources,highlights,links=[],concepts=[],onJump,onOpen,children}:{children?:React.ReactNode;body:string;title:string;summary:string;labels:import('./page-types').AnswerPage['labels'];sources:{title:string;url:string}[];highlights:Highlight[];links?:InternalLink[];concepts?:Highlight[];onJump:(highlight:Highlight)=>void;onOpen:(link:InternalLink)=>void}){
  // One source number per URL; each occurrence gets its own return anchor.
  const references:{title:string;url:string;occurrences:string[]}[]=[];
  function sourceFor(url:string,title:string){let index=references.findIndex(s=>s.url===url);if(index<0){index=references.length;references.push({url,title,occurrences:[]});}return index;}
@@ -62,7 +63,7 @@ export function AnswerText({body,title,summary,labels,sources,highlights,links=[
  return <><header className="wiki-heading"><h1>{text(title,'title')}</h1>{showSummary&&<><p className="wiki-label">{labels.overview||'Overview'}</p><p className="lead">{summaryContent}</p></>}</header>{children}
   <div className="wiki-layout">
    {headings.length>1&&<nav className="wiki-contents" aria-label="Article contents"><strong>{labels.contents||'Contents'}</strong><ol>{headings.map(h=><li key={h.id} className={h.level===3?'subsection':''}><a href={'#'+h.id} onClick={e=>{e.preventDefault();document.getElementById(h.id)?.scrollIntoView({block:'start'});}}>{h.title}</a></li>)}</ol></nav>}
-   <div className="wiki-body">{media.size>0&&<aside className="wiki-illustrations" aria-label="Illustrations">{figures}</aside>}{blocks}</div>
+   <div className="wiki-body">{labels.sourceMedia?.length?<SourceMediaView media={labels.sourceMedia}/>:null}{media.size>0&&<aside className="wiki-illustrations" aria-label="Illustrations">{figures}</aside>}{blocks}</div>
   </div>
   {references.length>0&&<section className="sources" aria-label={labels.sources||'Sources'}><h2>{labels.sources||'Sources'}</h2><ol>{references.map((source,i)=><li id={'source-'+(i+1)} tabIndex={-1} key={source.url}><div className="source-entry"><span className="source-returns">{source.occurrences.length>1&&<CornerUpLeft size={14} className="source-return-icon" aria-hidden="true"/>}{source.occurrences.map((id,j)=><a key={id} href={'#'+id} className="source-return" title={'Back to citation '+(i+1)+(source.occurrences.length>1?', occurrence '+(j+1):'')} aria-label={'Back to citation '+(i+1)+(source.occurrences.length>1?', occurrence '+(j+1):'')} onClick={e=>{e.preventDefault();jumpTo(id);}}>{source.occurrences.length>1?j+1:<CornerUpLeft size={14} aria-hidden="true"/>}</a>)}</span><a className="source-title" href={source.url} target="_blank" rel="noopener noreferrer">{source.title}</a></div></li>)}</ol></section>}
   </>;

@@ -15,7 +15,7 @@ export type AnswerPage = {
   id: string;
   question?: string;
   language: string;
-  labels: {sourceUrl?:string;sourceSummary?:string;indexEntries?:import('./disambiguation/view').IndexEntry[];templateId?:import('./templates/catalog').TemplateId;overview?:string;contents?:string;sources?:string};
+  labels: {sourceMedia?:import('./url-content/media').SourceMedia[];sourceUrl?:string;sourceSummary?:string;indexEntries?:import('./disambiguation/view').IndexEntry[];templateId?:import('./templates/catalog').TemplateId;overview?:string;contents?:string;sources?:string};
   title: string;
   summary: string;
   body: string;

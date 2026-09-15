@@ -1,8 +1,9 @@
+import {extractSourceMedia,type SourceMedia} from './media';
 import {z} from 'zod';
 import {api,output,embed,detectLanguages} from '@/app/api/ask/ai';
 import {model} from '@/db/store';
 import {sourceUrl,fetchSource,sourceText} from './fetch';
-export type SourceDocument={url:string;resolvedUrl:string;title:string;summary:string;notes:string};
+export type SourceDocument={url:string;resolvedUrl:string;title:string;summary:string;notes:string;media?:SourceMedia[]};
 export async function resolveUrlContent(input:string,signal:AbortSignal):Promise<SourceDocument|null>{
  const url=sourceUrl(input);if(!url)return null;
  let source:Awaited<ReturnType<typeof fetchSource>>;
@@ -18,7 +19,7 @@ export async function resolveUrlContent(input:string,signal:AbortSignal):Promise
   text:{format:{type:'json_schema',name:'url_content_summary',strict:true,schema:{type:'object',additionalProperties:false,properties:{readable:{type:'boolean'},title:{type:'string'},summary:{type:'string'},notes:{type:'string'}},required:['readable','title','summary','notes']}}},max_output_tokens:6000},signal);
  const content=z.object({readable:z.boolean(),title:z.string().max(300),summary:z.string().max(4000),notes:z.string().max(18000)}).parse(JSON.parse(output(result)));
  if(!content.readable||content.summary.trim().length<80||!content.title.trim())throw Error('URL_UNREADABLE');
- return {url:url.href,resolvedUrl:source.url,title:content.title,summary:content.summary,notes:content.notes};
+ return {url:url.href,resolvedUrl:source.url,title:content.title,summary:content.summary,notes:content.notes,media:source.type.includes('html')?extractSourceMedia(decoded,source.url):[]};
 }
 export function urlSemanticQuestion(source:SourceDocument){return 'Reference page about the content of this source: '+source.title+'\n\n'+source.summary;}
 
