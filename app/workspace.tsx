@@ -1,4 +1,5 @@
 'use client';
+import {usePageUi,UiContext} from '@/app/i18n/client';
 import {PageShare} from './page-share';
 import {canWritePage,pageAccess,type PageAccess} from './page-permissions';
 import {DisambiguationIndex} from './disambiguation/view';
@@ -38,6 +39,8 @@ export default function Workspace({ user, signIn, signOut }: {
   signIn: string;
   signOut: string;
 }) {
+
+
   const [question, setQuestion] = useState('');
   const actorReady=useRef<Promise<void>|null>(null);
   function ensureActor(){return actorReady.current??=navigationRequest('/api/session').then(async response=>{if(!response.ok)throw new Error('Could not initialize the session.');await response.json();}).catch(error=>{actorReady.current=null;throw error;});}
@@ -56,6 +59,7 @@ export default function Workspace({ user, signIn, signOut }: {
     void load();return()=>{controller.abort();clearTimeout(timer);};
   },[selected?.id,selected?.body,selected?.summary,conceptAttempt]);
   const [draft,setDraft]=useState<AnswerPage|null>(null);
+  const ui=usePageUi((draft||selected)?.language||'en'),{t,locale}=ui;
   const [busy, setBusy] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -328,44 +332,44 @@ export default function Workspace({ user, signIn, signOut }: {
   }
 
   const visiblePage=draft||selected;
-  return <div className="browser-shell">
+  return <UiContext.Provider value={ui}><div className="browser-shell" lang={locale}>
     <header className="browser-toolbar">
       <span className="browser-brand" aria-label="AgenticWiKi"><Layers size={22} aria-hidden="true"/><span>AgenticWiKi</span></span>
       <div className="history-controls">
-        <button type="button" aria-label="Back" title="Back" disabled={(historyPosition===0&&!busy&&!draft)||saving} onClick={()=>{if(busy||draft)void restore();else history.back();}}><ArrowLeft size={19}/></button>
-        <button type="button" aria-label="Forward" title="Forward" disabled={historyPosition>=historyLength-1||saving} onClick={()=>history.forward()}><ArrowRight size={19}/></button>
+        <button type="button" aria-label={t("Back")} title={t("Back")} disabled={(historyPosition===0&&!busy&&!draft)||saving} onClick={()=>{if(busy||draft)void restore();else history.back();}}><ArrowLeft size={19}/></button>
+        <button type="button" aria-label={t("Forward")} title={t("Forward")} disabled={historyPosition>=historyLength-1||saving} onClick={()=>history.forward()}><ArrowRight size={19}/></button>
         <HistoryMenu disabled={busy||saving} saveError={historySaveError} beforeLoad={()=>{for(const visit of [...failedVisits.current.values()])saveVisit(visit.pageId,visit.text,visit.parameters,visit.id,visit.legacy);return visitWrites.current;}} onOpen={(entry:HistoryEntry)=>void openInternal({id:entry.id,targetId:entry.pageId,targetTitle:entry.title,quote:entry.question||entry.title,segments:[],parameters:entry.parameters})}/>
       </div>
-      <form className="address-bar" onSubmit={event => { event.preventDefault(); void navigate(); }} aria-label="Open an answer">
-        <label htmlFor="address" className="sr-only">Question or context</label>
+      <form className="address-bar" onSubmit={event => { event.preventDefault(); void navigate(); }} aria-label={t("Open an answer")}>
+        <label htmlFor="address" className="sr-only">{t("Question or context")}</label>
         <input ref={input} id="address" type="text" value={question} onChange={event => setQuestion(event.target.value)}
-          placeholder="Enter a question or context" maxLength={4000} autoComplete="off" autoFocus
+          placeholder={t("Enter a question or context")} maxLength={4000} autoComplete="off" autoFocus
           enterKeyHint="go" spellCheck={false} aria-describedby="address-help"/>
         <button type="submit" className="go-button" disabled={busy || !question.trim()}
-          aria-label={busy ? 'Opening answer' : 'Open answer'} title="Open answer · Enter">
+          aria-label={busy ? t("Opening answer") : t("Open answer")} title={t("Open answer · Enter")}>
           {busy ? <LoaderCircle className="spinner" size={18}/> : <ArrowRight size={18}/>}
         </button>
       </form>
       <input type="file" ref={uploadInput} hidden onChange={e=>{const file=e.target.files?.[0];if(file)void uploadFile(file);}}/>
-      <a className="account-link" href={user ? signOut : signIn} target="_top" title={user ? 'Signed in as ' + user.name : 'Sign in with Google'}>
-        {user ? 'Sign out' : 'Sign in'}
+      <a className="account-link" href={user ? signOut : signIn} target="_top" title={user ? t("Signed in as ") + user.name : t("Sign in with Google")}>
+        {user ? t("Sign out") : t("Sign in")}
       </a>
     </header>
-    <p className="sr-only" id="address-help">Type a question and press Enter to open its answer below. Press Control K or Command K to select the address bar.</p>
+    <p className="sr-only" id="address-help">{t("Type a question and press Enter to open its answer below. Press Control K or Command K to select the address bar.")}</p>
     <main className="browser-content" aria-busy={busy}>
-      {error && <div className="request-error" role="alert">{error}</div>}
-      {status && <div className="navigation-status" role="status">{busy ? <LoaderCircle size={15} className="spinner"/> : <Check size={15}/>} {status}</div>}
+      {error && <div className="request-error" role="alert">{t(error)}</div>}
+      {status && <div className="navigation-status" role="status">{busy ? <LoaderCircle size={15} className="spinner"/> : <Check size={15}/>} {t(status)}</div>}
       {visiblePage ? <article className={'answer '+(visiblePage.kind==='dynamic'?'dynamic-answer ':'')+'template-'+(visiblePage.labels.templateId||'wiki-v1')} lang={visiblePage.language==='und'?undefined:visiblePage.language} dir={['ar','he','fa','ur','ps','dv','yi'].includes(visiblePage.language)?'rtl':'ltr'}>
-        {!draft&&visiblePage.forks&&visiblePage.forks.length>0&&<nav className="page-forks" aria-label="Context forks"><span>{visiblePage.language.startsWith('zh')?'上下文分支':'Context forks'}</span><div>{visiblePage.forks.map((fork,i)=><div className="fork-choice" key={fork.id}><button aria-current={fork.id===visiblePage.id?'page':undefined} disabled={busy||fork.id===visiblePage.id} onClick={()=>void openInternal({id:'fork:'+fork.id,targetId:fork.id,targetTitle:fork.title,quote:question||fork.title,segments:[],parameters:{}})}><strong>{fork.isOriginal?(visiblePage.language.startsWith('zh')?'原始页面':'Original'):(visiblePage.language.startsWith('zh')?'分支':'Fork')+' '+(i+1)}</strong> {fork.title}<small>{pageAccess(fork)==='private'?'Private':pageAccess(fork)==='public-write'?'Public · 读写':'Public · 只读'}</small></button>{fork.removable&&<button className="remove-fork" disabled={busy} onClick={()=>void removePageFork(fork.id)} aria-label={'Remove fork: '+fork.title}><Trash2 size={13}/>{visiblePage.language.startsWith('zh')?'移除':'Remove'}</button>}</div>)}</div></nav>}
-        {!draft&&<div className="context-actions"><button onClick={()=>void createFork()} disabled={busy||saving}><GitFork size={15}/>{visiblePage.language.startsWith('zh')?'创建分支':'Fork'}</button><span>{visiblePage.language.startsWith('zh')?'仅根据问题重新生成私密分支':'Generate a fresh private fork from this question'}</span><PageShare key={visiblePage.id} page={visiblePage} disabled={busy||saving} onAccess={changeVisibility}/></div>}
+        {!draft&&visiblePage.forks&&visiblePage.forks.length>0&&<nav className="page-forks" aria-label={t("Context forks")}><span>{t("Context forks")}</span><div>{visiblePage.forks.map((fork,i)=><div className="fork-choice" key={fork.id}><button aria-current={fork.id===visiblePage.id?'page':undefined} disabled={busy||fork.id===visiblePage.id} onClick={()=>void openInternal({id:'fork:'+fork.id,targetId:fork.id,targetTitle:fork.title,quote:question||fork.title,segments:[],parameters:{}})}><strong>{fork.isOriginal?(t("Original")):(t("Fork"))+' '+(i+1)}</strong> {fork.title}<small>{pageAccess(fork)==='private'?t("Private"):pageAccess(fork)==='public-write'?t("Public read & write"):t("Public read only")}</small></button>{fork.removable&&<button className="remove-fork" disabled={busy} onClick={()=>void removePageFork(fork.id)} aria-label={t("Remove fork: ")+fork.title}><Trash2 size={13}/>{t("Remove")}</button>}</div>)}</div></nav>}
+        {!draft&&<div className="context-actions"><button onClick={()=>void createFork()} disabled={busy||saving}><GitFork size={15}/>{t("Fork")}</button><span>{t("Generate a fresh private fork from this question")}</span><PageShare key={visiblePage.id} page={visiblePage} disabled={busy||saving} onAccess={changeVisibility}/></div>}
         <div className="page-meta"><span>{visiblePage.category}</span><div className="page-visibility">
           {visiblePage.visibility === 'public' ? <Globe2 size={14}/> : <LockKeyhole size={14}/>}
-          {visiblePage.owned?<select aria-label="Page access" value={pageAccess(visiblePage)} disabled={saving||busy} onChange={e=>void changeVisibility(e.target.value as PageAccess)}>
-            <option value="private">Private</option><option value="public-read">Public · 只读 / Read only</option><option value="public-write">Public · 读写 / Read &amp; write</option>
-          </select>:<span>{pageAccess(visiblePage)==='private'?'Private':pageAccess(visiblePage)==='public-write'?'Public · 读写':'Public · 只读'}</span>}
+          {visiblePage.owned?<select aria-label={t("Page access")} value={pageAccess(visiblePage)} disabled={saving||busy} onChange={e=>void changeVisibility(e.target.value as PageAccess)}>
+            <option value="private">{t("Private")}</option><option value="public-read">{t("Public read only")}</option><option value="public-write">{t("Public read & write")}</option>
+          </select>:<span>{pageAccess(visiblePage)==='private'?t("Private"):pageAccess(visiblePage)==='public-write'?t("Public read & write"):t("Public read only")}</span>}
         </div></div>
         <div className="selection-tools" aria-live="polite">
-          {draft ? <span>{busy?'Generating… You can read the page as it appears.':'Incomplete draft — retry the question to generate a saved page.'}</span> : pending ? <><span className="selection-quote">“{pending.quote}”</span><button type="button" onMouseDown={e=>e.preventDefault()} onClick={()=>addHighlight(false)} disabled={busy}><Highlighter size={14}/> Highlight</button><button type="button" onMouseDown={e=>e.preventDefault()} onClick={()=>addHighlight(true)} disabled={busy}>Highlight & open <ArrowRight size={14}/></button></> : <span>{visiblePage.labels.templateId==='disambiguation-v1'?'Choose the meaning or topic you want to explore.':conceptStatus||'Select text to highlight it or open it as a question.'}{(conceptStatus.includes('could not')||conceptStatus.includes('still'))&&<button onClick={()=>setConceptAttempt(n=>n+1)}>Retry</button>}</span>}
+          {draft ? <span>{busy?t("Generating… You can read the page as it appears."):t("Incomplete draft — retry the question to generate a saved page.")}</span> : pending ? <><span className="selection-quote">“{pending.quote}”</span><button type="button" onMouseDown={e=>e.preventDefault()} onClick={()=>addHighlight(false)} disabled={busy}><Highlighter size={14}/>{t("Highlight")}</button><button type="button" onMouseDown={e=>e.preventDefault()} onClick={()=>addHighlight(true)} disabled={busy}>{t("Highlight & open")}<ArrowRight size={14}/></button></> : <span>{visiblePage.labels.templateId==='disambiguation-v1'?t("Choose the meaning or topic you want to explore."):t(conceptStatus)||t("Select text to highlight it or open it as a question.")}{(conceptStatus.includes('could not')||conceptStatus.includes('still'))&&<button onClick={()=>setConceptAttempt(n=>n+1)}>{t("Retry")}</button>}</span>}
         </div>
         <div ref={article} onMouseUp={captureSelection} onKeyUp={captureSelection} onTouchEnd={()=>setTimeout(captureSelection,0)}>
           <AnswerText concepts={!draft?concepts:[]} sources={visiblePage.sources} labels={visiblePage.labels} title={visiblePage.title} summary={visiblePage.summary} body={visiblePage.labels.templateId==='disambiguation-v1'?'':visiblePage.body} highlights={highlights[visiblePage.id]||[]} links={visiblePage.links||[]} onOpen={link=>void openInternal(link)} onJump={highlight=>{window.getSelection()?.removeAllRanges();void navigate(highlight.quote,{pageId:visiblePage.id,highlight})}}>{visiblePage.labels.templateId==='disambiguation-v1'&&visiblePage.labels.indexEntries&&<DisambiguationIndex entries={visiblePage.labels.indexEntries} onOpen={text=>void navigate(text)} disabled={busy}/>} {visiblePage.contextIndex&&<ContextIndex page={visiblePage} onResult={setSelected} onOpen={(id,title)=>void openInternal({id,targetId:id,targetTitle:title,quote:title,segments:[],parameters:{}})}/>} {visiblePage.view&&<ProgramView page={visiblePage} onResult={setSelected}/>} {visiblePage.dynamic?.chart&&visiblePage.dynamic.dataset&&<Dashboard tableFirst={visiblePage.labels.templateId==='table-v1'} key={'chart:'+visiblePage.id} chart={visiblePage.dynamic.chart} dataset={visiblePage.dynamic.dataset}/>}{visiblePage.dynamic?.sandbox&&<SandboxView key={'sandbox:'+visiblePage.id} title={visiblePage.title} app={visiblePage.dynamic.sandbox}/>}</AnswerText>
@@ -374,13 +378,13 @@ export default function Workspace({ user, signIn, signOut }: {
         {visiblePage.dynamic?.template==='google-drive-folders-v1'&&visiblePage.dynamic.driveLabels&&<DriveFolders key={'drive:'+visiblePage.id} pageId={visiblePage.id} labels={visiblePage.dynamic.driveLabels}/>}
         {visiblePage.dynamic?.template==='component-form-v1'&&<ComponentForm key={'form:'+visiblePage.id} page={visiblePage} onResult={page=>{setSelected(page);recordHistory(page.id,question,page.parameters);}}/>}
         {visiblePage.dynamic?.template==='file-browser-v1'&&<UploadedFiles language={visiblePage.language}/>}
-        {visiblePage.runtimeError&&<p role="alert">{visiblePage.runtimeError}</p>}
+        {visiblePage.runtimeError&&<p role="alert">{t(visiblePage.runtimeError)}</p>}
         {visiblePage.kind==='dynamic'&&<StoragePanel key={visiblePage.id+JSON.stringify(visiblePage.parameters||{})} parameters={visiblePage.parameters} pageId={visiblePage.id} language={visiblePage.language} expanded={visiblePage.labels.templateId==='files-v1'||!!visiblePage.runtimeError}/>}
         {!draft&&<ContextFiles key={'files:'+visiblePage.id} page={visiblePage} revision={filesRevision} busy={busy} onUpload={()=>uploadInput.current?.click()}/>}
         {!draft&&<PageAgentChat key={'chat:'+visiblePage.id} page={visiblePage} onResult={setSelected}/>}
 
-        <div className="saved-note">{draft ? (busy?'Draft · Not saved yet':'Incomplete draft · Not saved') : <>Saved {new Date(visiblePage.createdAt).toLocaleDateString()} · {visiblePage.questionCount} question{visiblePage.questionCount === 1 ? '' : 's'} linked to this answer</>}</div>
-      </article> : !busy && <div className="blank-page"><p>A question is an address.</p><span>Type above and press Enter.</span></div>}
+        <div className="saved-note">{draft ? t(busy?'Draft · Not saved yet':'Incomplete draft · Not saved') : t('Saved {date} · {count} questions linked',{date:new Date(visiblePage.createdAt).toLocaleDateString(locale),count:visiblePage.questionCount})}</div>
+      </article> : !busy && <div className="blank-page"><p>{t("A question is an address.")}</p><span>{t("Type above and press Enter.")}</span></div>}
     </main>
-  </div>;
+  </div></UiContext.Provider>;
 }

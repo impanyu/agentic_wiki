@@ -20,9 +20,9 @@ test('generator may omit media; selected IDs are deduplicated and never replaced
 });
 test('media view renders controlled video and attribution, deferring embedded players until clicked',async()=>{
  const React=await import('react');const {renderToStaticMarkup}=await import('react-dom/server');
- globalThis.mediaRender={React,useState:React.useState,publicMediaUrl,videoEmbedUrl};
+ globalThis.mediaRender={useUi:()=>({t:s=>s,locale:"en"}),React,useState:React.useState,publicMediaUrl,videoEmbedUrl};
  const source=readFileSync('app/url-content/media-view.tsx','utf8').replace(/^import .*;$/gm,'');
- const js=ts.transpile('const {React,useState,publicMediaUrl,videoEmbedUrl}=globalThis.mediaRender;\n'+source,{module:ts.ModuleKind.ESNext,target:ts.ScriptTarget.ES2022,jsx:ts.JsxEmit.React});
+ const js=ts.transpile('const {useUi,React,useState,publicMediaUrl,videoEmbedUrl}=globalThis.mediaRender;\n'+source,{module:ts.ModuleKind.ESNext,target:ts.ScriptTarget.ES2022,jsx:ts.JsxEmit.React});
  const {SourceMediaView}=await import('data:text/javascript;base64,'+Buffer.from(js).toString('base64'));
  const media=extractSourceMedia('<video src="/demo.mp4"></video><iframe src="https://www.youtube.com/embed/abcdefghijk"></iframe>','https://example.org/article');
  const html=renderToStaticMarkup(React.createElement(SourceMediaView,{media}));assert.ok(html.includes('<video controls="" preload="none"'));assert.ok(html.includes('https://example.org/article'));assert.ok(html.includes('<button'));assert.ok(!html.includes('<iframe'));assert.ok(!html.includes('autoplay'));

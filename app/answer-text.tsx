@@ -1,4 +1,5 @@
 'use client';
+import {useUi} from '@/app/i18n/client';
 import {SourceMediaView} from './url-content/media-view';
 import {availableConcepts} from './concepts/ranges';
 import {useState, type ReactNode} from 'react';
@@ -7,6 +8,8 @@ import {CornerUpLeft} from 'lucide-react';
 import {inlineParts,linkPattern,isSourceLabel,linkLevels,type Highlight,type InternalLink} from './internal-links';
 export type {Highlight} from './internal-links';
 export function AnswerText({body,title,summary,labels,sources,highlights,links=[],concepts=[],onJump,onOpen,children}:{children?:React.ReactNode;body:string;title:string;summary:string;labels:import('./page-types').AnswerPage['labels'];sources:{title:string;url:string}[];highlights:Highlight[];links?:InternalLink[];concepts?:Highlight[];onJump:(highlight:Highlight)=>void;onOpen:(link:InternalLink)=>void}){
+ const {t,locale}=useUi();
+
  // One source number per URL; each occurrence gets its own return anchor.
  const references:{title:string;url:string;occurrences:string[]}[]=[];
  function sourceFor(url:string,title:string){let index=references.findIndex(s=>s.url===url);if(index<0){index=references.length;references.push({url,title,occurrences:[]});}return index;}
@@ -14,7 +17,7 @@ export function AnswerText({body,title,summary,labels,sources,highlights,links=[
  function jumpTo(id:string){const target=document.getElementById(id);target?.scrollIntoView({block:'center'});target?.focus({preventScroll:true});}
  function citation(url:string,label:string,key:string){
   const index=sourceFor(url,label),id='citation-'+key;references[index].occurrences.push(id);
-  return <sup className="citation" key={key}><a id={id} href={'#source-'+(index+1)} aria-label={'Source '+(index+1)} onClick={e=>{e.preventDefault();jumpTo('source-'+(index+1));}}>[{index+1}]</a></sup>;
+  return <sup className="citation" key={key}><a id={id} href={'#source-'+(index+1)} aria-label={t("Source ")+(index+1)} onClick={e=>{e.preventDefault();jumpTo('source-'+(index+1));}}>[{index+1}]</a></sup>;
  }
  const suggestions=availableConcepts(concepts,links,highlights);
  const levels=linkLevels(links),tabStops=new Set<string>();
@@ -31,9 +34,9 @@ export function AnswerText({body,title,summary,labels,sources,highlights,links=[
    if(active.length){
     // Small inline boxes allow every line to wrap while retaining independently clickable underline tracks.
     const chunks=content.match(/[\p{Script=Latin}\p{Number}]+|[^]/gu)||[];
-    pieces.push(...chunks.map((chunk,j)=><span className="internal-fragment" key={start+'.'+j} style={{paddingBottom:(Math.max(...active.map(s=>levels.get(s.link.id)!))+1)*5+'px'}}><span className={mark?'pending-highlight':undefined} onClick={()=>{if(!window.getSelection()?.toString()){if(mark)onJump(mark.highlight);else onOpen(active[0].link);}}}>{chunk}</span>{active.map(({link})=>{const first=!tabStops.has(link.id);tabStops.add(link.id);return <a className="internal-track" key={link.id} href={pageAddress(link.targetId,link.parameters)} style={{bottom:(Math.max(...active.map(s=>levels.get(s.link.id)!))-levels.get(link.id)!)*5+'px'}} tabIndex={first?0:-1} aria-label={'Open '+link.quote+': '+link.targetTitle} title={link.quote+' → '+link.targetTitle} onClick={e=>{e.preventDefault();e.stopPropagation();if(!window.getSelection()?.toString())onOpen(link);}}/>;})}</span>));
-   }else if(mark)pieces.push(<mark key={start} role="link" tabIndex={0} title={'Open: '+mark.highlight.quote} onClick={()=>{if(!window.getSelection()?.toString())onJump(mark.highlight);}} onKeyDown={e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();onJump(mark.highlight);}}}>{content}</mark>);
-   else {const concept=suggested.find(s=>s.start<=start&&s.end>=end);if(concept)pieces.push(<span key={start} className="concept-link" role="link" tabIndex={0} title={'Open: '+concept.highlight.quote} onClick={()=>{if(!window.getSelection()?.toString())onJump(concept.highlight);}} onKeyDown={e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();onJump(concept.highlight);}}}>{content}</span>);else pieces.push(content);}
+    pieces.push(...chunks.map((chunk,j)=><span className="internal-fragment" key={start+'.'+j} style={{paddingBottom:(Math.max(...active.map(s=>levels.get(s.link.id)!))+1)*5+'px'}}><span className={mark?'pending-highlight':undefined} onClick={()=>{if(!window.getSelection()?.toString()){if(mark)onJump(mark.highlight);else onOpen(active[0].link);}}}>{chunk}</span>{active.map(({link})=>{const first=!tabStops.has(link.id);tabStops.add(link.id);return <a className="internal-track" key={link.id} href={pageAddress(link.targetId,link.parameters)} style={{bottom:(Math.max(...active.map(s=>levels.get(s.link.id)!))-levels.get(link.id)!)*5+'px'}} tabIndex={first?0:-1} aria-label={t("Open ")+link.quote+': '+link.targetTitle} title={link.quote+' → '+link.targetTitle} onClick={e=>{e.preventDefault();e.stopPropagation();if(!window.getSelection()?.toString())onOpen(link);}}/>;})}</span>));
+   }else if(mark)pieces.push(<mark key={start} role="link" tabIndex={0} title={t("Open: ")+mark.highlight.quote} onClick={()=>{if(!window.getSelection()?.toString())onJump(mark.highlight);}} onKeyDown={e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();onJump(mark.highlight);}}}>{content}</mark>);
+   else {const concept=suggested.find(s=>s.start<=start&&s.end>=end);if(concept)pieces.push(<span key={start} className="concept-link" role="link" tabIndex={0} title={t("Open: ")+concept.highlight.quote} onClick={()=>{if(!window.getSelection()?.toString())onJump(concept.highlight);}} onKeyDown={e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();onJump(concept.highlight);}}}>{content}</span>);else pieces.push(content);}
   }
   return <span data-text-id={id} key={id}>{pieces}</span>;
  }
@@ -60,15 +63,17 @@ export function AnswerText({body,title,summary,labels,sources,highlights,links=[
  }
  const summaryContent=showSummary?inline(summary,'summary'):null;
  const figures=[...media].map(([i,item])=><ArticleFigure key={item.url} url={item.url} alt={item.caption}><p>{inline(item.caption,'figure'+i)}</p>{item.credit&&<div className="image-credit">{inline(item.credit,'credit'+i)}</div>}</ArticleFigure>);
- return <><header className="wiki-heading"><h1>{text(title,'title')}</h1>{showSummary&&<><p className="wiki-label">{labels.overview||'Overview'}</p><p className="lead">{summaryContent}</p></>}</header>{children}
+ return <><header className="wiki-heading"><h1>{text(title,'title')}</h1>{showSummary&&<><p className="wiki-label">{t("Overview")}</p><p className="lead">{summaryContent}</p></>}</header>{children}
   <div className="wiki-layout">
-   {headings.length>1&&<nav className="wiki-contents" aria-label="Article contents"><strong>{labels.contents||'Contents'}</strong><ol>{headings.map(h=><li key={h.id} className={h.level===3?'subsection':''}><a href={'#'+h.id} onClick={e=>{e.preventDefault();document.getElementById(h.id)?.scrollIntoView({block:'start'});}}>{h.title}</a></li>)}</ol></nav>}
-   <div className="wiki-body">{labels.sourceMedia?.length?<SourceMediaView media={labels.sourceMedia}/>:null}{media.size>0&&<aside className="wiki-illustrations" aria-label="Illustrations">{figures}</aside>}{blocks}</div>
+   {headings.length>1&&<nav className="wiki-contents" aria-label={t("Article contents")}><strong>{t("Contents")}</strong><ol>{headings.map(h=><li key={h.id} className={h.level===3?'subsection':''}><a href={'#'+h.id} onClick={e=>{e.preventDefault();document.getElementById(h.id)?.scrollIntoView({block:'start'});}}>{h.title}</a></li>)}</ol></nav>}
+   <div className="wiki-body">{labels.sourceMedia?.length?<SourceMediaView media={labels.sourceMedia}/>:null}{media.size>0&&<aside className="wiki-illustrations" aria-label={t("Illustrations")}>{figures}</aside>}{blocks}</div>
   </div>
-  {references.length>0&&<section className="sources" aria-label={labels.sources||'Sources'}><h2>{labels.sources||'Sources'}</h2><ol>{references.map((source,i)=><li id={'source-'+(i+1)} tabIndex={-1} key={source.url}><div className="source-entry"><span className="source-returns">{source.occurrences.length>1&&<CornerUpLeft size={14} className="source-return-icon" aria-hidden="true"/>}{source.occurrences.map((id,j)=><a key={id} href={'#'+id} className="source-return" title={'Back to citation '+(i+1)+(source.occurrences.length>1?', occurrence '+(j+1):'')} aria-label={'Back to citation '+(i+1)+(source.occurrences.length>1?', occurrence '+(j+1):'')} onClick={e=>{e.preventDefault();jumpTo(id);}}>{source.occurrences.length>1?j+1:<CornerUpLeft size={14} aria-hidden="true"/>}</a>)}</span><a className="source-title" href={source.url} target="_blank" rel="noopener noreferrer">{source.title}</a></div></li>)}</ol></section>}
+  {references.length>0&&<section className="sources" aria-label={t("Sources")}><h2>{t("Sources")}</h2><ol>{references.map((source,i)=><li id={'source-'+(i+1)} tabIndex={-1} key={source.url}><div className="source-entry"><span className="source-returns">{source.occurrences.length>1&&<CornerUpLeft size={14} className="source-return-icon" aria-hidden="true"/>}{source.occurrences.map((id,j)=><a key={id} href={'#'+id} className="source-return" title={t("Back to citation ")+(i+1)+(source.occurrences.length>1?t(", occurrence ")+(j+1):'')} aria-label={t("Back to citation ")+(i+1)+(source.occurrences.length>1?t(", occurrence ")+(j+1):'')} onClick={e=>{e.preventDefault();jumpTo(id);}}>{source.occurrences.length>1?j+1:<CornerUpLeft size={14} aria-hidden="true"/>}</a>)}</span><a className="source-title" href={source.url} target="_blank" rel="noopener noreferrer">{source.title}</a></div></li>)}</ol></section>}
   </>;
 }
 function ArticleFigure({url,alt,children}:{url:string;alt:string;children:ReactNode}){
+ const {t,locale}=useUi();
+
  const [failed,setFailed]=useState(false);
  if(failed)return null;
  return <figure className="wiki-figure"><img src={url} alt={alt} loading="lazy" decoding="async" referrerPolicy="no-referrer" onError={()=>setFailed(true)}/><figcaption>{children}</figcaption></figure>;
