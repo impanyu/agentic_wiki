@@ -1,4 +1,5 @@
-import {assessAmbiguity,classifyAmbiguity,indexAnswer} from '@/app/disambiguation';
+import {analyzeGenerationIntent,reviewGeneratedDefinition,type GenerationIntent} from './generation-intent';
+import {classifyAmbiguity,indexAnswer} from '@/app/disambiguation';
 import {spawnAgent,recordAction,askAgent,type Agent} from '@/app/components-registry/agents';
 import type {AgentContext,Component} from '@/app/components-registry/registry';
 import {composeChart} from '@/app/components-registry/chart-composer';
@@ -15,14 +16,35 @@ export type GenerationBrief={question:string;templateId:TemplateId;fresh:boolean
 type Definition={title:string;summary:string;config:DynamicConfig;parameters:Record<string,string|number|boolean|null>;components:{role:string;component:Component}[];body?:string;sources?:AnswerPage['sources']};
 export async function generateContext(brief:GenerationBrief,context:AgentContext,router:Agent,emit:((event:ResearchUpdate)=>void)|undefined,signal:AbortSignal){
  const generator=await spawnAgent(['wiki-v1','disambiguation-v1'].includes(brief.templateId)?'content-generation':'app-generation',context.ownerId,router);
- const generationContext={...context,agent:generator};
- await recordAction(router,'Hand off context generation',{agentId:generator.id,...brief});
- await recordAction(generator,'Generation brief',brief);
+ await recordAction(router,'Hand off new-page intent analysis',{agentId:generator.id,question:brief.question});
+ emit?.({type:'status',message:context.language.startsWith('zh')?'正在分析查询对象、目标和页面所需内容…':'Analyzing the subject, intent and required page content…'});
+ const intent=await analyzeGenerationIntent(brief.question,context.language,generator,signal);
+ await recordAction(generator,'Analyze new-page intent',{question:brief.question,intent});
+ if(intent.needsDisambiguation){
+  const index=await classifyAmbiguity(brief.question,context.language,generator,true,intent.interpretations,signal);
+  return {answer:indexAnswer(index),definition:undefined,templateId:'disambiguation-v1' as const,generationIntent:intent};
+ }
+ const planned:GenerationBrief={...brief,fresh:brief.fresh||intent.fresh,service:intent.service,route:intent.outputKind==='article'?'wiki':intent.outputKind==='conversation'?'session':'app',templateId:intent.outputKind==='article'?'wiki-v1':intent.outputKind==='chart'?'dashboard-v1':intent.outputKind==='conversation'?'chat-v1':brief.templateId==='wiki-v1'||brief.templateId==='disambiguation-v1'?'form-v1':brief.templateId};
+ let feedback='';
+ for(let attempt=0;attempt<2;attempt++){
+  const generationContext={...context,agent:generator,generationIntent:intent,generationFeedback:feedback};
+  const result=await composeContext(planned,generationContext,generator,emit,signal,intent);
+  if(!result.definition)return {...result,generationIntent:intent};
+  const review=await reviewGeneratedDefinition(brief.question,intent,result.definition,generator,signal);
+  await recordAction(generator,'Review generated page against intent',review);
+  if(review.accepted)return {...result,generationIntent:intent};
+  feedback=review.reason;
+  emit?.({type:'status',message:context.language.startsWith('zh')?'正在补齐页面尚未满足的需求…':'Revising the page to cover missing requirements…'});
+ }
+ throw Error('INCOMPLETE_ANSWER');
+}
+async function composeContext(brief:GenerationBrief,context:AgentContext,generator:Agent,emit:((event:ResearchUpdate)=>void)|undefined,signal:AbortSignal,intent:GenerationIntent){
+ const generationContext=context;
  let templateId=brief.templateId,definition:Definition|undefined;
  let implementation:string=brief.route==='session'?'chat':templateId;
  if(brief.route==='session')templateId='chat-v1';
  if(brief.route!=='session'&&!['wiki-v1','disambiguation-v1'].includes(templateId)){
-  const plan=await askAgent(generator,'Choose how to create this context from its intent. You may use a pre-coded app for common tasks or commission a generated Python/JavaScript backend that combines available tools. files for simple file/folder browsing; chart for a researched fixed numerical chart; converter for physical units; chat for open-ended conversation or clarification; program for custom logic, multi-step data retrieval, or a composed app. Never force every request into a known app. Generated programs can call storage, external APIs, context search, running-job listing, research and LLM tools and render a pre-coded template. If isolated execution is unavailable, choose an appropriate registered app when it fulfills the request, otherwise chat as a working fallback that explains missing capabilities. Preserve explicit requested output. Return the implementation and most suitable template.',{...brief,execution:sandboxStatus(context.userId)},{type:'object',additionalProperties:false,properties:{implementation:{type:'string',enum:['files','chart','converter','chat','program']},templateId:{type:'string',enum:['files-v1','dashboard-v1','table-v1','form-v1','chat-v1']}},required:['implementation','templateId']},signal);
+  const plan=await askAgent(generator,'Choose how to create this context from its intent. You may use a pre-coded app for common tasks or commission a generated Python/JavaScript backend that combines available tools. files for simple file/folder browsing; chart for a researched fixed numerical chart; converter for physical units; chat for open-ended conversation or clarification; program for custom logic, multi-step data retrieval, or a composed app. Never force every request into a known app. Generated programs can call storage, external APIs, context search, running-job listing, research and LLM tools and render a pre-coded template. If isolated execution is unavailable, choose an appropriate registered app when it fulfills the request, otherwise chat as a working fallback that explains missing capabilities. Preserve explicit requested output. Return the implementation and most suitable template.',{...brief,intent,requiredCorrections:context.generationFeedback,execution:sandboxStatus(context.userId)},{type:'object',additionalProperties:false,properties:{implementation:{type:'string',enum:['files','chart','converter','chat','program']},templateId:{type:'string',enum:['files-v1','dashboard-v1','table-v1','form-v1','chat-v1']}},required:['implementation','templateId']},signal);
   implementation=plan.implementation;templateId=plan.templateId;
  }
 
@@ -33,15 +55,8 @@ export async function generateContext(brief:GenerationBrief,context:AgentContext
   return {templateId,definition,answer:{title:definition.title,summary:definition.summary,body:'',category:zh?'索引':'Index',sources:[],labels:{overview:''}}};
  }
  if(templateId==='wiki-v1'||templateId==='disambiguation-v1'){
-  emit?.({type:'status',message:context.language.startsWith('zh')?'正在检索并核实问题的不同含义…':'Checking possible meanings with web search…'});
-  const decision=await assessAmbiguity(brief.question,context.language,generator,signal);
-  if(decision.needed){
-   const index=await classifyAmbiguity(brief.question,context.language,generator,true,decision.interpretations,signal);
-   templateId='disambiguation-v1';
-   return {answer:indexAnswer(index),definition,templateId};
-  }
   templateId='wiki-v1';
-  const answer=await research(brief.question,context.language,emit,signal,brief.fresh);
+  const answer=await research(brief.question,context.language,emit,signal,brief.fresh,intent);
   await recordAction(generator,'Compose researched article',{title:answer.title,sources:answer.sources});
   return {answer,definition,templateId};
  }

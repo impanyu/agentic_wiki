@@ -11,3 +11,15 @@ test('reviewer cannot fill a saved answer with numbers found elsewhere',async()=
 test('existing numeric paragraphs are valid evidence without copying their formatting',async()=>{verdict={subjectAligned:true,scopeCovered:true,complete:true,current:true,supportingBlockId:0,requiresFigures:true,figuresBlockId:1};assert.equal(await answerIsComplete('current GDP',{body:'Latest official figures follow.\n\n**GDP:** 12.34 trillion units; growth 5.6%.',sources:page.sources},true),true);assert.equal(await answerIsComplete('current GDP',{body:'Latest official figures follow.\n\nPublished in 2026: [source](https://example.org/123456)',sources:page.sources},true),false);});
 
 test('a supporting paragraph and complete=true cannot override wrong subject or narrow coverage',async()=>{const visit={title:'习近平访印事实',summary:'A diplomatic visit',body:'习近平于2014年9月访问印度，双方签署合作文件。',sources:page.sources};verdict={...evidence,complete:true,current:true,subjectAligned:false,scopeCovered:false,reason:'Visit event is not a country overview.'};assert.equal(await answerIsComplete('印度',visit,false),false);verdict={...verdict,subjectAligned:true};assert.equal(await answerIsComplete('印度',visit,false),false);assert.equal(JSON.parse(request.input).question,'印度');assert.equal(JSON.parse(request.input).answer.body,visit.body);});
+
+test('new-page requirements each need actual article evidence even with a positive overall verdict',async()=>{
+ const intent={mustCover:['Identify the paper','Describe experiments']};
+ const paper={body:'This paragraph identifies the original paper.\n\nThis paragraph describes its experiments and limitations.',sources:page.sources};
+ verdict={...evidence,complete:true,current:true,requirements:[{index:0,blockIds:[0]}]};
+ assert.equal(await answerIsComplete('Named paper',paper,false,undefined,intent),false);
+ assert.deepEqual(JSON.parse(request.input).generationIntent,intent);
+ verdict.requirements.push({index:1,blockIds:[99]});
+ assert.equal(await answerIsComplete('Named paper',paper,false,undefined,intent),false);
+ verdict.requirements[1].blockIds=[1];
+ assert.equal(await answerIsComplete('Named paper',paper,false,undefined,intent),true);
+});

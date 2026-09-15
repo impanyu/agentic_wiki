@@ -6,7 +6,7 @@ const load=source=>import('data:text/javascript;base64,'+Buffer.from(ts.transpil
 test('content generator chooses index or article and passes verified interpretations',async()=>{
  let ambiguous=true,researches=0,indices=0;
  const generator={id:'g',role:'content-generation'},signal=new AbortController().signal;
- globalThis.generatorTest={spawnAgent:async()=>generator,recordAction:async()=>{},assessAmbiguity:async(q,l,a,s)=>{assert.equal(a,generator);assert.equal(s,signal);return {needed:ambiguous,interpretations:['Country','Porcelain']};},classifyAmbiguity:async(q,l,a,required,meanings,s)=>{indices++;assert.equal(required,true);assert.deepEqual(meanings,['Country','Porcelain']);assert.equal(s,signal);return {title:'Index'};},indexAnswer:i=>i,research:async()=>{researches++;return {title:'Article',sources:[]};}};
+ globalThis.generatorTest={spawnAgent:async()=>generator,recordAction:async()=>{},analyzeGenerationIntent:async(q,l,a,s)=>{assert.equal(a,generator);assert.equal(s,signal);return {outputKind:'article',service:'none',fresh:false,mustCover:['Explain the subject'],needsDisambiguation:ambiguous,interpretations:['Country','Porcelain']};},classifyAmbiguity:async(q,l,a,required,meanings,s)=>{indices++;assert.equal(required,true);assert.deepEqual(meanings,['Country','Porcelain']);assert.equal(s,signal);return {title:'Index'};},indexAnswer:i=>i,research:async()=>{researches++;return {title:'Article',sources:[]};}};
  const source=readFileSync('app/page-programs/generate-context.ts','utf8').replace(/^import .*;$/gm,'');
  const m=await load('const {'+Object.keys(globalThis.generatorTest).join(',')+'}=globalThis.generatorTest;\n'+source);
  const context={ownerId:'u',userId:'u',language:'en'};
@@ -24,6 +24,7 @@ test('search-enabled agent requests web search and rejects missing search eviden
  await m.askAgent(agent,'Check meanings',{}, {},undefined,undefined,[],{webSearch:true});
  assert.deepEqual(payload.tools,[{type:'web_search'}]);assert.equal(payload.tool_choice,'required');
  completed=false;await assert.rejects(()=>m.askAgent(agent,'Check meanings',{}, {},undefined,undefined,[],{webSearch:true}),/AI_UNAVAILABLE/);
+ await m.askAgent(agent,'Analyze an ordinary task',{}, {},undefined,undefined,[],{webSearch:'auto'});assert.equal(payload.tool_choice,'auto');
  await m.askAgent(agent,'Ordinary task',{},{});assert.equal(payload.tools,undefined);
  delete globalThis.searchAgentTest;
 });
