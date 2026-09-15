@@ -1,5 +1,5 @@
 import test from 'node:test';import assert from 'node:assert/strict';import {DatabaseSync} from 'node:sqlite';import {readFileSync,readdirSync} from 'node:fs';import ts from 'typescript';import {z} from 'zod';
-const load=async s=>import('data:text/javascript;base64,'+Buffer.from(ts.transpile(s,{module:ts.ModuleKind.ESNext,target:ts.ScriptTarget.ES2022})).toString('base64'));
+const load=async s=>import('data:text/javascript;base64,'+Buffer.from(ts.transpile(readFileSync('app/page-permissions.ts','utf8').replace(/import [\s\S]*?from ['"][^'"]+['"];?/g,'')+'\n'+s,{module:ts.ModuleKind.ESNext,target:ts.ScriptTarget.ES2022})).toString('base64'));
 const stripped=p=>readFileSync(p,'utf8').replace(/import [\s\S]*?from ['"][^'"]+['"];?/g,'');
 globalThis.testZod=z;const patches=await load('const z=globalThis.testZod;\n'+stripped('app/chat/wiki-patches.ts'));globalThis.testWikiPatches=patches;
 test('durable page conversation survives FIFO limits, paginates and isolates principals',async()=>{

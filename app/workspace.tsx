@@ -1,4 +1,5 @@
 'use client';
+import {canWritePage,pageAccess,type PageAccess} from './page-permissions';
 import {DisambiguationIndex} from './disambiguation/view';
 import {ProgramView} from './page-programs/view';
 import {StoragePanel} from './storage/panel';
@@ -14,7 +15,6 @@ import {pageAddress,inputQuery,type ConversionInput} from './dynamic/units';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ArrowLeft, ArrowRight, Highlighter, Check, Globe2, Layers, LoaderCircle, LockKeyhole, GitFork, Trash2 } from 'lucide-react';
-import { Switch } from '@/components/ui/switch';
 import {ContextIndex} from './context-index/view';
 import {ContextFiles} from './context-files/panel';
 import type { AnswerPage } from './page-types';
@@ -239,7 +239,7 @@ export default function Workspace({ user, signIn, signOut }: {
       progressFinished=true;if(progressTimer)clearInterval(progressTimer);
       if (controller.signal.aborted) return;
       let linkWarning='';
-      if(origin){
+      if(origin&&canWritePage(visiblePage)){
         try{const saved=await navigationRequest('/api/links',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sourceId:origin.pageId,targetId:result.page.id,...origin.highlight,parameters:(result.page.parameters||result.page.runtime?.input)}),signal:controller.signal});const data=await saved.json() as {error?:string};if(!saved.ok)throw new Error(data.error||'Could not save the underline.');
           setHighlights(all=>({...all,[origin.pageId]:(all[origin.pageId]||[]).filter(h=>JSON.stringify(h.segments)!==JSON.stringify(origin.highlight.segments))}));
         }catch(e){if(controller.signal.aborted)return;linkWarning='The page opened, but its underline could not be saved. '+navigationError(e,'Please try again.');}
@@ -287,7 +287,7 @@ export default function Workspace({ user, signIn, signOut }: {
     return()=>lifecycle.abort();
   },[]);
 
-  async function changeVisibility(value: boolean) {
+  async function changeVisibility(value: PageAccess) {
     if (!selected?.owned || saving) return;
     const pageId = selected.id;
     setSaving(true); setError('');
@@ -295,7 +295,7 @@ export default function Workspace({ user, signIn, signOut }: {
       await ensureActor();
       const result = await readResponse(await fetch('/api/pages/' + encodeURIComponent(pageId), {
         method: 'PATCH', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ visibility: value ? 'public' : 'private' }),
+        body: JSON.stringify({ access: value }),
       }));
       setSelected(current => current?.id === pageId ? {...result.page,runtime:current.runtime,parameters:current.parameters,applicationResult:current.applicationResult,runtimeError:current.runtimeError} : current);
     } catch (e) { setError(e instanceof Error ? e.message : 'Could not save visibility.'); }
@@ -348,13 +348,13 @@ export default function Workspace({ user, signIn, signOut }: {
       {error && <div className="request-error" role="alert">{error}</div>}
       {status && <div className="navigation-status" role="status">{busy ? <LoaderCircle size={15} className="spinner"/> : <Check size={15}/>} {status}</div>}
       {visiblePage ? <article className={'answer '+(visiblePage.kind==='dynamic'?'dynamic-answer ':'')+'template-'+(visiblePage.labels.templateId||'wiki-v1')} lang={visiblePage.language==='und'?undefined:visiblePage.language} dir={['ar','he','fa','ur','ps','dv','yi'].includes(visiblePage.language)?'rtl':'ltr'}>
-        {!draft&&visiblePage.forks&&visiblePage.forks.length>0&&<nav className="page-forks" aria-label="Context forks"><span>{visiblePage.language.startsWith('zh')?'上下文分支':'Context forks'}</span><div>{visiblePage.forks.map((fork,i)=><div className="fork-choice" key={fork.id}><button aria-current={fork.id===visiblePage.id?'page':undefined} disabled={busy||fork.id===visiblePage.id} onClick={()=>void openInternal({id:'fork:'+fork.id,targetId:fork.id,targetTitle:fork.title,quote:question||fork.title,segments:[],parameters:{}})}><strong>{fork.isOriginal?(visiblePage.language.startsWith('zh')?'原始页面':'Original'):(visiblePage.language.startsWith('zh')?'分支':'Fork')+' '+(i+1)}</strong> {fork.title}<small>{fork.visibility==='private'?(visiblePage.language.startsWith('zh')?'私密':'Private'):(visiblePage.language.startsWith('zh')?'公开':'Public')}</small></button>{fork.removable&&<button className="remove-fork" disabled={busy} onClick={()=>void removePageFork(fork.id)} aria-label={'Remove fork: '+fork.title}><Trash2 size={13}/>{visiblePage.language.startsWith('zh')?'移除':'Remove'}</button>}</div>)}</div></nav>}
+        {!draft&&visiblePage.forks&&visiblePage.forks.length>0&&<nav className="page-forks" aria-label="Context forks"><span>{visiblePage.language.startsWith('zh')?'上下文分支':'Context forks'}</span><div>{visiblePage.forks.map((fork,i)=><div className="fork-choice" key={fork.id}><button aria-current={fork.id===visiblePage.id?'page':undefined} disabled={busy||fork.id===visiblePage.id} onClick={()=>void openInternal({id:'fork:'+fork.id,targetId:fork.id,targetTitle:fork.title,quote:question||fork.title,segments:[],parameters:{}})}><strong>{fork.isOriginal?(visiblePage.language.startsWith('zh')?'原始页面':'Original'):(visiblePage.language.startsWith('zh')?'分支':'Fork')+' '+(i+1)}</strong> {fork.title}<small>{pageAccess(fork)==='private'?'Private':pageAccess(fork)==='public-write'?'Public · 读写':'Public · 只读'}</small></button>{fork.removable&&<button className="remove-fork" disabled={busy} onClick={()=>void removePageFork(fork.id)} aria-label={'Remove fork: '+fork.title}><Trash2 size={13}/>{visiblePage.language.startsWith('zh')?'移除':'Remove'}</button>}</div>)}</div></nav>}
         {!draft&&<div className="context-actions"><button onClick={()=>void createFork()} disabled={busy||saving}><GitFork size={15}/>{visiblePage.language.startsWith('zh')?'创建分支':'Fork'}</button><span>{visiblePage.language.startsWith('zh')?'仅根据问题重新生成私密分支':'Generate a fresh private fork from this question'}</span></div>}
         <div className="page-meta"><span>{visiblePage.category}</span><div className="page-visibility">
           {visiblePage.visibility === 'public' ? <Globe2 size={14}/> : <LockKeyhole size={14}/>}
-          <span>{visiblePage.visibility === 'public' ? 'Public' : 'Private'}</span>
-          {visiblePage.owned && <Switch checked={visiblePage.visibility === 'public'} onCheckedChange={changeVisibility}
-            disabled={saving || busy} aria-label="Make this page public"/>}
+          {visiblePage.owned?<select aria-label="Page access" value={pageAccess(visiblePage)} disabled={saving||busy} onChange={e=>void changeVisibility(e.target.value as PageAccess)}>
+            <option value="private">Private</option><option value="public-read">Public · 只读 / Read only</option><option value="public-write">Public · 读写 / Read &amp; write</option>
+          </select>:<span>{pageAccess(visiblePage)==='private'?'Private':pageAccess(visiblePage)==='public-write'?'Public · 读写':'Public · 只读'}</span>}
         </div></div>
         <div className="selection-tools" aria-live="polite">
           {draft ? <span>{busy?'Generating… You can read the page as it appears.':'Incomplete draft — retry the question to generate a saved page.'}</span> : pending ? <><span className="selection-quote">“{pending.quote}”</span><button type="button" onMouseDown={e=>e.preventDefault()} onClick={()=>addHighlight(false)} disabled={busy}><Highlighter size={14}/> Highlight</button><button type="button" onMouseDown={e=>e.preventDefault()} onClick={()=>addHighlight(true)} disabled={busy}>Highlight & open <ArrowRight size={14}/></button></> : <span>{visiblePage.labels.templateId==='disambiguation-v1'?'Choose the meaning or topic you want to explore.':conceptStatus||'Select text to highlight it or open it as a question.'}{(conceptStatus.includes('could not')||conceptStatus.includes('still'))&&<button onClick={()=>setConceptAttempt(n=>n+1)}>Retry</button>}</span>}

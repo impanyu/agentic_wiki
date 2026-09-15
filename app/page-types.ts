@@ -1,7 +1,7 @@
 export type AnswerPage = {
   sessionId?:string;
   contextIndex?:{kind:'pages'|'jobs';items:import('./context-index/server').ContextIndexItem[]};
-  forks?: {id:string;title:string;visibility:'public'|'private';createdAt:string;removable?:boolean;isOriginal?:boolean}[];
+  forks?: {id:string;title:string;visibility:'public'|'private';publicWrite?:boolean;createdAt:string;removable?:boolean;isOriginal?:boolean}[];
   links?: import('./internal-links').InternalLink[];
   kind?: 'static'|'dynamic'|'resource';
   component?:{type:string;version:number;payload:unknown;links:{role:string;id:string;version:number;type:string;title:string}[]};
@@ -22,6 +22,7 @@ export type AnswerPage = {
   category: string;
   visibility: 'public' | 'private';
   owned: boolean;
+  publicWrite?: boolean;
   createdAt: string;
   updatedAt?: string;
   checkedAt?: string;

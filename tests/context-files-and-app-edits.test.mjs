@@ -1,5 +1,5 @@
 import test from 'node:test';import assert from 'node:assert/strict';import {DatabaseSync} from 'node:sqlite';import {readFileSync,readdirSync} from 'node:fs';import ts from 'typescript';import {z} from 'zod';
-const load=async s=>import('data:text/javascript;base64,'+Buffer.from(ts.transpile(s,{module:ts.ModuleKind.ESNext,target:ts.ScriptTarget.ES2022})).toString('base64'));
+const load=async s=>import('data:text/javascript;base64,'+Buffer.from(ts.transpile(readFileSync('app/page-permissions.ts','utf8').replace(/import [\s\S]*?from ['"][^'"]+['"];?/g,'')+'\n'+s,{module:ts.ModuleKind.ESNext,target:ts.ScriptTarget.ES2022})).toString('base64'));
 const strip=p=>readFileSync(p,'utf8').replace(/import [\s\S]*?from ['"][^'"]+['"];?/g,'');
 test('attachments follow wiki access and isolate app sessions; page index only returns owned contexts',async()=>{
  const db=new DatabaseSync(':memory:');db.exec('PRAGMA foreign_keys=ON');for(const f of readdirSync('drizzle').filter(f=>f.endsWith('.sql')).sort())db.exec(readFileSync('drizzle/'+f,'utf8'));

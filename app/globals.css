@@ -214,3 +214,5 @@ a{color:inherit;text-decoration:none}button,a,input{touch-action:manipulation}bu
 .page-chat .chat-markdown code{font-family:monospace}.page-chat .chat-markdown blockquote{border-left:3px solid #cbd5e1;margin:12px 0;padding-left:14px}
 .page-chat .chat-markdown table{display:block;overflow-x:auto;border-collapse:collapse}.page-chat .chat-markdown td,.page-chat .chat-markdown th{border:1px solid #d1d5db;padding:6px 10px}
 .page-chat .chat-markdown img{max-width:100%;height:auto}.page-chat .chat-message-meta{color:var(--muted-foreground,#4b5563)}
+
+.page-visibility select{max-width:100%;border:1px solid #cbd5e1;border-radius:7px;background:#fff;color:#334155;padding:6px 8px;font:inherit}.page-visibility select:disabled{opacity:.6}

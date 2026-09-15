@@ -47,7 +47,7 @@ export async function useNotebook(agent:Agent,task:string,context:AgentContext,s
    if(call.name==='search_contexts'){result=await queryContexts(ctx.userId,{page_kind:args.pageKind,topic_terms:args.topicTermsJson});
    }else if(call.name==='list_running_jobs'){result=await listRunningJobs(ctx.userId);
    }else if(call.name==='storage_connections'){result=await storageStatus(ctx.userId);
-   }else if(call.name==='storage_execute'){result=await executeStorage({provider:args.provider,operation:args.operation,args:JSON.parse(String(args.argsJson))},ctx.userId);
+   }else if(call.name==='storage_execute'){result=await executeStorage({provider:args.provider,operation:args.operation,args:JSON.parse(String(args.argsJson))},ctx.userId,ctx.pageId);
    }else if(call.name==='list_data_files'){result=await listDataFiles(ctx.userId,z.string().max(200).parse(args.after));
    }else if(call.name==='search_templates'){result=searchTemplates(z.string().max(4000).parse(args.query));
    }else if(call.name==='list_google_drive_folders'){const status=await connectionStatus(ctx.userId);result=status.connected?await listFolders(ctx.userId,z.string().max(3000).parse(args.pageToken)||undefined):{connectionRequired:true,...status};

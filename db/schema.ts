@@ -5,6 +5,7 @@ export const pages = sqliteTable('pages', {
  kind:text('kind').notNull().default('static'),dynamicConfig:text('dynamic_config'),
  category:text('category').notNull(), sources:text('sources').notNull(),
  language:text('language').notNull().default('und'), labels:text('labels').notNull().default('{}'),
+ publicWrite:integer('public_write',{mode:'boolean'}).notNull().default(false),
  visibility:text('visibility',{enum:['private','public']}).notNull().default('private'), createdAt:text('created_at').notNull(),updatedAt:text('updated_at'),checkedAt:text('checked_at'),
 },t=>[index('idx_pages_language').on(t.language),index('idx_pages_owner').on(t.ownerId),index('idx_pages_visibility_created').on(t.visibility,t.createdAt)]);
 export const questions = sqliteTable('questions', {

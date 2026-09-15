@@ -1,5 +1,5 @@
 import test from 'node:test';import assert from 'node:assert/strict';import {readFileSync} from 'node:fs';import ts from 'typescript';import {z} from 'zod';
-const load=async s=>import('data:text/javascript;base64,'+Buffer.from(ts.transpile(s,{module:ts.ModuleKind.ESNext,target:ts.ScriptTarget.ES2022})).toString('base64'));const strip=p=>readFileSync(p,'utf8').replace(/^import .*;$/gm,'');
+const load=async s=>import('data:text/javascript;base64,'+Buffer.from(ts.transpile(readFileSync('app/page-permissions.ts','utf8').replace(/import [\s\S]*?from ['"][^'"]+['"];?/g,'')+'\n'+s,{module:ts.ModuleKind.ESNext,target:ts.ScriptTarget.ES2022})).toString('base64'));const strip=p=>readFileSync(p,'utf8').replace(/^import .*;$/gm,'');
 globalThis.testZod=z;const patches=await load('const z=globalThis.testZod;\n'+strip('app/chat/wiki-patches.ts'));globalThis.testWikiPatches=patches;
 test('map selection excludes photos and inserts the selected file and attribution instead of editor URLs',async()=>{
  const map={id:2,url:'https://upload.wikimedia.org/India_map.png',source:'https://commons.wikimedia.org/wiki/File:India_location_map.svg',description:'Location map of India',credit:'Author · CC BY-SA'},photo={...map,id:1,url:'https://upload.wikimedia.org/Temple.png',source:'https://commons.wikimedia.org/wiki/File:Temple.jpg',description:'Temple in India'};let calls=0;

@@ -1,4 +1,5 @@
 'use client';
+import {canWritePage} from '@/app/page-permissions';
 import {ChatMarkdown} from '@/app/chat/markdown';
 import {useEffect,useState,useRef} from 'react';
 import {ArrowUp,MessageSquare} from 'lucide-react';
@@ -41,7 +42,7 @@ export function PageAgentChat({page,onResult}:{page:AnswerPage;onResult:(page:An
   {before&&<button className="older-comments" disabled={busy} onClick={()=>void older()}>{zh?'加载更早的消息':'Load earlier messages'}</button>}
   <div className="page-agent-messages" aria-busy={busy}>{messages.map((m,i)=>thread(m,String(m.sequence||i)))}{pending&&thread(pending,'pending',true)}</div>
   {ready&&!messages.length&&!pending&&<p className="comments-empty">{zh?'你想了解或修改什么？':'What would you like to explore or change?'}</p>}
-  {editDraft&&page.owned&&<div className="edit-proposal"><h3>{zh?'建议的更改 · 尚未保存':'Proposed changes · Not saved'}</h3><details><summary>{zh?'预览修改后的文章':(wiki?'Preview revised article':'Preview app changes')}</summary><div className="edit-proposal-preview"><h4>{editDraft.title}</h4><p>{editDraft.summary}</p><ChatMarkdown text={editDraft.body}/></div></details><button disabled={busy} onClick={()=>void save()}>{busy?'…':zh?'保存更改':'Save changes'}</button></div>}
+  {editDraft&&canWritePage(page)&&<div className="edit-proposal"><h3>{zh?'建议的更改 · 尚未保存':'Proposed changes · Not saved'}</h3><details><summary>{zh?'预览修改后的文章':(wiki?'Preview revised article':'Preview app changes')}</summary><div className="edit-proposal-preview"><h4>{editDraft.title}</h4><p>{editDraft.summary}</p><ChatMarkdown text={editDraft.body}/></div></details><button disabled={busy} onClick={()=>void save()}>{busy?'…':zh?'保存更改':'Save changes'}</button></div>}
   <form onSubmit={send} className="chat-composer"><label className="sr-only" htmlFor={'chat-'+page.id}>{zh?'发送消息':'Message AgenticWiKi'}</label><textarea id={'chat-'+page.id} aria-label={zh?'发送消息':'Message AgenticWiKi'} placeholder={zh?'向 AgenticWiKi 发送消息…':'Message AgenticWiKi…'} value={message} onChange={e=>setMessage(e.target.value)} onKeyDown={e=>{if(e.key==='Enter'&&!e.shiftKey&&!e.nativeEvent.isComposing){e.preventDefault();e.currentTarget.form?.requestSubmit();}}} maxLength={2000} rows={2} disabled={busy}/><div className="chat-composer-actions"><span>{zh?'Shift + Enter 换行':'Shift + Enter for a new line'}</span><button aria-label={zh?'发送消息':'Send message'} disabled={!ready||busy||!message.trim()}><ArrowUp size={20}/></button></div></form>
   <span className="sr-only" role="status">{busy?(zh?'Agent 正在回复':'Agent is replying'):''}</span>{error&&<p role="alert">{error}</p>}
  </section>;

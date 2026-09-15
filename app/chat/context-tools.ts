@@ -1,3 +1,4 @@
+import {canWritePage} from '@/app/page-permissions';
 import {database,getPage} from '@/db/store';
 import {getComponent} from '@/app/components-registry/registry';
 import {fileContext,listContextFiles,type FilePart} from '@/app/context-files/server';
@@ -31,6 +32,7 @@ export async function readPageContext(agent:Agent,args:{resource:string;query?:s
 export const pageTaskTool={type:'function',name:'perform_page_task',description:'Delegate a bounded task to the existing tool executor: search resources/templates, inspect connections, call authorized APIs or storage, generate/test Python or JavaScript in the configured sandbox, or use a configured GUI sandbox. Include the original user request and necessary page context. Report real results; writes retain existing confirmation requirements.',strict:true,parameters:{type:'object',additionalProperties:false,properties:{task:{type:'string',minLength:1,maxLength:12000}},required:['task']}};
 export async function performPageTask(agent:Agent,task:string,signal?:AbortSignal){
  const page=await getPage(agent.role.replace(/^(comments|page):/,''),agent.ownerId);if(!page)throw Error('Page context is inaccessible.');
+ if(!canWritePage(page))throw Error('PAGE_READ_ONLY');
  const {useNotebook}=await import('@/app/components-registry/notebook-agent');
- return {data:await useNotebook(agent,'Work within page '+page.title+' ('+page.id+'). '+task,{userId:agent.ownerId,ownerId:agent.ownerId,language:page.language,visibility:'private'},signal)};
+ return {data:await useNotebook(agent,'Work within page '+page.title+' ('+page.id+'). '+task,{pageId:page.id,userId:agent.ownerId,ownerId:agent.ownerId,language:page.language,visibility:'private'},signal)};
 }

@@ -1,3 +1,4 @@
+import {canWritePage} from '@/app/page-permissions';
 import {startJob,finishJob} from '@/app/context-index/jobs';
 import {fileContext} from '@/app/context-files/server';
 import {database,reply,lock,unlock} from '@/db/store';
@@ -29,12 +30,12 @@ export async function getWikiComments(request:Request,page:AnswerPage,viewer:Vie
  const agent=await commentAgent(page.id,viewer);
  const rows=await database().prepare('SELECT sequence,message user,reply,author_name authorName,created_at createdAt FROM wiki_comments WHERE page_id=? AND sequence<? ORDER BY sequence DESC LIMIT 51').bind(page.id,before).all<{sequence:number;user:string;reply:string;authorName:string;createdAt:string}>();
  const messages=rows.results.slice(0,50).reverse();
- return finish(reply({messages,before:rows.results.length>50?messages[0]?.sequence:null,userName:viewer.userName,editDraft:page.owned?(await readEditDraft(agent,page.id)||await readEditDraft(viewer.agent,page.id)):null}),viewer);
+ return finish(reply({messages,before:rows.results.length>50?messages[0]?.sequence:null,userName:viewer.userName,editDraft:canWritePage(page)?(await readEditDraft(agent,page.id)||await readEditDraft(viewer.agent,page.id)):null}),viewer);
 }
 export async function postWikiComment(request:Request,page:AnswerPage,viewer:Viewer,data:{message?:string;saveDraftId?:string}){
  await importLegacyComments(page.id,viewer.userId,viewer.userName);
  const agent=await commentAgent(page.id,viewer);
- if(data.saveDraftId&&!page.owned)return finish(reply({error:'Only the owner can save article changes.'},403),viewer);
+ if(data.saveDraftId&&!canWritePage(page))return finish(reply({error:'This page is read-only.'},403),viewer);
  if(!data.message&&!data.saveDraftId)return finish(reply({error:'Enter a message.'},400),viewer);
  const lease=await lock('agent:'+agent.id,180000);if(!lease)return finish(reply({error:'The agent is still replying to your previous message.'},409),viewer);
  let jobId:string;try{jobId=await startJob(viewer.userId,'wiki-agent',data.message||'Save wiki revision',page.id);}catch(e){await unlock(lease);throw e;}let jobState='completed';
