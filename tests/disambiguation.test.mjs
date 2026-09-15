@@ -27,3 +27,22 @@ test('first-time ambiguity favors an index for multiple interpretations or unres
  assert.equal((await m.classifyAmbiguity('china','en',{},true)).entries.length,2);
  delete globalThis.ambiguityDecisionTest;
 });
+
+test('index generation repairs duplicate destinations and carries router interpretations',async()=>{
+ const calls=[],interpretations=['China (country)','Porcelain'];
+ const good={needed:true,title:'China',summary:'Choose a meaning',entries:[{question:'China (country)',description:'Country',group:'Places'},{question:'Porcelain',description:'Ceramic material',group:'Materials'}]};
+ const duplicate={...good,entries:[good.entries[0],good.entries[0]]};
+ globalThis.indexRepairTest={z,askAgent:async(_agent,instructions,task,schema,signal)=>{calls.push({instructions,task,schema,signal});return calls.length===1?duplicate:good;}};
+ const m=await import('data:text/javascript;base64,'+Buffer.from(ts.transpile('const {z,askAgent}=globalThis.indexRepairTest;\n'+source,{module:ts.ModuleKind.ESNext,target:ts.ScriptTarget.ES2022})).toString('base64'));
+ assert.equal((await m.classifyAmbiguity('china','en',{},true,interpretations)).entries.length,2);
+ assert.equal(calls.length,2);
+ assert.deepEqual(calls[0].task.interpretations,interpretations);
+ assert.deepEqual(calls[0].schema.properties.needed.enum,[true]);
+ assert.equal(calls[0].schema.properties.entries.minItems,2);
+ assert.ok(calls[1].task.correction);
+ assert.equal(calls[0].signal,calls[1].signal,'repair shares the same time budget');
+ const controller=new AbortController();controller.abort();
+ await assert.rejects(()=>m.classifyAmbiguity('china','en',{},true,interpretations,controller.signal),{name:'AbortError'});
+ assert.equal(calls.length,2,'cancellation must not start another model call');
+ delete globalThis.indexRepairTest;
+});

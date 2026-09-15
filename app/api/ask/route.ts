@@ -4,7 +4,7 @@ import {ensurePageSession,rememberSessionRoutes} from '@/app/chat/session';
 import {startJob,finishJob} from '@/app/context-index/jobs';
 import {routeInputs,programNavigationInput} from '@/app/page-programs/inputs';
 import {answerStream} from '@/app/answer-stream';
-import {needsDisambiguation} from '@/app/disambiguation';
+import {assessAmbiguity} from '@/app/disambiguation';
 import {generateContext} from '@/app/page-programs/generate-context';
 import {selectTemplate} from '@/app/templates/select';
 import {matchQuestion} from './question-search';
@@ -111,7 +111,8 @@ async function routeAnswer(request:Request,actor:Awaited<ReturnType<typeof getAc
   let matched=fork?null:await findMatch();
   if(matched){const page=await resolvePage(matched);if(!page)return respond({error:'This page is no longer accessible. Please try again.'},404);await remember(page.id,page);const updated=await refreshMatchedPage(page,destination,requested.fresh,uid,router);return respond({page:updated,reused:true,destination});}
   // Disambiguation is a generation choice after the routing table has missed.
-  const ambiguity=requested.kind==='article'&&await needsDisambiguation(destination,language,router);
+  const ambiguityDecision=requested.kind==='article'?await assessAmbiguity(destination,language,router):null;
+  const ambiguity=ambiguityDecision?.needed===true;
   const presentation=ambiguity?'disambiguation-v1':domain==='session'?'chat-v1':requested.service==='google_drive_folders'?'files-v1':['context_pages','user_jobs'].includes(requested.service)?'wiki-v1':await selectTemplate(destination,router,undefined,requested.kind);
   const visibility='private' as const;
   const keyBytes=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(JSON.stringify([language,destinationKey,uid])));
@@ -125,7 +126,7 @@ async function routeAnswer(request:Request,actor:Awaited<ReturnType<typeof getAc
    signal=signal?AbortSignal.any([signal,deadline]):deadline;
    signal.throwIfAborted();
    if(domain==='app')await recordAction(router,'Return app cache miss to root',{question:destination,rootAgentId:rootRouter.id});
-   const generated=await generateContext({question:destination,templateId:presentation,fresh:requested.fresh,service:requested.service,route:domain},context,domain==='app'?rootRouter:router,emit,signal);
+   const generated=await generateContext({question:destination,templateId:presentation,interpretations:ambiguityDecision?.interpretations,fresh:requested.fresh,service:requested.service,route:domain},context,domain==='app'?rootRouter:router,emit,signal);
    const {answer,definition}=generated,dependencies=definition?.components||[],id=fork?.requestId||crypto.randomUUID(),now=new Date().toISOString();
   const active=await database().prepare("SELECT token FROM generation_locks WHERE token=? AND expires>?").bind(lease,Date.now()).first();
   if(!active)throw new Error('The request took too long. Please try again.');
@@ -182,7 +183,7 @@ async function routeAnswer(request:Request,actor:Awaited<ReturnType<typeof getAc
     emit({type:'status',message:'Finding or composing the right page…'});
     void (async()=>{
      try{const result=await generate(emit,cancellation.signal);emit({type:'done',...result});}
-     catch(e){jobState='failed';if(!cancellation.signal.aborted){console.error('Streamed answer failed',e instanceof Error?e.message.slice(0,200):'Unknown error');emit({type:'error',message:e instanceof Error&&e.message==='INCOMPLETE_ANSWER'?'The answer could not be verified after revision. No page was saved.':e instanceof Error&&e.message.startsWith('SANDBOX_')?'This application needs the sandbox service. Open Sandboxes to check its connection.':e instanceof Error&&e.message==='APPLICATION_CAPABILITY_UNAVAILABLE'?'This application needs an execution capability that is not configured yet. No placeholder page was saved.':'Generation did not finish. This draft has not been saved. Please try again.'});}}
+     catch(e){jobState='failed';if(!cancellation.signal.aborted){console.error('Streamed answer failed',e instanceof Error?e.message.slice(0,200):'Unknown error');emit({type:'error',message:e instanceof Error&&e.message==='DISAMBIGUATION_INCOMPLETE'?'The possible meanings could not be organized into a valid index. Please retry or specify which meaning you want. No page was saved.':e instanceof Error&&e.message==='INCOMPLETE_ANSWER'?'The answer could not be verified after revision. No page was saved.':e instanceof Error&&e.message.startsWith('SANDBOX_')?'This application needs the sandbox service. Open Sandboxes to check its connection.':e instanceof Error&&e.message==='APPLICATION_CAPABILITY_UNAVAILABLE'?'This application needs an execution capability that is not configured yet. No placeholder page was saved.':'Generation did not finish. This draft has not been saved. Please try again.'});}}
      finally{if(streamJob)await finishJob(streamJob,cancellation.signal.aborted?'cancelled':jobState).catch(()=>{});clearInterval(heartbeat);clearInterval(cancellationCheck);request.signal.removeEventListener('abort',onDisconnect);await unlock(lease).catch(()=>{});closed=true;try{controller.close();}catch{}}
     })();
    },

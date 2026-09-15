@@ -11,7 +11,7 @@ import type {TemplateId} from '@/app/templates/catalog';
 import type {DynamicConfig} from '@/app/dynamic/units';
 import type {AnswerPage} from '@/app/page-types';
 
-export type GenerationBrief={question:string;templateId:TemplateId;fresh:boolean;route?:string;service?:string};
+export type GenerationBrief={question:string;interpretations?:string[];templateId:TemplateId;fresh:boolean;route?:string;service?:string};
 type Definition={title:string;summary:string;config:DynamicConfig;parameters:Record<string,string|number|boolean|null>;components:{role:string;component:Component}[];body?:string;sources?:AnswerPage['sources']};
 export async function generateContext(brief:GenerationBrief,context:AgentContext,router:Agent,emit:((event:ResearchUpdate)=>void)|undefined,signal:AbortSignal){
  const generator=await spawnAgent(['wiki-v1','disambiguation-v1'].includes(brief.templateId)?'content-generation':'app-generation',context.ownerId,router);
@@ -33,7 +33,7 @@ export async function generateContext(brief:GenerationBrief,context:AgentContext
   return {templateId,definition,answer:{title:definition.title,summary:definition.summary,body:'',category:zh?'索引':'Index',sources:[],labels:{overview:''}}};
  }
  if(templateId==='disambiguation-v1'){
-  const index=await classifyAmbiguity(brief.question,context.language,generator,true);
+  const index=await classifyAmbiguity(brief.question,context.language,generator,true,brief.interpretations,signal);
   return {answer:indexAnswer(index),definition,templateId};
  }
  if(templateId==='wiki-v1'){
