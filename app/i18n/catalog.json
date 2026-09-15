@@ -476,5 +476,8 @@
   "You can connect without a token for public tools. Supply a Hugging Face access token for account-specific capabilities.": "You can connect without a token for public tools. Supply a Hugging Face access token for account-specific capabilities.",
   "Sign in to Google and authorize the requested file access.": "Sign in to Google and authorize the requested file access.",
   "Requires the Dropbox OAuth application to be configured on this server.": "Requires the Dropbox OAuth application to be configured on this server.",
-  "Requires the Microsoft OAuth application to be configured on this server.": "Requires the Microsoft OAuth application to be configured on this server."
+  "Requires the Microsoft OAuth application to be configured on this server.": "Requires the Microsoft OAuth application to be configured on this server.",
+  "Browse agricultural files and folders, read text datasets and upload text files to ADMA.": "Browse agricultural files and folders, read text datasets and upload text files to ADMA.",
+  "Use your ADMA API token from adma.aisoup.net. ADMA uses Token authentication. An administrator can create a token for your account with the create_api_token management command. Never enter your account password here.": "Use your ADMA API token from adma.aisoup.net. ADMA uses Token authentication. An administrator can create a token for your account with the create_api_token management command. Never enter your account password here.",
+  "This ADMA file is not a supported text format.": "This ADMA file is not a supported text format."
 }

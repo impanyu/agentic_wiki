@@ -242,5 +242,8 @@
   "You can connect without a token for public tools. Supply a Hugging Face access token for account-specific capabilities.": "公开工具可不填 token；使用账户相关功能时，请提供 Hugging Face 访问令牌。",
   "Sign in to Google and authorize the requested file access.": "登录 Google 并授权所需的文件访问权限。",
   "Requires the Dropbox OAuth application to be configured on this server.": "需要先在服务器配置 Dropbox OAuth 应用。",
-  "Requires the Microsoft OAuth application to be configured on this server.": "需要先在服务器配置 Microsoft OAuth 应用。"
+  "Requires the Microsoft OAuth application to be configured on this server.": "需要先在服务器配置 Microsoft OAuth 应用。",
+  "Browse agricultural files and folders, read text datasets and upload text files to ADMA.": "浏览农业数据文件和文件夹、读取文本数据集，并向 ADMA 上传文本文件。",
+  "Use your ADMA API token from adma.aisoup.net. ADMA uses Token authentication. An administrator can create a token for your account with the create_api_token management command. Never enter your account password here.": "填入 adma.aisoup.net 的个人 API token。ADMA 使用 Token 认证。管理员可通过 create_api_token 管理命令为你的账号创建 token。请勿在此输入账号密码。",
+  "This ADMA file is not a supported text format.": "此 ADMA 文件不是受支持的文本格式。"
 }
