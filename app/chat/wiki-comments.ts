@@ -1,3 +1,4 @@
+import {ensureRoleSession} from './session';
 import {canWritePage} from '@/app/page-permissions';
 import {startJob,finishJob} from '@/app/context-index/jobs';
 import {fileContext} from '@/app/context-files/server';
@@ -10,10 +11,7 @@ import {editWiki} from './edit-page';
 import {readEditDraft,saveEditDraft} from './edit-draft';
 type Viewer={userId:string;userName:string;cookie:string|null;agent:Agent};
 async function commentAgent(pageId:string,viewer:Viewer){
- const digest=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(JSON.stringify([viewer.userId,'comments:'+pageId])));
- const id=Array.from(new Uint8Array(digest),b=>b.toString(16).padStart(2,'0')).join('');
- await database().prepare('INSERT OR IGNORE INTO agent_instances(id,role,owner_id,parent_id,created_at) VALUES(?,?,?,NULL,?)').bind(id,'comments:'+pageId,viewer.userId,new Date().toISOString()).run();
- return {id,role:'comments:'+pageId,ownerId:viewer.userId};
+ return ensureRoleSession('comments:'+pageId,viewer.userId);
 }
 function finish(response:Response,viewer:Viewer){if(viewer.cookie)response.headers.set('Set-Cookie',viewer.cookie);return response;}
 async function saveComment(pageId:string,agent:Agent,viewer:Viewer,message:string,response:string,createdAt:string){
@@ -37,7 +35,7 @@ export async function postWikiComment(request:Request,page:AnswerPage,viewer:Vie
  const agent=await commentAgent(page.id,viewer);
  if(data.saveDraftId&&!canWritePage(page))return finish(reply({error:'This page is read-only.'},403),viewer);
  if(!data.message&&!data.saveDraftId)return finish(reply({error:'Enter a message.'},400),viewer);
- const lease=await lock('agent:'+agent.id,180000);if(!lease)return finish(reply({error:'The agent is still replying to your previous message.'},409),viewer);
+ const lease=await lock('agent:'+agent.id,660000);if(!lease)return finish(reply({error:'The agent is still replying to your previous message.'},409),viewer);
  let jobId:string;try{jobId=await startJob(viewer.userId,'wiki-agent',data.message||'Save wiki revision',page.id);}catch(e){await unlock(lease);throw e;}let jobState='completed';
  let released=false;const release=async()=>{if(released)return;await unlock(lease);released=true;await finishJob(jobId,jobState).catch(()=>{});};
  const run=async(onReply?:(text:string)=>void,signal?:AbortSignal)=>{
@@ -53,7 +51,7 @@ export async function postWikiComment(request:Request,page:AnswerPage,viewer:Vie
   return {...result,authorName:viewer.userName,createdAt};
  };
  if(!request.headers.get('accept')?.includes('text/event-stream')||data.saveDraftId){try{return finish(reply(await run()),viewer);}catch(error){console.error('Wiki chat failed',error instanceof Error?error.name:'UnknownError');jobState='failed';return finish(reply({error:'The agent could not finish. Please try again.'},503),viewer);}finally{await release().catch(()=>{});}}
- const lifetime=new AbortController(),signal=AbortSignal.any([request.signal,lifetime.signal,AbortSignal.timeout(160000)]),encoder=new TextEncoder();
+ const lifetime=new AbortController(),signal=AbortSignal.any([request.signal,lifetime.signal,AbortSignal.timeout(600000)]),encoder=new TextEncoder();
  const stream=new ReadableStream<Uint8Array>({start(controller){let closed=false;const send=(event:unknown)=>{if(!closed&&!signal.aborted)controller.enqueue(encoder.encode('data: '+JSON.stringify(event)+'\n\n'));};send({type:'start',authorName:viewer.userName,createdAt:new Date().toISOString()});const heartbeat=setInterval(()=>send({type:'ping'}),10000);
  void(async()=>{try{const result=await run(text=>send({type:'reply',text}),signal);await release();send({type:'done',...result});}catch(error){console.error('Wiki chat failed',error instanceof Error?error.name:'UnknownError',error instanceof Error&&/^(AI_|INCOMPLETE_)/.test(error.message)?error.message.slice(0,80):'generation-or-save');jobState='failed';await release().catch(()=>{});if(!signal.aborted)send({type:'error',message:'The reply did not finish. This message was not saved. Please try again.'});}finally{clearInterval(heartbeat);if(signal.aborted&&!released)jobState='cancelled';await release().catch(()=>{});closed=true;try{controller.close();}catch{}}})();
  },cancel(){lifetime.abort();}});

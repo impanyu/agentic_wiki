@@ -2,7 +2,10 @@ import {database} from '@/db/store';import type {Agent} from '@/app/components-r
 export async function ensurePageSession(pageId:string,userId:string):Promise<Agent>{
  const existing=await database().prepare('SELECT a.id,a.role,a.owner_id ownerId FROM session_routes r JOIN agent_instances a ON a.id=r.session_id WHERE r.page_id=? AND r.owner_id=? AND a.owner_id=? ORDER BY r.created_at LIMIT 1').bind(pageId,userId,userId).first<Agent>();
  if(existing)return existing;
- const role='page:'+pageId,digest=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(JSON.stringify([userId,role])));
+ return ensureRoleSession('page:'+pageId,userId);
+}
+export async function ensureRoleSession(role:string,userId:string):Promise<Agent>{
+ const digest=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(JSON.stringify([userId,role])));
  const id=Array.from(new Uint8Array(digest),b=>b.toString(16).padStart(2,'0')).join('');
  await database().prepare('INSERT OR IGNORE INTO agent_instances(id,role,owner_id,parent_id,created_at) VALUES(?,?,?,NULL,?)').bind(id,role,userId,new Date().toISOString()).run();return {id,role,ownerId:userId};
 }

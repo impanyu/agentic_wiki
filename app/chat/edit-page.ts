@@ -28,7 +28,7 @@ export async function editWiki(page:AnswerPage,message:string,conversation:unkno
  let decision:ReturnType<typeof wikiEditSchema.parse>|undefined,content={title:base.title,summary:base.summary,body:base.body};
  let validationFeedback='';
  for(let attempt=0;attempt<2;attempt++){
-  const raw=await askAgent(agent,instructions,{...task,validationFeedback},wikiEditFormat,signal?AbortSignal.any([signal,AbortSignal.timeout(150000)]):AbortSignal.timeout(150000),(attempt||editRequested)?undefined:onReply,files);
+  const raw=await askAgent(agent,instructions,{...task,validationFeedback},wikiEditFormat,signal?AbortSignal.any([signal,AbortSignal.timeout(600000)]):AbortSignal.timeout(600000),(attempt||editRequested)?undefined:onReply,files);
   try{decision=wikiEditSchema.parse(raw);if(editRequested&&canWritePage(current)&&!decision.apply)throw Error('EDIT_PATCH_INVALID: user already requested this edit. Prepare it now with apply=true. Overview is summary: set summary directly, with edits=[] if body is unchanged. Never ask permission to prepare a preview.');if(decision.apply&&!decision.discard)content=applyWikiPatches(base,decision);if(editRequested&&canWritePage(current)&&!decision.discard&&content.title===base.title&&content.summary===base.summary&&content.body===base.body)throw Error('EDIT_PATCH_INVALID: the requested change is missing. Return a concrete change rather than unchanged content.');break;}
   catch(error){
    if(attempt)throw error;

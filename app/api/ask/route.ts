@@ -1,3 +1,4 @@
+import {inheritGenerationSession} from '@/app/agent-runtime/session';
 import {prepareNavigationInput} from '@/app/url-content';
 import {matchSourceUrl} from '@/app/url-content/matching';
 import {generationProgress} from '@/app/generation-progress';
@@ -117,10 +118,10 @@ async function routeAnswer(request:Request,actor:Awaited<ReturnType<typeof getAc
   const visibility='private' as const;
   const keyBytes=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(JSON.stringify([language,destinationKey,uid])));
   const generationKey=fork?'fork:'+fork.requestId:'question:'+Array.from(new Uint8Array(keyBytes),b=>b.toString(16).padStart(2,'0')).join('');
-  token=await lock(generationKey,300000);
+  token=await lock(generationKey,660000);
   if(!token)return respond({error:'This question is already being prepared.',retryAfter:2},409);
   const lease=token;
-  const deadline=AbortSignal.timeout(240000);
+  const deadline=AbortSignal.timeout(600000);
 
   async function generate(emit?:(event:ResearchUpdate)=>void,signal?:AbortSignal){
    signal=signal?AbortSignal.any([signal,deadline]):deadline;
@@ -158,6 +159,7 @@ async function routeAnswer(request:Request,actor:Awaited<ReturnType<typeof getAc
    ...(fork?[database().prepare('INSERT INTO page_forks(page_id,group_id,parent_id,created_at) VALUES(?,?,?,?)').bind(id,fork.groupId,fork.sourceId,now)]:[]),
    ...(fork?[]:entries).map(([key,text])=>database().prepare('INSERT INTO questions(id,page_id,normalized,question,embedding,created_at,match_version,capability,parameters,routing_scope) VALUES(?,?,?,?,?,?,?,?,?,?)').bind(crypto.randomUUID(),id,key,text,JSON.stringify(vector),now,MATCH_VERSION,(definition&&'capability'in definition.config?definition.config.capability:null)||(definition?'application':generated.templateId==='disambiguation-v1'?'disambiguation':'article'),JSON.stringify(definition?.parameters||{}),generationDomain))
   ]);
+  await inheritGenerationSession(generated.generatorId,id,uid,!definition);
   if(dependencies.length)await attachComponents(id,dependencies,context);
   if(generationDomain==='wiki')await importWikiRoutes(database(),uid);
   const page=await resolvePage(id);if(!page)throw new Error('Could not load the saved page.');

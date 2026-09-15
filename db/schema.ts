@@ -115,3 +115,10 @@ export const pageFileFolders=sqliteTable('page_file_folders',{id:text('id').prim
 
 export const userConnectors=sqliteTable('user_connectors',{id:text('id').notNull(),ownerId:text('owner_id').notNull(),name:text('name').notNull(),kind:text('kind').notNull(),url:text('url'),enabled:integer('enabled').notNull().default(0),tools:text('tools').notNull().default('[]'),allowed:text('allowed').notNull().default('[]'),automatic:text('automatic').notNull().default('[]'),revision:integer('revision').notNull().default(1)},t=>[uniqueIndex('idx_connector_owner_id').on(t.ownerId,t.id)]);
 export const connectorActions=sqliteTable('connector_actions',{id:text('id').primaryKey(),ownerId:text('owner_id').notNull(),connectorId:text('connector_id').notNull(),revision:integer('revision').notNull(),pageId:text('page_id'),tool:text('tool').notNull(),state:text('state').notNull(),createdAt:integer('created_at').notNull()},t=>[index('idx_connector_actions_owner').on(t.ownerId,t.createdAt)]);
+
+export const agentSessionState=sqliteTable('agent_session_state',{
+ agentId:text('agent_id').primaryKey().references(()=>agentInstances.id,{onDelete:'cascade'}),summary:text('summary').notNull().default(''),throughSequence:integer('through_sequence').notNull().default(0),notes:text('notes').notNull().default('{}'),plan:text('plan').notNull().default('[]'),
+});
+export const agentRunEvents=sqliteTable('agent_run_events',{
+ sequence:integer('sequence').primaryKey({autoIncrement:true}),agentId:text('agent_id').notNull().references(()=>agentInstances.id,{onDelete:'cascade'}),runId:text('run_id').notNull(),kind:text('kind').notNull(),data:text('data').notNull(),createdAt:text('created_at').notNull(),
+},t=>[index('agent_run_history').on(t.agentId,t.sequence)]);

@@ -23,7 +23,7 @@ export async function generateContext(brief:GenerationBrief,context:AgentContext
  await recordAction(generator,'Analyze new-page intent',{question:brief.question,intent});
  if(intent.needsDisambiguation){
   const index=await classifyAmbiguity(brief.question,context.language,generator,true,intent.interpretations,signal);
-  return {answer:indexAnswer(index),definition:undefined,templateId:'disambiguation-v1' as const,generationIntent:intent};
+  return {generatorId:generator.id,answer:indexAnswer(index),definition:undefined,templateId:'disambiguation-v1' as const,generationIntent:intent};
  }
  const findings=await useNotebook(generator,'Use available tools only when helpful to fulfill this ORIGINAL user request. Discover enabled connectors if the task concerns external accounts or tools. Gather relevant evidence or execute authorized tasks; do not modify pages or claim pending approvals succeeded. Request: '+brief.question,context,signal);
  context={...context,toolFindings:findings};
@@ -32,10 +32,10 @@ export async function generateContext(brief:GenerationBrief,context:AgentContext
  for(let attempt=0;attempt<2;attempt++){
   const generationContext={...context,agent:generator,generationIntent:intent,generationFeedback:feedback};
   const result=await composeContext(planned,generationContext,generator,emit,signal,intent);
-  if(!result.definition)return {...result,generationIntent:intent};
+  if(!result.definition)return {...result,generatorId:generator.id,generationIntent:intent};
   const review=await reviewGeneratedDefinition(brief.question,intent,result.definition,generator,signal);
   await recordAction(generator,'Review generated page against intent',review);
-  if(review.accepted)return {...result,generationIntent:intent};
+  if(review.accepted)return {...result,generatorId:generator.id,generationIntent:intent};
   feedback=review.reason;
   emit?.({type:'status',message:context.language.startsWith('zh')?'正在补齐页面尚未满足的需求…':'Revising the page to cover missing requirements…'});
  }

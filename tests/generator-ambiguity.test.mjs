@@ -1,3 +1,4 @@
+const runtimeSource=readFileSync('app/agent-runtime/loop.ts','utf8')+'\nconst compactSession=async()=>({}),sessionContext=async()=>({}),sessionTools=[],sessionInstructions="",runJournal=()=>async()=>{},safeMemory=JSON.stringify;\n';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
@@ -19,7 +20,7 @@ test('search-enabled agent requests web search and rejects missing search eviden
  let completed=true,payload;
  globalThis.searchAgentTest={model:()=> 'test-model',memory:async()=>[],recordAction:async()=>{},output:()=> '{"needed":false}',api:async(path,p)=>{payload=p;return {output:completed?[{type:'web_search_call',status:'completed'}]:[]};}};
  const source=readFileSync('app/components-registry/agents.ts','utf8').split('export async function askAgent')[1];
- const m=await load('const {'+Object.keys(globalThis.searchAgentTest).join(',')+'}=globalThis.searchAgentTest;\nconst connectorTools=[],connectorInstructions="";\nexport async function askAgent'+source);
+ const m=await load('const {'+Object.keys(globalThis.searchAgentTest).join(',')+'}=globalThis.searchAgentTest;\nconst connectorTools=[],connectorInstructions="";\n'+runtimeSource+'export async function askAgent'+source);
  const agent={role:'content-generation'};
  await m.askAgent(agent,'Check meanings',{}, {},undefined,undefined,[],{webSearch:true});
  assert.deepEqual(payload.tools,[{type:'web_search'}]);assert.equal(payload.tool_choice,'required');
