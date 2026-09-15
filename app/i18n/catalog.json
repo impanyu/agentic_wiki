@@ -488,5 +488,6 @@
   "Selected files can now be changed with your confirmation. Return to your page to continue.": "Selected files can now be changed with your confirmation. Return to your page to continue.",
   "Read all Google Drive files and edit selected or app-created files with confirmation.": "Read all Google Drive files and edit selected or app-created files with confirmation.",
   "Reconnect Google Drive to enable reading all files and editing selected files.": "Reconnect Google Drive to enable reading all files and editing selected files.",
-  "Scopes: drive.readonly and drive.file. Add your Google account as a test user while the consent screen is in testing.": "Scopes: drive.readonly and drive.file. Add your Google account as a test user while the consent screen is in testing."
+  "Scopes: drive.readonly and drive.file. Add your Google account as a test user while the consent screen is in testing.": "Scopes: drive.readonly and drive.file. Add your Google account as a test user while the consent screen is in testing.",
+  "Checked tools can be called automatically by agents, including tools that change external data. Uncheck a tool to disable it.": "Checked tools can be called automatically by agents, including tools that change external data. Uncheck a tool to disable it."
 }

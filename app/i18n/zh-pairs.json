@@ -254,5 +254,6 @@
   "Selected files can now be changed with your confirmation. Return to your page to continue.": "选中的文件现在可在你确认后修改。返回页面即可继续。",
   "Read all Google Drive files and edit selected or app-created files with confirmation.": "读取全部 Google Drive 文件，并在确认后修改选中或由应用创建的文件。",
   "Reconnect Google Drive to enable reading all files and editing selected files.": "请重新连接 Google Drive，以启用读取全部文件和修改选中文件。",
-  "Scopes: drive.readonly and drive.file. Add your Google account as a test user while the consent screen is in testing.": "权限：drive.readonly 和 drive.file。在授权应用处于测试状态时，请将你的 Google 账号添加为测试用户。"
+  "Scopes: drive.readonly and drive.file. Add your Google account as a test user while the consent screen is in testing.": "权限：drive.readonly 和 drive.file。在授权应用处于测试状态时，请将你的 Google 账号添加为测试用户。",
+  "Checked tools can be called automatically by agents, including tools that change external data. Uncheck a tool to disable it.": "勾选的工具允许 agent 自动调用，包括修改外部数据的工具。取消勾选即可禁用。"
 }

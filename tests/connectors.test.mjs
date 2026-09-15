@@ -1,23 +1,28 @@
 const runtimeSource=readFileSync('app/agent-runtime/loop.ts','utf8')+'\nconst compactSession=async()=>({}),sessionContext=async()=>({}),sessionTools=[],sessionInstructions="",runJournal=()=>async()=>{},safeMemory=JSON.stringify;\n';
 import test from 'node:test';import assert from 'node:assert/strict';import {readFileSync,readdirSync} from 'node:fs';import {DatabaseSync} from 'node:sqlite';import ts from 'typescript';import {z} from 'zod';
 const strip=p=>readFileSync(p,'utf8').replace(/^import .*;$/gm,'');const load=async s=>import('data:text/javascript;base64,'+Buffer.from(ts.transpile(s,{module:ts.ModuleKind.ESNext,target:ts.ScriptTarget.ES2022})).toString('base64'));
-test('connectors isolate accounts, block disabled tools and invalidate approvals after changes',async()=>{
+test('checked connector tools run automatically while account, disabled-tool and read-only restrictions remain enforced',async()=>{
  const db=new DatabaseSync(':memory:');for(const f of readdirSync('drizzle').filter(f=>f.endsWith('.sql')).sort())db.exec(readFileSync('drizzle/'+f,'utf8'));
- const vault=new Map();let calls=0,visibility='private';
- globalThis.connectorTest={z,database:()=>({prepare:sql=>({bind:(...args)=>({first:async()=>db.prepare(sql).get(...args),all:async()=>({results:db.prepare(sql).all(...args)}),run:async()=>({meta:{changes:db.prepare(sql).run(...args).changes}})})})}),getPage:async()=>({owned:true,visibility}),canWritePage:p=>p.owned,vaultPath:async(u,n)=>u+'/'+n,vaultRead:async p=>vault.get(p),vaultWrite:async(p,v)=>vault.set(p,v),vaultDelete:async p=>vault.delete(p),vaultReady:()=>true,signedIn:u=>{if(u.startsWith('guest:'))throw Error('Sign in');},storageStatus:async()=>[],storageToken:async()=>'',disconnectStorage:async()=>{},providerOperation:async()=>{},storageRequest:{parse:x=>x},connectorUrl:u=>new URL(u),discoverMcp:async()=>[{name:'read',inputSchema:{type:'object'},annotations:{readOnlyHint:true}},{name:'write',inputSchema:{type:'object'}}],callMcp:async()=>{calls++;return {text:'result secret-token'};},lock:async()=> 'lease',unlock:async()=>{}};
+ const vault=new Map();let calls=0,visibility='private',owned=true;
+ globalThis.connectorTest={z,database:()=>({prepare:sql=>({bind:(...args)=>({first:async()=>db.prepare(sql).get(...args),all:async()=>({results:db.prepare(sql).all(...args)}),run:async()=>({meta:{changes:db.prepare(sql).run(...args).changes}})})})}),getPage:async()=>({owned,visibility}),canWritePage:p=>p.owned,vaultPath:async(u,n)=>u+'/'+n,vaultRead:async p=>vault.get(p),vaultWrite:async(p,v)=>vault.set(p,v),vaultDelete:async p=>vault.delete(p),vaultReady:()=>true,signedIn:u=>{if(u.startsWith('guest:'))throw Error('Sign in');},storageStatus:async()=>[{provider:'google',name:'Google Drive',connected:true,configured:true}],storageToken:async()=>'',disconnectStorage:async()=>{},providerOperation:async()=>{calls++;return {ok:true};},storageRequest:{parse:x=>x},connectorUrl:u=>new URL(u),discoverMcp:async()=>[{name:'read',inputSchema:{type:'object'},annotations:{readOnlyHint:true}},{name:'write',inputSchema:{type:'object'}}],callMcp:async()=>{calls++;return {text:'result secret-token'};},lock:async()=> 'lease',unlock:async()=>{}};
  const m=await load('const {'+Object.keys(globalThis.connectorTest).join(',')+'}=globalThis.connectorTest;\n'+strip('app/connectors/contracts.ts').replace("import {z} from 'zod';",'')+'\n'+strip('app/connectors/service.ts'));
  const {id}=await m.createConnection('alice',{name:'Test',url:'https://example.org/mcp',token:'secret-token'});
- assert.equal((await m.connections('alice'))[0].enabled,false);assert.deepEqual(await m.connections('bob'),[]);
+ assert.equal((await m.connections('alice')).find(c=>c.id===id).enabled,false);assert.equal((await m.connections('bob')).some(c=>c.id===id),false);
  await assert.rejects(m.callConnector('alice',id,'read',{}),/disabled/);await assert.rejects(m.callConnector('bob',id,'read',{}),/disabled/);
- await m.updateConnection('alice',id,{enabled:true,automatic:['read']});assert.deepEqual(await m.callConnector('alice',id,'read',{}),{text:'result [redacted]'});assert.equal(calls,1);
- const pending=await m.callConnector('alice',id,'write',{name:'new'});assert.equal(pending.confirmationRequired,true);assert.equal(calls,1);
- await assert.rejects(m.resolveConnectorAction('bob',pending.actionId,true),/not found/);
- await m.updateConnection('alice',id,{enabled:false});await assert.rejects(m.resolveConnectorAction('alice',pending.actionId,true),/disabled/);
- await m.updateConnection('alice',id,{enabled:true});await assert.rejects(m.resolveConnectorAction('alice',pending.actionId,true),/settings changed/);
- const next=await m.callConnector('alice',id,'write',{});await m.resolveConnectorAction('alice',next.actionId,true);assert.equal(calls,2);await m.resolveConnectorAction('alice',next.actionId,true);assert.equal(calls,2);
- visibility='public';const shared=await m.callConnector('alice',id,'read',{},'page');assert.equal(shared.confirmationRequired,true);assert.equal(calls,2);
+ await m.updateConnection('alice',id,{enabled:true});
+ assert.deepEqual(await m.callConnector('alice',id,'read',{}),{text:'result [redacted]'});
+ assert.deepEqual(await m.callConnector('alice',id,'write',{}),{text:'result [redacted]'});assert.equal(calls,2);
+ visibility='public';await m.callConnector('alice',id,'read',{},'page');assert.equal(calls,3);
+ owned=false;await assert.rejects(m.callConnector('alice',id,'write',{},'page'),/read only/);assert.equal(calls,3);owned=true;
  await m.updateConnection('alice',id,{allowed:['write']});await assert.rejects(m.callConnector('alice',id,'read',{}),/disabled/);
- await m.removeConnection('alice',id);assert.deepEqual(await m.connections('alice'),[]);db.close();delete globalThis.connectorTest;
+ assert.deepEqual((await m.connections('alice')).find(c=>c.id===id).automatic,['write']);
+ await m.updateConnection('alice',id,{allowed:['read','write']});await m.callConnector('alice',id,'read',{});assert.equal(calls,4);
+ assert.ok((await m.enabledConnectors('alice')).flatMap(c=>c.tools).every(t=>!t.confirmationRequired));
+ await m.updateConnection('alice','google',{allowed:['list','upload']});assert.deepEqual(await m.callConnector('alice','google','upload',{name:'test'}),{ok:true});assert.equal(calls,5);
+ owned=false;await assert.rejects(m.callConnector('alice','google','upload',{},'page'),/read only/);owned=true;
+ await m.updateConnection('alice','google',{allowed:['list']});await assert.rejects(m.callConnector('alice','google','upload',{}),/disabled/);
+ await m.updateConnection('alice',id,{enabled:false});await assert.rejects(m.callConnector('alice',id,'write',{}),/disabled/);
+ await m.removeConnection('alice',id);assert.equal((await m.connections('alice')).some(c=>c.id===id),false);db.close();delete globalThis.connectorTest;
 });
 test('MCP initializes, sends session headers, follows pagination and closes its session',async()=>{
  const methods=[];globalThis.mcpTest={toolSchema:{parse:x=>x},remoteRequest:async(url,headers,body,signal,method)=>{if(method==='DELETE'){methods.push('DELETE');return {headers:{},data:null};}methods.push(body.method);if(body.method!=='initialize')assert.equal(headers['Mcp-Session-Id'],'session');return {headers:{'mcp-session-id':'session'},data:body.id?{id:body.id,result:body.method==='initialize'?{protocolVersion:'2025-03-26'}:body.params?.cursor?{tools:[{name:'second',inputSchema:{}}]}:{tools:[{name:'first',inputSchema:{}}],nextCursor:'next'}}:null};}};
