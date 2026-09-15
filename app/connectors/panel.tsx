@@ -1,5 +1,6 @@
 'use client';
 import {useEffect,useRef,useState} from 'react';
+import {useDismissFloating} from '@/app/use-dismiss-floating';
 import {Plug,X,RefreshCw} from 'lucide-react';
 import {useUi} from '@/app/i18n/client';
 import {connectorCatalog,type ConnectorPreset} from './catalog';
@@ -8,6 +9,7 @@ type Action={id:string;connectorId:string;tool:string;state:string;args?:unknown
 export function ConnectorPanel(){
  const [view,setView]=useState<'catalog'|'connected'|'activity'>('catalog'),[query,setQuery]=useState(''),[category,setCategory]=useState('All'),[chosen,setChosen]=useState<ConnectorPreset|null>(null),[presetToken,setPresetToken]=useState('');
  const {t}=useUi(),dialog=useRef<HTMLDialogElement>(null),[open,setOpen]=useState(false),[items,setItems]=useState<Connection[]>([]),[actions,setActions]=useState<Action[]>([]),[signed,setSigned]=useState(false),[configured,setConfigured]=useState(false),[busy,setBusy]=useState(false),[error,setError]=useState(''),[name,setName]=useState(''),[url,setUrl]=useState(''),[token,setToken]=useState('');
+ useDismissFloating(open,dialog,()=>setOpen(false));
  async function load(){const r=await fetch('/api/connectors'),d=await r.json() as any;if(!r.ok)throw Error(d.error);setItems(d.connections);setActions(d.actions);setSigned(d.signedIn);setConfigured(d.configured);}
  useEffect(()=>{void load().catch(()=>{});const id=setInterval(()=>void load().catch(()=>{}),15000);return()=>clearInterval(id);},[]);
  useEffect(()=>{if(open){dialog.current?.showModal();void load().catch(e=>setError(e.message));}else dialog.current?.close();},[open]);

@@ -1,6 +1,7 @@
 'use client';
 import {useUi} from '@/app/i18n/client';
-import {useState} from 'react';
+import {useRef,useState} from 'react';
+import {useDismissFloating} from './use-dismiss-floating';
 import {Copy,Share2} from 'lucide-react';
 import {pageAccess,type PageAccess} from './page-permissions';
 import type {AnswerPage} from './page-types';
@@ -9,6 +10,8 @@ export function PageShare({page,disabled,onAccess}:{page:AnswerPage;disabled:boo
  const {t,locale}=useUi();
 
  const [open,setOpen]=useState(false),[link,setLink]=useState(''),[notice,setNotice]=useState(''),[working,setWorking]=useState(false);
+ const root=useRef<HTMLDivElement>(null),trigger=useRef<HTMLButtonElement>(null);
+ useDismissFloating(open,root,()=>setOpen(false),trigger);
  const zh=page.language.startsWith('zh');
  async function copy(url:string){
   try{await navigator.clipboard.writeText(url);setNotice("Link copied.");}
@@ -24,8 +27,8 @@ export function PageShare({page,disabled,onAccess}:{page:AnswerPage;disabled:boo
    setLink(url.href);await copy(url.href);
   }finally{setWorking(false);}
  }
- return <div className="page-share">
-  <button type="button" disabled={disabled||working} aria-expanded={open} onClick={()=>setOpen(v=>!v)}><Share2 size={15}/>{t("Share")}</button>
+ return <div className="page-share" ref={root}>
+  <button ref={trigger} type="button" disabled={disabled||working} aria-expanded={open} onClick={()=>setOpen(v=>!v)}><Share2 size={15}/>{t("Share")}</button>
   {open&&<div className="page-share-panel">
    {page.owned?<><p>{t("Choose access and copy the link:")}</p>
     <button disabled={disabled||working} onClick={()=>void share('public-read')}>{t("Public read only · Copy link")}</button>
