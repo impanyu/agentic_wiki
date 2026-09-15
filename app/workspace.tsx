@@ -1,4 +1,5 @@
 'use client';
+import {PageShare} from './page-share';
 import {canWritePage,pageAccess,type PageAccess} from './page-permissions';
 import {DisambiguationIndex} from './disambiguation/view';
 import {ProgramView} from './page-programs/view';
@@ -288,7 +289,7 @@ export default function Workspace({ user, signIn, signOut }: {
   },[]);
 
   async function changeVisibility(value: PageAccess) {
-    if (!selected?.owned || saving) return;
+    if (!selected?.owned || saving) return false;
     const pageId = selected.id;
     setSaving(true); setError('');
     try {
@@ -298,7 +299,8 @@ export default function Workspace({ user, signIn, signOut }: {
         body: JSON.stringify({ access: value }),
       }));
       setSelected(current => current?.id === pageId ? {...result.page,runtime:current.runtime,parameters:current.parameters,applicationResult:current.applicationResult,runtimeError:current.runtimeError} : current);
-    } catch (e) { setError(e instanceof Error ? e.message : 'Could not save visibility.'); }
+      return true;
+    } catch (e) { setError(e instanceof Error ? e.message : 'Could not save visibility.'); return false; }
     finally { setSaving(false); }
   }
 
@@ -349,7 +351,7 @@ export default function Workspace({ user, signIn, signOut }: {
       {status && <div className="navigation-status" role="status">{busy ? <LoaderCircle size={15} className="spinner"/> : <Check size={15}/>} {status}</div>}
       {visiblePage ? <article className={'answer '+(visiblePage.kind==='dynamic'?'dynamic-answer ':'')+'template-'+(visiblePage.labels.templateId||'wiki-v1')} lang={visiblePage.language==='und'?undefined:visiblePage.language} dir={['ar','he','fa','ur','ps','dv','yi'].includes(visiblePage.language)?'rtl':'ltr'}>
         {!draft&&visiblePage.forks&&visiblePage.forks.length>0&&<nav className="page-forks" aria-label="Context forks"><span>{visiblePage.language.startsWith('zh')?'上下文分支':'Context forks'}</span><div>{visiblePage.forks.map((fork,i)=><div className="fork-choice" key={fork.id}><button aria-current={fork.id===visiblePage.id?'page':undefined} disabled={busy||fork.id===visiblePage.id} onClick={()=>void openInternal({id:'fork:'+fork.id,targetId:fork.id,targetTitle:fork.title,quote:question||fork.title,segments:[],parameters:{}})}><strong>{fork.isOriginal?(visiblePage.language.startsWith('zh')?'原始页面':'Original'):(visiblePage.language.startsWith('zh')?'分支':'Fork')+' '+(i+1)}</strong> {fork.title}<small>{pageAccess(fork)==='private'?'Private':pageAccess(fork)==='public-write'?'Public · 读写':'Public · 只读'}</small></button>{fork.removable&&<button className="remove-fork" disabled={busy} onClick={()=>void removePageFork(fork.id)} aria-label={'Remove fork: '+fork.title}><Trash2 size={13}/>{visiblePage.language.startsWith('zh')?'移除':'Remove'}</button>}</div>)}</div></nav>}
-        {!draft&&<div className="context-actions"><button onClick={()=>void createFork()} disabled={busy||saving}><GitFork size={15}/>{visiblePage.language.startsWith('zh')?'创建分支':'Fork'}</button><span>{visiblePage.language.startsWith('zh')?'仅根据问题重新生成私密分支':'Generate a fresh private fork from this question'}</span></div>}
+        {!draft&&<div className="context-actions"><button onClick={()=>void createFork()} disabled={busy||saving}><GitFork size={15}/>{visiblePage.language.startsWith('zh')?'创建分支':'Fork'}</button><span>{visiblePage.language.startsWith('zh')?'仅根据问题重新生成私密分支':'Generate a fresh private fork from this question'}</span><PageShare key={visiblePage.id} page={visiblePage} disabled={busy||saving} onAccess={changeVisibility}/></div>}
         <div className="page-meta"><span>{visiblePage.category}</span><div className="page-visibility">
           {visiblePage.visibility === 'public' ? <Globe2 size={14}/> : <LockKeyhole size={14}/>}
           {visiblePage.owned?<select aria-label="Page access" value={pageAccess(visiblePage)} disabled={saving||busy} onChange={e=>void changeVisibility(e.target.value as PageAccess)}>
