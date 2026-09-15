@@ -1,4 +1,3 @@
-import {applyRequestedEdit} from './apply-requested-edit';
 import {startJob,finishJob} from '@/app/context-index/jobs';
 import {fileContext} from '@/app/context-files/server';
 import {database,reply,lock,unlock} from '@/db/store';
@@ -47,9 +46,7 @@ export async function postWikiComment(request:Request,page:AnswerPage,viewer:Vie
   const recent=await database().prepare('SELECT author_name author,message,reply FROM wiki_comments WHERE page_id=? ORDER BY sequence DESC LIMIT 30').bind(page.id).all();
   const attachments=await fileContext(page.id,viewer.userId);
   const context={ownConversation,pageDiscussion:recent.results.reverse(),attachedFiles:attachments.metadata};
-  const edited=await editWiki(page,data.message!,context,viewer.userId,agent,onReply,signal,attachments.parts);
-  const result=await applyRequestedEdit(edited,agent,signal);
-  onReply?.(result.reply);
+  const result=await editWiki(page,data.message!,context,viewer.userId,agent,onReply,signal,attachments.parts);
   signal?.throwIfAborted();
   await saveComment(page.id,agent,viewer,data.message!,result.reply,createdAt);
   return {...result,authorName:viewer.userName,createdAt};
