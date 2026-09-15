@@ -18,7 +18,7 @@ export async function generateContext(brief:GenerationBrief,context:AgentContext
  const generator=await spawnAgent(['wiki-v1','disambiguation-v1'].includes(brief.templateId)?'content-generation':'app-generation',context.ownerId,router);
  await recordAction(router,'Hand off new-page intent analysis',{agentId:generator.id,question:brief.question});
  emit?.({type:'status',message:context.language.startsWith('zh')?'正在分析查询对象、目标和页面所需内容…':'Analyzing the subject, intent and required page content…'});
- const intent=await analyzeGenerationIntent(brief.question,context.language,generator,signal);
+ const intent=await analyzeGenerationIntent(brief.question,context.language,generator,signal,context.sourceDocument);
  await recordAction(generator,'Analyze new-page intent',{question:brief.question,intent});
  if(intent.needsDisambiguation){
   const index=await classifyAmbiguity(brief.question,context.language,generator,true,intent.interpretations,signal);
@@ -56,7 +56,7 @@ async function composeContext(brief:GenerationBrief,context:AgentContext,generat
  }
  if(templateId==='wiki-v1'||templateId==='disambiguation-v1'){
   templateId='wiki-v1';
-  const answer=await research(brief.question,context.language,emit,signal,brief.fresh,intent);
+  const answer=await research(brief.question,context.language,emit,signal,brief.fresh,intent,context.sourceDocument);
   await recordAction(generator,'Compose researched article',{title:answer.title,sources:answer.sources});
   return {answer,definition,templateId};
  }

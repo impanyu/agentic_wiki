@@ -1,3 +1,4 @@
+import {prepareNavigationInput} from '@/app/url-content';
 import {generationProgress} from '@/app/generation-progress';
 import {importWikiRoutes} from '@/db/routing-tables';
 import {ensurePageSession,rememberSessionRoutes} from '@/app/chat/session';
@@ -16,7 +17,7 @@ import {executePage} from '@/app/components-registry/runtime';
 import type {AnswerPage} from '@/app/page-types';
 import {getActor} from '@/app/actor';
 import {database,getPage,reply,sameOrigin,normalize,lock,unlock,aiKey} from '@/db/store';
-import {embed,detectLanguages,parseConversion,MATCH_VERSION,type ResearchUpdate} from './ai';
+import {detectLanguages,parseConversion,MATCH_VERSION,type ResearchUpdate} from './ai';
 
 export async function POST(request:Request){
  const actor=await getActor(request);
@@ -46,7 +47,7 @@ async function routeAnswer(request:Request,actor:Awaited<ReturnType<typeof getAc
   }
   jobId=await startJob(uid,'navigation',question);
   if(!aiKey())return respond({error:'The AI connection is not configured yet.'},503);
-  const language=(await detectLanguages([{id:'question',text:question}])).get('question')!;
+  const {sourceDocument,routingQuestion,vector,language}=await prepareNavigationInput(question,request.signal);
   // Classify legacy articles by their actual prose, never by their original query.
   // This repairs language metadata without changing saved content or page IDs.
   while(true){
@@ -55,18 +56,17 @@ async function routeAnswer(request:Request,actor:Awaited<ReturnType<typeof getAc
    const languages=await detectLanguages(legacy.results.map(p=>({id:p.id,text:p.title+'\n'+p.summary+'\n'+p.body.slice(0,6000)})));
    await database().batch(legacy.results.map(p=>database().prepare("UPDATE pages SET language=? WHERE id=? AND language='und'").bind(languages.get(p.id)!,p.id)));
   }
-  const context:AgentContext={userId:uid,ownerId:uid,language,visibility:'private'};
+  const context:AgentContext={userId:uid,ownerId:uid,language,visibility:'private',sourceDocument:sourceDocument||undefined};
   const rootRouter=await spawnAgent('root-routing',context.ownerId);
-  const vector=await embed(question);
-  const rootRoute=await resolveRootRoute(question,vector,language,uid,rootRouter);
-  const requested=rootRoute.intent;context.pageIntent=requested.kind;
+  const rootRoute=await resolveRootRoute(routingQuestion,vector,language,uid,rootRouter);
+  const requested=sourceDocument?{...rootRoute.intent,kind:'article' as const,route:'wiki' as const,service:'none' as const,fresh:false}:rootRoute.intent;context.pageIntent=requested.kind;
   const domain=requested.kind==='article'?'wiki':requested.service!=='none'?'app':requested.route==='session'?'session':'app';
   const router=await spawnAgent(domain+'-routing',context.ownerId,rootRouter);context.agent=router;
   const parameterRouter=domain==='app'?rootRouter:router;
   await recordAction(rootRouter,'Route to context branch',{question,domain,agentId:router.id,intent:requested});
-  const destination=question;
-  const destinationKey=normalize(destination);
-  const originalKey=normalize(question);
+  const destination=routingQuestion;
+  const originalKey=sourceDocument?'url:'+sourceDocument.url:normalize(question);
+  const destinationKey=sourceDocument?originalKey:normalize(destination);
   // Every visit embeds and verifies the nearest question-pool entries, including exact repeats.
   // Reuse this request’s embedding in the selected child table.
   let intentPromise:ReturnType<typeof parseConversion>|undefined;
@@ -83,16 +83,16 @@ async function routeAnswer(request:Request,actor:Awaited<ReturnType<typeof getAc
    return page;
   }
   async function remember(pageId:string,page:AnswerPage){
-   await rememberRootRoute(question,vector,language,uid,domain,pageId,requested);
+   await rememberRootRoute(routingQuestion,vector,language,uid,domain,pageId,requested,originalKey);
    const now=new Date().toISOString();
-   const entries=originalKey===destinationKey?[[originalKey,question]]:[[originalKey,question],[destinationKey,destination]];
-   await database().batch([...entries.map(([key,text])=>database().prepare(`INSERT OR IGNORE INTO questions(id,page_id,normalized,question,embedding,created_at,match_version,capability,parameters,routing_scope) SELECT ?,id,?,?,?,?,?,CASE WHEN kind='dynamic' THEN COALESCE(json_extract(dynamic_config,'$.capability'),'unit-converter-v1') WHEN json_extract(labels,'$.templateId')='disambiguation-v1' THEN 'disambiguation' ELSE 'article' END,?,? FROM pages WHERE id=? AND (visibility='public' OR owner_id=?)`).bind(crypto.randomUUID(),key,text,JSON.stringify(vector),now,MATCH_VERSION,JSON.stringify(page.parameters||page.runtime?.input||{}),domain,pageId,uid))]);
+   const entries=sourceDocument?[[originalKey,destination]]:originalKey===destinationKey?[[originalKey,question]]:[[originalKey,question],[destinationKey,destination]];
+   await database().batch([...entries.map(([key,text])=>database().prepare(`INSERT OR IGNORE INTO questions(id,page_id,normalized,question,embedding,created_at,match_version,capability,parameters,routing_scope) SELECT ?,id,?,?,?,?,?,CASE WHEN kind='dynamic' THEN COALESCE(json_extract(dynamic_config,'$.capability'),'unit-converter-v1') WHEN json_extract(labels,'$.templateId')='disambiguation-v1' THEN 'disambiguation' ELSE 'article' END,?,? FROM pages WHERE id=? AND (visibility='public' OR owner_id=?)`+(sourceDocument?' ON CONFLICT(page_id,normalized) DO UPDATE SET question=excluded.question,embedding=excluded.embedding,match_version=excluded.match_version':'')).bind(crypto.randomUUID(),key,text,JSON.stringify(vector),now,MATCH_VERSION,JSON.stringify(page.parameters||page.runtime?.input||{}),domain,pageId,uid))]);
    if(domain==='wiki')await importWikiRoutes(database(),uid);
    if(domain==='session'){const session=await ensurePageSession(pageId,uid);await rememberSessionRoutes(pageId,uid,session.id);}
    page.forks=(await getPage(page.id,uid))?.forks;
   }
   async function findMatch(signal?:AbortSignal){
-   const rootApp=rootRoute.appId?await getPage(rootRoute.appId,uid):null;
+   const rootApp=!sourceDocument&&rootRoute.appId?await getPage(rootRoute.appId,uid):null;
    const id=rootApp?.kind==='dynamic'?rootApp.id:await matchQuestion(destination,vector,language,uid,router,signal,domain);
    if(!id)return null;
    const page=await getPage(id,uid);
@@ -145,20 +145,20 @@ async function routeAnswer(request:Request,actor:Awaited<ReturnType<typeof getAc
    const live=await database().prepare('SELECT count(*) n FROM generation_locks WHERE token IN (?,?) AND expires>?').bind(lease,publishToken,Date.now()).first<{n:number}>();
    if(live?.n!==2)throw new Error('Generation was cancelled or timed out. Please try again.');
    if(existing){const page=await resolvePage(existing);if(page){await remember(existing,page);return {page,reused:true,destination};}}
-  const entries=originalKey===destinationKey?[[originalKey,question]]:[[originalKey,question],[destinationKey,destination]];
+  const entries=sourceDocument?[[originalKey,destination]]:originalKey===destinationKey?[[originalKey,question]]:[[originalKey,question],[destinationKey,destination]];
   if(fork&&!await getPage(fork.sourceId,uid))throw Error('The original context is no longer accessible.');
   await database().batch([
    ...(fork?[
     database().prepare('INSERT OR IGNORE INTO page_forks(page_id,group_id,parent_id,created_at) VALUES(?,?,NULL,?)').bind(fork.sourceId,fork.groupId,fork.createdAt),
    ]:[]),
-   database().prepare('INSERT INTO pages(id,owner_id,question,title,summary,body,category,sources,visibility,created_at,language,labels,kind,dynamic_config) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)').bind(id,context.ownerId,destination,answer.title,answer.summary,answer.body,answer.category,JSON.stringify(answer.sources),visibility,now,language,JSON.stringify({...answer.labels,templateId:generated.templateId}),definition?'dynamic':'static',definition?JSON.stringify({...definition.config,contextDomain:generationDomain,form:undefined}):null),
+   database().prepare('INSERT INTO pages(id,owner_id,question,title,summary,body,category,sources,visibility,created_at,language,labels,kind,dynamic_config) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)').bind(id,context.ownerId,sourceDocument?question:destination,answer.title,answer.summary,answer.body,answer.category,JSON.stringify(answer.sources),visibility,now,language,JSON.stringify({...answer.labels,...(sourceDocument?{sourceUrl:sourceDocument.url,sourceSummary:sourceDocument.summary}:{}),templateId:generated.templateId}),definition?'dynamic':'static',definition?JSON.stringify({...definition.config,contextDomain:generationDomain,form:undefined}):null),
    ...(fork?[database().prepare('INSERT INTO page_forks(page_id,group_id,parent_id,created_at) VALUES(?,?,?,?)').bind(id,fork.groupId,fork.sourceId,now)]:[]),
    ...(fork?[]:entries).map(([key,text])=>database().prepare('INSERT INTO questions(id,page_id,normalized,question,embedding,created_at,match_version,capability,parameters,routing_scope) VALUES(?,?,?,?,?,?,?,?,?,?)').bind(crypto.randomUUID(),id,key,text,JSON.stringify(vector),now,MATCH_VERSION,(definition&&'capability'in definition.config?definition.config.capability:null)||(definition?'application':generated.templateId==='disambiguation-v1'?'disambiguation':'article'),JSON.stringify(definition?.parameters||{}),generationDomain))
   ]);
   if(dependencies.length)await attachComponents(id,dependencies,context);
   if(generationDomain==='wiki')await importWikiRoutes(database(),uid);
   const page=await resolvePage(id);if(!page)throw new Error('Could not load the saved page.');
-  if(!fork)await rememberRootRoute(question,vector,language,uid,generationDomain,page.id,generationRequest);
+  if(!fork)await rememberRootRoute(routingQuestion,vector,language,uid,generationDomain,page.id,generationRequest,originalKey);
   if(domain==='app')await recordAction(rootRouter,'Route original question to generated app',{pageId:page.id,parameters:page.parameters||page.runtime?.input||{}});
   return {page,reused:false,destination};
   }finally{await unlock(publishToken).catch(()=>{});}
@@ -191,7 +191,7 @@ async function routeAnswer(request:Request,actor:Awaited<ReturnType<typeof getAc
   });
   return actor.finish(new Response(stream,{headers:{'Content-Type':'text/event-stream; charset=utf-8','Cache-Control':'no-store, private, no-transform','Vary':'Cookie, Accept','X-Accel-Buffering':'no','X-Content-Type-Options':'nosniff'}}));
 
- }catch(e){jobState='failed';const message=e instanceof Error?e.message:'';console.error('Answer navigation failed',message.slice(0,300));return respond({error:message==='AI_LIMIT'?'The AI service has reached its usage limit. Please try again later.':message==='AI_SETUP'?'The AI connection is not configured yet.':'Could not complete this answer. Your text is preserved; please try again.'},503);}
+ }catch(e){jobState='failed';const message=e instanceof Error?e.message:'';console.error('Answer navigation failed',message.slice(0,300));if(message.startsWith('URL_'))return respond({error:message==='URL_PRIVATE'?'Only public web URLs can be read.':message==='URL_INVALID'?'Enter a valid HTTP or HTTPS URL without a username or password.':message==='URL_TOO_LARGE'?'This document is too large to read. Choose a shorter page or PDF.':message==='URL_UNSUPPORTED'?'This URL is not a supported webpage, text document or PDF.':'Could not read meaningful content from this URL. It may require sign-in, block automated reading, or be unavailable. The URL itself was not embedded.'},422);return respond({error:message==='AI_LIMIT'?'The AI service has reached its usage limit. Please try again later.':message==='AI_SETUP'?'The AI connection is not configured yet.':'Could not complete this answer. Your text is preserved; please try again.'},503);}
  finally{if(jobId)await finishJob(jobId,jobState).catch(()=>{});if(token)await unlock(token).catch(()=>{});}
 }
 

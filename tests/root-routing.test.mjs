@@ -15,5 +15,9 @@ test('root targets branches or apps, never wiki pages or sessions; routes are us
  await mod.rememberRootRoute('Files',[1],'en','bob','app','app',{...session,route:'app'});
  db.exec("UPDATE pages SET visibility='private' WHERE id='app'");
  confidence='high';await mod.resolveRootRoute('Files',[1],'en','bob',{});assert.equal(candidates.some(c=>c.question==='Files'),false);
+ await mod.rememberRootRoute('Webpage content summary',[0.25,0.75],'en','alice','wiki','wiki-page',wiki,'url:https://example.org/Paper');
+ await mod.rememberRootRoute('Different source content',[0.75,0.25],'en','alice','wiki','wiki-page',wiki,'url:https://example.org/paper');
+ const urls=db.prepare("SELECT question,normalized,embedding FROM root_routes WHERE normalized LIKE 'url:%' ORDER BY normalized").all();
+ assert.equal(urls.length,2);assert.equal(urls[0].question,'Webpage content summary');assert.deepEqual(JSON.parse(urls[0].embedding),[0.25,0.75]);assert.equal(urls[0].normalized,'url:https://example.org/Paper');
  db.close();delete globalThis.rootRoutingTest;
 });

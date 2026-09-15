@@ -19,7 +19,7 @@ export async function resolveRootRoute(question:string,vector:number[],language:
  if(selected){return {intent:JSON.parse(selected.route.intent) as Intent,appId:selected.route.app_id};}
  return {intent:await pageIntent(question,agent),appId:null};
 }
-export async function rememberRootRoute(question:string,vector:number[],language:string,userId:string,domain:'wiki'|'session'|'app',pageId:string,intent:Intent){
+export async function rememberRootRoute(question:string,vector:number[],language:string,userId:string,domain:'wiki'|'session'|'app',pageId:string,intent:Intent,addressKey?:string){
  const target=rootTarget(domain,pageId);
- await database().prepare(`INSERT INTO root_routes(id,owner_id,question,normalized,language,embedding,target_type,app_id,intent,created_at) VALUES(?,?,?,?,?,?,?,?,?,?) ON CONFLICT(owner_id,language,normalized) DO UPDATE SET question=excluded.question,embedding=excluded.embedding,target_type=excluded.target_type,app_id=excluded.app_id,intent=excluded.intent`).bind(crypto.randomUUID(),userId,question,normalize(question),language,JSON.stringify(vector),target.type,target.appId,JSON.stringify(intent),new Date().toISOString()).run();
+ await database().prepare(`INSERT INTO root_routes(id,owner_id,question,normalized,language,embedding,target_type,app_id,intent,created_at) VALUES(?,?,?,?,?,?,?,?,?,?) ON CONFLICT(owner_id,language,normalized) DO UPDATE SET question=excluded.question,embedding=excluded.embedding,target_type=excluded.target_type,app_id=excluded.app_id,intent=excluded.intent`).bind(crypto.randomUUID(),userId,question,addressKey??normalize(question),language,JSON.stringify(vector),target.type,target.appId,JSON.stringify(intent),new Date().toISOString()).run();
 }
