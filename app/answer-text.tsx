@@ -1,5 +1,6 @@
 'use client';
 import {useUi} from '@/app/i18n/client';
+import {RichContent,richHeadings} from './page-editor/view';
 import {SourceMediaView} from './url-content/media-view';
 import {availableConcepts} from './concepts/ranges';
 import {useState, type ReactNode} from 'react';
@@ -41,6 +42,7 @@ export function AnswerText({body,title,summary,labels,sources,highlights,links=[
   return <span data-text-id={id} key={id}>{pieces}</span>;
  }
  function inline(value:string,id:string){return inlineParts(value).map((part,i)=>{const key=id+'.'+i;const link=part.match(linkPattern);if(link){const sourceLabel=isSourceLabel(link[1]);return <span key={key}>{!sourceLabel&&text(link[1],key)}{citation(link[2],link[1],key)}</span>;}if(part.startsWith('**')&&part.endsWith('**'))return <strong key={key}>{text(part.slice(2,-2),key)}</strong>;return text(part,key);});}
+ const richDocument=labels.richBody===body?labels.richContent:undefined;
  const lines=body.split(/\n/);
  // Older articles already contain their own introduction. Keep its text and
  // original node IDs intact, and omit only the redundant metadata summary.
@@ -48,12 +50,12 @@ export function AnswerText({body,title,summary,labels,sources,highlights,links=[
  const firstText=lines.find(line=>line.trim()&&!line.trim().startsWith('!['))||'';
  const hasBodyOverview=/^(?:#{1,3}\s|\*\*)/.test(firstText.trim())&&new Set([labels.overview||'Overview','Overview','概述','概览','概覽','概要','简介','簡介'].map(overviewName)).has(overviewName(firstText));
  const showSummary=Boolean(summary)&&!hasBodyOverview;
- const headings=lines.flatMap((line,i)=>{const match=line.match(/^(#{1,3}) (.+)$/);return match?[{id:'section-'+i,title:match[2].replace(/\*\*/g,''),level:match[1].length}]:[]});
+ const headings=richDocument?richHeadings(richDocument):lines.flatMap((line,i)=>{const match=line.match(/^(#{1,3}) (.+)$/);return match?[{id:'section-'+i,title:match[2].replace(/\*\*/g,''),level:match[1].length}]:[]});
  const media=new Map<number,{url:string;caption:string;credit:string}>();
  const skipped=new Set<number>();
  lines.forEach((line,i)=>{const match=line.match(/^!\[([^\]]*)\]\((https:\/\/(?:upload|thumb)\.wikimedia\.org\/[^\s)]+)\)$/);if(match){const credit=/^\[[^\]]+\]\(https:\/\/commons\.wikimedia\.org\/[^\s]+\)$/.test(lines[i+1]||'')?lines[i+1]:'';media.set(i,{url:match[2],caption:match[1],credit});skipped.add(i);if(credit)skipped.add(i+1);}});
  const blocks:ReactNode[]=[];
- for(let i=0;i<lines.length;i++){
+ for(let i=0;i<lines.length&&!richDocument;i++){
   if(skipped.has(i)||!lines[i].trim())continue;
   const line=lines[i],id='line'+i,heading=line.match(/^(#{1,3}) (.+)$/);
   if(heading){blocks.push(heading[1].length===3?<h3 id={'section-'+i} key={id}>{inline(heading[2],id)}</h3>:<h2 id={'section-'+i} key={id}>{inline(heading[2],id)}</h2>);continue;}
@@ -62,11 +64,11 @@ export function AnswerText({body,title,summary,labels,sources,highlights,links=[
   blocks.push(<p key={id}>{inline(line,id)}</p>);
  }
  const summaryContent=showSummary?inline(summary,'summary'):null;
- const figures=[...media].map(([i,item])=><ArticleFigure key={item.url} url={item.url} alt={item.caption}><p>{inline(item.caption,'figure'+i)}</p>{item.credit&&<div className="image-credit">{inline(item.credit,'credit'+i)}</div>}</ArticleFigure>);
+ const figures=(richDocument?[]:[...media]).map(([i,item])=><ArticleFigure key={item.url} url={item.url} alt={item.caption}><p>{inline(item.caption,'figure'+i)}</p>{item.credit&&<div className="image-credit">{inline(item.credit,'credit'+i)}</div>}</ArticleFigure>);
  return <><header className="wiki-heading"><h1>{text(title,'title')}</h1>{showSummary&&<><p className="wiki-label">{t("Overview")}</p><p className="lead">{summaryContent}</p></>}</header>{children}
   <div className="wiki-layout">
    {headings.length>1&&<nav className="wiki-contents" aria-label={t("Article contents")}><strong>{t("Contents")}</strong><ol>{headings.map(h=><li key={h.id} className={h.level===3?'subsection':''}><a href={'#'+h.id} onClick={e=>{e.preventDefault();document.getElementById(h.id)?.scrollIntoView({block:'start'});}}>{h.title}</a></li>)}</ol></nav>}
-   <div className="wiki-body">{labels.sourceMedia?.length?<SourceMediaView media={labels.sourceMedia}/>:null}{media.size>0&&<aside className="wiki-illustrations" aria-label={t("Illustrations")}>{figures}</aside>}{blocks}</div>
+   <div className="wiki-body">{labels.sourceMedia?.length?<SourceMediaView media={labels.sourceMedia}/>:null}{!richDocument&&media.size>0&&<aside className="wiki-illustrations" aria-label={t("Illustrations")}>{figures}</aside>}{richDocument?<RichContent document={richDocument}/>:blocks}</div>
   </div>
   {references.length>0&&<section className="sources" aria-label={t("Sources")}><h2>{t("Sources")}</h2><ol>{references.map((source,i)=><li id={'source-'+(i+1)} tabIndex={-1} key={source.url}><div className="source-entry"><span className="source-returns">{source.occurrences.length>1&&<CornerUpLeft size={14} className="source-return-icon" aria-hidden="true"/>}{source.occurrences.map((id,j)=><a key={id} href={'#'+id} className="source-return" title={t("Back to citation ")+(i+1)+(source.occurrences.length>1?t(", occurrence ")+(j+1):'')} aria-label={t("Back to citation ")+(i+1)+(source.occurrences.length>1?t(", occurrence ")+(j+1):'')} onClick={e=>{e.preventDefault();jumpTo(id);}}>{source.occurrences.length>1?j+1:<CornerUpLeft size={14} aria-hidden="true"/>}</a>)}</span><a className="source-title" href={source.url} target="_blank" rel="noopener noreferrer">{source.title}</a></div></li>)}</ol></section>}
   </>;

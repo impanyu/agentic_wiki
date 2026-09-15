@@ -16,7 +16,7 @@ await db.prepare('INSERT INTO auth_sessions VALUES(?,?,?)').bind(createHash('sha
 for(const [id,visibility] of [['11111111-1111-4111-8111-111111111111','private'],['22222222-2222-4222-8222-222222222222','public']])await db.prepare("INSERT INTO pages(id,owner_id,question,title,summary,body,category,sources,visibility,created_at,language) VALUES(?,?,?,?,?,?,?,'[]',?,?,'en')").bind(id,'google:smoke','Test article','Test article','Overview','Article body','Test',visibility,new Date().toISOString()).run();
 const bucket=new FileBucket(join(dir,'objects'));await bucket.put('uploads/smoke','private file bytes');
 await db.prepare("INSERT INTO components(id,type,owner_id,visibility,language,title,description,payload,created_at) VALUES('smoke-file','data','google:smoke','private','en','file','test',?,?)").bind(JSON.stringify({kind:'data-reference',location:'r2://FILES/uploads/smoke',fileName:'test.txt',size:18}),new Date().toISOString()).run();
-await db.prepare("INSERT INTO page_files VALUES('smoke-attachment','11111111-1111-4111-8111-111111111111','smoke-file','google:smoke','',?)").bind(new Date().toISOString()).run();
+await db.prepare("INSERT INTO page_files(id,page_id,component_id,owner_id,scope,created_at) VALUES('smoke-attachment','11111111-1111-4111-8111-111111111111','smoke-file','google:smoke','',?)").bind(new Date().toISOString()).run();
 const child=spawn(process.execPath,[resolve('.next/standalone/server.js')],{env:{...process.env,NODE_ENV:'production',HOSTNAME:'127.0.0.1',PORT:String(port),APP_URL:origin,DATA_DIR:dir,OPENAI_API_KEY:'',GOOGLE_CLIENT_ID:'',GOOGLE_CLIENT_SECRET:''},stdio:['ignore','pipe','pipe']});
 let logs='';child.stdout.on('data',b=>logs+=b);child.stderr.on('data',b=>logs+=b);
 try{
@@ -32,6 +32,19 @@ try{
  assert.equal(await (await fetch(download,{headers:{cookie:'agenticwiki_session='+session}})).text(),'private file bytes');
  const visit=await fetch(origin+'/api/history',{method:'POST',headers:{origin,'Content-Type':'application/json',cookie:'agenticwiki_session='+session},body:JSON.stringify({id:'33333333-3333-4333-8333-333333333333',pageId:'11111111-1111-4111-8111-111111111111',question:'Test article'})});assert.equal(visit.status,200);
  assert.equal((await (await fetch(origin+'/api/history',{headers:{cookie:'agenticwiki_session='+session}})).json()).entries.length,1);
+ const headers={origin,'Content-Type':'application/json',cookie:'agenticwiki_session='+session};
+ const originalPage=(await (await fetch(privateUrl,{headers})).json()).page;
+ const document={type:'doc',content:[{type:'paragraph',content:[{type:'text',text:'Edited visually',marks:[{type:'bold'}]}]},{type:'image',attrs:{src:'https://example.org/test.png',alt:'Diagram'}}]};
+ const edit={title:'Edited title',summary:'Edited summary',document,base:originalPage.updatedAt||originalPage.createdAt};
+ assert.equal((await fetch(privateUrl+'/content',{method:'PUT',headers,body:JSON.stringify(edit)})).status,200);
+ const edited=(await (await fetch(privateUrl,{headers})).json()).page;assert.equal(edited.title,'Edited title');assert.equal(edited.labels.richContent.content[0].content[0].text,'Edited visually');
+ assert.equal((await fetch(privateUrl+'/content',{method:'PUT',headers,body:JSON.stringify(edit)})).status,409);
+ assert.equal((await fetch(origin+'/api/pages/22222222-2222-4222-8222-222222222222/content',{method:'PUT',headers:{origin,'Content-Type':'application/json'},body:JSON.stringify(edit)})).status,403);
+ assert.equal((await fetch(privateUrl+'/files',{method:'POST',headers,body:JSON.stringify({path:'Research/Images'})})).status,200);
+ assert.equal((await fetch(download,{method:'PATCH',headers,body:JSON.stringify({name:'renamed.txt',folderPath:'Research/Images'})})).status,200);
+ const listing=await (await fetch(privateUrl+'/files',{headers})).json();assert.ok(listing.folders.includes('Research/Images'));assert.equal(listing.files[0].folderPath,'Research/Images');assert.equal(listing.files[0].name,'renamed.txt');
+ assert.equal((await fetch(download,{method:'PATCH',headers,body:JSON.stringify({name:'renamed.txt',folderPath:'../private'})})).status,400);
+ assert.ok((await (await fetch(origin+'/api/page-link-targets?q=Edited',{headers})).json()).pages.some(p=>p.id===originalPage.id));
  assert.equal((await fetch(origin+'/auth/google',{redirect:'manual'})).status,503);
  assert.equal((await fetch(origin+'/auth/signout',{method:'POST',headers:{origin:'https://evil.example',cookie:'agenticwiki_session='+session}})).status,403);
  const loggedOut=await fetch(origin+'/auth/signout',{method:'POST',headers:{origin,cookie:'agenticwiki_session='+session},redirect:'manual'});assert.equal(loggedOut.status,303);

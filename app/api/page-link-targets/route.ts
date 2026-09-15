@@ -1,0 +1,2 @@
+import {getActor} from '@/app/actor';import {database,reply} from '@/db/store';
+export async function GET(request:Request){const actor=await getActor(request);const q=(new URL(request.url).searchParams.get('q')||'').slice(0,200);const rows=await database().prepare("SELECT id,title FROM pages WHERE (visibility='public' OR owner_id=?) AND title LIKE ? ESCAPE '\\' ORDER BY (owner_id=?) DESC,created_at DESC LIMIT 30").bind(actor.userId,'%'+q.replace(/[\\%_]/g,'\\$&')+'%',actor.userId).all<{id:string;title:string}>();return actor.finish(reply({pages:rows.results}));}

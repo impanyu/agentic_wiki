@@ -1,25 +1,28 @@
+import {folderPath} from './tree';
 import {canWritePage} from '@/app/page-permissions';
 import {Buffer} from 'node:buffer';
 import {env} from '@/server/runtime';
 import {database,getPage} from '@/db/store';
 export type FilePart={type:'input_file';filename:string;file_data:string}|{type:'input_image';image_url:string}|{type:'input_text';text:string};
-export type ContextFile={id:string;name:string;size:number;createdAt:string;url:string;owned:boolean;removable:boolean};
-export const contextFilesSql=`SELECT f.id,f.owner_id,f.scope,f.created_at,c.payload FROM page_files f JOIN pages p ON p.id=f.page_id JOIN components c ON c.id=f.component_id WHERE p.id=? AND (p.visibility='public' OR p.owner_id=?) AND (f.scope='' OR f.scope=?) ORDER BY f.created_at DESC,f.id`;
+export type ContextFile={id:string;name:string;size:number;folderPath:string;mimeType:string;createdAt:string;url:string;owned:boolean;removable:boolean};
+export const contextFilesSql=`SELECT f.id,f.owner_id,f.scope,f.folder_path,f.display_name,f.created_at,c.payload FROM page_files f JOIN pages p ON p.id=f.page_id JOIN components c ON c.id=f.component_id WHERE p.id=? AND (p.visibility='public' OR p.owner_id=?) AND (f.scope='' OR f.scope=?) ORDER BY f.created_at DESC,f.id`;
 export async function contextFiles(pageId:string,userId:string){
- const rows=await database().prepare(contextFilesSql).bind(pageId,userId,userId).all<{id:string;owner_id:string;scope:string;created_at:string;payload:string}>();
+ const rows=await database().prepare(contextFilesSql).bind(pageId,userId,userId).all<{id:string;owner_id:string;scope:string;folder_path:string;display_name:string|null;created_at:string;payload:string}>();
  return rows.results.map(r=>({row:r,data:JSON.parse(r.payload)}));
 }
-export async function listContextFiles(pageId:string,userId:string):Promise<ContextFile[]>{const page=await getPage(pageId,userId);return (await contextFiles(pageId,userId)).map(({row,data})=>({id:row.id,name:data.fileName,size:data.size,createdAt:row.created_at,url:'/api/pages/'+encodeURIComponent(pageId)+'/files/'+encodeURIComponent(row.id),owned:row.owner_id===userId,removable:row.scope!==''?row.owner_id===userId:canWritePage(page)}));}
-export async function attachContextFile(pageId:string,componentId:string,userId:string){
+export async function listContextFiles(pageId:string,userId:string):Promise<ContextFile[]>{const page=await getPage(pageId,userId);return (await contextFiles(pageId,userId)).map(({row,data})=>({id:row.id,name:row.display_name||data.fileName,folderPath:row.folder_path||'',mimeType:data.mimeType||'application/octet-stream',size:data.size,createdAt:row.created_at,url:'/api/pages/'+encodeURIComponent(pageId)+'/files/'+encodeURIComponent(row.id),owned:row.owner_id===userId,removable:row.scope!==''?row.owner_id===userId:canWritePage(page)}));}
+export async function attachContextFile(pageId:string,componentId:string,userId:string,path=''){
+ const folder=folderPath(path),id=crypto.randomUUID();
  const page=await getPage(pageId,userId);if(!page)throw Error('Page is unavailable.');
  // Read-only chat attachments stay personal; shared wiki attachments require write access.
- await database().prepare("INSERT INTO page_files(id,page_id,component_id,owner_id,scope,created_at) SELECT ?,p.id,c.id,?,CASE WHEN p.kind='static' AND (p.owner_id=? OR (p.visibility='public' AND p.public_write=1)) THEN '' ELSE ? END,? FROM pages p,components c WHERE p.id=? AND (p.visibility='public' OR p.owner_id=?) AND c.id=? AND c.owner_id=? AND c.type='data'").bind(crypto.randomUUID(),userId,userId,userId,new Date().toISOString(),pageId,userId,componentId,userId).run();
+ await database().prepare("INSERT INTO page_files(id,page_id,component_id,owner_id,scope,created_at,folder_path) SELECT ?,p.id,c.id,?,CASE WHEN (p.owner_id=? OR (p.visibility='public' AND p.public_write=1)) THEN '' ELSE ? END,?,? FROM pages p,components c WHERE p.id=? AND (p.visibility='public' OR p.owner_id=?) AND c.id=? AND c.owner_id=? AND c.type='data'").bind(id,userId,userId,userId,new Date().toISOString(),folder,pageId,userId,componentId,userId).run();
+ return id;
 }
 export async function fileContext(pageId:string,userId:string,selectedIds?:string[]){
  const files=await contextFiles(pageId,userId),parts:FilePart[]=[],metadata:Record<string,unknown>[]=[];let total=0,included=0;
  for(const {row,data} of files){
   if(selectedIds&&!selectedIds.includes(row.id))continue;
-  const entry:Record<string,unknown>={id:row.id,name:data.fileName,size:data.size};metadata.push(entry);
+  const entry:Record<string,unknown>={id:row.id,name:row.display_name||data.fileName,folderPath:row.folder_path||'',mimeType:data.mimeType||'application/octet-stream',size:data.size};metadata.push(entry);
   if(!String(data.location).startsWith('r2://FILES/uploads/')){entry.status='Not available for inline reading';continue;}
   if(total+data.size>40*1024*1024||included>=10){entry.status='Not included this turn: attachment context limit';continue;}
   const ext=String(data.fileName).split('.').pop()?.toLowerCase()||'';

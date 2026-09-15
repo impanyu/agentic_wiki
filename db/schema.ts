@@ -80,6 +80,7 @@ export const wikiComments=sqliteTable('wiki_comments',{
 export const pageFiles=sqliteTable('page_files',{
  id:text('id').primaryKey(),pageId:text('page_id').notNull().references(()=>pages.id,{onDelete:'cascade'}),
  componentId:text('component_id').notNull().references(()=>components.id,{onDelete:'cascade'}),
+ folderPath:text('folder_path').notNull().default(''),displayName:text('display_name'),
  ownerId:text('owner_id').notNull(),scope:text('scope').notNull(),createdAt:text('created_at').notNull(),
 },t=>[index('idx_page_files_context').on(t.pageId,t.scope)]);
 
@@ -109,3 +110,5 @@ export const pageForks=sqliteTable('page_forks',{
 export const generationProgress = sqliteTable('generation_progress', {
  id:text('id').primaryKey(),ownerId:text('owner_id').notNull(),data:text('data').notNull(),expires:integer('expires').notNull(),
 });
+
+export const pageFileFolders=sqliteTable('page_file_folders',{id:text('id').primaryKey(),pageId:text('page_id').notNull().references(()=>pages.id,{onDelete:'cascade'}),scope:text('scope').notNull(),path:text('path').notNull(),ownerId:text('owner_id').notNull()},t=>[uniqueIndex('idx_page_file_folders').on(t.pageId,t.scope,t.path)]);

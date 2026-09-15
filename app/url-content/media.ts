@@ -7,6 +7,8 @@ export function publicMediaUrl(value:string,base?:string){
 }
 export function videoEmbedUrl(value:string){
  const safe=publicMediaUrl(value);if(!safe)return null;const u=new URL(safe);
+ if(['youtube.com','www.youtube.com','m.youtube.com','youtu.be'].includes(u.hostname)){const id=u.hostname==='youtu.be'?u.pathname.slice(1):u.pathname==='/watch'?u.searchParams.get('v'):u.pathname.match(/^\/shorts\/([\w-]{11})$/)?.[1];if(id&&/^[\w-]{11}$/.test(id))return 'https://www.youtube-nocookie.com/embed/'+id;}
+ if(['vimeo.com','www.vimeo.com'].includes(u.hostname)&&/^\/\d+$/.test(u.pathname))return 'https://player.vimeo.com/video'+u.pathname;
  if(['www.youtube.com','youtube.com','www.youtube-nocookie.com'].includes(u.hostname)&&/^\/embed\/[\w-]{11}$/.test(u.pathname))return 'https://www.youtube-nocookie.com'+u.pathname;
  if(u.hostname==='player.vimeo.com'&&/^\/video\/\d+$/.test(u.pathname))return u.origin+u.pathname;
  return null;

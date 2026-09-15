@@ -1,4 +1,5 @@
-import {attachContextFile} from '@/app/context-files/server';
+import {folderPath} from '@/app/context-files/tree';
+import {attachContextFile,listContextFiles} from '@/app/context-files/server';
 import {env} from '@/server/runtime';
 import {getActor} from '@/app/actor';
 import {createComponent,rememberComponent} from '@/app/components-registry/registry';
@@ -10,7 +11,7 @@ export async function POST(request:Request){
  const files=(env as unknown as {FILES?:R2Bucket}).FILES;if(!files)return respond({error:'File storage is unavailable.'},503);
  let key:string|undefined,registered=false;
  try{
-  const pageId=request.headers.get('x-page-id');
+  const pageId=request.headers.get('x-page-id'),folder=folderPath(decodeURIComponent(request.headers.get('x-folder-path')||''));
   if(pageId&&!await getPage(pageId,actor.userId))return respond({error:'This page is unavailable.'},404);
   // The browser sends bytes directly, avoiding multipart copies of large files.
   const length=Number(request.headers.get('content-length')||0);if(length>10*1024*1024)return respond({error:'Choose a file up to 10 MB.'},413);
@@ -28,7 +29,7 @@ export async function POST(request:Request){
   registered=true;
   await rememberComponent(name,component,context);
   await database().prepare('UPDATE components SET title=?,description=? WHERE id=? AND owner_id=?').bind(name,'Uploaded file: '+name,component.id,actor.userId).run();
-  if(pageId)await attachContextFile(pageId,component.id,actor.userId);
-  return respond({page:await getPage(component.id,actor.userId)});
+  const fileId=pageId?await attachContextFile(pageId,component.id,actor.userId,folder):undefined;
+  return respond({page:await getPage(component.id,actor.userId),file:pageId?(await listContextFiles(pageId,actor.userId)).find(f=>f.id===fileId):undefined});
  }catch(error){if(key&&!registered)await files.delete(key).catch(()=>{});console.error('Upload failed',error instanceof Error?error.message.slice(0,150):'unknown');return respond({error:'The upload could not be saved. Please try again.'},503);}
 }
