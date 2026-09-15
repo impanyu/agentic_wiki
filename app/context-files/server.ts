@@ -1,14 +1,15 @@
+import {canWritePage} from '@/app/page-permissions';
 import {Buffer} from 'node:buffer';
 import {env} from '@/server/runtime';
 import {database,getPage} from '@/db/store';
 export type FilePart={type:'input_file';filename:string;file_data:string}|{type:'input_image';image_url:string}|{type:'input_text';text:string};
-export type ContextFile={id:string;name:string;size:number;createdAt:string;url:string;owned:boolean};
-export const contextFilesSql=`SELECT f.id,f.owner_id,f.created_at,c.payload FROM page_files f JOIN pages p ON p.id=f.page_id JOIN components c ON c.id=f.component_id WHERE p.id=? AND (p.visibility='public' OR p.owner_id=?) AND (f.scope='' OR f.scope=?) ORDER BY f.created_at DESC,f.id`;
+export type ContextFile={id:string;name:string;size:number;createdAt:string;url:string;owned:boolean;removable:boolean};
+export const contextFilesSql=`SELECT f.id,f.owner_id,f.scope,f.created_at,c.payload FROM page_files f JOIN pages p ON p.id=f.page_id JOIN components c ON c.id=f.component_id WHERE p.id=? AND (p.visibility='public' OR p.owner_id=?) AND (f.scope='' OR f.scope=?) ORDER BY f.created_at DESC,f.id`;
 export async function contextFiles(pageId:string,userId:string){
- const rows=await database().prepare(contextFilesSql).bind(pageId,userId,userId).all<{id:string;owner_id:string;created_at:string;payload:string}>();
+ const rows=await database().prepare(contextFilesSql).bind(pageId,userId,userId).all<{id:string;owner_id:string;scope:string;created_at:string;payload:string}>();
  return rows.results.map(r=>({row:r,data:JSON.parse(r.payload)}));
 }
-export async function listContextFiles(pageId:string,userId:string):Promise<ContextFile[]>{return (await contextFiles(pageId,userId)).map(({row,data})=>({id:row.id,name:data.fileName,size:data.size,createdAt:row.created_at,url:'/api/pages/'+encodeURIComponent(pageId)+'/files/'+encodeURIComponent(row.id),owned:row.owner_id===userId}));}
+export async function listContextFiles(pageId:string,userId:string):Promise<ContextFile[]>{const page=await getPage(pageId,userId);return (await contextFiles(pageId,userId)).map(({row,data})=>({id:row.id,name:data.fileName,size:data.size,createdAt:row.created_at,url:'/api/pages/'+encodeURIComponent(pageId)+'/files/'+encodeURIComponent(row.id),owned:row.owner_id===userId,removable:row.scope!==''?row.owner_id===userId:canWritePage(page)}));}
 export async function attachContextFile(pageId:string,componentId:string,userId:string){
  const page=await getPage(pageId,userId);if(!page)throw Error('Page is unavailable.');
  // Read-only chat attachments stay personal; shared wiki attachments require write access.

@@ -32,6 +32,16 @@ test('three access levels control real saves, revocation and independent fork se
  assert.equal((await patch('alice','private')).status,200);
  assert.equal(await getPage('p','bob'),null);
  assert.equal(m.canWritePage(await getPage('p','alice')),true);
+ const files=await load('const {database,getPage}=globalThis.accessTest;\n'+strip('app/context-files/server.ts'));
+ db.exec("UPDATE pages SET visibility='public',public_write=0 WHERE id='p';INSERT INTO components VALUES('upload','data',1,'bob','private','en','File','','{}','now')");
+ await files.attachContextFile('p','upload','bob');
+ assert.equal(db.prepare("SELECT scope FROM page_files").get().scope,'bob');
+ db.exec("UPDATE pages SET public_write=1 WHERE id='p'");
+ await files.attachContextFile('p','upload','bob');
+ assert.deepEqual(db.prepare("SELECT scope FROM page_files ORDER BY scope").all().map(r=>r.scope),['','bob']);
+ const listed=await files.listContextFiles('p','bob');assert.equal(listed.every(f=>f.removable),true);
+ db.exec("UPDATE pages SET public_write=0 WHERE id='p'");
+ assert.equal((await files.listContextFiles('p','bob')).filter(f=>f.removable).length,1);
  db.close();delete globalThis.accessTest;
 });
 test('page storage writes require live write access both when proposed and when approved',async()=>{
