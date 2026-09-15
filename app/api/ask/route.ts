@@ -1,3 +1,4 @@
+import {storagePageMismatch} from '@/app/storage/page-scope';
 import {inheritGenerationSession} from '@/app/agent-runtime/session';
 import {prepareNavigationInput} from '@/app/url-content';
 import {matchSourceUrl} from '@/app/url-content/matching';
@@ -101,6 +102,7 @@ async function routeAnswer(request:Request,actor:Awaited<ReturnType<typeof getAc
    if(!id)return null;
    const page=await getPage(id,uid);
    if(!page)return null;
+   if(storagePageMismatch(destination,page))return null;
    // Equivalent text must also lead to the requested kind of context.
    if(requested.kind==='application'&&page.kind!=='dynamic')return null;
    if(requested.kind==='article'&&page.kind!=='static')return null;

@@ -1,3 +1,4 @@
+import {pageStorageProviders} from '@/app/storage/page-scope';
 import {useNotebook} from '@/app/components-registry/notebook-agent';
 import {analyzeGenerationIntent,reviewGeneratedDefinition,type GenerationIntent} from './generation-intent';
 import {classifyAmbiguity,indexAnswer} from '@/app/disambiguation';
@@ -48,7 +49,7 @@ async function composeContext(brief:GenerationBrief,context:AgentContext,generat
  let implementation:string=brief.route==='session'?'chat':templateId;
  if(brief.route==='session')templateId='chat-v1';
  if(brief.route!=='session'&&!['wiki-v1','disambiguation-v1'].includes(templateId)){
-  const plan=await askAgent(generator,'Choose how to create this context from its intent. You may use a pre-coded app for common tasks or commission a generated Python/JavaScript backend that combines available tools. files for simple file/folder browsing; chart for a researched fixed numerical chart; converter for physical units; chat for open-ended conversation or clarification; program for custom logic, multi-step data retrieval, or a composed app. Never force every request into a known app. Generated programs can call storage, external APIs, context search, running-job listing, research and LLM tools and render a pre-coded template. If isolated execution is unavailable, choose an appropriate registered app when it fulfills the request, otherwise chat as a working fallback that explains missing capabilities. Preserve explicit requested output. Return the implementation and most suitable template.',{...brief,intent,requiredCorrections:context.generationFeedback,execution:sandboxStatus(context.userId)},{type:'object',additionalProperties:false,properties:{implementation:{type:'string',enum:['files','chart','converter','chat','program']},templateId:{type:'string',enum:['files-v1','dashboard-v1','table-v1','form-v1','chat-v1']}},required:['implementation','templateId']},signal);
+  const plan=await askAgent(generator,'Choose how to create this context from its intent. You may use a pre-coded app for common tasks or commission a generated Python/JavaScript backend that combines available tools. files ONLY for Google Drive, Dropbox or OneDrive file/folder browsing; ADMA and all other connectors require program (or chat with the named connector tools when execution is unavailable); never substitute a different service; chart for a researched fixed numerical chart; converter for physical units; chat for open-ended conversation or clarification; program for custom logic, multi-step data retrieval, or a composed app. Never force every request into a known app. Generated programs can call storage, external APIs, context search, running-job listing, research and LLM tools and render a pre-coded template. If isolated execution is unavailable, choose an appropriate registered app when it fulfills the request, otherwise chat as a working fallback that explains missing capabilities. Preserve explicit requested output. Return the implementation and most suitable template.',{...brief,intent,requiredCorrections:context.generationFeedback,execution:sandboxStatus(context.userId)},{type:'object',additionalProperties:false,properties:{implementation:{type:'string',enum:['files','chart','converter','chat','program']},templateId:{type:'string',enum:['files-v1','dashboard-v1','table-v1','form-v1','chat-v1']}},required:['implementation','templateId']},signal);
   implementation=plan.implementation;templateId=plan.templateId;
  }
 
@@ -64,6 +65,7 @@ async function composeContext(brief:GenerationBrief,context:AgentContext,generat
   await recordAction(generator,'Compose researched article',{title:answer.title,sources:answer.sources});
   return {answer,definition,templateId};
  }
+ if(implementation==='files'&&pageStorageProviders(brief.question).length===0)implementation='program';
  if(implementation==='files'){
   templateId='files-v1';
   // Registered storage adapters run as the visiting user; no generated code or sandbox is needed.
