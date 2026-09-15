@@ -12,7 +12,7 @@ test('attachments follow wiki access and isolate app sessions; page index only r
 test('app edits stage a reviewable revision without changing the app; nonowners cannot stage',async()=>{
  const objects=new Map(),page={id:'p',owned:true,title:'Chat',summary:'Help',body:'',question:'Help me',language:'en',labels:{templateId:'chat-v1'},dynamic:{template:'agent-chat-v1'}};
  globalThis.appEditTest={z,env:{FILES:{get:async key=>objects.has(key)?{json:async()=>JSON.parse(objects.get(key))}:null,put:async(key,value)=>objects.set(key,value),delete:async key=>objects.delete(key)}},askAgent:async()=>({intent:'revise',changeType:'session',reply:'Please review.',instructions:'Explain with short examples.',templateId:'chat-v1'}),sandboxStatus:()=>({configured:false,allowed:false})};
- const m=await load('const {z,env,askAgent,sandboxStatus}=globalThis.appEditTest;\n'+strip('app/page-programs/edit-app.ts'));
+ const m=await load('const {z,env,askAgent,sandboxStatus}=globalThis.appEditTest;\n'+strip('app/page-programs/visual-style.ts')+'\n'+strip('app/page-programs/edit-app.ts'));
  const result=await m.discussAppEdit(page,'Use short examples',{}, {id:'session',ownerId:'alice'});assert.ok(result.editDraft.id);assert.equal(page.dynamic.sessionInstructions,undefined);assert.equal((await m.readAppDraft({id:'session',ownerId:'alice'},'p')).body,'Explain with short examples.');
  const other=await m.discussAppEdit({...page,owned:false},'Change behavior',{}, {id:'other',ownerId:'bob'});assert.equal(other.editDraft,null);assert.equal(objects.size,1);delete globalThis.appEditTest;
 });
@@ -22,4 +22,10 @@ test('session routing table records question-to-session bindings independently p
  globalThis.sessionDb=()=>({prepare:sql=>({bind:(...args)=>({first:async()=>db.prepare(sql).get(...args),run:async()=>db.prepare(sql).run(...args)})})});const s=await load('const database=globalThis.sessionDb;\n'+strip('app/chat/session.ts'));
  const alice=await s.ensurePageSession('chat','alice');await s.rememberSessionRoutes('chat','alice',alice.id);const again=await s.ensurePageSession('chat','alice');assert.equal(again.id,alice.id);
  const bob=await s.ensurePageSession('chat','bob');await s.rememberSessionRoutes('chat','bob',bob.id);assert.notEqual(alice.id,bob.id);assert.equal(db.prepare('SELECT count(*) n FROM session_routes').get().n,2);assert.equal(db.prepare("SELECT session_id FROM session_routes WHERE owner_id='alice' AND question_id='q'").get().session_id,alice.id);db.close();delete globalThis.sessionDb;
+});
+test('appearance-only proposals preserve body, execution and layout without invoking a composer',async()=>{
+ const objects=new Map(),page={id:'p',owned:true,title:'Data',summary:'Summary',body:'User-edited introduction',question:'Analyze ADMA files',language:'en',labels:{templateId:'table-v1'},dynamic:{template:'page-program-v1',executor:'existing',components:{backend:{id:'backend',version:1}}}};
+ globalThis.themeEdit={z,env:{FILES:{get:async key=>objects.has(key)?{json:async()=>JSON.parse(objects.get(key))}:null,put:async(key,value)=>objects.set(key,value)}},askAgent:async()=>({intent:'revise',changeType:'appearance',visualTheme:'adma',reply:'Review this style.',instructions:'ADMA red styling.',templateId:'chat-v1'}),sandboxStatus:()=>({configured:false,allowed:false})};
+ const m=await load('const {z,env,askAgent,sandboxStatus}=globalThis.themeEdit;\n'+strip('app/page-programs/visual-style.ts')+'\n'+strip('app/page-programs/edit-app.ts'));
+ const result=await m.discussAppEdit(page,'Use ADMA style',{}, {id:'a',ownerId:'owner'});assert.ok(result.editDraft);const draft=JSON.parse([...objects.values()][0]);assert.equal(draft.config.visualTheme,'adma');assert.equal(draft.config.executor,'existing');assert.equal(draft.templateId,'table-v1');assert.equal(draft.pageBody,'User-edited introduction');assert.equal(page.dynamic.visualTheme,undefined);delete globalThis.themeEdit;
 });

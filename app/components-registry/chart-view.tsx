@@ -3,7 +3,7 @@ import {useUi} from '@/app/i18n/client';
 import {useState} from 'react';
 import {ResponsiveContainer,LineChart,BarChart,Line,Bar,XAxis,YAxis,CartesianGrid,Tooltip,Brush} from 'recharts';
 import type {ChartDefinition,ChartDataset} from './chart-contracts';
-const colors=['#2563eb','#e07622','#149174','#a14cbe','#da4569','#637b21','#526474','#a17c00'];
+const colors=['var(--app-accent, #2563eb)','#e07622','#149174','#a14cbe','#da4569','#637b21','#526474','#a17c00'];
 export function ChartView({chart,dataset,tableFirst=false}:{chart:ChartDefinition;dataset:ChartDataset;tableFirst?:boolean}){
  const {t,locale}=useUi();
  const [mode,setMode]=useState<'line'|'bar'>('line'),[hidden,setHidden]=useState<string[]>([]),[table,setTable]=useState(tableFirst);

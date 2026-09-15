@@ -32,6 +32,7 @@ export async function generateContext(brief:GenerationBrief,context:AgentContext
  for(let attempt=0;attempt<2;attempt++){
   const generationContext={...context,agent:generator,generationIntent:intent,generationFeedback:feedback};
   const result=await composeContext(planned,generationContext,generator,emit,signal,intent);
+  if(result.definition)result.definition.config.visualTheme=intent.visualTheme;
   if(!result.definition)return {...result,generatorId:generator.id,generationIntent:intent};
   const review=await reviewGeneratedDefinition(brief.question,intent,result.definition,generator,signal);
   await recordAction(generator,'Review generated page against intent',review);

@@ -5,7 +5,7 @@ const base={subject:'SigPID: significant permission identification for android m
 test('analysis preserves original query, permits research, validates structure and normalizes ambiguity',async()=>{
  let answer=base,task,options;
  globalThis.intentUnit={z,askAgent:async(a,i,t,s,signal,onReply,files,o)=>{task=t;options=o;return answer;}};
- const m=await load('const {z,askAgent}=globalThis.intentUnit;\n'+strip('app/page-programs/generation-intent.ts'));
+ const m=await load('const {z,askAgent}=globalThis.intentUnit;\n'+strip('app/page-programs/visual-style.ts')+'\n'+strip('app/page-programs/generation-intent.ts'));
  const signal=new AbortController().signal;
  const plan=await m.analyzeGenerationIntent(base.subject,'en',{},signal);
  assert.equal(task.question,base.subject);assert.equal(options.webSearch,'auto');assert.deepEqual(plan.mustCover,base.mustCover);
