@@ -21,3 +21,13 @@ export function navigationError(error:unknown,fallback:string){
   ? 'The connection was interrupted. Please click the link or submit your question again.'
   :error instanceof Error?error.message:fallback;
 }
+
+// Recover the saved result using a read-only request; never repeat generation.
+export async function recoverGenerationResult<T>(generationId:string,signal:AbortSignal):Promise<{page:T;reused?:boolean}|undefined>{
+ try{
+  const response=await navigationRequest('/api/ask?generationId='+encodeURIComponent(generationId),{cache:'no-store',signal});
+  if(!response.ok||signal.aborted)return;
+  const progress=await response.json() as {done?:boolean;page?:T;reused?:boolean};
+  if(progress.done&&progress.page)return {page:progress.page,reused:progress.reused};
+ }catch{}
+}

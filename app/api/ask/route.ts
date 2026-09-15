@@ -214,5 +214,7 @@ export async function GET(request:Request){
  const actor=await getActor(request),id=new URL(request.url).searchParams.get('generationId');
  if(!id||!/^[0-9a-f-]{36}$/.test(id))return actor.finish(reply({error:'Invalid generation ID.'},400));
  const row=await database().prepare('SELECT data FROM generation_progress WHERE id=? AND owner_id=? AND expires>?').bind(id,actor.userId,Date.now()).first<{data:string}>();
- return actor.finish(reply(row?JSON.parse(row.data):{pending:true}));
+ const progress=row?JSON.parse(row.data):{pending:true};
+ if(progress.done&&progress.pageId){const page=await getPage(progress.pageId,actor.userId);if(page)progress.page=page;else return actor.finish(reply({error:'This page is no longer accessible.'},404));}
+ return actor.finish(reply(progress));
 }

@@ -9,7 +9,7 @@ export function generationProgress(id:string,owner:string){
    else if(event.type==='replace')state.body=event.text;
    else if(event.type==='status')state.status=event.message;
    else if(event.type==='metadata')state={...state,title:event.title,summary:event.summary,category:event.category,labels:event.labels};
-   else if(event.type==='done')state={...state,done:true};
+   else if(event.type==='done')state={...state,done:true,pageId:event.page?.id,reused:!!event.reused};
    else if(event.type==='error')state={...state,error:event.message};
    if(Date.now()-last>500||['start','metadata','done','error'].includes(event.type))write();
   },

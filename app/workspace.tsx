@@ -22,7 +22,7 @@ import type { AnswerPage } from './page-types';
 import {AnswerText,type Highlight} from './answer-text';
 import type {InternalLink} from './internal-links';
 import {readEvents} from './event-stream';
-import {navigationRequest,navigationError} from './navigation-request';
+import {navigationRequest,navigationError,recoverGenerationResult} from './navigation-request';
 
 async function readResponse(response: Response) {
   if (!response.headers.get('content-type')?.includes('application/json')) {
@@ -200,6 +200,8 @@ export default function Workspace({ user, signIn, signOut }: {
           if(progress.started)setDraft({id:'draft',title:progress.title||text,summary:progress.summary||'',body:progress.body||'',language:progress.language||'en',labels:progress.labels||{},category:progress.category||'',visibility:'private',owned:false,createdAt:'',questionCount:0,sources:[]});
         }).catch(()=>{}).finally(()=>{readingProgress=false;});
       },800);
+      let result:{page:AnswerPage;reused?:boolean}|undefined;
+      try{
       let response:Response;
       const waitingSince=Date.now();
       while(true){
@@ -218,7 +220,6 @@ export default function Workspace({ user, signIn, signOut }: {
           if(controller.signal.aborted)abort();else controller.signal.addEventListener('abort',abort,{once:true});
         });
       }
-      let result:{page:AnswerPage;reused?:boolean}|undefined;
       if(response.ok&&response.headers.get('content-type')?.includes('text/event-stream')){
         if(!response.body)throw new Error('The answer stream is unavailable. Please try again.');
         let body='',lastPaint=0;
@@ -237,6 +238,11 @@ export default function Workspace({ user, signIn, signOut }: {
         }
         if(!result)throw new Error('The connection ended before the page was saved. Please try again.');
       }else result=await readResponse(response);
+      }catch(error){
+        if(controller.signal.aborted)throw error;
+        result=await recoverGenerationResult<AnswerPage>(generationId,controller.signal);
+        if(!result)throw error;
+      }
       progressFinished=true;if(progressTimer)clearInterval(progressTimer);
       if (controller.signal.aborted) return;
       let linkWarning='';
