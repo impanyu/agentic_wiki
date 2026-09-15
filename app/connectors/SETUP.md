@@ -11,3 +11,11 @@ MCP connectors start disabled. Select exposed tools, choose which trusted tools 
 Set `STORAGE_TOKEN_ENCRYPTION_KEY` (32 random bytes, base64) or reuse the existing `GOOGLE_TOKEN_ENCRYPTION_KEY`. This encrypts tokens and pending arguments/results with the existing server vault. Credentials never enter model prompts, client responses or page content. MCP destinations cannot use credentials in URLs, query parameters, redirects, private addresses or non-HTTPS ports. DNS addresses are validated and pinned to the TLS socket. Response and time limits apply.
 
 Disabling a connector prevents new calls; it cannot undo an external call already accepted by a provider. Disconnecting deletes the locally stored MCP credential (or OAuth token); provider-side token revocation may also be managed in that provider's account settings.
+
+## Discover directory
+
+The directory has twelve service presets: GitHub, Linear, Notion, Slack, Airtable, Todoist, Brave Search, DeepWiki, Hugging Face, Google Drive, Dropbox and OneDrive. It supports localized search and category filters, a separate My connections view, and an Activity view. Setup instructions and official provider documentation are linked from each configuration form.
+
+GitHub and Linear use the official remote MCP servers with user-supplied tokens; DeepWiki requires no token and Hugging Face accepts an optional token. The provider endpoint is fixed by the server-side preset, not by client-submitted URLs. MCP tool discovery must succeed before saving a connection.
+
+Notion, Slack, Airtable, Todoist and Brave Search use purpose-built REST adapters with fixed hosts, operation allowlists, validated inputs, pagination and the existing encrypted token vault. Notion/Slack/Airtable/Todoist connections run a read-only credential check. Brave keys are saved without a billable validation search and are checked by the provider on first use. Native write operations use the same approval and toggle controls as MCP tools. Credentials and provider scopes must be supplied by the user; these entries do not imply OAuth access or unlimited provider quotas.

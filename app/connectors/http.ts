@@ -3,8 +3,8 @@ import {request} from 'node:https';
 import {sourceUrl,publicIPv4} from '@/app/url-content/fetch';
 export function connectorUrl(input:string){const url=sourceUrl(input);if(!url||url.protocol!=='https:'||url.search||url.port&&url.port!=='443')throw Error('Use a public HTTPS endpoint without query parameters.');return url;}
 // Pin public DNS on the actual TLS socket; never forward credentials across redirects.
-export async function remoteRequest(endpoint:string,headers:Record<string,string>,body:unknown,signal?:AbortSignal,method='POST'){
- const url=connectorUrl(endpoint),deadline=AbortSignal.any([AbortSignal.timeout(30000),...(signal?[signal]:[])]);
+export async function remoteRequest(endpoint:string,headers:Record<string,string>,body:unknown,signal?:AbortSignal,method='POST',allowQuery=false){
+ const parsed=new URL(endpoint),url=connectorUrl(allowQuery?parsed.origin+parsed.pathname:endpoint);if(allowQuery)url.search=parsed.search;const deadline=AbortSignal.any([AbortSignal.timeout(30000),...(signal?[signal]:[])]);
  const addresses=await lookup(url.hostname,{all:true,family:4});deadline.throwIfAborted();
  if(!addresses.length||addresses.some(a=>!publicIPv4(a.address)))throw Error('Connector endpoint must be public.');
  return new Promise<{headers:Record<string,string|string[]|undefined>;data:any}>((resolve,reject)=>{

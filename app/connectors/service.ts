@@ -1,3 +1,5 @@
+import {presetById} from './catalog';
+import {apiTools,verifyApiConnector,executeApiConnector} from './adapters';
 import {z} from 'zod';
 import {database,getPage,lock,unlock} from '@/db/store';
 import {canWritePage} from '@/app/page-permissions';
@@ -8,20 +10,27 @@ import {storageRequest,type StorageProvider} from '@/app/storage/contracts';
 import {connectorUrl} from './http';
 import {discoverMcp,callMcp} from './mcp';
 import {builtins,connectionInput,type Connection,type RemoteTool} from './contracts';
-type Row={id:string;name:string;kind:'mcp'|'storage';url:string;enabled:number;tools:string;allowed:string;automatic:string;revision:number};
+type Row={id:string;name:string;kind:'mcp'|'api'|'storage';url:string;enabled:number;tools:string;allowed:string;automatic:string;revision:number};
 const storageTools:RemoteTool[]=['list','read','mkdir','upload','rename','move','copy','trash'].map(name=>({name,description:name+' files and folders in this connected account.',inputSchema:{type:'object',properties:{id:{type:'string'},parent:{type:'string'},name:{type:'string'},cursor:{type:'string'},content:{type:'string'}},additionalProperties:false},annotations:{readOnlyHint:['list','read'].includes(name)}}));
 const isStorage=(id:string)=>builtins.includes(id as StorageProvider);
 async function row(userId:string,id:string){return database().prepare('SELECT * FROM user_connectors WHERE owner_id=? AND id=?').bind(userId,id).first<Row>();}
 export async function connections(userId:string):Promise<Connection[]>{
  const rows=(await database().prepare('SELECT * FROM user_connectors WHERE owner_id=?').bind(userId).all<Row>()).results;
- const storage=await storageStatus(userId);return [...storage.map(s=>{const saved=rows.find(r=>r.id===s.provider);return {id:s.provider,name:s.name,kind:'storage' as const,configured:s.configured,connected:s.connected,enabled:saved?!!saved.enabled:s.connected,tools:storageTools,allowed:saved?JSON.parse(saved.allowed):storageTools.map(t=>t.name),automatic:['list','read'],revision:saved?.revision||0};}),...rows.filter(r=>r.kind==='mcp').map(r=>({id:r.id,name:r.name,kind:r.kind,url:r.url,configured:vaultReady(),connected:true,enabled:!!r.enabled,tools:JSON.parse(r.tools),allowed:JSON.parse(r.allowed),automatic:JSON.parse(r.automatic),revision:r.revision}))];
+ const storage=await storageStatus(userId);return [...storage.map(s=>{const saved=rows.find(r=>r.id===s.provider);return {id:s.provider,name:s.name,kind:'storage' as const,configured:s.configured,connected:s.connected,enabled:saved?!!saved.enabled:s.connected,tools:storageTools,allowed:saved?JSON.parse(saved.allowed):storageTools.map(t=>t.name),automatic:['list','read'],revision:saved?.revision||0};}),...rows.filter(r=>r.kind!=='storage').map(r=>({id:r.id,name:r.name,kind:r.kind,url:r.url,provider:r.kind==='api'?r.url.slice(4):undefined,configured:vaultReady(),connected:true,enabled:!!r.enabled,tools:JSON.parse(r.tools),allowed:JSON.parse(r.allowed),automatic:JSON.parse(r.automatic),revision:r.revision}))];
 }
-export async function createConnection(userId:string,raw:unknown){signedIn(userId);if(!vaultReady())throw Error('Connector encryption is not configured on the server.');const d=connectionInput.parse(raw),url=connectorUrl(d.url).href;
- if((await connections(userId)).length>=23)throw Error('You can connect up to 20 MCP servers.');
- const tools=await discoverMcp(url,d.token),id=crypto.randomUUID();
- await vaultWrite(await vaultPath(userId,'connector-'+id),{token:d.token||''});
- try{await database().prepare('INSERT INTO user_connectors(id,owner_id,name,kind,url,enabled,tools,allowed,automatic) VALUES(?,?,?,\'mcp\',?,0,?,?,\'[]\')').bind(id,userId,d.name,url,JSON.stringify(tools),JSON.stringify(tools.map(t=>t.name))).run();}catch(e){await vaultDelete(await vaultPath(userId,'connector-'+id));throw e;}return {id};
+export async function createConnection(userId:string,raw:unknown){signedIn(userId);if(!vaultReady())throw Error('Connector encryption is not configured on the server.');const d=connectionInput.parse(raw),preset=d.preset?presetById(d.preset):undefined;
+ if(d.preset&&(!preset||preset.kind==='storage'))throw Error('Unknown connector preset.');
+ const kind=preset?.kind==='api'?'api':'mcp',name=preset?.name||d.name;
+ if(!name||!preset&&!d.url)throw Error('Enter a connector name and endpoint.');
+ if(preset?.auth==='token'&&!d.token?.trim())throw Error('An API token is required.');
+ const url=kind==='api'?'api:'+preset!.id:connectorUrl(preset?.url||d.url!).href;
+ if((await connections(userId)).length>=43)throw Error('You can connect up to 40 services.');
+ let tools:RemoteTool[];
+ if(kind==='api'){await verifyApiConnector(preset!.id,d.token!);tools=apiTools[preset!.id];}else tools=await discoverMcp(url,d.token);
+ const id=crypto.randomUUID();await vaultWrite(await vaultPath(userId,'connector-'+id),{token:d.token||''});
+ try{await database().prepare('INSERT INTO user_connectors(id,owner_id,name,kind,url,enabled,tools,allowed,automatic) VALUES(?,?,?,?,?,0,?,?,\'[]\')').bind(id,userId,name,kind,url,JSON.stringify(tools),JSON.stringify(tools.map(t=>t.name))).run();}catch(e){await vaultDelete(await vaultPath(userId,'connector-'+id));throw e;}return {id};
 }
+
 export async function updateConnection(userId:string,id:string,raw:unknown){signedIn(userId);const d=z.object({enabled:z.boolean().optional(),allowed:z.array(z.string()).max(200).optional(),automatic:z.array(z.string()).max(200).optional(),refresh:z.boolean().optional()}).strict().parse(raw);
  const c=(await connections(userId)).find(c=>c.id===id);if(!c)throw Error('Connector not found.');let tools=c.tools;
  if(d.refresh&&c.kind==='mcp'){const secret=await vaultRead(await vaultPath(userId,'connector-'+id));tools=await discoverMcp(c.url!,secret?.token);}
@@ -34,7 +43,7 @@ export async function enabledConnectors(userId:string){return (await connections
 async function authorized(userId:string,id:string,tool:string,pageId?:string){signedIn(userId);const c=(await connections(userId)).find(c=>c.id===id);if(!c?.enabled||!c.connected||!c.allowed.includes(tool)||!c.tools.some(t=>t.name===tool))throw Error('Connector or tool is disabled.');if(pageId){const page=await getPage(pageId,userId);if(!page)throw Error('Page is inaccessible.');if(!canWritePage(page)&&!(c.kind==='storage'&&['list','read'].includes(tool))&&!c.tools.find(t=>t.name===tool)?.annotations?.readOnlyHint)throw Error('This page is read only.');}return c;}
 async function execute(c:Connection,userId:string,tool:string,args:unknown,signal?:AbortSignal){
  if(c.kind==='storage')return providerOperation(storageRequest.parse({provider:c.id,operation:tool,args}),await storageToken(c.id as StorageProvider,userId));
- const secret=await vaultRead(await vaultPath(userId,'connector-'+c.id));if(!secret)throw Error('Reconnect this connector.');const result=await callMcp(c.url!,secret.token,tool,args,signal);const json=JSON.stringify(result);return JSON.parse(secret.token?json.split(secret.token).join('[redacted]'):json);
+ const secret=await vaultRead(await vaultPath(userId,'connector-'+c.id));if(!secret)throw Error('Reconnect this connector.');const result=c.kind==='api'?await executeApiConnector(c.provider!,secret.token,tool,args,signal):await callMcp(c.url!,secret.token,tool,args,signal);const json=JSON.stringify(result);return JSON.parse(secret.token?json.split(secret.token).join('[redacted]'):json);
 }
 export async function callConnector(userId:string,id:string,tool:string,args:unknown,pageId?:string,signal?:AbortSignal){
  if(!args||typeof args!=='object'||Array.isArray(args)||JSON.stringify(args).length>64000)throw Error('Invalid connector arguments.');
