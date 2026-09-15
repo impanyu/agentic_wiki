@@ -1,4 +1,5 @@
 import {prepareNavigationInput} from '@/app/url-content';
+import {matchSourceUrl} from '@/app/url-content/matching';
 import {generationProgress} from '@/app/generation-progress';
 import {importWikiRoutes} from '@/db/routing-tables';
 import {ensurePageSession,rememberSessionRoutes} from '@/app/chat/session';
@@ -45,6 +46,7 @@ async function routeAnswer(request:Request,actor:Awaited<ReturnType<typeof getAc
    const family=await database().prepare('SELECT group_id FROM page_forks WHERE page_id=?').bind(source.id).first<{group_id:string}>();
    fork={sourceId:source.id,requestId:data.fork.requestId,groupId:family?.group_id||source.id,createdAt:source.createdAt};
   }
+  if(!fork){const page=await matchSourceUrl(question,uid);if(page)return respond({page,reused:true,destination:question});}
   jobId=await startJob(uid,'navigation',question);
   if(!aiKey())return respond({error:'The AI connection is not configured yet.'},503);
   const {sourceDocument,routingQuestion,vector,language}=await prepareNavigationInput(question,request.signal);
@@ -67,7 +69,7 @@ async function routeAnswer(request:Request,actor:Awaited<ReturnType<typeof getAc
   const destination=routingQuestion;
   const originalKey=sourceDocument?'url:'+sourceDocument.url:normalize(question);
   const destinationKey=sourceDocument?originalKey:normalize(destination);
-  // Every visit embeds and verifies the nearest question-pool entries, including exact repeats.
+  // Queries without an existing URL binding use semantic matching.
   // Reuse this request’s embedding in the selected child table.
   let intentPromise:ReturnType<typeof parseConversion>|undefined;
   const conversion=()=>intentPromise??=parseConversion(destination);
@@ -92,6 +94,7 @@ async function routeAnswer(request:Request,actor:Awaited<ReturnType<typeof getAc
    page.forks=(await getPage(page.id,uid))?.forks;
   }
   async function findMatch(signal?:AbortSignal){
+   if(sourceDocument){const exact=await matchSourceUrl(question,uid);if(exact)return exact.id;}
    const rootApp=!sourceDocument&&rootRoute.appId?await getPage(rootRoute.appId,uid):null;
    const id=rootApp?.kind==='dynamic'?rootApp.id:await matchQuestion(destination,vector,language,uid,router,signal,domain);
    if(!id)return null;

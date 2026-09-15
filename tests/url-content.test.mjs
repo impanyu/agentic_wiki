@@ -34,3 +34,32 @@ test('URL navigation embeds the fetched content summary, never the URL, and does
  failed=true;await assert.rejects(m.prepareNavigationInput('https://example.org/blocked',new AbortController().signal),/URL_UNAVAILABLE/);assert.equal(embedded.length,1);
  await m.prepareNavigationInput('Explain photosynthesis',new AbortController().signal);assert.equal(embedded[1],'Explain photosynthesis');
 });
+test('saved URL lookup reuses canonical identity with access checks and deterministic owner preference',async()=>{
+ const {DatabaseSync}=await import('node:sqlite');const {readdirSync}=await import('node:fs');
+ const db=new DatabaseSync(':memory:');for(const f of readdirSync('drizzle').filter(f=>f.endsWith('.sql')).sort())db.exec(readFileSync('drizzle/'+f,'utf8'));
+ const add=(id,owner,visibility,url,date)=>{
+  db.prepare("INSERT INTO pages(id,owner_id,question,title,summary,body,category,sources,language,created_at,kind,visibility) VALUES(?,?,?,'Title','','','Web','[]','en',?,'static',?)").run(id,owner,url,date,visibility);
+  db.prepare('INSERT INTO questions(id,page_id,normalized,question,embedding,created_at) VALUES(?,?,?,?,?,?)').run(id,id,'url:'+url,'Content summary','[1]',date);
+ };
+ const url='https://example.org/Paper?a=1';
+ add('public','bob','public',url,'2020');add('own','alice','private',url,'2021');add('later','alice','private',url,'2022');add('hidden','eve','private','https://example.org/secret','2019');
+ let lookups=0;
+ globalThis.urlMatching={sourceUrl:parsing.sourceUrl,database:()=>({prepare:sql=>({bind:(...args)=>({all:async()=>({results:db.prepare(sql).all(...args)})})})}),getPage:async(id,userId)=>{lookups++;return db.prepare("SELECT id,kind FROM pages WHERE id=? AND (visibility='public' OR owner_id=?)").get(id,userId)||null;}};
+ const m=await load('const {sourceUrl,database,getPage}=globalThis.urlMatching;\n'+strip('app/url-content/matching.ts'));
+ assert.equal((await m.matchSourceUrl('https://EXAMPLE.org:443/Paper?a=1#section','alice')).id,'own');
+ assert.equal((await m.matchSourceUrl(url,'alice')).id,'own');
+ assert.equal((await m.matchSourceUrl(url,'visitor')).id,'public');
+ assert.equal(await m.matchSourceUrl('https://example.org/secret','visitor'),null);
+ assert.equal(await m.matchSourceUrl('https://example.org/paper?a=1','alice'),null);
+ assert.equal(await m.matchSourceUrl('https://example.org/Paper?a=2','alice'),null);
+ assert.equal(await m.matchSourceUrl('ordinary question','alice'),null);
+ assert.equal(lookups,3);
+ db.prepare("UPDATE pages SET visibility='private' WHERE id='public'").run();assert.equal(await m.matchSourceUrl(url,'visitor'),null);
+ db.close();
+});
+test('URL fast path precedes AI configuration and content reading, and explicit forks bypass it',()=>{
+ const route=readFileSync('app/api/ask/route.ts','utf8');
+ const fast=route.indexOf('if(!fork){const page=await matchSourceUrl(question,uid)');
+ assert.ok(fast>0);assert.ok(fast<route.indexOf('if(!aiKey())'));assert.ok(fast<route.indexOf('await prepareNavigationInput('));
+ assert.match(route,/if\(sourceDocument\)\{const exact=await matchSourceUrl\(question,uid\);if\(exact\)return exact.id;/);
+});
