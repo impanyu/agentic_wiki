@@ -11,5 +11,5 @@ export async function POST(request:Request){
   if(!developerKey||!/^\d+$/.test(appId))return actor.finish(reply({error:'Google file picker is not configured yet.'},503));
   const token=await storageToken('google',actor.userId);
   const response=reply({token,developerKey,appId});response.headers.set('Cache-Control','no-store');return actor.finish(response);
- }catch{return actor.finish(reply({error:'Reconnect Google Drive to select files. If you previously granted broader access, remove AgenticWiKi from your Google account connections first.'},400));}
+ }catch{return actor.finish(reply({error:'Reconnect Google Drive to enable reading all files and editing selected files.'},400));}
 }

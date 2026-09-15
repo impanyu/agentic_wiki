@@ -480,11 +480,13 @@
   "Browse agricultural files and folders, read text datasets and upload text files to ADMA.": "Browse agricultural files and folders, read text datasets and upload text files to ADMA.",
   "Use your ADMA API token from adma.aisoup.net. ADMA uses Token authentication. An administrator can create a token for your account with the create_api_token management command. Never enter your account password here.": "Use your ADMA API token from adma.aisoup.net. ADMA uses Token authentication. An administrator can create a token for your account with the create_api_token management command. Never enter your account password here.",
   "This ADMA file is not a supported text format.": "This ADMA file is not a supported text format.",
-  "Choose Google Drive files": "Choose Google Drive files",
   "Choose files": "Choose files",
-  "The agent can access only files you select here or files created by this app. Selecting a folder does not grant access to all its contents.": "The agent can access only files you select here or files created by this app. Selecting a folder does not grant access to all its contents.",
-  "Files are now available to the agent. Return to your page and refresh the file list.": "Files are now available to the agent. Return to your page and refresh the file list.",
   "Back to page": "Back to page",
   "Google file picker is not configured yet.": "Google file picker is not configured yet.",
-  "Choose specific Google Drive files for the agent to read and edit.": "Choose specific Google Drive files for the agent to read and edit."
+  "Choose Google Drive files to edit": "Choose Google Drive files to edit",
+  "The agent can read all your Google Drive files. Select files here to allow changes, which still require your confirmation. Selecting a file does not grant write access to its folder or other files.": "The agent can read all your Google Drive files. Select files here to allow changes, which still require your confirmation. Selecting a file does not grant write access to its folder or other files.",
+  "Selected files can now be changed with your confirmation. Return to your page to continue.": "Selected files can now be changed with your confirmation. Return to your page to continue.",
+  "Read all Google Drive files and edit selected or app-created files with confirmation.": "Read all Google Drive files and edit selected or app-created files with confirmation.",
+  "Reconnect Google Drive to enable reading all files and editing selected files.": "Reconnect Google Drive to enable reading all files and editing selected files.",
+  "Scopes: drive.readonly and drive.file. Add your Google account as a test user while the consent screen is in testing.": "Scopes: drive.readonly and drive.file. Add your Google account as a test user while the consent screen is in testing."
 }

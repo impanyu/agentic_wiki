@@ -7,7 +7,7 @@ The Codex Google Drive connector belongs to the Codex session. AgenticWiKi is a 
 1. Create or select a project in [Google Cloud Console](https://console.cloud.google.com/).
 2. Enable **Google Drive API** in APIs & Services → Library.
 3. Configure Google Auth Platform / OAuth consent: app name, support email, audience and developer contact. For initial testing, add the Google accounts that will connect as test users.
-4. Add the read-only scope `https://www.googleapis.com/auth/drive.file`. It permits listing folder/file metadata, not reading file contents or writing files. It is a restricted scope: public distribution may require Google verification. Testing-mode refresh tokens for this scope may expire after seven days, requiring reconnection.
+4. Request `https://www.googleapis.com/auth/drive.readonly` and `https://www.googleapis.com/auth/drive.file`. These allow reading all Drive files and changing selected or app-created files. The read-only scope is restricted; public distribution requires applicable Google verification. Reconnect existing accounts to grant both scopes.
 5. Create an OAuth client with application type **Web application**.
 6. Add this exact authorized redirect URI:
 

@@ -6,7 +6,7 @@ export const storageRequest=z.object({provider:providerSchema,operation:operatio
 export type StorageRequest=z.infer<typeof storageRequest>;
 export const isMutation=(operation:string)=>!['list','read'].includes(operation);
 export const storageProviders={
- google:{name:'Google Drive',prefix:'GOOGLE',authorize:'https://accounts.google.com/o/oauth2/v2/auth',token:'https://oauth2.googleapis.com/token',scope:'https://www.googleapis.com/auth/drive.file'},
+ google:{name:'Google Drive',prefix:'GOOGLE',authorize:'https://accounts.google.com/o/oauth2/v2/auth',token:'https://oauth2.googleapis.com/token',scope:'https://www.googleapis.com/auth/drive.readonly https://www.googleapis.com/auth/drive.file'},
  dropbox:{name:'Dropbox',prefix:'DROPBOX',authorize:'https://www.dropbox.com/oauth2/authorize',token:'https://api.dropboxapi.com/oauth2/token',scope:'files.metadata.read files.metadata.write files.content.read files.content.write'},
  onedrive:{name:'OneDrive',prefix:'ONEDRIVE',authorize:'https://login.microsoftonline.com/common/oauth2/v2.0/authorize',token:'https://login.microsoftonline.com/common/oauth2/v2.0/token',scope:'offline_access https://graph.microsoft.com/Files.ReadWrite'},
 } as const;

@@ -2,19 +2,20 @@ import test from 'node:test';import assert from 'node:assert/strict';import {rea
 const strip=p=>readFileSync(p,'utf8').replace(/^import .*;$/gm,'');
 const load=s=>import('data:text/javascript;base64,'+Buffer.from(ts.transpile(s,{module:ts.ModuleKind.ESNext,target:ts.ScriptTarget.ES2022})).toString('base64'));
 const scope=await load(strip('app/storage/google-scope.ts'));
-test('drive.file accepts per-file grants and rejects old broad or unknown grants',()=>{
- assert.equal(scope.isFileOnlyScope(scope.GOOGLE_FILE_SCOPE),true);
- for(const s of [undefined,'',scope.GOOGLE_FILE_SCOPE+' https://www.googleapis.com/auth/drive.metadata.readonly','https://www.googleapis.com/auth/drive',scope.GOOGLE_FILE_SCOPE+' https://www.googleapis.com/auth/drive.readonly'])assert.equal(scope.isFileOnlyScope(s),false);
+test('Drive requires full reading plus per-file writing and rejects broad writing or partial grants',()=>{
+ assert.equal(scope.hasGoogleDriveScopes(scope.GOOGLE_DRIVE_SCOPES),true);
+ for(const s of [undefined,'',scope.GOOGLE_FILE_SCOPE+' https://www.googleapis.com/auth/drive.metadata.readonly','https://www.googleapis.com/auth/drive',scope.GOOGLE_FILE_SCOPE,scope.GOOGLE_READ_SCOPE,scope.GOOGLE_DRIVE_SCOPES+' https://www.googleapis.com/auth/drive'])assert.equal(scope.hasGoogleDriveScopes(s),false);
 });
 test('old stored Google tokens cannot be returned to agents or Picker',async()=>{
  let saved={ownerId:'alice',accessToken:'unit-token',expires:Date.now()+600000},unlocked=0;
- globalThis.fileScope={isFileOnlyScope:scope.isFileOnlyScope,storageProviders:{google:{}},signedIn:()=>{},requireStorageTool:async()=>{},vaultReady:()=>true,vaultPath:async()=>'',lock:async()=> 'lease',unlock:async()=>unlocked++,vaultRead:async()=>saved};
+ globalThis.fileScope={hasGoogleDriveScopes:scope.hasGoogleDriveScopes,storageProviders:{google:{}},signedIn:()=>{},requireStorageTool:async()=>{},vaultReady:()=>true,vaultPath:async()=>'',lock:async()=> 'lease',unlock:async()=>unlocked++,vaultRead:async()=>saved};
  const m=await load('const {'+Object.keys(globalThis.fileScope).join(',')+'}=globalThis.fileScope;\n'+strip('app/storage/oauth.ts'));
- await assert.rejects(m.storageToken('google','alice'),/REAUTHORIZE_FILE_ONLY/);assert.equal(unlocked,1);
- saved={...saved,scope:scope.GOOGLE_FILE_SCOPE};assert.equal(await m.storageToken('google','alice'),'unit-token');
+ await assert.rejects(m.storageToken('google','alice'),/RECONNECT_REQUIRED/);assert.equal(unlocked,1);
+ saved={...saved,scope:scope.GOOGLE_FILE_SCOPE};await assert.rejects(m.storageToken('google','alice'),/RECONNECT_REQUIRED/);
+ saved={...saved,scope:scope.GOOGLE_DRIVE_SCOPES};assert.equal(await m.storageToken('google','alice'),'unit-token');
  delete globalThis.fileScope;
 });
-test('authorized-file listing includes selected files in nested folders; Docs are exported as text',async()=>{
+test('Drive listing includes all files, including nested folders; Docs are exported as text',async()=>{
  const {providerOperation}=await load(strip('app/storage/adapters.ts'));let requests=[];
  const transport=async url=>{requests.push(new URL(url));return new Response(JSON.stringify({files:[],mimeType:'application/vnd.google-apps.document'}));};
  await providerOperation({provider:'google',operation:'list',args:{parent:'root'}},'test',transport);assert.equal(requests[0].searchParams.get('q'),'trashed = false');
