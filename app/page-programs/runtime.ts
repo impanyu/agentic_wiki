@@ -1,3 +1,4 @@
+import {enabledConnectors,callConnector} from '@/app/connectors/service';
 import {canWritePage} from '@/app/page-permissions';
 import {getPage} from '@/db/store';
 import {sandboxMessage} from '@/app/sandboxes/errors';
@@ -18,7 +19,9 @@ async function executePageProgram(page:AnswerPage,input:unknown,userId:string){
   if('view'in step){const view=step.view;if(view.chart){if(!view.dataset)throw Error('PAGE_DATA_MISSING');view.dataset=validateChartData(view.chart,view.dataset);}return {...page,title:view.title,summary:view.summary,body:view.body||'',sources:view.sources||[],labels:{...page.labels,templateId:view.templateId},view,proposals,runtimeError:undefined};}
   const c=step.call;if(Object.hasOwn(results,c.id))throw Error('PAGE_PROGRAM_REPEATED_STEP');let result:unknown;
   try{
-   if(c.tool==='contexts.search')result=await queryContexts(userId,c.args);
+   if(c.tool==='connectors.list')result=await enabledConnectors(userId);
+   else if(c.tool==='connectors.call')result=await callConnector(userId,String(c.args.connectorId),String(c.args.tool),c.args.arguments,page.id);
+   else if(c.tool==='contexts.search')result=await queryContexts(userId,c.args);
    else if(c.tool==='jobs.list')result=await listRunningJobs(userId);
    else if(c.tool==='storage.connections')result=await storageStatus(userId);
    else if(c.tool==='storage.execute'){const live=await getPage(page.id,userId);if(!live)throw Error('PAGE_ACCESS_DENIED');if(!canWritePage(live)&&!['list','read'].includes(String(c.args.operation)))throw Error('PAGE_READ_ONLY');result=await executeStorage(c.args,userId,page.id);}

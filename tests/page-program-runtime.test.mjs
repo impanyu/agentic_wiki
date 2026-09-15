@@ -12,7 +12,7 @@ test('saved page backend reuses tool results and renders per-user data without c
 test('storage writes are private proposals until explicitly approved, with replay protection',async()=>{
  const saved=new Map();let calls=0;const path=async(u,id)=>u+'/'+id;
  globalThis.storageTest={storageRequest:{parse:x=>x},isMutation:op=>op!=='list'&&op!=='read',storageToken:async()=> 'secret-token',providerOperation:async()=>{calls++;return {ok:true};},vaultPath:path,vaultRead:async p=>saved.get(p),vaultWrite:async(p,v)=>saved.set(p,v),signedIn:u=>{if(u.startsWith('guest:'))throw Error('guest');},lock:async()=> 'lease',unlock:async()=>{}};
- const m=await load('const {'+Object.keys(globalThis.storageTest).join(',')+'}=globalThis.storageTest;\n'+strip('app/storage/service.ts'));
+ const m=await load('const {'+Object.keys(globalThis.storageTest).join(',')+'}=globalThis.storageTest;\n'+'const requireStorageTool=async()=>{};\n'+strip('app/storage/service.ts'));
  const p=await m.executeStorage({provider:'google',operation:'trash',args:{id:'file'}},'alice');assert.equal(calls,0);assert.ok(p.confirmationRequired);await assert.rejects(m.approveStorage(p.actionId,'bob'));assert.equal(calls,0);
  await m.approveStorage(p.actionId,'alice');await m.approveStorage(p.actionId,'alice');assert.equal(calls,1);delete globalThis.storageTest;
 });

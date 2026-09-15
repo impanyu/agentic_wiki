@@ -169,6 +169,13 @@
       "when": 1789496180092,
       "tag": "0023_silent_nebula",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "6",
+      "when": 1789497463650,
+      "tag": "0024_cool_warpath",
+      "breakpoints": true
     }
   ]
 }

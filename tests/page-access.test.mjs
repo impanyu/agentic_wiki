@@ -47,7 +47,7 @@ test('three access levels control real saves, revocation and independent fork se
 test('page storage writes require live write access both when proposed and when approved',async()=>{
  const saved=new Map();let writes=0,writable=false;
  globalThis.storageAccess={getPage:async()=>({owned:false,visibility:'public',publicWrite:writable}),storageRequest:{parse:x=>x},isMutation:op=>!['list','read'].includes(op),signedIn:()=>{},vaultPath:async(u,id)=>u+'/'+id,vaultRead:async k=>saved.get(k),vaultWrite:async(k,v)=>saved.set(k,v),storageToken:async()=>'',providerOperation:async req=>{if(req.operation==='trash')writes++;return {ok:true}},lock:async()=> 'lease',unlock:async()=>{}};
- const m=await load('const {'+Object.keys(globalThis.storageAccess).join(',')+'}=globalThis.storageAccess;\n'+strip('app/storage/service.ts'));
+ const m=await load('const {'+Object.keys(globalThis.storageAccess).join(',')+'}=globalThis.storageAccess;\n'+'const requireStorageTool=async()=>{};\n'+strip('app/storage/service.ts'));
  await m.executeStorage({operation:'list'},'bob','p');
  await assert.rejects(m.executeStorage({operation:'trash'},'bob','p'),/PAGE_READ_ONLY/);
  writable=true;const proposal=await m.executeStorage({operation:'trash'},'bob','p');assert.equal(writes,0);

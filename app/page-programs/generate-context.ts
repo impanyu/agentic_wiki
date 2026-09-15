@@ -1,3 +1,4 @@
+import {useNotebook} from '@/app/components-registry/notebook-agent';
 import {analyzeGenerationIntent,reviewGeneratedDefinition,type GenerationIntent} from './generation-intent';
 import {classifyAmbiguity,indexAnswer} from '@/app/disambiguation';
 import {spawnAgent,recordAction,askAgent,type Agent} from '@/app/components-registry/agents';
@@ -24,6 +25,8 @@ export async function generateContext(brief:GenerationBrief,context:AgentContext
   const index=await classifyAmbiguity(brief.question,context.language,generator,true,intent.interpretations,signal);
   return {answer:indexAnswer(index),definition:undefined,templateId:'disambiguation-v1' as const,generationIntent:intent};
  }
+ const findings=await useNotebook(generator,'Use available tools only when helpful to fulfill this ORIGINAL user request. Discover enabled connectors if the task concerns external accounts or tools. Gather relevant evidence or execute authorized tasks; do not modify pages or claim pending approvals succeeded. Request: '+brief.question,context,signal);
+ context={...context,toolFindings:findings};
  const planned:GenerationBrief={...brief,fresh:brief.fresh||intent.fresh,service:intent.service,route:intent.outputKind==='article'?'wiki':intent.outputKind==='conversation'?'session':'app',templateId:intent.outputKind==='article'?'wiki-v1':intent.outputKind==='chart'?'dashboard-v1':intent.outputKind==='conversation'?'chat-v1':brief.templateId==='wiki-v1'||brief.templateId==='disambiguation-v1'?'form-v1':brief.templateId};
  let feedback='';
  for(let attempt=0;attempt<2;attempt++){
@@ -56,7 +59,7 @@ async function composeContext(brief:GenerationBrief,context:AgentContext,generat
  }
  if(templateId==='wiki-v1'||templateId==='disambiguation-v1'){
   templateId='wiki-v1';
-  const answer=await research(brief.question,context.language,emit,signal,brief.fresh,intent,context.sourceDocument);
+  const answer=await research(brief.question,context.language,emit,signal,brief.fresh,intent,context.sourceDocument,context.toolFindings);
   await recordAction(generator,'Compose researched article',{title:answer.title,sources:answer.sources});
   return {answer,definition,templateId};
  }

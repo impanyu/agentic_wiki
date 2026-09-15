@@ -112,3 +112,6 @@ export const generationProgress = sqliteTable('generation_progress', {
 });
 
 export const pageFileFolders=sqliteTable('page_file_folders',{id:text('id').primaryKey(),pageId:text('page_id').notNull().references(()=>pages.id,{onDelete:'cascade'}),scope:text('scope').notNull(),path:text('path').notNull(),ownerId:text('owner_id').notNull()},t=>[uniqueIndex('idx_page_file_folders').on(t.pageId,t.scope,t.path)]);
+
+export const userConnectors=sqliteTable('user_connectors',{id:text('id').notNull(),ownerId:text('owner_id').notNull(),name:text('name').notNull(),kind:text('kind').notNull(),url:text('url'),enabled:integer('enabled').notNull().default(0),tools:text('tools').notNull().default('[]'),allowed:text('allowed').notNull().default('[]'),automatic:text('automatic').notNull().default('[]'),revision:integer('revision').notNull().default(1)},t=>[uniqueIndex('idx_connector_owner_id').on(t.ownerId,t.id)]);
+export const connectorActions=sqliteTable('connector_actions',{id:text('id').primaryKey(),ownerId:text('owner_id').notNull(),connectorId:text('connector_id').notNull(),revision:integer('revision').notNull(),pageId:text('page_id'),tool:text('tool').notNull(),state:text('state').notNull(),createdAt:integer('created_at').notNull()},t=>[index('idx_connector_actions_owner').on(t.ownerId,t.createdAt)]);

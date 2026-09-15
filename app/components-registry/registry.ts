@@ -8,7 +8,7 @@ import {embed,cosine,verify,type Candidate} from '@/app/api/ask/ai';
 import {nearestQuestions} from '@/app/api/ask/ranking';
 import {componentTypeSchema,formSchema,validateProgram,dataReferenceSchema,type ComponentRef,type ComponentType} from './contracts';
 export type Component={id:string;type:ComponentType;version:number;owner_id:string;visibility:'public'|'private';language:string;title:string;description:string;payload:string};
-export type AgentContext={sourceDocument?:SourceDocument;generationIntent?:GenerationIntent;generationFeedback?:string;pageId?:string;userId:string;language:string;ownerId:string;visibility:'public'|'private';pageIntent?:'article'|'chart'|'application';agent?:Agent};
+export type AgentContext={toolFindings?:unknown;sourceDocument?:SourceDocument;generationIntent?:GenerationIntent;generationFeedback?:string;pageId?:string;userId:string;language:string;ownerId:string;visibility:'public'|'private';pageIntent?:'article'|'chart'|'application';agent?:Agent};
 export async function getComponent(ref:ComponentRef,context:Pick<AgentContext,'userId'>,type?:ComponentType){
  const row=await database().prepare("SELECT * FROM components WHERE id=? AND version=? AND (visibility='public' OR owner_id=?)").bind(ref.id,ref.version,context.userId).first<Component>();
  if(!row||type&&row.type!==type)throw new Error('COMPONENT_UNAVAILABLE');return row;

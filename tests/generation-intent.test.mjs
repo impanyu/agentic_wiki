@@ -21,7 +21,7 @@ test('analysis preserves original query, permits research, validates structure a
 test('new-page analysis can correct initial presentation and drives generation plus bounded app revision',async()=>{
  let intent=base,seen,compositions=0,reviews=0,allow=false;
  globalThis.intentFlow={analyzeGenerationIntent:async()=>intent,spawnAgent:async()=>({id:'g'}),recordAction:async()=>{},research:async(q,l,e,s,f,i)=>{seen={q,i};return {title:'Paper',sources:[]};},askAgent:async()=>({implementation:'chat',templateId:'chat-v1'}),sandboxStatus:()=>({configured:false,allowed:false}),composeChat:async(q,c)=>{compositions++;seen=c;return {title:'App',summary:'Workspace',config:{executor:'page-agent-v1',labels:{overview:''}},components:[]};},reviewGeneratedDefinition:async()=>({accepted:allow||++reviews===2,reason:'Preserve the requested comparison criteria.'})};
- const m=await load('const {'+Object.keys(globalThis.intentFlow).join(',')+'}=globalThis.intentFlow;\n'+strip('app/page-programs/generate-context.ts'));
+ const m=await load('const {'+Object.keys(globalThis.intentFlow).join(',')+'}=globalThis.intentFlow;\n'+'const useNotebook=async()=>"No additional tools needed";\n'+strip('app/page-programs/generate-context.ts'));
  const ctx={userId:'u',ownerId:'u',language:'en'},signal=new AbortController().signal;
  const paper=await m.generateContext({question:base.subject,templateId:'form-v1',route:'app',fresh:false},ctx,{},undefined,signal);
  assert.equal(paper.templateId,'wiki-v1');assert.equal(seen.q,base.subject);assert.deepEqual(seen.i,base);assert.equal(compositions,0);

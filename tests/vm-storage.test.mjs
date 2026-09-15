@@ -11,7 +11,7 @@ test('all application migrations apply twice; persistent queries and atomic batc
  try {
   const path=join(dir,'db.sqlite'); migrate(path); migrate(path);
   const db=new SqliteDatabase(path);
-  assert.equal((await db.prepare('SELECT count(*) n FROM app_migrations').first()).n,24);
+  assert.equal((await db.prepare('SELECT count(*) n FROM app_migrations').first()).n,25);
   await db.prepare('INSERT INTO generation_locks VALUES(?,?,?)').bind('test','one',1).run();
   await assert.rejects(db.batch([db.prepare('UPDATE generation_locks SET token=? WHERE name=?').bind('two','test'), db.prepare('INSERT INTO missing_table VALUES(1)')]));
   assert.equal(await db.prepare('SELECT token FROM generation_locks WHERE name=?').bind('test').first('token'),'one');

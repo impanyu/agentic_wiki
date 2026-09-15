@@ -1,0 +1,2 @@
+import {database} from '@/db/store';
+export async function requireStorageTool(userId:string,provider:string,tool?:string){const c=await database().prepare('SELECT enabled,allowed FROM user_connectors WHERE owner_id=? AND id=?').bind(userId,provider).first<{enabled:number;allowed:string}>();if(c&&(!c.enabled||tool&&!JSON.parse(c.allowed).includes(tool)))throw Error('Connector or tool is disabled.');}

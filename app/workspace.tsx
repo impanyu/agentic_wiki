@@ -6,6 +6,7 @@ import {PageShare} from './page-share';
 import {canWritePage,pageAccess,type PageAccess} from './page-permissions';
 import {DisambiguationIndex} from './disambiguation/view';
 import {ProgramView} from './page-programs/view';
+import {ConnectorPanel} from './connectors/panel';
 import {StoragePanel} from './storage/panel';
 import {DriveFolders} from './connections/google-drive/view';
 import {SandboxView} from './components-registry/sandbox-view';
@@ -354,6 +355,7 @@ export default function Workspace({ user, signIn, signOut }: {
         </button>
       </form>
       <input type="file" ref={uploadInput} hidden onChange={e=>{const file=e.target.files?.[0];if(file)void uploadFile(file);}}/>
+      <ConnectorPanel/>
       <a className="account-link" href={user ? signOut : signIn} target="_top" title={user ? t("Signed in as ") + user.name : t("Sign in with Google")}>
         {user ? t("Sign out") : t("Sign in")}
       </a>

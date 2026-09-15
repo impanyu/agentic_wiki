@@ -7,7 +7,7 @@ test('content generator chooses index or article and passes verified interpretat
  let ambiguous=true,researches=0,indices=0;
  const generator={id:'g',role:'content-generation'},signal=new AbortController().signal;
  globalThis.generatorTest={spawnAgent:async()=>generator,recordAction:async()=>{},analyzeGenerationIntent:async(q,l,a,s)=>{assert.equal(a,generator);assert.equal(s,signal);return {outputKind:'article',service:'none',fresh:false,mustCover:['Explain the subject'],needsDisambiguation:ambiguous,interpretations:['Country','Porcelain']};},classifyAmbiguity:async(q,l,a,required,meanings,s)=>{indices++;assert.equal(required,true);assert.deepEqual(meanings,['Country','Porcelain']);assert.equal(s,signal);return {title:'Index'};},indexAnswer:i=>i,research:async()=>{researches++;return {title:'Article',sources:[]};}};
- const source=readFileSync('app/page-programs/generate-context.ts','utf8').replace(/^import .*;$/gm,'');
+ const source='const useNotebook=async()=>"No tools needed";\n'+readFileSync('app/page-programs/generate-context.ts','utf8').replace(/^import .*;$/gm,'');
  const m=await load('const {'+Object.keys(globalThis.generatorTest).join(',')+'}=globalThis.generatorTest;\n'+source);
  const context={ownerId:'u',userId:'u',language:'en'};
  assert.equal((await m.generateContext({question:'china',templateId:'wiki-v1',fresh:false,route:'wiki'},context,{},undefined,signal)).templateId,'disambiguation-v1');
@@ -19,12 +19,12 @@ test('search-enabled agent requests web search and rejects missing search eviden
  let completed=true,payload;
  globalThis.searchAgentTest={model:()=> 'test-model',memory:async()=>[],recordAction:async()=>{},output:()=> '{"needed":false}',api:async(path,p)=>{payload=p;return {output:completed?[{type:'web_search_call',status:'completed'}]:[]};}};
  const source=readFileSync('app/components-registry/agents.ts','utf8').split('export async function askAgent')[1];
- const m=await load('const {'+Object.keys(globalThis.searchAgentTest).join(',')+'}=globalThis.searchAgentTest;\nexport async function askAgent'+source);
+ const m=await load('const {'+Object.keys(globalThis.searchAgentTest).join(',')+'}=globalThis.searchAgentTest;\nconst connectorTools=[],connectorInstructions="";\nexport async function askAgent'+source);
  const agent={role:'content-generation'};
  await m.askAgent(agent,'Check meanings',{}, {},undefined,undefined,[],{webSearch:true});
  assert.deepEqual(payload.tools,[{type:'web_search'}]);assert.equal(payload.tool_choice,'required');
  completed=false;await assert.rejects(()=>m.askAgent(agent,'Check meanings',{}, {},undefined,undefined,[],{webSearch:true}),/AI_UNAVAILABLE/);
  await m.askAgent(agent,'Analyze an ordinary task',{}, {},undefined,undefined,[],{webSearch:'auto'});assert.equal(payload.tool_choice,'auto');
- await m.askAgent(agent,'Ordinary task',{},{});assert.equal(payload.tools,undefined);
+ await m.askAgent(agent,'Ordinary task',{},{});assert.deepEqual(payload.tools,[]);
  delete globalThis.searchAgentTest;
 });

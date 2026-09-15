@@ -33,6 +33,11 @@ try{
  const visit=await fetch(origin+'/api/history',{method:'POST',headers:{origin,'Content-Type':'application/json',cookie:'agenticwiki_session='+session},body:JSON.stringify({id:'33333333-3333-4333-8333-333333333333',pageId:'11111111-1111-4111-8111-111111111111',question:'Test article'})});assert.equal(visit.status,200);
  assert.equal((await (await fetch(origin+'/api/history',{headers:{cookie:'agenticwiki_session='+session}})).json()).entries.length,1);
  const headers={origin,'Content-Type':'application/json',cookie:'agenticwiki_session='+session};
+ const connectorList=await (await fetch(origin+'/api/connectors',{headers})).json();assert.equal(connectorList.connections.length,3);assert.equal(connectorList.signedIn,true);
+ assert.equal((await fetch(origin+'/api/connectors/google',{method:'PATCH',headers,body:JSON.stringify({enabled:false})})).status,200);
+ assert.equal((await (await fetch(origin+'/api/connectors',{headers})).json()).connections.find(c=>c.id==='google').enabled,false);
+ assert.equal((await fetch(origin+'/api/connectors/google',{method:'PATCH',headers:{...headers,origin:'https://evil.example'},body:JSON.stringify({enabled:true})})).status,403);
+ assert.equal((await fetch(origin+'/api/connectors',{method:'POST',headers:{origin,'Content-Type':'application/json'},body:JSON.stringify({name:'Blocked',url:'https://localhost/mcp'})})).status,400);
  const originalPage=(await (await fetch(privateUrl,{headers})).json()).page;
  const document={type:'doc',content:[{type:'paragraph',content:[{type:'text',text:'Edited visually',marks:[{type:'bold'}]}]},{type:'image',attrs:{src:'https://example.org/test.png',alt:'Diagram'}}]};
  const edit={title:'Edited title',summary:'Edited summary',document,base:originalPage.updatedAt||originalPage.createdAt};
