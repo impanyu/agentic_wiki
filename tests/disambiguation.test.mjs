@@ -8,3 +8,22 @@ test('disambiguation creates precise destinations and upgrades an owned page in 
  const index=await m.classifyAmbiguity('party','en',{});assert.equal(index.entries.length,2);const updated=await m.upgradeIndex(page,index,'owner');assert.equal(updated.id,'p');assert.equal(updated.visibility,'private');assert.equal(updated.labels.templateId,'disambiguation-v1');assert.equal(writes,1);
  await m.upgradeIndex(updated,index,'owner');assert.equal(writes,1);assert.equal(await m.upgradeIndex({...updated,owned:false},index,'other'),null);delete globalThis.indexTest;
 });
+
+test('first-time ambiguity favors an index for multiple interpretations or unresolved doubt',async()=>{
+ let response;
+ globalThis.ambiguityDecisionTest={z,askAgent:async()=>response};
+ const m=await import('data:text/javascript;base64,'+Buffer.from(ts.transpile('const {z,askAgent}=globalThis.ambiguityDecisionTest;\n'+source,{module:ts.ModuleKind.ESNext,target:ts.ScriptTarget.ES2022})).toString('base64'));
+ response={needed:false,singleMeaningCertain:true,interpretations:['China (country)','Porcelain']};
+ assert.equal(await m.needsDisambiguation('china','en',{}),true,'multiple interpretations override an inconsistent negative decision');
+ response={needed:false,singleMeaningCertain:false,interpretations:['Java']};
+ assert.equal(await m.needsDisambiguation('How old is Java?','en',{}),true,'uncertainty must not silently choose a meaning');
+ response={needed:false,singleMeaningCertain:true,interpretations:["People’s Republic of China"]};
+ assert.equal(await m.needsDisambiguation("People’s Republic of China",'en',{}),false,'a qualified clear subject remains an article');
+ response={needed:false};
+ await assert.rejects(()=>m.needsDisambiguation('china','en',{}),'malformed decisions must not default to an article');
+ response={needed:false,title:'China',summary:'Country',entries:[]};
+ await assert.rejects(()=>m.classifyAmbiguity('china','en',{},true),/DISAMBIGUATION_INCOMPLETE/,'generation must not reverse a required index decision');
+ response={needed:true,title:'China',summary:'Choose a meaning',entries:[{question:'China (country)',description:'The country',group:'Places'},{question:'Porcelain',description:'Ceramic material',group:'Materials'}]};
+ assert.equal((await m.classifyAmbiguity('china','en',{},true)).entries.length,2);
+ delete globalThis.ambiguityDecisionTest;
+});

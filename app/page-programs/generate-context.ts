@@ -33,9 +33,8 @@ export async function generateContext(brief:GenerationBrief,context:AgentContext
   return {templateId,definition,answer:{title:definition.title,summary:definition.summary,body:'',category:zh?'索引':'Index',sources:[],labels:{overview:''}}};
  }
  if(templateId==='disambiguation-v1'){
-  const index=await classifyAmbiguity(brief.question,context.language,generator);
-  if(index.needed)return {answer:indexAnswer(index),definition,templateId};
-  templateId='wiki-v1';
+  const index=await classifyAmbiguity(brief.question,context.language,generator,true);
+  return {answer:indexAnswer(index),definition,templateId};
  }
  if(templateId==='wiki-v1'){
   const answer=await research(brief.question,context.language,emit,signal,brief.fresh);
