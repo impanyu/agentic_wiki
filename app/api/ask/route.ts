@@ -87,7 +87,7 @@ async function routeAnswer(request:Request,actor:Awaited<ReturnType<typeof getAc
   async function remember(pageId:string,page:AnswerPage){
    await rememberRootRoute(routingQuestion,vector,language,uid,domain,pageId,requested,originalKey);
    const now=new Date().toISOString();
-   const entries=sourceDocument?[[originalKey,destination]]:originalKey===destinationKey?[[originalKey,question]]:[[originalKey,question],[destinationKey,destination]];
+   const entries=sourceDocument?[[originalKey,sourceDocument.url],[normalize(sourceDocument.summary),sourceDocument.summary]]:originalKey===destinationKey?[[originalKey,question]]:[[originalKey,question],[destinationKey,destination]];
    await database().batch([...entries.map(([key,text])=>database().prepare(`INSERT OR IGNORE INTO questions(id,page_id,normalized,question,embedding,created_at,match_version,capability,parameters,routing_scope) SELECT ?,id,?,?,?,?,?,CASE WHEN kind='dynamic' THEN COALESCE(json_extract(dynamic_config,'$.capability'),'unit-converter-v1') WHEN json_extract(labels,'$.templateId')='disambiguation-v1' THEN 'disambiguation' ELSE 'article' END,?,? FROM pages WHERE id=? AND (visibility='public' OR owner_id=?)`+(sourceDocument?' ON CONFLICT(page_id,normalized) DO UPDATE SET question=excluded.question,embedding=excluded.embedding,match_version=excluded.match_version':'')).bind(crypto.randomUUID(),key,text,JSON.stringify(vector),now,MATCH_VERSION,JSON.stringify(page.parameters||page.runtime?.input||{}),domain,pageId,uid))]);
    if(domain==='wiki')await importWikiRoutes(database(),uid);
    if(domain==='session'){const session=await ensurePageSession(pageId,uid);await rememberSessionRoutes(pageId,uid,session.id);}
@@ -148,7 +148,7 @@ async function routeAnswer(request:Request,actor:Awaited<ReturnType<typeof getAc
    const live=await database().prepare('SELECT count(*) n FROM generation_locks WHERE token IN (?,?) AND expires>?').bind(lease,publishToken,Date.now()).first<{n:number}>();
    if(live?.n!==2)throw new Error('Generation was cancelled or timed out. Please try again.');
    if(existing){const page=await resolvePage(existing);if(page){await remember(existing,page);return {page,reused:true,destination};}}
-  const entries=sourceDocument?[[originalKey,destination]]:originalKey===destinationKey?[[originalKey,question]]:[[originalKey,question],[destinationKey,destination]];
+  const entries=sourceDocument?[[originalKey,sourceDocument.url],[normalize(sourceDocument.summary),sourceDocument.summary]]:originalKey===destinationKey?[[originalKey,question]]:[[originalKey,question],[destinationKey,destination]];
   if(fork&&!await getPage(fork.sourceId,uid))throw Error('The original context is no longer accessible.');
   await database().batch([
    ...(fork?[

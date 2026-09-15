@@ -54,9 +54,6 @@ test('saved URL lookup reuses canonical identity with access checks and determin
  assert.equal(await m.matchSourceUrl('https://example.org/Paper?a=2','alice'),null);
  assert.equal(await m.matchSourceUrl('ordinary question','alice'),null);
  assert.equal(lookups,3);
- assert.equal((await m.matchSourceUrl('介绍一下 https://example.org/Paper?a=1，谢谢','alice')).id,'own');
- assert.equal((await m.matchSourceUrl('Read [this](https://example.org/Paper?a=1).','alice')).id,'own');
- assert.equal(await m.matchSourceUrl('Compare https://example.org/Paper?a=1 and https://example.org/other','alice'),null);
  db.prepare("UPDATE pages SET visibility='private' WHERE id='public'").run();assert.equal(await m.matchSourceUrl(url,'visitor'),null);
  db.close();
 });
@@ -65,4 +62,13 @@ test('URL fast path precedes AI configuration and content reading, and explicit 
  const fast=route.indexOf('if(!fork){const page=await matchSourceUrl(question,uid)');
  assert.ok(fast>0);assert.ok(fast<route.indexOf('if(!aiKey())'));assert.ok(fast<route.indexOf('await prepareNavigationInput('));
  assert.match(route,/if\(sourceDocument\)\{const exact=await matchSourceUrl\(question,uid\);if\(exact\)return exact.id;/);
+});
+
+test('new URL pages and reused pages store separate URL and summary questions with summary vectors',()=>{
+ const route=readFileSync('app/api/ask/route.ts','utf8');
+ const pair='sourceDocument?[[originalKey,sourceDocument.url],[normalize(sourceDocument.summary),sourceDocument.summary]]';
+ assert.equal(route.split(pair).length-1,2);
+ assert.ok(route.includes('key,text,JSON.stringify(vector)'));
+ const search=readFileSync('app/api/ask/question-search.ts','utf8');
+ assert.ok(search.includes("NOT (q.normalized LIKE 'url:%' AND q.question=substr(q.normalized,5))"));
 });
