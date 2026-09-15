@@ -20,6 +20,12 @@ test('analysis preserves original query, permits research, validates structure a
  assert.equal((await m.reviewGeneratedDefinition('query',base,{}, {},signal)).accepted,false);
  answer={requirements:base.mustCover.map((_,index)=>({index,satisfied:true,evidence:'Specific evidence from the supplied definition.'})),reason:''};
  assert.equal((await m.reviewGeneratedDefinition('query',base,{}, {},signal)).accepted,true);
+ assert.deepEqual(task.indexedRequirements,base.mustCover.map((requirement,index)=>({index,requirement})));
+ answer={requirements:base.mustCover.map((_,i)=>({index:i+1,satisfied:true,evidence:'Concrete evidence in this supplied definition.'})).reverse(),reason:'All requirements fulfilled'};
+ assert.equal((await m.reviewGeneratedDefinition('query',base,{}, {},signal)).accepted,true);
+ answer.requirements[0].satisfied=false;assert.equal((await m.reviewGeneratedDefinition('query',base,{}, {},signal)).accepted,false);
+ answer.requirements=[answer.requirements[1],answer.requirements[1]];assert.equal((await m.reviewGeneratedDefinition('query',base,{}, {},signal)).accepted,false);
+ answer.requirements=[{index:1,satisfied:true,evidence:'Concrete evidence for only one requirement.'}];assert.equal((await m.reviewGeneratedDefinition('query',base,{}, {},signal)).accepted,false);
  delete globalThis.intentUnit;
 });
 test('new-page analysis can correct initial presentation and drives generation plus bounded app revision',async()=>{
