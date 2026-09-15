@@ -479,5 +479,12 @@
   "Requires the Microsoft OAuth application to be configured on this server.": "Requires the Microsoft OAuth application to be configured on this server.",
   "Browse agricultural files and folders, read text datasets and upload text files to ADMA.": "Browse agricultural files and folders, read text datasets and upload text files to ADMA.",
   "Use your ADMA API token from adma.aisoup.net. ADMA uses Token authentication. An administrator can create a token for your account with the create_api_token management command. Never enter your account password here.": "Use your ADMA API token from adma.aisoup.net. ADMA uses Token authentication. An administrator can create a token for your account with the create_api_token management command. Never enter your account password here.",
-  "This ADMA file is not a supported text format.": "This ADMA file is not a supported text format."
+  "This ADMA file is not a supported text format.": "This ADMA file is not a supported text format.",
+  "Choose Google Drive files": "Choose Google Drive files",
+  "Choose files": "Choose files",
+  "The agent can access only files you select here or files created by this app. Selecting a folder does not grant access to all its contents.": "The agent can access only files you select here or files created by this app. Selecting a folder does not grant access to all its contents.",
+  "Files are now available to the agent. Return to your page and refresh the file list.": "Files are now available to the agent. Return to your page and refresh the file list.",
+  "Back to page": "Back to page",
+  "Google file picker is not configured yet.": "Google file picker is not configured yet.",
+  "Choose specific Google Drive files for the agent to read and edit.": "Choose specific Google Drive files for the agent to read and edit."
 }

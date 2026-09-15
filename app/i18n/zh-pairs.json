@@ -245,5 +245,12 @@
   "Requires the Microsoft OAuth application to be configured on this server.": "需要先在服务器配置 Microsoft OAuth 应用。",
   "Browse agricultural files and folders, read text datasets and upload text files to ADMA.": "浏览农业数据文件和文件夹、读取文本数据集，并向 ADMA 上传文本文件。",
   "Use your ADMA API token from adma.aisoup.net. ADMA uses Token authentication. An administrator can create a token for your account with the create_api_token management command. Never enter your account password here.": "填入 adma.aisoup.net 的个人 API token。ADMA 使用 Token 认证。管理员可通过 create_api_token 管理命令为你的账号创建 token。请勿在此输入账号密码。",
-  "This ADMA file is not a supported text format.": "此 ADMA 文件不是受支持的文本格式。"
+  "This ADMA file is not a supported text format.": "此 ADMA 文件不是受支持的文本格式。",
+  "Choose Google Drive files": "选择 Google Drive 文件",
+  "Choose files": "选择文件",
+  "The agent can access only files you select here or files created by this app. Selecting a folder does not grant access to all its contents.": "Agent 只能访问你在此选择的文件或本应用创建的文件。选择文件夹不会授权访问其中的全部文件。",
+  "Files are now available to the agent. Return to your page and refresh the file list.": "文件已可供 Agent 使用。请返回页面并刷新文件列表。",
+  "Back to page": "返回页面",
+  "Google file picker is not configured yet.": "Google 文件选择器尚未配置完成。",
+  "Choose specific Google Drive files for the agent to read and edit.": "选择允许 Agent 读取和编辑的 Google Drive 文件。"
 }

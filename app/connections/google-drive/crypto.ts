@@ -1,4 +1,4 @@
-export const DRIVE_SCOPE='https://www.googleapis.com/auth/drive.metadata.readonly';
+export const DRIVE_SCOPE='https://www.googleapis.com/auth/drive.file';
 const bytes=(s:string)=>Uint8Array.from(atob(s),c=>c.charCodeAt(0));
 const base64=(b:Uint8Array)=>btoa(String.fromCharCode(...b));
 export async function encryptSecret(value:unknown,encodedKey:string,binding:string){const raw=bytes(encodedKey);if(raw.length!==32)throw new Error('INVALID_VAULT_KEY');const key=await crypto.subtle.importKey('raw',raw,'AES-GCM',false,['encrypt']);const iv=crypto.getRandomValues(new Uint8Array(12));const ciphertext=await crypto.subtle.encrypt({name:'AES-GCM',iv,additionalData:new TextEncoder().encode(binding)},key,new TextEncoder().encode(JSON.stringify(value)));return JSON.stringify({iv:base64(iv),ciphertext:base64(new Uint8Array(ciphertext))});}
