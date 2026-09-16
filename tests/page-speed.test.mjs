@@ -30,8 +30,8 @@ test('exact saved question fast path uses real SQL permissions, freshness, and m
 });
 test('deferred reads return the saved app without executing its backend',async()=>{
  let calls=0;const page={id:'p',kind:'dynamic',dynamic:{template:'page-program-v1'},parameters:{}};
- const {deferPageExecution}=await load(strip('app/page-programs/deferred.ts'));
- globalThis.deferDeps={parametersSchema:z.record(z.union([z.string(),z.number(),z.boolean()])),programNavigationInput:p=>({values:p}),deferPageExecution,executePage:async p=>{calls++;return {...p,view:{}};},getActor:async()=>({userId:'u',finish:r=>r}),getPage:async()=>page,reply:(data,status=200)=>Response.json(data,{status})};
+ const {deferPageExecution,registeredAdmaPage}=await load(strip('app/page-programs/deferred.ts'));
+ globalThis.deferDeps={parametersSchema:z.record(z.union([z.string(),z.number(),z.boolean()])),programNavigationInput:p=>({values:p}),deferPageExecution,registeredAdmaPage,executePage:async p=>{calls++;return {...p,view:{}};},getActor:async()=>({userId:'u',finish:r=>r}),getPage:async()=>page,reply:(data,status=200)=>Response.json(data,{status})};
  const code=strip('app/api/pages/[id]/route.ts').split('export async function PATCH')[0];
  const m=await load('const {'+Object.keys(globalThis.deferDeps).join(',')+'}=globalThis.deferDeps;'+code);
  const response=await m.GET(new Request('https://wiki.test/api/pages/p?defer=1'),{params:Promise.resolve({id:'p'})});

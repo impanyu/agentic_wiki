@@ -13,3 +13,13 @@ test('ADMA mutations match server routes, default private, and reject injected i
  assert.equal(apiTools.adma.find(t=>t.name==='file_metadata').annotations.readOnlyHint,true);
  assert.throws(()=>apiOperation('adma','create_folder',{name:'Research',is_public:true}));
 });
+
+test('basic saved ADMA browsers adopt native UI while custom workflows retain their program',async()=>{
+ const source=readFileSync('app/page-programs/deferred.ts','utf8').replace(/^import .*;$/gm,'');
+ const {deferPageExecution}=await import('data:text/javascript;base64,'+Buffer.from(ts.transpile(source,{module:ts.ModuleKind.ESNext,target:ts.ScriptTarget.ES2022})).toString('base64'));
+ const page={question:'list my adma files',labels:{},dynamic:{template:'page-program-v1'}};
+ assert.equal(deferPageExecution(page).dynamic.template,'file-browser-v1');
+ assert.equal(deferPageExecution(page).runtimePending,false);
+ assert.equal(deferPageExecution({...page,question:'Analyze rainfall in my ADMA files'}).dynamic.template,'page-program-v1');
+ assert.equal(deferPageExecution({...page,question:'list my google drive files'}).dynamic.template,'page-program-v1');
+});

@@ -1,4 +1,4 @@
-import {deferPageExecution} from '@/app/page-programs/deferred';
+import {deferPageExecution,registeredAdmaPage} from '@/app/page-programs/deferred';
 import {parametersSchema} from '@/app/components-registry/contracts';
 import {programNavigationInput} from '@/app/page-programs/inputs';
 import {executePage} from '@/app/components-registry/runtime';
@@ -8,6 +8,7 @@ import {database,getPage,reply,sameOrigin,lock,unlock} from '@/db/store';
 export async function GET(request:Request,{params}:{params:Promise<{id:string}>}){const actor=await getActor(request);const respond=(data:unknown,status=200)=>actor.finish(reply(data,status));try{
  let page=await getPage((await params).id,actor.userId);
  if(!page||page.kind==='resource')return respond({error:'This page is private or does not exist.'},404);
+ page=registeredAdmaPage(page);
  if(page.dynamic?.template==='context-index-v1'){const parameters=parametersSchema.parse(JSON.parse(new URL(request.url).searchParams.get('inputs')||'{}'));return respond({page:await executePage(page,parameters,actor.userId)});}
  if(page.dynamic?.template==='page-program-v1'){const url=new URL(request.url),parameters=parametersSchema.parse(JSON.parse(url.searchParams.get('inputs')||'{}'));if(url.searchParams.get('defer')==='1')return respond({page:deferPageExecution(page,parameters)});return respond({page:await executePage({...page,parameters},programNavigationInput(parameters),actor.userId)});}
  if(page.dynamic?.template==='file-browser-v1'||page.dynamic?.template==='agent-chat-v1'){const parameters=parametersSchema.parse(JSON.parse(new URL(request.url).searchParams.get('inputs')||'{}'));return respond({page:{...page,parameters}});}
