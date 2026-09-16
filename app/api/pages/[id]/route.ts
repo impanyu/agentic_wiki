@@ -1,3 +1,4 @@
+import {deferPageExecution} from '@/app/page-programs/deferred';
 import {parametersSchema} from '@/app/components-registry/contracts';
 import {programNavigationInput} from '@/app/page-programs/inputs';
 import {executePage} from '@/app/components-registry/runtime';
@@ -8,7 +9,7 @@ export async function GET(request:Request,{params}:{params:Promise<{id:string}>}
  let page=await getPage((await params).id,actor.userId);
  if(!page||page.kind==='resource')return respond({error:'This page is private or does not exist.'},404);
  if(page.dynamic?.template==='context-index-v1'){const parameters=parametersSchema.parse(JSON.parse(new URL(request.url).searchParams.get('inputs')||'{}'));return respond({page:await executePage(page,parameters,actor.userId)});}
- if(page.dynamic?.template==='page-program-v1'){const url=new URL(request.url),parameters=parametersSchema.parse(JSON.parse(url.searchParams.get('inputs')||'{}'));return respond({page:await executePage({...page,parameters},programNavigationInput(parameters),actor.userId)});}
+ if(page.dynamic?.template==='page-program-v1'){const url=new URL(request.url),parameters=parametersSchema.parse(JSON.parse(url.searchParams.get('inputs')||'{}'));if(url.searchParams.get('defer')==='1')return respond({page:deferPageExecution(page,parameters)});return respond({page:await executePage({...page,parameters},programNavigationInput(parameters),actor.userId)});}
  if(page.dynamic?.template==='file-browser-v1'||page.dynamic?.template==='agent-chat-v1'){const parameters=parametersSchema.parse(JSON.parse(new URL(request.url).searchParams.get('inputs')||'{}'));return respond({page:{...page,parameters}});}
  if(page.kind==='dynamic'&&page.dynamic){try{const url=new URL(request.url),input=page.dynamic.template==='component-form-v1'?(url.searchParams.has('inputs')?JSON.parse(url.searchParams.get('inputs')!):undefined):inputFromUrl(url);if(input){if(page.dynamic.template==='component-form-v1')page.parameters=input;try{page=await executePage(page,input,actor.userId);}catch{if(page.dynamic?.template!=='component-form-v1')throw new Error('INVALID_INPUT');}}}catch{return respond({error:page.dynamic.labels.invalid},400);}}
  return respond({page});

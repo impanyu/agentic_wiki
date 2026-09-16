@@ -1,3 +1,5 @@
+import {exactSavedQuestion} from './exact-match';
+import {deferPageExecution} from '@/app/page-programs/deferred';
 import {requireValidIndex,indexGenerationPolicy} from '@/app/disambiguation/graph';
 import {storagePageMismatch} from '@/app/storage/page-scope';
 import {inheritGenerationSession} from '@/app/agents/session';
@@ -10,7 +12,6 @@ import {startJob,finishJob} from '@/app/context-index/jobs';
 import {routeInputs,programNavigationInput} from '@/app/page-programs/inputs';
 import {answerStream} from '@/app/answer-stream';
 import {generateContext} from '@/app/page-programs/generate-context';
-import {selectTemplate} from '@/app/templates/select';
 import {matchQuestion} from './question-search';
 import {refreshMatchedPage} from './refresh-matched-page';
 import {resolveRootRoute,rememberRootRoute} from '@/app/routing/root-table';
@@ -50,6 +51,7 @@ async function routeAnswer(request:Request,actor:Awaited<ReturnType<typeof getAc
    fork={sourceId:source.id,requestId:data.fork.requestId,groupId:family?.group_id||source.id,createdAt:source.createdAt};
   }
   if(!fork){const page=await matchSourceUrl(question,uid);if(page)return respond({page,reused:true,destination:question});}
+  if(!fork){const exact=await exactSavedQuestion(question,uid);if(exact)return respond({page:exact,reused:true,destination:question});}
   jobId=await startJob(uid,'navigation',question);
   if(!aiKey())return respond({error:'The AI connection is not configured yet.'},503);
   const {sourceDocument,routingQuestion,vector,language}=await prepareNavigationInput(question,request.signal);
@@ -80,7 +82,7 @@ async function routeAnswer(request:Request,actor:Awaited<ReturnType<typeof getAc
    const page=await getPage(pageId,uid);if(page?.labels.templateId==='disambiguation-v1')await requireValidIndex(uid,page.id,destination);
    if(page?.dynamic?.template==='agent-chat-v1'){const session=await ensurePageSession(page.id,uid);await rememberSessionRoutes(page.id,uid,session.id);await recordAction(router,'Open persistent chat session',{pageId:page.id,sessionId:session.id});return {...page,sessionId:session.id};}
    if(page?.dynamic?.template==='context-index-v1'){const parameters=await routeInputs(destination,page,parameterRouter);return executePage(page,parameters,uid);}
-   if(page?.dynamic?.template==='page-program-v1'){const parameters=await routeInputs(destination,page,parameterRouter);return executePage({...page,parameters},programNavigationInput(parameters),uid);}
+   if(page?.dynamic?.template==='page-program-v1'){const parameters=await routeInputs(destination,page,parameterRouter);return deferPageExecution(page,parameters);}
    if(page?.dynamic?.template==='file-browser-v1')return {...page,parameters:await routeInputs(destination,page,parameterRouter)};
    if(['component-chart-v1','component-sandbox-v1','google-drive-folders-v1','agent-chat-v1','file-browser-v1'].includes(page?.dynamic?.template||''))return page;
    if(page?.dynamic?.template==='component-form-v1'&&page.dynamic.form){const input=await extractApplicationInputs(destination,page.dynamic.form,parameterRouter);page.parameters=input;try{return await executePage(page,input,uid);}catch{return page;}}
@@ -117,7 +119,7 @@ async function routeAnswer(request:Request,actor:Awaited<ReturnType<typeof getAc
   let matched=fork?null:await findMatch();
   if(matched){const page=await resolvePage(matched);if(!page)return respond({error:'This page is no longer accessible. Please try again.'},404);await remember(page.id,page);const updated=await refreshMatchedPage(page,destination,requested.fresh,uid,router);return respond({page:updated,reused:true,destination});}
   // The content generator chooses article versus disambiguation after reuse misses.
-  const presentation=requested.kind==='article'?'wiki-v1':domain==='session'?'chat-v1':requested.service==='google_drive_folders'?'files-v1':['context_pages','user_jobs'].includes(requested.service)?'wiki-v1':await selectTemplate(destination,router,undefined,requested.kind);
+  const presentation=requested.kind==='article'?'wiki-v1':domain==='session'?'chat-v1':requested.service==='google_drive_folders'?'files-v1':['context_pages','user_jobs'].includes(requested.service)?'wiki-v1':requested.kind==='chart'?'dashboard-v1':'form-v1';
   const visibility='private' as const;
   const keyBytes=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(JSON.stringify([language,destinationKey,uid])));
   const generationKey=fork?'fork:'+fork.requestId:'question:'+Array.from(new Uint8Array(keyBytes),b=>b.toString(16).padStart(2,'0')).join('');
@@ -167,6 +169,7 @@ async function routeAnswer(request:Request,actor:Awaited<ReturnType<typeof getAc
   if(dependencies.length)await attachComponents(id,dependencies,context);
   if(generationDomain==='wiki')await importWikiRoutes(database(),uid);
   const page=await resolvePage(id);if(!page)throw new Error('Could not load the saved page.');
+  if(definition&&page.parameters)await database().prepare('UPDATE questions SET parameters=? WHERE page_id=?').bind(JSON.stringify(page.parameters),page.id).run();
   if(!fork)await rememberRootRoute(routingQuestion,vector,language,uid,generationDomain,page.id,generationRequest,originalKey);
   if(domain==='app')await recordAction(rootRouter,'Route original question to generated app',{pageId:page.id,parameters:page.parameters||page.runtime?.input||{}});
   return {page,reused:false,destination};

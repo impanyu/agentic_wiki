@@ -15,13 +15,20 @@ export async function api(path:string,body:unknown,signal?:AbortSignal):Promise<
  return await response.json() as AIResponse;
 }
 export type ResearchUpdate={type:'replace';text:string}|{type:'delta';text:string}|{type:'status';message:string}|{type:'metadata';title:string;summary:string;category:string;labels:{overview:string;contents:string;sources:string}};
-export async function streamArticle(body:Record<string,unknown>,emit:(event:ResearchUpdate)=>void,signal?:AbortSignal):Promise<AIResponse>{
+export async function streamArticle(body:Record<string,unknown>,emit:(event:ResearchUpdate)=>void,signal?:AbortSignal,onToolArguments?:(name:string,text:string)=>void):Promise<AIResponse>{
  body={...reasoningOptions(String(body.model||'')),...body};
  const key=aiKey();if(!key)throw new Error('AI_SETUP');
  const response=await fetch('https://api.openai.com/v1/responses',{method:'POST',headers:{Authorization:'Bearer '+key,'Content-Type':'application/json'},body:JSON.stringify({...body,stream:true}),signal:signal?AbortSignal.any([signal,AbortSignal.timeout(120000)]):AbortSignal.timeout(120000)});
  if(!response.ok||!response.body)throw new Error(response.status===429?'AI_LIMIT':'AI_UNAVAILABLE');
- let completed:AIResponse|undefined,writing=false;
+ let completed:AIResponse|undefined,writing=false;const toolArguments=new Map<string,{name:string;text:string}>();
  for await(const event of readEvents(response.body)){
+  if(event.type==='response.output_item.added'){
+   const item=event.item as {id?:string;type?:string;name?:string;arguments?:string}|undefined;
+   if(item?.type==='function_call'&&item.id&&item.name)toolArguments.set(item.id,{name:item.name,text:item.arguments||''});
+  }else if(event.type==='response.function_call_arguments.delta'&&typeof event.delta==='string'){
+   const item=toolArguments.get(String(event.item_id));if(item){item.text+=event.delta;onToolArguments?.(item.name,item.text);}
+  }
+
   if(event.type==='response.output_text.delta'&&typeof event.delta==='string'){
    if(!writing){writing=true;emit({type:'status',message:'Writing your page…'});}
    emit({type:'delta',text:event.delta});

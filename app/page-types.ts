@@ -9,6 +9,7 @@ export type AnswerPage = {
   parameters?: import('./components-registry/contracts').Parameters;
   applicationResult?: import('./components-registry/contracts').Parameters;
   runtimeError?: string;
+  runtimePending?: boolean;
   view?:import('./page-programs/contracts').PageView;
   proposals?:import('./page-programs/runtime').ProgramProposal[];
   runtime?: import('./dynamic/units').ConversionResult;

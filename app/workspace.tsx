@@ -128,6 +128,16 @@ export default function Workspace({ user, signIn, signOut }: {
   const captureRef=useRef(captureSelection);captureRef.current=captureSelection;
   useEffect(()=>{let timer:ReturnType<typeof setTimeout>;const update=()=>{clearTimeout(timer);timer=setTimeout(()=>captureRef.current(),80);};document.addEventListener('selectionchange',update);return()=>{clearTimeout(timer);document.removeEventListener('selectionchange',update);};},[]);
 
+  const pendingRuntime=selected?.runtimePending?selected:undefined;
+  useEffect(()=>{
+    if(!pendingRuntime)return;
+    const controller=new AbortController(),page=pendingRuntime;
+    void fetch('/api/pages/'+encodeURIComponent(page.id)+'/run',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({query:page.parameters?.query,values:page.parameters||{}}),signal:controller.signal})
+      .then(readResponse).then(result=>{if(!controller.signal.aborted)setSelected(current=>current===page?{...result.page,parameters:result.page.parameters||page.parameters,runtimePending:false}:current);})
+      .catch(error=>{if(!controller.signal.aborted)setSelected(current=>current===page?{...current,runtimePending:false,runtimeError:navigationError(error,'Could not load application results. Use Refresh to retry.')}:current);});
+    return ()=>controller.abort();
+  },[pendingRuntime]);
+
   const restore = useCallback(async () => {
     request.current?.abort();
     const controller = new AbortController();
@@ -144,7 +154,7 @@ export default function Workspace({ user, signIn, signOut }: {
     setBusy(true);
     try {
       await ensureActor();
-      const result = await readResponse(await navigationRequest('/api/pages/' + encodeURIComponent(id)+'?'+new URLSearchParams(location.search).toString(), {
+      const result = await readResponse(await navigationRequest('/api/pages/' + encodeURIComponent(id)+'?defer=1&'+new URLSearchParams(location.search).toString(), {
         cache: 'no-store', signal: controller.signal,
       }));
       if (controller.signal.aborted) return;
@@ -281,7 +291,7 @@ export default function Workspace({ user, signIn, signOut }: {
     setBusy(true);setError('');setStatus('Opening saved page…');setPending(null);window.getSelection()?.removeAllRanges();
     try{
       await ensureActor();
-      const result=await readResponse(await navigationRequest('/api/pages/'+encodeURIComponent(link.targetId)+'?'+inputQuery(link.parameters).replace(/^&/,''),{cache:'no-store',signal:controller.signal}));
+      const result=await readResponse(await navigationRequest('/api/pages/'+encodeURIComponent(link.targetId)+'?defer=1&'+inputQuery(link.parameters).replace(/^&/,''),{cache:'no-store',signal:controller.signal}));
       if(controller.signal.aborted)return;
       setSelected(result.page);setDraft(null);setQuestion(link.quote);recordHistory(result.page.id,link.quote,(result.page.parameters||result.page.runtime?.input));setStatus('Opened '+result.page.title);
     }catch(e){if(!controller.signal.aborted){setStatus('');setError(navigationError(e,'Could not open this page.'));}}
@@ -381,7 +391,7 @@ export default function Workspace({ user, signIn, signOut }: {
           {draft ? <span>{busy?t("Generating… You can read the page as it appears."):t("Incomplete draft — retry the question to generate a saved page.")}</span> : pending ? <><span className="selection-quote">“{pending.quote}”</span><button type="button" onMouseDown={e=>e.preventDefault()} onClick={()=>addHighlight(false)} disabled={busy}><Highlighter size={14}/>{t("Highlight")}</button><button type="button" onMouseDown={e=>e.preventDefault()} onClick={()=>addHighlight(true)} disabled={busy}>{t("Highlight & open")}<ArrowRight size={14}/></button></> : <span>{visiblePage.labels.templateId==='disambiguation-v1'?t("Choose the meaning or topic you want to explore."):t(conceptStatus)||t("Select text to highlight it or open it as a question.")}{(conceptStatus.includes('could not')||conceptStatus.includes('still'))&&<button onClick={()=>setConceptAttempt(n=>n+1)}>{t("Retry")}</button>}</span>}
         </div>
         <div ref={article} onMouseUp={captureSelection} onKeyUp={captureSelection} onTouchEnd={()=>setTimeout(captureSelection,0)}>
-          <AnswerText concepts={!draft?concepts:[]} sources={visiblePage.sources} labels={visiblePage.labels} title={visiblePage.title} summary={visiblePage.summary} body={visiblePage.labels.templateId==='disambiguation-v1'&&!visiblePage.labels.richContent?'':visiblePage.body} highlights={highlights[visiblePage.id]||[]} links={visiblePage.links||[]} onOpen={link=>void openInternal(link)} onJump={highlight=>{window.getSelection()?.removeAllRanges();void navigate(highlight.quote,{pageId:visiblePage.id,highlight})}}>{visiblePage.labels.templateId==='disambiguation-v1'&&!visiblePage.labels.richContent&&visiblePage.labels.indexEntries&&<DisambiguationIndex entries={visiblePage.labels.indexEntries} onOpen={text=>void navigate(text)} disabled={busy}/>} {visiblePage.contextIndex&&<ContextIndex page={visiblePage} onResult={setSelected} onOpen={(id,title)=>void openInternal({id,targetId:id,targetTitle:title,quote:title,segments:[],parameters:{}})}/>} {visiblePage.view&&<ProgramView page={visiblePage} onResult={setSelected}/>} {visiblePage.dynamic?.chart&&visiblePage.dynamic.dataset&&<Dashboard tableFirst={visiblePage.labels.templateId==='table-v1'} key={'chart:'+visiblePage.id} chart={visiblePage.dynamic.chart} dataset={visiblePage.dynamic.dataset}/>}{visiblePage.dynamic?.sandbox&&<SandboxView key={'sandbox:'+visiblePage.id} title={visiblePage.title} app={visiblePage.dynamic.sandbox}/>}</AnswerText>
+          <AnswerText concepts={!draft?concepts:[]} sources={visiblePage.sources} labels={visiblePage.labels} title={visiblePage.title} summary={visiblePage.summary} body={visiblePage.labels.templateId==='disambiguation-v1'&&!visiblePage.labels.richContent?'':visiblePage.body} highlights={highlights[visiblePage.id]||[]} links={visiblePage.links||[]} onOpen={link=>void openInternal(link)} onJump={highlight=>{window.getSelection()?.removeAllRanges();void navigate(highlight.quote,{pageId:visiblePage.id,highlight})}}>{visiblePage.labels.templateId==='disambiguation-v1'&&!visiblePage.labels.richContent&&visiblePage.labels.indexEntries&&<DisambiguationIndex entries={visiblePage.labels.indexEntries} onOpen={text=>void navigate(text)} disabled={busy}/>} {visiblePage.contextIndex&&<ContextIndex page={visiblePage} onResult={setSelected} onOpen={(id,title)=>void openInternal({id,targetId:id,targetTitle:title,quote:title,segments:[],parameters:{}})}/>} {(visiblePage.view||visiblePage.runtimePending||visiblePage.dynamic?.template==='page-program-v1')&&<ProgramView page={visiblePage} onResult={setSelected}/>} {visiblePage.dynamic?.chart&&visiblePage.dynamic.dataset&&<Dashboard tableFirst={visiblePage.labels.templateId==='table-v1'} key={'chart:'+visiblePage.id} chart={visiblePage.dynamic.chart} dataset={visiblePage.dynamic.dataset}/>}{visiblePage.dynamic?.sandbox&&<SandboxView key={'sandbox:'+visiblePage.id} title={visiblePage.title} app={visiblePage.dynamic.sandbox}/>}</AnswerText>
         </div>
         {visiblePage.kind==='dynamic'&&visiblePage.dynamic?.template==='unit-converter-v1'&&<UnitConverter key={visiblePage.id+JSON.stringify(visiblePage.runtime?.input)} page={visiblePage} onResult={page=>{const text=page.runtime?`${page.runtime.input.value} ${page.runtime.fromSymbol} → ${page.runtime.toSymbol}`:question;setSelected(page);setQuestion(text);recordHistory(page.id,text,page.runtime?.input);setStatus('');}}/>}
         {visiblePage.dynamic?.template==='google-drive-folders-v1'&&visiblePage.dynamic.driveLabels&&<DriveFolders key={'drive:'+visiblePage.id} pageId={visiblePage.id} labels={visiblePage.dynamic.driveLabels}/>}
