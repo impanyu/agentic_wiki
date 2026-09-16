@@ -15,4 +15,4 @@ test('named storage pages stay focused, while multi-provider tasks retain reques
  assert.deepEqual(pageStorageProviders('list my google drive',{provider:'dropbox'}),['google']);
 });
 
-test('rejects cross-service reuse and unsupported saved file browsers',()=>{assert.equal(storagePageMismatch('list my adma files',{question:'list my google drive',title:'Drive'}),true);assert.equal(storagePageMismatch('list my adma files',{question:'list my adma files',title:'ADMA',dynamic:{template:'file-browser-v1'}}),true);assert.equal(storagePageMismatch('list my google drive',{question:'list my google drive',title:'Drive',dynamic:{template:'file-browser-v1'}}),false);});
+test('rejects cross-service reuse and unsupported saved file browsers',()=>{assert.equal(storagePageMismatch('list my adma files',{question:'list my google drive',title:'Drive'}),true);assert.equal(storagePageMismatch('list my adma files',{question:'list my adma files',title:'ADMA',dynamic:{template:'file-browser-v1'}}),false);assert.equal(storagePageMismatch('list my google drive',{question:'list my google drive',title:'Drive',dynamic:{template:'file-browser-v1'}}),false);});

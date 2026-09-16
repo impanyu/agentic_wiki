@@ -255,5 +255,22 @@
   "Read all Google Drive files and edit selected or app-created files with confirmation.": "读取全部 Google Drive 文件，并在确认后修改选中或由应用创建的文件。",
   "Reconnect Google Drive to enable reading all files and editing selected files.": "请重新连接 Google Drive，以启用读取全部文件和修改选中文件。",
   "Scopes: drive.readonly and drive.file. Add your Google account as a test user while the consent screen is in testing.": "权限：drive.readonly 和 drive.file。在授权应用处于测试状态时，请将你的 Google 账号添加为测试用户。",
-  "Checked tools can be called automatically by agents, including tools that change external data. Uncheck a tool to disable it.": "勾选的工具允许 agent 自动调用，包括修改外部数据的工具。取消勾选即可禁用。"
+  "Checked tools can be called automatically by agents, including tools that change external data. Uncheck a tool to disable it.": "勾选的工具允许 agent 自动调用，包括修改外部数据的工具。取消勾选即可禁用。",
+  "Data workspace": "数据工作区",
+  "Files and folders in your ADMA account": "你的 ADMA 账户中的文件和文件夹",
+  "Open in ADMA": "在 ADMA 中打开",
+  "Enable your ADMA connection in Connectors to browse your files.": "请在连接器中启用 ADMA 连接以浏览文件。",
+  "All my items": "我的所有项目",
+  "Showing this folder’s contents.": "正在显示此文件夹的内容。",
+  "ADMA shows root folders and all your files here, including files in nested folders.": "ADMA 在此显示根文件夹以及所有文件，包括子文件夹中的文件。",
+  "Enable list_files and list_folders in Connectors to browse all items.": "请在连接器中启用 list_files 和 list_folders 以浏览所有项目。",
+  "Upload text / CSV / JSON": "上传文本 / CSV / JSON",
+  "Choose a text file up to 48 KB.": "请选择不超过 48 KB 的文本文件。",
+  "Read text file": "读取文本文件",
+  "Make private": "设为私有",
+  "Make public": "设为公开",
+  "Permanently delete this item? Folder contents are also deleted. This cannot be undone.": "永久删除此项目？文件夹中的内容也将删除。此操作无法撤销。",
+  "Confirm permanent deletion": "确认永久删除",
+  "Delete permanently": "永久删除",
+  "Additional actions require their tools to be checked in Connectors. Use ADMA for binary uploads, downloads, maps and processing tools.": "其他操作需要在连接器中勾选对应工具。二进制文件上传、下载、地图和处理工具请在 ADMA 中使用。"
 }

@@ -3,7 +3,7 @@ import {env} from '@/server/runtime';
 import {generationIntentSchema} from './generation-intent';
 import {normalizeCustomStyle} from './custom-style';
 import {indexSchema,indexAnswer} from '@/app/disambiguation';
-import {pageStorageProviders} from '@/app/storage/page-scope';
+import {namedConnectors,pageStorageProviders} from '@/app/storage/page-scope';
 import {codeSchema} from '@/app/sandboxes/contracts';
 import {sandboxStatus} from '@/app/sandboxes/service';
 import {inputFieldsSchema} from './inputs';
@@ -32,7 +32,7 @@ export function validateGenerationDraft(raw:unknown,question:string,context:Agen
   d.intent.outputKind='article';
  }else{
   d.intent.outputKind=d.kind==='chart'?'chart':d.kind==='chat'?'conversation':'application';
-  if(d.kind==='files'&&!pageStorageProviders(question).length)throw Error('This connector is not a registered storage browser. Use a program or a truthful chat workspace.');
+  if(d.kind==='files'&&!namedConnectors(question).includes('adma')&&!pageStorageProviders(question).length)throw Error('This connector is not a registered storage browser. Use a program or a truthful chat workspace.');
   if(d.kind==='program'){
    if(!d.program||!d.inputFields||!d.templateId)throw Error('A program needs code, inputFields and templateId.');
    const status=sandboxStatus(context.userId);if(!status.configured||!status.allowed)throw Error('Sandbox unavailable. Choose an honest supported alternative.');
@@ -59,7 +59,7 @@ export async function materializeGenerationDraft(d:GenerationDraft,context:Agent
  const components:{role:string;component:Component}[]=[];
  let config:DynamicConfig={template:'agent-chat-v1',executor:'page-agent-v1',version:1,capability:'application',labels:d.labels as ConverterLabels,visualTheme:d.intent.visualTheme,visualDesign:d.intent.visualDesign};
  const save=async(role:string,question:string,type:string,payload:unknown)=>{const c=await createComponent(question,type,payload,context);components.push({role,component:c});return {id:c.id,version:c.version};};
- if(d.kind==='files'){templateId='files-v1';config={...config,template:'file-browser-v1',executor:'registered-file-browser-v1',inputFields:[{name:'provider',type:'string',description:'google, dropbox or onedrive',required:false},{name:'parent',type:'string',description:'Explicit folder ID or root.',required:false},{name:'search',type:'string',description:'Explicit file name query.',required:false}]};}
+ if(d.kind==='files'){templateId='files-v1';config={...config,template:'file-browser-v1',executor:'registered-file-browser-v1',inputFields:[{name:'provider',type:'string',description:'google, dropbox, onedrive or adma',required:false},{name:'parent',type:'string',description:'Explicit folder ID or root.',required:false},{name:'search',type:'string',description:'Explicit file name query.',required:false}]};}
  if(d.kind==='index'){templateId='wiki-v1';config={...config,template:'context-index-v1',executor:'context-index-v1',indexKind:d.intent.service==='user_jobs'?'jobs':'pages',inputFields:d.intent.service==='user_jobs'?[]:[{name:'page_kind',type:'string',description:'static, dynamic or all',required:false},{name:'topic_terms',type:'string',description:'JSON array of synonymous topic keywords; [] for all',required:false}]};}
  if(d.kind==='converter'){templateId='form-v1';config={...config,template:'unit-converter-v1',executor:'unit-converter-v1',capability:'unit-converter-v1'};}
  if(d.kind==='program'){

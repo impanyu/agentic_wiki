@@ -6,7 +6,7 @@ export function namedConnectors(question:string){
 export function storagePageMismatch(question:string,page:{question?:string;title:string;dynamic?:{template?:string}}){
  const requested=namedConnectors(question),saved=namedConnectors(page.question||page.title);
  if(requested.length&&saved.length&&requested.some(id=>!saved.includes(id)))return true;
- return page.dynamic?.template==='file-browser-v1'&&requested.some(id=>!providers.includes(id as StorageProvider));
+ return page.dynamic?.template==='file-browser-v1'&&requested.some(id=>id!=='adma'&&!providers.includes(id as StorageProvider));
 }
 const names:Record<StorageProvider,RegExp>={google:/google\s*drive|谷歌云盘/i,dropbox:/\bdropbox\b/i,onedrive:/\bonedrive\b/i};
 export function pageStorageProviders(question:string,parameters:Record<string,unknown>={}){
