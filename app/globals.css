@@ -297,3 +297,5 @@ a{color:inherit;text-decoration:none}button,a,input{touch-action:manipulation}bu
 .dynamic-answer[data-app-theme] .file-entry{transition:background .15s ease;border-radius:8px}
 .dynamic-answer[data-app-theme] .file-entry:hover{background:var(--app-tint)}
 @media(max-width:600px){.dynamic-answer[data-app-theme] .storage-panel{padding:16px}.dynamic-answer[data-app-theme] .storage-panel>button{min-height:40px}}
+
+.page-file-actions{display:flex;align-items:center;gap:6px;flex-shrink:0}.file-entry .page-file-actions button{flex:none;padding:6px}.context-files .file-browser{margin-top:16px}
