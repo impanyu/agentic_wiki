@@ -1,7 +1,7 @@
 import {env} from '@/server/runtime';
 import {model} from '@/db/store';
 import {api,output} from '@/app/api/ask/ai';
-import {askAgent,spawnAgent,memory,recordAction,type Agent} from './agents';
+import {askAgent,spawnAgent,memory,recordAction,type Agent} from '@/app/agents/runtime';
 import {createComponent,searchComponent,rememberComponent,type AgentContext} from './registry';
 import {chartSchema,validateChartData} from './chart-contracts';
 import type {DynamicConfig,ConverterLabels} from '@/app/dynamic/units';

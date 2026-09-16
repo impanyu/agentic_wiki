@@ -1,5 +1,5 @@
 import {storagePageMismatch} from '@/app/storage/page-scope';
-import {inheritGenerationSession} from '@/app/agent-runtime/session';
+import {inheritGenerationSession} from '@/app/agents/session';
 import {prepareNavigationInput} from '@/app/url-content';
 import {matchSourceUrl} from '@/app/url-content/matching';
 import {generationProgress} from '@/app/generation-progress';
@@ -13,7 +13,7 @@ import {selectTemplate} from '@/app/templates/select';
 import {matchQuestion} from './question-search';
 import {refreshMatchedPage} from './refresh-matched-page';
 import {resolveRootRoute,rememberRootRoute} from '@/app/routing/root-table';
-import {spawnAgent,recordAction} from '@/app/components-registry/agents';
+import {spawnAgent,recordAction} from '@/app/agents/runtime';
 import {attachComponents,type AgentContext} from '@/app/components-registry/registry';
 import {extractApplicationInputs} from '@/app/components-registry/composer';
 import {executePage} from '@/app/components-registry/runtime';

@@ -2,7 +2,7 @@ import {customStyleSchema,customStyleFormat,normalizeCustomStyle} from './custom
 import {visualThemes,visualStyleInstructions} from './visual-style';
 import type {SourceDocument} from '@/app/url-content';
 import {z} from 'zod';
-import {askAgent,type Agent} from '@/app/components-registry/agents';
+import {askAgent,type Agent} from '@/app/agents/runtime';
 const strings=z.array(z.string().trim().min(1).max(600)).max(12);
 export const generationIntentSchema=z.object({
  visualTheme:z.enum(visualThemes).default('auto'),visualDesign:customStyleSchema.nullable().optional().default(null),

@@ -1,6 +1,6 @@
 import {api} from '@/app/api/ask/ai';
 import {model} from '@/db/store';
-import {recordAction,type Agent,askAgent} from '@/app/components-registry/agents';
+import {recordAction,type Agent,askAgent} from '@/app/agents/runtime';
 import {searchTemplates,templates,type TemplateId} from './catalog';
 export const templateSearchTool={type:'function',name:'search_templates',description:'Search the immutable catalog of pre-coded page layouts. Returns supported capabilities; templates accept data and configuration, never generated frontend code.',strict:true,parameters:{type:'object',additionalProperties:false,properties:{query:{type:'string'}},required:['query']}};
 export async function selectTemplate(question:string,router:Agent,signal?:AbortSignal,intent?:string):Promise<TemplateId>{

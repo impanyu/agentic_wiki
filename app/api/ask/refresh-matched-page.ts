@@ -3,7 +3,7 @@ import {articleNodes} from '@/app/internal-links';
 import {database,getPage,lock,unlock} from '@/db/store';
 import {reviewAnswer} from './answer-quality';
 import {research} from './ai';
-import {recordAction,spawnAgent,type Agent} from '@/app/components-registry/agents';
+import {recordAction,spawnAgent,type Agent} from '@/app/agents/runtime';
 
 export function needsReview(page:AnswerPage,fresh:boolean,now=Date.now()){
  if(!page.owned||page.kind!=='static'||page.labels?.templateId==='disambiguation-v1')return false;

@@ -3,7 +3,7 @@ import {env} from '@/server/runtime';
 import {database,getPage,lock,unlock} from '@/db/store';
 import {relocateQuote} from '@/app/api/ask/refresh-matched-page';
 import type {AnswerPage} from '@/app/page-types';
-import type {Agent} from '@/app/components-registry/agents';
+import type {Agent} from '@/app/agents/runtime';
 export type EditDraft={id:string;title:string;summary:string;body:string};
 type StoredDraft=EditDraft&{ownerId:string;pageId:string;base:string;saved?:boolean};
 const bucket=()=>(env as unknown as {FILES:R2Bucket}).FILES;

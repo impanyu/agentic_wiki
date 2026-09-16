@@ -1,5 +1,5 @@
 import {z} from 'zod';
-import {askAgent,type Agent} from '@/app/components-registry/agents';
+import {askAgent,type Agent} from '@/app/agents/runtime';
 import {parametersSchema,type Parameters} from '@/app/components-registry/contracts';
 import type {AnswerPage} from '@/app/page-types';
 export const inputFieldsSchema=z.array(z.object({name:z.string().regex(/^[a-z][a-z0-9_]{0,39}$/),type:z.enum(['string','number','boolean']),description:z.string().max(500),required:z.boolean()}).strict()).max(20).refine(fields=>new Set(fields.map(f=>f.name)).size===fields.length);

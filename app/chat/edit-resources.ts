@@ -1,6 +1,6 @@
 import {canWritePage} from '@/app/page-permissions';
 import {confirmsEditOffer} from './edit-intent';
-import {askAgent,type Agent} from '@/app/components-registry/agents';
+import {askAgent,type Agent} from '@/app/agents/runtime';
 import {findIllustrations,type Illustration} from '@/app/api/ask/images';
 import type {AnswerPage} from '@/app/page-types';
 export type EditIllustration=Illustration&{caption:string};

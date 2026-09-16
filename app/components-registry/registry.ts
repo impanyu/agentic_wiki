@@ -2,7 +2,7 @@ import type {SourceDocument} from '@/app/url-content';
 import type {GenerationIntent} from '@/app/page-programs/generation-intent';
 import {codeSchema} from '@/app/sandboxes/contracts';
 import {chartSchema} from './chart-contracts';
-import {memory,recordAction,type Agent} from './agents';
+import {memory,recordAction,type Agent} from '@/app/agents/runtime';
 import {database,normalize} from '@/db/store';
 import {embed,cosine,verify,type Candidate} from '@/app/api/ask/ai';
 import {nearestQuestions} from '@/app/api/ask/ranking';
@@ -79,7 +79,7 @@ export async function attachComponents(pageId:string,refs:{role:string;component
  await database().batch(refs.map(r=>database().prepare('INSERT OR IGNORE INTO component_dependencies(parent_id,role,component_id,version) VALUES(?,?,?,?)').bind(pageId,r.role,r.component.id,r.component.version)));
 }
 
-// Native notebook edges are separate from free-text descriptions and searchable aliases.
+// Native resource edges are separate from free-text descriptions and searchable aliases.
 export async function linkComponents(source:ComponentRef,role:string,target:ComponentRef,context:AgentContext){
  componentTypeSchema.parse(role);
  const from=await getComponent(source,context),to=await getComponent(target,context);

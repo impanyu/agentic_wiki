@@ -1,5 +1,5 @@
 import {z} from 'zod';
-import {askAgent,type Agent} from '@/app/components-registry/agents';
+import {askAgent,type Agent} from '@/app/agents/runtime';
 import {database,getPage,lock,unlock} from '@/db/store';
 import {relocateQuote} from '@/app/api/ask/refresh-matched-page';
 import type {AnswerPage} from '@/app/page-types';

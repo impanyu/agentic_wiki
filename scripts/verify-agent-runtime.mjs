@@ -1,6 +1,6 @@
 // Optional bounded live check. Uses the existing server credential without logging it.
 import assert from 'node:assert/strict';
-import {runToolLoop} from '../app/agent-runtime/loop.ts';
+import {runToolLoop} from '../app/agents/loop.ts';
 if(!process.env.OPENAI_API_KEY)throw Error('OPENAI_API_KEY is required');
 const receipt=crypto.randomUUID();let calculated=false,verified=false,requests=0;
 const tool=(name,description,properties)=>({type:'function',name,description,strict:true,parameters:{type:'object',additionalProperties:false,properties,required:Object.keys(properties)}});

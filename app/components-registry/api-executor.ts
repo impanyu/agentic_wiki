@@ -15,7 +15,7 @@ export async function executeApi(ref:ComponentRef,raw:unknown,context:Pick<Agent
  const c=await getComponent(ref,context,'api_adapter'),definition=externalApiSchema.parse(JSON.parse(c.payload)),input=executionInputSchema.parse(raw);
  if(definition.execution!=='http'||!definition.http)throw new ApiExecutionError('API_OPERATION_CONFIGURATION_REQUIRED');
  const operation=definition.http.operations.find(o=>o.name===input.operation);if(!operation)throw new ApiExecutionError('UNKNOWN_API_OPERATION');
- // The direct UI can confirm writes. Autonomous notebook calls are read-only.
+ // The direct UI can confirm writes. Autonomous API tool calls are read-only.
  if(operation.method!=='GET'&&!options.allowWrite)throw new ApiExecutionError('API_WRITE_REQUIRES_USER_CONFIRMATION');
  let secretRef:string|undefined;
  if(definition.authentication!=='none'){

@@ -1,6 +1,6 @@
 import {api,output} from '@/app/api/ask/ai';
 import {model} from '@/db/store';
-import {memory,recordAction,spawnAgent,type Agent} from '@/app/components-registry/agents';
+import {memory,recordAction,spawnAgent,type Agent} from '@/app/agents/runtime';
 import {desktopActionSchema} from './contracts';
 import {createDesktop,desktopAction,screenshot} from './service';
 export async function useComputer(task:string,userId:string,sessionId?:string,parent?:Agent){

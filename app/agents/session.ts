@@ -1,6 +1,6 @@
 import {database,model} from '@/db/store';
 import {api,output} from '@/app/api/ask/ai';
-import type {Agent} from '@/app/components-registry/agents';
+import type {Agent} from '@/app/agents/runtime';
 import type {LoopEvent} from './loop';
 import {z} from 'zod';
 export function safeMemory(value:unknown,max=12000){

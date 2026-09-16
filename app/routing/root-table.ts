@@ -2,7 +2,7 @@ import {database,normalize} from '@/db/store';
 import {assessQuestion,cosine,type Candidate} from '@/app/api/ask/ai';
 import {nearestQuestions} from '@/app/api/ask/ranking';
 import {pageIntent} from '@/app/components-registry/chart-composer';
-import {recordAction,type Agent} from '@/app/components-registry/agents';
+import {recordAction,type Agent} from '@/app/agents/runtime';
 type Intent=Awaited<ReturnType<typeof pageIntent>>;
 type RootRoute={id:string;question:string;embedding:string;target_type:'wiki_router'|'session_router'|'app';app_id:string|null;intent:string};
 export function rootTarget(domain:'wiki'|'session'|'app',pageId:string){return {type:domain==='wiki'?'wiki_router':domain==='session'?'session_router':'app',appId:domain==='app'?pageId:null};}

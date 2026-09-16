@@ -2,7 +2,7 @@ import {httpDefinitionSchema,safeEndpoint} from './http-contracts';
 import {z} from 'zod';
 import {api,output} from '@/app/api/ask/ai';
 import {model} from '@/db/store';
-import {askAgent,memory,recordAction,spawnAgent,type Agent} from './agents';
+import {askAgent,memory,recordAction,spawnAgent,type Agent} from '@/app/agents/runtime';
 import {createComponent,searchComponent,rememberComponent,type AgentContext,type Component} from './registry';
 const https=z.string().url().refine(value=>{const u=new URL(value);return u.protocol==='https:'&&!u.username&&!u.password&&!u.search&&!u.hash;});
 export const externalApiSchema=z.object({kind:z.literal('external-api'),name:z.string().min(1).max(160),baseUrl:https,documentationUrl:https,operations:z.array(z.string().min(1).max(300)).min(1).max(12),authentication:z.enum(['none','api_key','oauth','other']),credentialRef:z.null().optional(),execution:z.enum(['requires-registered-adapter','http']),http:httpDefinitionSchema.optional()}).strict().superRefine((value,context)=>{if(value.execution==='http'&&!value.http)context.addIssue({code:'custom',message:'HTTP operations required'});if(value.http)for(const op of value.http.operations){try{safeEndpoint(value.baseUrl,op.path);}catch{context.addIssue({code:'custom',message:'Invalid API endpoint'});}}});

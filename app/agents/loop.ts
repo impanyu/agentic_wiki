@@ -1,10 +1,11 @@
 // Provider-independent Responses loop. Preserve every output item (including
 // reasoning items) and pair every function call with its own result.
-export type LoopEvent={kind:'started'|'tool_started'|'tool_finished'|'completed'|'failed';data:unknown};
+export type LoopEvent={kind:'started'|'tool_started'|'tool_finished'|'completed'|'failed'|'model_finished'|'validation_failed';data:unknown};
 export type ToolResult={data:unknown;parts?:unknown[]};
 export async function runToolLoop(options:{
  payload:Record<string,any>;request:(payload:Record<string,any>)=>Promise<any>;
  execute:(name:string,args:any)=>Promise<ToolResult>;event?:(event:LoopEvent)=>Promise<void>;
+ validateFinal?:(response:any,trace:{webSearched:boolean})=>Promise<string|void>;
  signal?:AbortSignal;maxRounds?:number;maxCalls?:number;
 }){
  const {payload,request,execute,event}=options;
@@ -18,11 +19,15 @@ export async function runToolLoop(options:{
   for(let round=0;round<=maxRounds;round++){
    signal?.throwIfAborted();
    if(round===maxRounds||callsUsed>=maxCalls||payload.input.reduce((n:number,i:any)=>n+(typeof i.content==='string'?i.content.length:Array.isArray(i.content)?i.content.reduce((m:number,c:any)=>m+(typeof c.text==='string'?c.text.length:0),0):String(i.output||i.arguments||'').length),0)>180000){payload.tool_choice='none';limited=true;payload.input.push({role:'user',content:'Execution budget reached. Return an honest final result with completed work, remaining work and any pending approvals. Do not claim unfinished work completed.'});}
+   const started=Date.now();
    const response=await request(payload);
+   await event?.({kind:'model_finished',data:{round:round+1,model:payload.model,reasoning:payload.reasoning?.effort,durationMs:Date.now()-started,usage:response.usage}});
+   if(payload.tool_choice==='required')payload.tool_choice='auto';
    signal?.throwIfAborted();
    if(response.status==='incomplete'||response.status==='failed')throw Error('AGENT_RESPONSE_INCOMPLETE');
    webSearched ||= !!response.output?.some((item:any)=>item.type==='web_search_call'&&item.status==='completed');
    const calls=(response.output||[]).filter((item:any)=>item.type==='function_call');
+   if(!calls.length&&options.validateFinal){const error=await options.validateFinal(response,{webSearched});if(error){await event?.({kind:'validation_failed',data:{error}});if(limited||round===maxRounds)throw Error('AGENT_INVALID_FINAL');payload.input.push(...(response.output||[]),{role:'user',content:'Draft validation failed: '+error+'. Correct the draft or use tools as needed. Return only a valid complete result.'});continue;}}
    if(!calls.length){await event?.({kind:'completed',data:{rounds:round+1,calls:callsUsed,status:waiting?'waiting_for_approval':limited?'limited':'completed'}});return {response,webSearched,limited,waiting};}
    if(round===maxRounds)throw Error('AGENT_TOOL_BUDGET');
    payload.input.push(...response.output);

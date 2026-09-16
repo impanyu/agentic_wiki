@@ -1,7 +1,7 @@
 import test from 'node:test';import assert from 'node:assert/strict';import {readFileSync,readdirSync} from 'node:fs';import ts from 'typescript';import {DatabaseSync} from 'node:sqlite';import {z} from 'zod';
 const source=p=>readFileSync(p,'utf8').replace(/^import .*;$/gm,'');
 const load=async s=>import('data:text/javascript;base64,'+Buffer.from(ts.transpile(s,{module:ts.ModuleKind.ESNext,target:ts.ScriptTarget.ES2022})).toString('base64'));
-const {runToolLoop}=await load(source('app/agent-runtime/loop.ts'));
+const {runToolLoop}=await load(source('app/agents/loop.ts'));
 const call=(id,name='lookup',args='{}')=>({type:'function_call',call_id:id,name,arguments:args});
 const done={status:'completed',output:[{type:'message',content:[{type:'output_text',text:'Done'}]}]};
 test('loop retains reasoning and every call/result, recovers tool errors and exceeds old five-round cap',async()=>{
@@ -26,7 +26,7 @@ test('durable memory, notes and tool journals are isolated and old actions stay 
  const database=()=>({prepare(sql){return {bind(...args){return {first:async()=>db.prepare(sql).get(...args),all:async()=>({results:db.prepare(sql).all(...args)}),run:async()=>db.prepare(sql).run(...args)};}};},batch:async statements=>Promise.all(statements.map(s=>s.run()))});
  db.exec("INSERT INTO agent_instances VALUES('a','page:p','alice',NULL,'now'),('b','page:p','bob',NULL,'now')");
  globalThis.agentSessionTest={database,model:()=>'',api:async()=>({}),output:()=> 'First goal and unfinished tasks.',z};
- const m=await load('const {database,model,api,output,z}=globalThis.agentSessionTest;\n'+source('app/agent-runtime/session.ts'));
+ const m=await load('const {database,model,api,output,z}=globalThis.agentSessionTest;\n'+source('app/agents/session.ts'));
  const a={id:'a',ownerId:'alice',role:'page:p'},b={id:'b',ownerId:'bob',role:'page:p'};
  for(let i=1;i<=65;i++)db.prepare('INSERT INTO agent_memory(agent_id,action,result,created_at) VALUES(?,?,?,?)').run('a','action '+i,'result '+i,'now');
  await m.compactSession(a);assert.equal(db.prepare('SELECT count(*) n FROM agent_memory').get().n,65);
@@ -40,4 +40,13 @@ test('durable memory, notes and tool journals are isolated and old actions stay 
  assert.equal((await m.sessionTool(a,'search_session_memory',{source:'tools',query:'c',before:null})).records.length,2);
  assert.ok(!m.safeMemory({api_key:'sensitive',authorization:'Bearer example'}).includes('sensitive'));
  db.close();delete globalThis.agentSessionTest;
+});
+test('final validation feedback stays in the same loop and the agent can choose another tool',async()=>{
+ let turn=0;const events=[];
+ const result=await runToolLoop({payload:{model:'test',reasoning:{effort:'low'},input:'task'},request:async p=>{
+  turn++;if(turn===1)return {...done,invalid:true};
+  assert.ok(p.input.some(i=>typeof i.content==='string'&&i.content.includes('Draft validation failed')));
+  return turn===2?{output:[call('repair','lookup')]}:done;
+ },execute:async()=>({data:'needed evidence'}),validateFinal:async r=>r.invalid?'Missing required evidence':undefined,event:async e=>events.push(e)});
+ assert.equal(turn,3);assert.equal(result.limited,false);assert.equal(events.filter(e=>e.kind==='validation_failed').length,1);assert.equal(events.filter(e=>e.kind==='model_finished').length,3);assert.ok(events.filter(e=>e.kind==='model_finished').every(e=>e.data.durationMs>=0));
 });

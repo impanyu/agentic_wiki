@@ -1,4 +1,4 @@
-import {askAgent,type Agent} from '@/app/components-registry/agents';
+import {askAgent,type Agent} from '@/app/agents/runtime';
 import {createComponent,type AgentContext} from '@/app/components-registry/registry';
 import type {DynamicConfig,ConverterLabels} from '@/app/dynamic/units';
 export async function composeDrive(context:AgentContext,router:Agent){

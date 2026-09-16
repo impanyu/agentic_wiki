@@ -25,9 +25,9 @@ The coding agent receives bounded validation feedback and retries once. Routing 
 
 Page-agent sessions use an HttpOnly SameSite cookie for guests and account identity for signed-in users. Page access is checked on every conversation read and execution. A per-agent lease serializes turns. Chat displays recent user/reply pairs retained in the FIFO; it is not an unlimited transcript. Request inputs/results remain in private agent memory and navigation history, not in the shared component definition.
 
-## General notebook tools
+## General resource tools
 
-`useNotebook` is a model-driven tool loop exposing search_components, inspect_component, remember_component, link_components and delegate_task. The coding agent consults it before authoring. Resource types are open-ended names, not a closed enum. Additional types store inert JSON data until an executor is explicitly registered. Each tool result enters the invoking agent’s FIFO before its next prompt. Delegated notebook subtasks get independent child agents and FIFOs. Tool rounds and delegation depth are bounded. Search filters by type, language and access; the browser searches and inspects resources through its access-checked routes, while agent tool execution remains server-side.
+The component registry is part of the tools/data layer. Generator and in-page agents call its tools directly through their shared runtime in `app/agents`; there is no separate notebook agent or mandatory registry lookup pass. See `docs/agent-architecture.md`.
 
 Native links use `component_dependencies` with a named relationship and pinned target ID/version. Inspection returns only links whose targets the current user can access. Agents may add links only to components they own. An API may link to a private credential without exposing that credential link to other users. Such a link does not itself grant permission to execute an API or read a secret. Existing page/frontend/workflow/backend compositions use the same native edge table.
 

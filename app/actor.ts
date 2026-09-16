@@ -1,6 +1,6 @@
 import {z} from 'zod';
 import {getChatGPTUser} from './chatgpt-auth';
-// One principal is shared by page navigation, notebook tools, agents and history.
+// One principal is shared by page navigation, resource tools, agents and history.
 // Guest identities use the existing HttpOnly history cookie.
 export async function getActor(request:Request){
  const user=await getChatGPTUser();

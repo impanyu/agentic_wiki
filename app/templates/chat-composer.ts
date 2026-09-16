@@ -1,4 +1,4 @@
-import {askAgent,type Agent} from '@/app/components-registry/agents';
+import {askAgent,type Agent} from '@/app/agents/runtime';
 import type {AgentContext} from '@/app/components-registry/registry';
 import type {DynamicConfig,ConverterLabels} from '@/app/dynamic/units';
 export async function composeChat(question:string,context:AgentContext,router:Agent,signal?:AbortSignal){

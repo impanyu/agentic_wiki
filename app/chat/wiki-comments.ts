@@ -4,7 +4,7 @@ import {startJob,finishJob} from '@/app/context-index/jobs';
 import {fileContext} from '@/app/context-files/server';
 import {database,reply,lock,unlock} from '@/db/store';
 import type {AnswerPage} from '@/app/page-types';
-import type {Agent} from '@/app/components-registry/agents';
+import type {Agent} from '@/app/agents/runtime';
 import {conversationContext} from './history';
 import {importLegacyComments} from './shared-history';
 import {editWiki} from './edit-page';

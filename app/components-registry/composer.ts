@@ -1,10 +1,9 @@
 import {composeBackend} from '@/app/sandboxes/backend-composer';
 import {composeChat} from '@/app/templates/chat-composer';
-import {useNotebook} from './notebook-agent';
 import {discoverApis} from './api-discovery';
 import {z} from 'zod';
 import {formSchema,validateProgram,executeProgram,validateParameters,type FormDefinition,type Parameters} from './contracts';
-import {askAgent,spawnAgent,recordAction,type Agent} from './agents';
+import {askAgent,spawnAgent,recordAction,type Agent} from '@/app/agents/runtime';
 import {searchComponent,rememberComponent,createComponent,type AgentContext,type Component} from './registry';
 import type {DynamicConfig} from '@/app/dynamic/units';
 const obj=(properties:Record<string,unknown>,required=Object.keys(properties))=>({type:'object',additionalProperties:false,properties,required});
@@ -15,14 +14,14 @@ export async function planApplication(question:string,context:AgentContext,route
  if(!decision.application)return null;
  if(decision.serverProgram)return composeBackend(question,context,router,signal);
  if(!decision.expressionForm)return composeChat(question,context,router,signal);
- const coder=await spawnAgent('coding',context.ownerId,router);
+ const coder=router;
  context={...context,agent:coder};
  await recordAction(router,'Delegate application composition',{agentId:coder.id,role:coder.role});
- await useNotebook(coder,'Find reusable components that could help implement this application. Search and inspect relevant resource types as needed: '+question,context,signal);
+
  const schema=obj({title:str,summary:str,submit:str,invalid:str,frontendQuestion:str,backendQuestion:str,fields:{type:'array',items:obj({name:str,label:str,type:{type:'string',enum:['number','text']},default:{type:['string','number','null']}})},outputs:{type:'array',items:obj({name:str,label:str})},programJson:str,exampleInputJson:str,exampleOutputJson:str});
  let draft:any;
  for(let attempt=0;attempt<2;attempt++){
-  draft=await askAgent(coder,`Compose a complete reusable application in language ${context.language}. All labels and component descriptions must use this language. Use only a declarative form and a backend expression program; no JavaScript, imports, arbitrary API calls, markup or external actions. Field names and output names must match /^[a-z][a-z0-9_]{0,39}$/. programJson is JSON {"kind":"expression-program","outputs":{name:expression,...}}. Expressions are literal numbers or strings; {"input":"field_name"}; {"step":"earlier_output_name"}; or {"op":"operation","args":[expressions]}. Supported ops: add,multiply,min,max,concat (one or more args); subtract,divide,power (2 args); sqrt,abs,round,lowercase,uppercase,length,trim (1 arg). Numeric ops require numbers. Outputs execute in insertion order and may refer to earlier outputs. Use conventional explicit units in labels. Every displayed output must exist in program. Provide one independently calculated exampleInputJson and exampleOutputJson with all outputs for validation. Defaults are only values explicitly in the question or null. frontendQuestion must completely describe the form field names/types/units and output names; backendQuestion must completely describe operation, formula, input/output names and units WITHOUT example-specific values, enabling reuse. Do not claim unsupported features.`,{question,attempt},schema,signal);
+  draft=await askAgent(coder,`Compose a complete reusable application in language ${context.language}. All labels and component descriptions must use this language. Use only a declarative form and a backend expression program; no JavaScript, imports, arbitrary API calls, markup or external actions. Field names and output names must match /^[a-z][a-z0-9_]{0,39}$/. programJson is JSON {"kind":"expression-program","outputs":{name:expression,...}}. Expressions are literal numbers or strings; {"input":"field_name"}; {"step":"earlier_output_name"}; or {"op":"operation","args":[expressions]}. Supported ops: add,multiply,min,max,concat (one or more args); subtract,divide,power (2 args); sqrt,abs,round,lowercase,uppercase,length,trim (1 arg). Numeric ops require numbers. Outputs execute in insertion order and may refer to earlier outputs. Use conventional explicit units in labels. Every displayed output must exist in program. Provide one independently calculated exampleInputJson and exampleOutputJson with all outputs for validation. Defaults are only values explicitly in the question or null. frontendQuestion must completely describe the form field names/types/units and output names; backendQuestion must completely describe operation, formula, input/output names and units WITHOUT example-specific values, enabling reuse. Do not claim unsupported features.`,{question,attempt},schema,signal,undefined,[],{context,reasoningEffort:'medium'});
   try{
    const form=formSchema.parse({kind:'form',submit:draft.submit,fields:draft.fields,outputs:draft.outputs});
    const program=validateProgram(JSON.parse(draft.programJson),form.fields.map(f=>f.name));

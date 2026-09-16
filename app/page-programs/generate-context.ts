@@ -1,95 +1,37 @@
-import {pageStorageProviders} from '@/app/storage/page-scope';
-import {useNotebook} from '@/app/components-registry/notebook-agent';
-import {analyzeGenerationIntent,reviewGeneratedDefinition,type GenerationIntent} from './generation-intent';
-import {classifyAmbiguity,indexAnswer} from '@/app/disambiguation';
-import {spawnAgent,recordAction,askAgent,type Agent} from '@/app/components-registry/agents';
-import type {AgentContext,Component} from '@/app/components-registry/registry';
-import {composeChart} from '@/app/components-registry/chart-composer';
-import {composeChat} from '@/app/templates/chat-composer';
-import {composePageProgram} from './composer';
-import {research,parseConversion,converterDefinition,type ResearchUpdate} from '@/app/api/ask/ai';
-import {composeConverter} from '@/app/components-registry/composer';
-import {sandboxStatus} from '@/app/sandboxes/service';
+import {spawnAgent,recordAction,askAgent,type Agent} from '@/app/agents/runtime';
+import type {AgentContext} from '@/app/components-registry/registry';
 import type {TemplateId} from '@/app/templates/catalog';
-import type {DynamicConfig} from '@/app/dynamic/units';
-import type {AnswerPage} from '@/app/page-types';
-
+import {output,type ResearchUpdate} from '@/app/api/ask/ai';
+import {codeSchema} from '@/app/sandboxes/contracts';
+import {runProgram} from '@/app/sandboxes/service';
+import {validateGenerationDraft,materializeGenerationDraft,type GenerationDraft} from './generation-draft';
+import {generationInstructions} from './generation-instructions';
+import {generationContract} from './generation-contracts';
 export type GenerationBrief={question:string;templateId:TemplateId;fresh:boolean;route?:string;service?:string};
-type Definition={title:string;summary:string;config:DynamicConfig;parameters:Record<string,string|number|boolean|null>;components:{role:string;component:Component}[];body?:string;sources?:AnswerPage['sources']};
+const fn=(name:string,description:string,properties:Record<string,unknown>)=>({type:'function',name,description,strict:true,parameters:{type:'object',additionalProperties:false,properties,required:Object.keys(properties)}});
+const tools=[fn('read_generation_contract','Read artifact formats. Choose only the format you need.',{kind:{type:'string',enum:['program','chart','form','converter','custom_style']}}),fn('validate_page_draft','Validate a draft without saving it. Returns concrete structural errors; does not judge factual accuracy.',{draftJson:{type:'string'}}),fn('test_page_program','Test generated JavaScript or Python in the configured isolated sandbox. No network or server secrets; no page is saved.',{programJson:{type:'string'},inputJson:{type:'string'}})];
 export async function generateContext(brief:GenerationBrief,context:AgentContext,router:Agent,emit:((event:ResearchUpdate)=>void)|undefined,signal:AbortSignal){
- const generator=await spawnAgent(['wiki-v1','disambiguation-v1'].includes(brief.templateId)?'content-generation':'app-generation',context.ownerId,router);
- await recordAction(router,'Hand off new-page intent analysis',{agentId:generator.id,question:brief.question});
- emit?.({type:'status',message:context.language.startsWith('zh')?'正在分析查询对象、目标和页面所需内容…':'Analyzing the subject, intent and required page content…'});
- const intent=await analyzeGenerationIntent(brief.question,context.language,generator,signal,context.sourceDocument);
- await recordAction(generator,'Analyze new-page intent',{question:brief.question,intent});
- if(intent.needsDisambiguation){
-  const index=await classifyAmbiguity(brief.question,context.language,generator,true,intent.interpretations,signal);
-  return {generatorId:generator.id,answer:indexAnswer(index),definition:undefined,templateId:'disambiguation-v1' as const,generationIntent:intent};
- }
- const findings=await useNotebook(generator,'Use available tools only when helpful to fulfill this ORIGINAL user request. Discover enabled connectors if the task concerns external accounts or tools. Gather relevant evidence or execute authorized tasks; do not modify pages or claim pending approvals succeeded. Request: '+brief.question,context,signal);
- context={...context,toolFindings:findings};
- const planned:GenerationBrief={...brief,fresh:brief.fresh||intent.fresh,service:intent.service,route:intent.outputKind==='article'?'wiki':intent.outputKind==='conversation'?'session':'app',templateId:intent.outputKind==='article'?'wiki-v1':intent.outputKind==='chart'?'dashboard-v1':intent.outputKind==='conversation'?'chat-v1':brief.templateId==='wiki-v1'||brief.templateId==='disambiguation-v1'?'form-v1':brief.templateId};
- let feedback='';
- for(let attempt=0;attempt<2;attempt++){
-  const generationContext={...context,agent:generator,generationIntent:intent,generationFeedback:feedback};
-  const result=await composeContext(planned,generationContext,generator,emit,signal,intent);
-  if(result.definition){result.definition.config.visualTheme=intent.visualTheme;result.definition.config.visualDesign=intent.visualDesign;}
-  if(!result.definition)return {...result,generatorId:generator.id,generationIntent:intent};
-  const review=await reviewGeneratedDefinition(brief.question,intent,result.definition,generator,signal);
-  await recordAction(generator,'Review generated page against intent',review);
-  if(review.accepted)return {...result,generatorId:generator.id,generationIntent:intent};
-  feedback=review.reason;
-  emit?.({type:'status',message:context.language.startsWith('zh')?'正在补齐页面尚未满足的需求…':'Revising the page to cover missing requirements…'});
- }
- throw Error('INCOMPLETE_ANSWER');
-}
-async function composeContext(brief:GenerationBrief,context:AgentContext,generator:Agent,emit:((event:ResearchUpdate)=>void)|undefined,signal:AbortSignal,intent:GenerationIntent){
- const generationContext=context;
- let templateId=brief.templateId,definition:Definition|undefined;
- let implementation:string=brief.route==='session'?'chat':templateId;
- if(brief.route==='session')templateId='chat-v1';
- if(brief.route!=='session'&&!['wiki-v1','disambiguation-v1'].includes(templateId)){
-  const plan=await askAgent(generator,'Choose how to create this context from its intent. You may use a pre-coded app for common tasks or commission a generated Python/JavaScript backend that combines available tools. files ONLY for Google Drive, Dropbox or OneDrive file/folder browsing; ADMA and all other connectors require program (or chat with the named connector tools when execution is unavailable); never substitute a different service; chart for a researched fixed numerical chart; converter for physical units; chat for open-ended conversation or clarification; program for custom logic, multi-step data retrieval, or a composed app. Never force every request into a known app. Generated programs can call storage, external APIs, context search, running-job listing, research and LLM tools and render a pre-coded template. If isolated execution is unavailable, choose an appropriate registered app when it fulfills the request, otherwise chat as a working fallback that explains missing capabilities. Preserve explicit requested output. Return the implementation and most suitable template.',{...brief,intent,requiredCorrections:context.generationFeedback,execution:sandboxStatus(context.userId)},{type:'object',additionalProperties:false,properties:{implementation:{type:'string',enum:['files','chart','converter','chat','program']},templateId:{type:'string',enum:['files-v1','dashboard-v1','table-v1','form-v1','chat-v1']}},required:['implementation','templateId']},signal);
-  implementation=plan.implementation;templateId=plan.templateId;
- }
-
- if(brief.service==='context_pages'||brief.service==='user_jobs'){
-  const jobs=brief.service==='user_jobs',zh=context.language.startsWith('zh');
-  templateId='wiki-v1';
-  definition={title:jobs?(zh?'运行中的任务':'Running tasks'):(zh?'我的页面索引':'My page index'),summary:jobs?(zh?'你当前运行的任务和沙箱。':'Your currently running tasks and sandboxes.'):(zh?'按当前条件检索你创建的页面。':'Your saved pages matching the current filters.'),config:{template:'context-index-v1',executor:'context-index-v1',indexKind:jobs?'jobs':'pages',version:1,capability:'application',labels:{overview:'',invalid:'Could not load contexts.'} as DynamicConfig['labels'],inputFields:jobs?[]:[{name:'page_kind',type:'string',description:'static for wiki pages, dynamic for apps or chat, all if unspecified.',required:false},{name:'topic_terms',type:'string',description:'JSON array of concise synonymous topic keywords, including English and Chinese translations where useful. Only for an explicitly requested topic; [] if no topic filter.',required:false}]},parameters:{},components:[]};
-  return {templateId,definition,answer:{title:definition.title,summary:definition.summary,body:'',category:zh?'索引':'Index',sources:[],labels:{overview:''}}};
- }
- if(templateId==='wiki-v1'||templateId==='disambiguation-v1'){
-  templateId='wiki-v1';
-  const answer=await research(brief.question,context.language,emit,signal,brief.fresh,intent,context.sourceDocument,context.toolFindings);
-  await recordAction(generator,'Compose researched article',{title:answer.title,sources:answer.sources});
-  return {answer,definition,templateId};
- }
- if(implementation==='files'&&pageStorageProviders(brief.question).length===0)implementation='program';
- if(implementation==='files'){
-  templateId='files-v1';
-  // Registered storage adapters run as the visiting user; no generated code or sandbox is needed.
-  definition=await composeChat(brief.question,generationContext,generator,signal);
-  definition.config={...definition.config,template:'file-browser-v1',executor:'registered-file-browser-v1',inputFields:[{name:'provider',type:'string',description:'Storage provider ID: google, dropbox, or onedrive.',required:false},{name:'parent',type:'string',description:'Explicit folder ID or root. Never invent an ID from a folder name.',required:false},{name:'search',type:'string',description:'Explicit file or folder name to search for in the current listing.',required:false}]};
- }else if(implementation==='chat'){templateId='chat-v1';definition=await composeChat(brief.question,generationContext,generator,signal);}
- else if(implementation==='chart'){if(!['dashboard-v1','table-v1'].includes(templateId))templateId='dashboard-v1';definition=await composeChart(brief.question,generationContext,generator,signal);}
- else {
-  const conversion=implementation==='converter'?await parseConversion(brief.question):null;
-  if(conversion?.intent==='unit_conversion'){
-   templateId='form-v1';
-   const converter=await converterDefinition(context.language);
-   definition={...converter,components:await composeConverter(converter.config,generationContext),parameters:conversion.input||{}};
-  }else{
-   const execution=sandboxStatus(context.userId);
-   if(execution.configured&&execution.allowed)definition=await composePageProgram(brief.question,templateId,generationContext,generator,signal);
-   else {
-    templateId='chat-v1';
-    await recordAction(generator,'Use conversation fallback',{requestedTemplate:brief.templateId,reason:'Custom execution is unavailable; continue the task with the session agent and available tools.'});
-    definition=await composeChat(brief.question,generationContext,generator,signal);
-   }
+ const generator=await spawnAgent('content-generation',context.ownerId,router),ctx={...context,agent:generator};
+ let draft:GenerationDraft|undefined,searched=false;
+ emit?.({type:'status',message:context.language.startsWith('zh')?'生成器正在处理请求…':'The generator is working on your request…'});
+ await askAgent(generator,generationInstructions,{question:brief.question,language:context.language,initialRoutingHint:brief,sourceDocument:context.sourceDocument,visibility:context.visibility,asOf:new Date().toISOString()},{type:'object',additionalProperties:false,properties:{draftJson:{type:'string'}},required:['draftJson']},signal,undefined,[],{
+  context:ctx,extraTools:tools,
+  executeExtra:async(name,args)=>{
+   if(name==='read_generation_contract')return {data:generationContract(args.kind)};
+   if(name==='test_page_program')return {data:await runProgram(codeSchema.parse(JSON.parse(args.programJson)),JSON.parse(args.inputJson),ctx)};
+   if(name==='validate_page_draft'){try{validateGenerationDraft(JSON.parse(args.draftJson),brief.question,ctx,true);return {data:{valid:true,note:'Structural validation only; factual claims still require consulted evidence.'}};}catch(e){return {data:{valid:false,error:e instanceof Error?e.message:'Invalid draft'}};}}
+   throw Error('Unknown generation tool.');
+  },
+  onEvent:e=>{if(e.kind==='tool_started')emit?.({type:'status',message:context.language.startsWith('zh')?'生成器正在使用工具…':'The generator is using a tool…'});if(e.kind==='validation_failed')emit?.({type:'status',message:context.language.startsWith('zh')?'生成器正在修正草稿…':'The generator is correcting its draft…'});},
+  validateFinal:async(response,trace)=>{
+   searched ||= trace.webSearched;
+   try{draft=validateGenerationDraft(JSON.parse(JSON.parse(output(response)).draftJson),brief.question,ctx,searched);}catch(e){return e instanceof Error?e.message:'Invalid page draft';}
   }
- }
- if(!definition)throw new Error('Context generation did not return a definition.');
- await recordAction(generator,'Created context definition',{templateId,executor:definition.config.executor});
- return {templateId,definition,answer:{title:definition.title,summary:definition.summary,body:definition.body||'',category:context.language.startsWith('zh')?'工作空间':'Workspace',sources:definition.sources||[],labels:{overview:definition.config.labels.overview}}};
+ });
+ if(!draft)throw Error('INCOMPLETE_ANSWER');
+ const result=await materializeGenerationDraft(draft,ctx);
+ emit?.({type:'metadata',title:result.answer.title,summary:result.answer.summary,category:result.answer.category,labels:{overview:draft.labels.overview,contents:draft.labels.contents||'',sources:draft.labels.sources||''}});
+ if(result.answer.body)emit?.({type:'replace',text:result.answer.body});
+ await recordAction(generator,'Completed page draft',{kind:draft.kind,title:draft.title});
+ return {...result,generatorId:generator.id,generationIntent:draft.intent};
 }

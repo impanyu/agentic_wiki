@@ -28,16 +28,3 @@ test('analysis preserves original query, permits research, validates structure a
  answer.requirements=[{index:1,satisfied:true,evidence:'Concrete evidence for only one requirement.'}];assert.equal((await m.reviewGeneratedDefinition('query',base,{}, {},signal)).accepted,false);
  delete globalThis.intentUnit;
 });
-test('new-page analysis can correct initial presentation and drives generation plus bounded app revision',async()=>{
- let intent=base,seen,compositions=0,reviews=0,allow=false;
- globalThis.intentFlow={analyzeGenerationIntent:async()=>intent,spawnAgent:async()=>({id:'g'}),recordAction:async()=>{},research:async(q,l,e,s,f,i)=>{seen={q,i};return {title:'Paper',sources:[]};},askAgent:async()=>({implementation:'chat',templateId:'chat-v1'}),sandboxStatus:()=>({configured:false,allowed:false}),composeChat:async(q,c)=>{compositions++;seen=c;return {title:'App',summary:'Workspace',config:{executor:'page-agent-v1',labels:{overview:''}},components:[]};},reviewGeneratedDefinition:async()=>({accepted:allow||++reviews===2,reason:'Preserve the requested comparison criteria.'})};
- const m=await load('const {'+Object.keys(globalThis.intentFlow).join(',')+'}=globalThis.intentFlow;\n'+'const useNotebook=async()=>"No additional tools needed";\n'+strip('app/page-programs/generate-context.ts'));
- const ctx={userId:'u',ownerId:'u',language:'en'},signal=new AbortController().signal;
- const paper=await m.generateContext({question:base.subject,templateId:'form-v1',route:'app',fresh:false},ctx,{},undefined,signal);
- assert.equal(paper.templateId,'wiki-v1');assert.equal(seen.q,base.subject);assert.deepEqual(seen.i,base);assert.equal(compositions,0);
- intent={...base,visualTheme:'custom',visualDesign:customDesign,outputKind:'conversation',mustCover:['Compare the requested choices']};
- const app=await m.generateContext({question:'Help me compare options',templateId:'wiki-v1',route:'wiki',fresh:false},ctx,{},undefined,signal);
- assert.equal(app.definition.config.visualTheme,'custom');assert.deepEqual(app.definition.config.visualDesign,customDesign);assert.equal(app.templateId,'chat-v1');assert.equal(compositions,2);assert.equal(seen.generationFeedback,'Preserve the requested comparison criteria.');assert.deepEqual(seen.generationIntent,intent);
- reviews=10;await assert.rejects(m.generateContext({question:'Help',templateId:'chat-v1',fresh:false},ctx,{},undefined,signal),/INCOMPLETE_ANSWER/);
- delete globalThis.intentFlow;
-});

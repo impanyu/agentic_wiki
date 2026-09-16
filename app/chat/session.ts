@@ -1,4 +1,4 @@
-import {database} from '@/db/store';import type {Agent} from '@/app/components-registry/agents';
+import {database} from '@/db/store';import type {Agent} from '@/app/agents/runtime';
 export async function ensurePageSession(pageId:string,userId:string):Promise<Agent>{
  const existing=await database().prepare('SELECT a.id,a.role,a.owner_id ownerId FROM session_routes r JOIN agent_instances a ON a.id=r.session_id WHERE r.page_id=? AND r.owner_id=? AND a.owner_id=? ORDER BY r.created_at LIMIT 1').bind(pageId,userId,userId).first<Agent>();
  if(existing)return existing;

@@ -1,3 +1,4 @@
+import {reasoningOptions} from '@/app/agents/reasoning';
 import {selectSourceMedia} from '@/app/url-content/select-media';
 import type {SourceDocument} from '@/app/url-content';
 import type {GenerationIntent} from '@/app/page-programs/generation-intent';
@@ -7,6 +8,7 @@ import {findIllustrations} from './images';
 import {readEvents} from '@/app/event-stream';
 type AIResponse={data?:{embedding:number[]}[];output?:{type:string;status?:string;content?:{type:string;text?:string;annotations?:{type:string;url:string;title?:string}[]}[];action?:{sources?:{url:string;title?:string}[]}}[]};
 export async function api(path:string,body:unknown,signal?:AbortSignal):Promise<AIResponse>{
+ if(path==='responses'&&body&&typeof body==='object'){const request=body as Record<string,any>;body={...reasoningOptions(String(request.model||'')),...request};}
  const key=aiKey();if(!key)throw new Error('AI_SETUP');
  const response=await fetch('https://api.openai.com/v1/'+path,{method:'POST',headers:{Authorization:'Bearer '+key,'Content-Type':'application/json'},body:JSON.stringify(body),signal:signal?AbortSignal.any([signal,AbortSignal.timeout(65000)]):AbortSignal.timeout(65000)});
  if(!response.ok){console.error('AI service failed',response.status);throw new Error(response.status===429?'AI_LIMIT':'AI_UNAVAILABLE');}
@@ -14,6 +16,7 @@ export async function api(path:string,body:unknown,signal?:AbortSignal):Promise<
 }
 export type ResearchUpdate={type:'replace';text:string}|{type:'delta';text:string}|{type:'status';message:string}|{type:'metadata';title:string;summary:string;category:string;labels:{overview:string;contents:string;sources:string}};
 export async function streamArticle(body:Record<string,unknown>,emit:(event:ResearchUpdate)=>void,signal?:AbortSignal):Promise<AIResponse>{
+ body={...reasoningOptions(String(body.model||'')),...body};
  const key=aiKey();if(!key)throw new Error('AI_SETUP');
  const response=await fetch('https://api.openai.com/v1/responses',{method:'POST',headers:{Authorization:'Bearer '+key,'Content-Type':'application/json'},body:JSON.stringify({...body,stream:true}),signal:signal?AbortSignal.any([signal,AbortSignal.timeout(120000)]):AbortSignal.timeout(120000)});
  if(!response.ok||!response.body)throw new Error(response.status===429?'AI_LIMIT':'AI_UNAVAILABLE');

@@ -5,7 +5,7 @@ import {database,getPage,normalize} from '@/db/store';
 import {reviewMappedPage} from './review-mapped-page';
 import {cosine,assessQuestion,type Candidate} from './ai';
 import {nearestQuestions} from './ranking';
-import {recordAction,type Agent} from '@/app/components-registry/agents';
+import {recordAction,type Agent} from '@/app/agents/runtime';
 // Page routing uses the question pool, not page titles or component descriptions.
 export async function matchQuestion(question:string,vector:number[],language:string,userId:string,agent:Agent,signal?:AbortSignal,domain:'wiki'|'session'|'app'|'all'='all'){
  await repairKnownMappings(database(),userId);

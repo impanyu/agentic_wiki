@@ -2,7 +2,7 @@ import {canWritePage} from '@/app/page-permissions';
 import {database,getPage} from '@/db/store';
 import {getComponent} from '@/app/components-registry/registry';
 import {fileContext,listContextFiles,type FilePart} from '@/app/context-files/server';
-import type {Agent} from '@/app/components-registry/agents';
+import type {Agent} from '@/app/agents/runtime';
 export const pageContextTool={type:'function',name:'read_page_context',description:'Read this page, its app code, any historical chat messages, or uploaded files. History supports keyword search and pagination over the entire saved history. Files lists all accessible attachments; file reads a selected attachment. Only this page and the current user permissions are available.',strict:true,parameters:{type:'object',additionalProperties:false,properties:{resource:{type:'string',enum:['page','code','history','files','file']},query:{type:'string'},before:{type:['integer','null']},fileId:{type:['string','null']}},required:['resource','query','before','fileId']}};
 export async function readPageContext(agent:Agent,args:{resource:string;query?:string;before?:number|null;fileId?:string|null}):Promise<{data:unknown;parts?:FilePart[]}>{
  const pageId=agent.role.replace(/^(comments|page):/,'');
@@ -28,11 +28,4 @@ export async function readPageContext(agent:Agent,args:{resource:string;query?:s
  const query=String(args.query||'').slice(0,500);
  const result=page.kind==='static'?await database().prepare('SELECT sequence,author_name author,message,reply,created_at FROM wiki_comments WHERE page_id=? AND sequence<? AND (?=\'\' OR instr(lower(message||char(10)||reply),lower(?))>0) ORDER BY sequence DESC LIMIT 31').bind(page.id,before,query,query).all():await database().prepare('SELECT t.sequence,t.message,t.reply,t.created_at FROM page_chat_turns t JOIN agent_instances a ON a.id=t.session_id WHERE a.role=? AND a.owner_id=? AND t.sequence<? AND (?=\'\' OR instr(lower(t.message||char(10)||t.reply),lower(?))>0) ORDER BY t.sequence DESC LIMIT 31').bind('page:'+page.id,agent.ownerId,before,query,query).all();
  const rows=result.results as {sequence:number}[];return {data:{messages:rows.slice(0,30).reverse(),before:rows.length>30?rows[29].sequence:null}};
-}
-export const pageTaskTool={type:'function',name:'perform_page_task',description:'Delegate a bounded task to the existing tool executor: search resources/templates, inspect connections, call authorized APIs or storage, generate/test Python or JavaScript in the configured sandbox, or use a configured GUI sandbox. Include the original user request and necessary page context. Report real results; writes retain existing confirmation requirements.',strict:true,parameters:{type:'object',additionalProperties:false,properties:{task:{type:'string',minLength:1,maxLength:12000}},required:['task']}};
-export async function performPageTask(agent:Agent,task:string,signal?:AbortSignal){
- const page=await getPage(agent.role.replace(/^(comments|page):/,''),agent.ownerId);if(!page)throw Error('Page context is inaccessible.');
- if(!canWritePage(page))throw Error('PAGE_READ_ONLY');
- const {useNotebook}=await import('@/app/components-registry/notebook-agent');
- return {data:await useNotebook(agent,'Work within page '+page.title+' ('+page.id+'). '+task,{pageId:page.id,userId:agent.ownerId,ownerId:agent.ownerId,language:page.language,visibility:'private'},signal)};
 }
