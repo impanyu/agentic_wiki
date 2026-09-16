@@ -13,3 +13,5 @@ Routing and lightweight classification use GPT-5.4 Mini with `none` reasoning. G
 Each model call records its model, reasoning effort, elapsed milliseconds and provider usage in `agent_run_events`; tool and validation events stay in the same run. Calls are bounded to prevent runaway work. External writes remain ordered rather than being blindly parallelized.
 
 Generator and in-page agents can optionally invoke coding, research, or review specialists through delegate_task. Specialists inherit the authenticated user, scoped page, tool availability, and parent constraints; tool execution rechecks current permissions. They never acquire the page owner’s privileges. Delegation is bounded to two nested levels and shares the parent cancellation deadline.
+
+Disambiguation links are constrained by a deterministic graph check: no cycles and at most three consecutive index pages, including existing question aliases. The generator receives the remaining constraint and can explain meanings in a substantive leaf article instead of introducing another index. The graph is checked again under the publication lock.

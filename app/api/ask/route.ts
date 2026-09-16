@@ -1,3 +1,4 @@
+import {requireValidIndex,indexGenerationPolicy} from '@/app/disambiguation/graph';
 import {storagePageMismatch} from '@/app/storage/page-scope';
 import {inheritGenerationSession} from '@/app/agents/session';
 import {prepareNavigationInput} from '@/app/url-content';
@@ -76,7 +77,7 @@ async function routeAnswer(request:Request,actor:Awaited<ReturnType<typeof getAc
   let intentPromise:ReturnType<typeof parseConversion>|undefined;
   const conversion=()=>intentPromise??=parseConversion(destination);
   async function resolvePage(pageId:string){
-   const page=await getPage(pageId,uid);
+   const page=await getPage(pageId,uid);if(page?.labels.templateId==='disambiguation-v1')await requireValidIndex(uid,page.id,destination);
    if(page?.dynamic?.template==='agent-chat-v1'){const session=await ensurePageSession(page.id,uid);await rememberSessionRoutes(page.id,uid,session.id);await recordAction(router,'Open persistent chat session',{pageId:page.id,sessionId:session.id});return {...page,sessionId:session.id};}
    if(page?.dynamic?.template==='context-index-v1'){const parameters=await routeInputs(destination,page,parameterRouter);return executePage(page,parameters,uid);}
    if(page?.dynamic?.template==='page-program-v1'){const parameters=await routeInputs(destination,page,parameterRouter);return executePage({...page,parameters},programNavigationInput(parameters),uid);}
@@ -100,7 +101,7 @@ async function routeAnswer(request:Request,actor:Awaited<ReturnType<typeof getAc
    const rootApp=!sourceDocument&&rootRoute.appId?await getPage(rootRoute.appId,uid):null;
    const id=rootApp?.kind==='dynamic'?rootApp.id:await matchQuestion(destination,vector,language,uid,router,signal,domain);
    if(!id)return null;
-   const page=await getPage(id,uid);
+   const page=await getPage(id,uid);if(page?.labels.templateId==='disambiguation-v1')await requireValidIndex(uid,page.id,destination);
    if(!page)return null;
    if(storagePageMismatch(destination,page))return null;
    // Equivalent text must also lead to the requested kind of context.
@@ -152,6 +153,7 @@ async function routeAnswer(request:Request,actor:Awaited<ReturnType<typeof getAc
    if(live?.n!==2)throw new Error('Generation was cancelled or timed out. Please try again.');
    if(existing){const page=await resolvePage(existing);if(page){await remember(existing,page);return {page,reused:true,destination};}}
   const entries=sourceDocument?[[originalKey,sourceDocument.url],[normalize(sourceDocument.summary),sourceDocument.summary]]:originalKey===destinationKey?[[originalKey,question]]:[[originalKey,question],[destinationKey,destination]];
+  if(generated.templateId==='disambiguation-v1'){const policy=await indexGenerationPolicy(destination,uid);policy.validate((answer.labels as {indexEntries?:{question:string}[]}).indexEntries||[]);}
   if(fork&&!await getPage(fork.sourceId,uid))throw Error('The original context is no longer accessible.');
   await database().batch([
    ...(fork?[
@@ -198,7 +200,7 @@ async function routeAnswer(request:Request,actor:Awaited<ReturnType<typeof getAc
   });
   return actor.finish(new Response(stream,{headers:{'Content-Type':'text/event-stream; charset=utf-8','Cache-Control':'no-store, private, no-transform','Vary':'Cookie, Accept','X-Accel-Buffering':'no','X-Content-Type-Options':'nosniff'}}));
 
- }catch(e){jobState='failed';const message=e instanceof Error?e.message:'';console.error('Answer navigation failed',message.slice(0,300));if(message.startsWith('URL_'))return respond({error:message==='URL_PRIVATE'?'Only public web URLs can be read.':message==='URL_INVALID'?'Enter a valid HTTP or HTTPS URL without a username or password.':message==='URL_TOO_LARGE'?'This document is too large to read. Choose a shorter page or PDF.':message==='URL_UNSUPPORTED'?'This URL is not a supported webpage, text document or PDF.':'Could not read meaningful content from this URL. It may require sign-in, block automated reading, or be unavailable. The URL itself was not embedded.'},422);return respond({error:message==='AI_LIMIT'?'The AI service has reached its usage limit. Please try again later.':message==='AI_SETUP'?'The AI connection is not configured yet.':'Could not complete this answer. Your text is preserved; please try again.'},503);}
+ }catch(e){jobState='failed';const message=e instanceof Error?e.message:'';console.error('Answer navigation failed',message.slice(0,300));if(message.startsWith('INDEX_'))return respond({error:'This index path repeats or exceeds three index pages. Choose a more specific question to open a concrete page.'},422);if(message.startsWith('URL_'))return respond({error:message==='URL_PRIVATE'?'Only public web URLs can be read.':message==='URL_INVALID'?'Enter a valid HTTP or HTTPS URL without a username or password.':message==='URL_TOO_LARGE'?'This document is too large to read. Choose a shorter page or PDF.':message==='URL_UNSUPPORTED'?'This URL is not a supported webpage, text document or PDF.':'Could not read meaningful content from this URL. It may require sign-in, block automated reading, or be unavailable. The URL itself was not embedded.'},422);return respond({error:message==='AI_LIMIT'?'The AI service has reached its usage limit. Please try again later.':message==='AI_SETUP'?'The AI connection is not configured yet.':'Could not complete this answer. Your text is preserved; please try again.'},503);}
  finally{if(jobId)await finishJob(jobId,jobState).catch(()=>{});if(token)await unlock(token).catch(()=>{});}
 }
 

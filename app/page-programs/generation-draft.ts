@@ -19,8 +19,9 @@ export function validateGenerationDraft(raw:unknown,question:string,context:Agen
  const d=draftSchema.parse(raw);
  if(d.intent.visualTheme==='custom')d.intent.visualDesign=normalizeCustomStyle(d.intent.visualDesign);
  const ambiguous=d.intent.needsDisambiguation||!d.intent.singleMeaningCertain||new Set(d.intent.interpretations.map(x=>x.trim().toLowerCase())).size>1;
- if(ambiguous&&d.kind!=='disambiguation'&&!context.sourceDocument)throw Error('Multiple plausible interpretations require a disambiguation page.');
+ if(ambiguous&&d.kind!=='disambiguation'&&!context.sourceDocument&&!context.indexLeafRequired)throw Error('Multiple plausible interpretations require a disambiguation page.');
  if(d.kind==='disambiguation'){
+  if(context.indexLeafRequired)throw Error('INDEX_DEPTH_LIMIT: create substantive content explaining the remaining meanings on this page; do not create another index.');
   const entries=d.entries||[],keys=entries.map(e=>e.question.trim().toLowerCase());
   if(entries.length<2||new Set(keys).size!==keys.length||keys.includes(question.trim().toLowerCase()))throw Error('An index needs distinct, unambiguous destinations, not the original query.');
   d.intent.needsDisambiguation=true;d.intent.singleMeaningCertain=false;d.intent.outputKind='article';
