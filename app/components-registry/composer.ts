@@ -53,8 +53,9 @@ export async function planApplication(question:string,context:AgentContext,route
  return null;
 }
 export async function extractApplicationInputs(question:string,form:FormDefinition,router:Agent){
- const d=await askAgent(router,'Extract only explicitly supplied form values from the question. Never calculate results, infer missing values, or invent defaults. Return JSON object as inputJson, with numeric fields as numbers. Omit missing values.',{question,fields:form.fields},obj({inputJson:str}));
- const parsed=z.record(z.union([z.string(),z.number().finite(),z.null()])).parse(JSON.parse(d.inputJson));
+ const properties=Object.fromEntries(form.fields.map(f=>[f.name,{type:[f.type==='number'?'number':'string','null'],description:'Explicit value for '+f.label+'; null when absent from the question.'}]));
+ const d=await askAgent(router,'Extract only explicitly supplied form values from the question. Never calculate results, infer missing values, or invent defaults. Return the declared field names directly with primitive values. Use null for every absent value. Do not return field definitions.',{question,fields:form.fields},{type:'object',additionalProperties:false,properties,required:form.fields.map(f=>f.name)});
+ const parsed=z.record(z.union([z.string(),z.number().finite(),z.null()])).parse(d);
  return Object.fromEntries(Object.entries(parsed).filter(([,value])=>value!==null)) as Parameters;
 }
 export async function composeConverter(config:DynamicConfig,context:AgentContext){
