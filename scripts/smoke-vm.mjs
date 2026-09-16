@@ -22,6 +22,17 @@ let logs='';child.stdout.on('data',b=>logs+=b);child.stderr.on('data',b=>logs+=b
 try{
  let ready=false;for(let i=0;i<100;i++){if(child.exitCode!==null)throw Error('Server stopped: '+logs);try{if((await fetch(origin+'/api/health')).ok){ready=true;break;}}catch{}await new Promise(r=>setTimeout(r,100));}assert.ok(ready,'Server readiness timed out');
  assert.equal((await fetch(origin+'/')).status,200);assert.equal((await fetch(origin+'/favicon.svg')).status,200);
+ const catalogRoute=await fetch(origin+'/tools',{redirect:'manual'});assert.equal(catalogRoute.status,307);
+ const catalogUrl=new URL(catalogRoute.headers.get('location'),origin),catalogId=catalogUrl.searchParams.get('page');assert.ok(catalogId);
+ const catalogPage=(await (await fetch(origin+'/api/pages/'+catalogId)).json()).page;
+ assert.equal(catalogPage.dynamic.nativeApp,'hub');assert.equal(catalogPage.visibility,'public');assert.equal(catalogPage.publicWrite,false);assert.equal(catalogPage.owned,false);
+ assert.equal((await fetch(origin+'/tools',{redirect:'manual'})).headers.get('location'),catalogRoute.headers.get('location'));
+ const linked=await fetch(origin+'/tools?app=table&page=11111111-1111-4111-8111-111111111111&file=smoke-attachment',{redirect:'manual'}),linkedUrl=new URL(linked.headers.get('location'),origin);
+ assert.equal(JSON.parse(linkedUrl.searchParams.get('inputs')).sourcePage,'11111111-1111-4111-8111-111111111111');
+ assert.equal((await (await fetch(origin+'/api/pages/'+linkedUrl.searchParams.get('page'))).json()).page.dynamic.nativeApp,'table');
+ const mapRoute=await fetch(origin+'/maps',{redirect:'manual'}),mapId=new URL(mapRoute.headers.get('location'),origin).searchParams.get('page');
+ assert.equal((await (await fetch(origin+'/api/pages/'+mapId)).json()).page.dynamic.nativeApp,'map');
+
  const privateUrl=origin+'/api/pages/11111111-1111-4111-8111-111111111111';
  assert.equal((await fetch(privateUrl)).status,404);
  assert.equal((await fetch(privateUrl,{headers:{'oai-authenticated-user-id':'google:smoke','oai-authenticated-user-email':'smoke@example.com'}})).status,404);
