@@ -272,5 +272,19 @@
   "Permanently delete this item? Folder contents are also deleted. This cannot be undone.": "永久删除此项目？文件夹中的内容也将删除。此操作无法撤销。",
   "Confirm permanent deletion": "确认永久删除",
   "Delete permanently": "永久删除",
-  "Additional actions require their tools to be checked in Connectors. Use ADMA for binary uploads, downloads, maps and processing tools.": "其他操作需要在连接器中勾选对应工具。二进制文件上传、下载、地图和处理工具请在 ADMA 中使用。"
+  "Additional actions require their tools to be checked in Connectors. Use ADMA for binary uploads, downloads, maps and processing tools.": "其他操作需要在连接器中勾选对应工具。二进制文件上传、下载、地图和处理工具请在 ADMA 中使用。",
+  "ADMA navigation": "ADMA 导航",
+  "Dashboard": "仪表盘",
+  "Maps": "地图",
+  "Documentation": "文档",
+  "Welcome to your ADMA dashboard": "欢迎使用 ADMA 仪表盘",
+  "Manage your agricultural data files and folders": "管理你的农业数据文件和文件夹",
+  "Files in view": "当前视图文件数",
+  "Folders in view": "当前视图文件夹数",
+  "Public files in view": "当前视图公开文件数",
+  "File size in view": "当前视图文件大小",
+  "Try another search.": "请尝试其他搜索词。",
+  "Your connected ADMA account has no items in this view.": "你连接的 ADMA 账户在此视图中没有项目。",
+  "Explore your spatial data in ADMA": "在 ADMA 中探索空间数据",
+  "Open agricultural data processing tools": "打开农业数据处理工具"
 }

@@ -515,5 +515,19 @@
   "Permanently delete this item? Folder contents are also deleted. This cannot be undone.": "Permanently delete this item? Folder contents are also deleted. This cannot be undone.",
   "Confirm permanent deletion": "Confirm permanent deletion",
   "Delete permanently": "Delete permanently",
-  "Additional actions require their tools to be checked in Connectors. Use ADMA for binary uploads, downloads, maps and processing tools.": "Additional actions require their tools to be checked in Connectors. Use ADMA for binary uploads, downloads, maps and processing tools."
+  "Additional actions require their tools to be checked in Connectors. Use ADMA for binary uploads, downloads, maps and processing tools.": "Additional actions require their tools to be checked in Connectors. Use ADMA for binary uploads, downloads, maps and processing tools.",
+  "Files in view": "Files in view",
+  "Folders in view": "Folders in view",
+  "Public files in view": "Public files in view",
+  "File size in view": "File size in view",
+  "ADMA navigation": "ADMA navigation",
+  "Dashboard": "Dashboard",
+  "Maps": "Maps",
+  "Documentation": "Documentation",
+  "Welcome to your ADMA dashboard": "Welcome to your ADMA dashboard",
+  "Manage your agricultural data files and folders": "Manage your agricultural data files and folders",
+  "Try another search.": "Try another search.",
+  "Your connected ADMA account has no items in this view.": "Your connected ADMA account has no items in this view.",
+  "Explore your spatial data in ADMA": "Explore your spatial data in ADMA",
+  "Open agricultural data processing tools": "Open agricultural data processing tools"
 }
