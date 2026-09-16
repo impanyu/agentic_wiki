@@ -28,7 +28,7 @@ export async function exactSavedQuestion(question:string,userId:string){
  // Preserve explicitly supplied arguments; never guess values on the fast path.
  if(page.dynamic.inputFields?.some(f=>f.required&&!Object.hasOwn(parameters,f.name)))return null;
  if(page.dynamic.template==='page-program-v1')return deferPageExecution(page,{...parameters,query:question});
- if(['file-browser-v1','agent-chat-v1'].includes(page.dynamic.template))return {...page,parameters};
+ if(['native-app-v1','file-browser-v1','agent-chat-v1'].includes(page.dynamic.template))return {...page,parameters};
  // Cheap calculations and indexes keep their existing execution/refresh semantics.
  return null;
 }

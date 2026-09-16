@@ -13,7 +13,7 @@ import {createComponent,type AgentContext,type Component} from '@/app/components
 import type {DynamicConfig,ConverterLabels} from '@/app/dynamic/units';
 import type {TemplateId} from '@/app/templates/catalog';
 const source=z.object({title:z.string().min(1).max(500),url:z.string().url().refine(u=>/^https?:\/\//.test(u))});
-const draftSchema=z.object({kind:z.enum(['article','disambiguation','chat','files','index','program','chart','form','converter']),title:z.string().min(1).max(200),summary:z.string().min(1).max(1200),body:z.string().max(40000).default(''),category:z.string().max(100).default(''),sources:z.array(source).max(40).default([]),labels:z.record(z.string().max(500)),intent:generationIntentSchema,entries:indexSchema.shape.entries.optional(),templateId:z.enum(['files-v1','dashboard-v1','table-v1','form-v1','chat-v1']).optional(),program:codeSchema.optional(),inputFields:inputFieldsSchema.optional(),chart:z.unknown().optional(),dataset:z.unknown().optional(),form:formSchema.optional(),expression:z.unknown().optional(),examples:z.array(z.object({input:parametersSchema,output:parametersSchema})).max(4).optional(),parameters:parametersSchema.default({})}).strict();
+const draftSchema=z.object({kind:z.enum(['article','disambiguation','chat','files','index','program','chart','form','converter','native']),title:z.string().min(1).max(200),summary:z.string().min(1).max(1200),body:z.string().max(40000).default(''),category:z.string().max(100).default(''),sources:z.array(source).max(40).default([]),labels:z.record(z.string().max(500)),intent:generationIntentSchema,entries:indexSchema.shape.entries.optional(),templateId:z.enum(['files-v1','dashboard-v1','table-v1','form-v1','chat-v1','geo-v1','data-tools-v1']).optional(),nativeApp:z.enum(['map','table','json','text','image','pdf','archive','hub']).optional(),program:codeSchema.optional(),inputFields:inputFieldsSchema.optional(),chart:z.unknown().optional(),dataset:z.unknown().optional(),form:formSchema.optional(),expression:z.unknown().optional(),examples:z.array(z.object({input:parametersSchema,output:parametersSchema})).max(4).optional(),parameters:parametersSchema.default({})}).strict();
 export type GenerationDraft=z.infer<typeof draftSchema>;
 export function validateGenerationDraft(raw:unknown,question:string,context:AgentContext,webSearched:boolean){
  const d=draftSchema.parse(raw);
@@ -33,7 +33,9 @@ export function validateGenerationDraft(raw:unknown,question:string,context:Agen
  }else{
   d.intent.outputKind=d.kind==='chart'?'chart':d.kind==='chat'?'conversation':'application';
   if(d.kind==='files'&&!namedConnectors(question).includes('adma')&&!pageStorageProviders(question).length)throw Error('This connector is not a registered storage browser. Use a program or a truthful chat workspace.');
+  if(d.kind==='native'&&!d.nativeApp)throw Error('A native app requires nativeApp.');
   if(d.kind==='program'){
+   if(['geo-v1','data-tools-v1'].includes(d.templateId||''))throw Error('Native templates require kind=native.');
    if(!d.program||!d.inputFields||!d.templateId)throw Error('A program needs code, inputFields and templateId.');
    const status=sandboxStatus(context.userId);if(!status.configured||!status.allowed)throw Error('Sandbox unavailable. Choose an honest supported alternative.');
   }
@@ -59,6 +61,7 @@ export async function materializeGenerationDraft(d:GenerationDraft,context:Agent
  const components:{role:string;component:Component}[]=[];
  let config:DynamicConfig={template:'agent-chat-v1',executor:'page-agent-v1',version:1,capability:'application',labels:d.labels as ConverterLabels,visualTheme:d.intent.visualTheme,visualDesign:d.intent.visualDesign};
  const save=async(role:string,question:string,type:string,payload:unknown)=>{const c=await createComponent(question,type,payload,context);components.push({role,component:c});return {id:c.id,version:c.version};};
+ if(d.kind==='native'){templateId=d.nativeApp==='map'?'geo-v1':'data-tools-v1';config={...config,template:'native-app-v1',executor:'native-app-v1',nativeApp:d.nativeApp};}
  if(d.kind==='files'){templateId='files-v1';config={...config,template:'file-browser-v1',executor:'registered-file-browser-v1',inputFields:[{name:'provider',type:'string',description:'google, dropbox, onedrive or adma',required:false},{name:'parent',type:'string',description:'Explicit folder ID or root.',required:false},{name:'search',type:'string',description:'Explicit file name query.',required:false}]};}
  if(d.kind==='index'){templateId='wiki-v1';config={...config,template:'context-index-v1',executor:'context-index-v1',indexKind:d.intent.service==='user_jobs'?'jobs':'pages',inputFields:d.intent.service==='user_jobs'?[]:[{name:'page_kind',type:'string',description:'static, dynamic or all',required:false},{name:'topic_terms',type:'string',description:'JSON array of synonymous topic keywords; [] for all',required:false}]};}
  if(d.kind==='converter'){templateId='form-v1';config={...config,template:'unit-converter-v1',executor:'unit-converter-v1',capability:'unit-converter-v1'};}

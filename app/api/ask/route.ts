@@ -84,7 +84,7 @@ async function routeAnswer(request:Request,actor:Awaited<ReturnType<typeof getAc
    if(page?.dynamic?.template==='context-index-v1'){const parameters=await routeInputs(destination,page,parameterRouter);return executePage(page,parameters,uid);}
    if(page?.dynamic?.template==='page-program-v1'){const parameters=await routeInputs(destination,page,parameterRouter);return deferPageExecution(page,parameters);}
    if(page?.dynamic?.template==='file-browser-v1')return {...page,parameters:await routeInputs(destination,page,parameterRouter)};
-   if(['component-chart-v1','component-sandbox-v1','google-drive-folders-v1','agent-chat-v1','file-browser-v1'].includes(page?.dynamic?.template||''))return page;
+   if(['component-chart-v1','component-sandbox-v1','google-drive-folders-v1','native-app-v1','file-browser-v1','agent-chat-v1'].includes(page?.dynamic?.template||''))return page;
    if(page?.dynamic?.template==='component-form-v1'&&page.dynamic.form){const input=await extractApplicationInputs(destination,page.dynamic.form,parameterRouter);page.parameters=input;try{return await executePage(page,input,uid);}catch{return page;}}
    if(page?.kind==='dynamic'&&page.dynamic){const intent=await conversion();if(intent.intent!=='unit_conversion')throw new Error('AI_UNAVAILABLE');if(intent.input){try{Object.assign(page,await executePage(page,intent.input,uid));}catch{page.runtimeError=page.dynamic.labels.invalid;}}}
    return page;
