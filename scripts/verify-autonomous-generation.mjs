@@ -27,6 +27,8 @@ try{
  assert.ok(page.dynamic,'Expected a calculator web app');
  const reply=await fetch(origin+'/api/pages/'+page.id+'/chat',{method:'POST',headers,body:JSON.stringify({message:'Use this calculator for before=80 and after=100 and tell me the percentage change.',parameters:{before:80,after:100}}),signal:AbortSignal.timeout(180000)});
  const chat=await reply.json();assert.equal(reply.status,200,JSON.stringify(chat));assert.match(chat.reply,/25/);
+ const events=(await db.prepare("SELECT data FROM agent_run_events WHERE kind='tool_finished'").all()).results.map(e=>JSON.parse(e.data));
+ assert.ok(events.some(e=>e.tool==='run_current_app'&&!e.result?.error&&/25/.test(JSON.stringify(e.result))), 'The in-page agent must obtain 25 from actual app execution');
  const roles=await db.prepare('SELECT role FROM agent_instances').all();
  console.log(JSON.stringify({passed:true,title:page.title,template:page.dynamic.template,durationMs:Date.now()-started,roles:roles.results}));
 }catch(error){console.error(logs);console.error(JSON.stringify((await db.prepare('SELECT a.role,e.kind,e.data FROM agent_run_events e JOIN agent_instances a ON a.id=e.agent_id ORDER BY e.sequence DESC LIMIT 12').all()).results));throw error;}
