@@ -29,5 +29,5 @@ try{
  const chat=await reply.json();assert.equal(reply.status,200,JSON.stringify(chat));assert.match(chat.reply,/25/);
  const roles=await db.prepare('SELECT role FROM agent_instances').all();
  console.log(JSON.stringify({passed:true,title:page.title,template:page.dynamic.template,durationMs:Date.now()-started,roles:roles.results}));
-}catch(error){console.error(logs);throw error;}
+}catch(error){console.error(logs);console.error(JSON.stringify((await db.prepare('SELECT a.role,e.kind,e.data FROM agent_run_events e JOIN agent_instances a ON a.id=e.agent_id ORDER BY e.sequence DESC LIMIT 12').all()).results));throw error;}
 finally{child.kill('SIGTERM');await new Promise(r=>{if(child.exitCode!==null)r();else child.once('exit',r);});db.close();await rm(dir,{recursive:true,force:true});}
