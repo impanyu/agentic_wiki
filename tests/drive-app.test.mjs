@@ -1,0 +1,17 @@
+import test from 'node:test';import assert from 'node:assert/strict';import {readFileSync} from 'node:fs';import ts from 'typescript';import {z} from 'zod';
+test('Drive app isolates users, checks page and connector permissions, escapes queries and preserves upload bytes',async()=>{
+ let page={id:'page',owned:true},origin=true,disabled=false,requests=[],approved=[],user='u1';
+ globalThis.driveAppDeps={z,getActor:async()=>({userId:user,finish:r=>r}),getPage:async()=>page,reply:(data,status=200)=>Response.json(data,{status}),sameOrigin:()=>origin,canWritePage:p=>p?.owned,requireStorageTool:async(u,p,op)=>{assert.equal(u,user);assert.equal(p,'google');if(disabled)throw Error('disabled');},storageToken:async u=>'token-'+user,executeStorage:async(r,u,p)=>{assert.equal(p,'page');return {actionId:'action'};},approveStorage:async(id,u)=>{approved.push(u);return {ok:true};},fetch:async(url,init)=>{requests.push({url,init});return Response.json({files:[]});}};
+ const source=readFileSync('app/api/pages/[id]/drive/route.ts','utf8').replace(/^import .*;$/gm,'');const code=ts.transpile('const {'+Object.keys(globalThis.driveAppDeps).join(',')+'}=globalThis.driveAppDeps;'+source,{module:ts.ModuleKind.ESNext,target:ts.ScriptTarget.ES2022});const m=await import('data:text/javascript;base64,'+Buffer.from(code).toString('base64'));const params={params:Promise.resolve({id:'page'})};
+ try{
+  let r=await m.GET(new Request('https://wiki.test/api/pages/page/drive?parent=root'),params);assert.equal(r.status,200);assert.match(new URL(requests.at(-1).url).searchParams.get('q'),/'root' in parents/);assert.equal(requests.at(-1).init.headers.Authorization,'Bearer token-u1');
+  user='u2';await m.GET(new Request('https://wiki.test/api/pages/page/drive?search='+encodeURIComponent("a' or trashed=true")),params);assert.equal(requests.at(-1).init.headers.Authorization,'Bearer token-u2');assert.match(new URL(requests.at(-1).url).searchParams.get('q'),/name contains 'a\\' or trashed=true'/);
+  const mutation=()=>new Request('https://wiki.test/api/pages/page/drive',{method:'POST',body:JSON.stringify({operation:'trash',args:{id:'file'}})});
+  page={owned:false};assert.equal((await m.POST(mutation(),params)).status,400);assert.equal(approved.length,0);
+  page=null;const n=requests.length;assert.equal((await m.GET(new Request('https://wiki.test/api/pages/page/drive'),params)).status,400);assert.equal(requests.length,n);
+  page={id:'page',owned:true};origin=false;assert.equal((await m.POST(mutation(),params)).status,400);origin=true;assert.equal((await m.POST(mutation(),params)).status,200);assert.deepEqual(approved,['u2']);
+  disabled=true;assert.equal((await m.GET(new Request('https://wiki.test/api/pages/page/drive'),params)).status,400);disabled=false;
+  const bytes=Uint8Array.from([0,255,128,13,10]);r=await m.PUT(new Request('https://wiki.test/api/pages/page/drive?parent=root&name=test.bin',{method:'PUT',headers:{'Content-Type':'application/octet-stream'},body:bytes}),params);assert.equal(r.status,200);const upload=requests.at(-1);assert.match(upload.init.headers['Content-Type'],/^multipart\/related; boundary=/);assert.ok(Buffer.from(await upload.init.body.arrayBuffer()).includes(Buffer.from(bytes)));
+  const before=requests.length;assert.equal((await m.PUT(new Request('https://wiki.test/api/pages/page/drive?name=x',{method:'PUT',headers:{'Content-Length':String(21*1024*1024)},body:'x'}),params)).status,400);assert.equal(requests.length,before);
+ }finally{delete globalThis.driveAppDeps;}
+});

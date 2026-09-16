@@ -396,7 +396,7 @@ export default function Workspace({ user, signIn, signOut }: {
         {visiblePage.dynamic?.template==='google-drive-folders-v1'&&visiblePage.dynamic.driveLabels&&<DriveFolders key={'drive:'+visiblePage.id} pageId={visiblePage.id} labels={visiblePage.dynamic.driveLabels}/>}
         {visiblePage.dynamic?.template==='component-form-v1'&&<ComponentForm key={'form:'+visiblePage.id} page={visiblePage} onResult={page=>{setSelected(page);recordHistory(page.id,question,page.parameters);}}/>}
         {visiblePage.runtimeError&&<p role="alert">{t(visiblePage.runtimeError)}</p>}
-        {visiblePage.kind==='dynamic'&&pageStorageProviders(visiblePage.question||visiblePage.title,visiblePage.parameters).length>0&&<StoragePanel question={visiblePage.question} key={visiblePage.id+JSON.stringify(visiblePage.parameters||{})} parameters={visiblePage.parameters} pageId={visiblePage.id} language={visiblePage.language} expanded={visiblePage.labels.templateId==='files-v1'||!!visiblePage.runtimeError}/>}
+        {visiblePage.kind==='dynamic'&&pageStorageProviders(visiblePage.question||visiblePage.title,visiblePage.parameters).length>0&&<StoragePanel writable={canWritePage(visiblePage)} question={visiblePage.question} key={visiblePage.id+JSON.stringify(visiblePage.parameters||{})} parameters={visiblePage.parameters} pageId={visiblePage.id} language={visiblePage.language} expanded={visiblePage.labels.templateId==='files-v1'||!!visiblePage.runtimeError}/>}
         {!draft&&<ContextFiles key={'files:'+visiblePage.id} page={visiblePage} revision={filesRevision} busy={busy} onUpload={()=>uploadInput.current?.click()}/>}
         {!draft&&<PageAgentChat key={'chat:'+visiblePage.id} page={visiblePage} onResult={setSelected}/>}
 
