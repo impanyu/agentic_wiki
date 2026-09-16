@@ -4,8 +4,8 @@ import {getComponent} from '@/app/components-registry/registry';
 import {fileContext,listContextFiles,type FilePart} from '@/app/context-files/server';
 import type {Agent} from '@/app/agents/runtime';
 export const pageContextTool={type:'function',name:'read_page_context',description:'Read this page, its app code, any historical chat messages, or uploaded files. History supports keyword search and pagination over the entire saved history. Files lists all accessible attachments; file reads a selected attachment. Only this page and the current user permissions are available.',strict:true,parameters:{type:'object',additionalProperties:false,properties:{resource:{type:'string',enum:['page','code','history','files','file']},query:{type:'string'},before:{type:['integer','null']},fileId:{type:['string','null']}},required:['resource','query','before','fileId']}};
-export async function readPageContext(agent:Agent,args:{resource:string;query?:string;before?:number|null;fileId?:string|null}):Promise<{data:unknown;parts?:FilePart[]}>{
- const pageId=agent.role.replace(/^(comments|page):/,'');
+export async function readPageContext(agent:Agent,args:{resource:string;query?:string;before?:number|null;fileId?:string|null},scopedPageId?:string):Promise<{data:unknown;parts?:FilePart[]}>{
+ const pageId=scopedPageId||agent.role.replace(/^(comments|page):/,'');
  if(pageId===agent.role)throw Error('Page context is unavailable.');
  const page=await getPage(pageId,agent.ownerId);if(!page)throw Error('Page context is inaccessible.');
  if(args.resource==='page')return {data:{title:page.title,summary:page.summary,body:page.body,sources:page.sources,definition:page.dynamic}};
