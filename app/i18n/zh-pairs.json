@@ -333,5 +333,15 @@
   "Open native file and data tools": "打开原生文件和数据工具",
   "Changes stay in this tab. Download your result before leaving; the original file is unchanged.": "修改仅保留在当前标签页中。离开前请下载结果；原始文件不会被更改。",
   "Local files are processed in this tab and are not uploaded. Layers are not saved when you leave.": "本地文件在当前标签页内处理，不会上传。离开后图层不会保存。",
-  "Open page files in connected tools. Each app checks access to the original file.": "在互联工具中打开页面文件。每个应用都会检查原始文件的访问权限。"
+  "Open page files in connected tools. Each app checks access to the original file.": "在互联工具中打开页面文件。每个应用都会检查原始文件的访问权限。",
+  "File list pagination": "文件列表分页",
+  "Showing {start}–{end} of {total} items": "显示第 {start}–{end} 项，共 {total} 项",
+  "Items per page": "每页项目数",
+  "First": "首页",
+  "Previous": "上一页",
+  "Page": "页",
+  "Go to page": "跳转到页",
+  "of {count}": "共 {count} 页",
+  "Next": "下一页",
+  "Last": "末页"
 }

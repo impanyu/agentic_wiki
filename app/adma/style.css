@@ -4,3 +4,5 @@
 .adma-app h2,.adma-app h3{font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif;letter-spacing:normal}
 
 .adma-third-party{margin-top:24px}.adma-catalog-item{display:flex;align-items:center;gap:14px;width:100%;text-align:left;margin-top:10px}.adma-catalog-item>svg{color:#e5ad00}.adma-catalog-item>span{margin-left:auto;background:#e3f3fa;color:#167088;border-radius:4px;padding:4px 8px}.adma-catalog-item>small{color:#677182}.adma-map-link{display:inline-flex;align-items:center;gap:6px;margin:12px}
+
+.adma-pagination{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:14px 0;color:#5b6773;font-size:13px}.adma-pagination>span{margin-right:auto}.adma-pagination>div,.adma-pagination label{display:flex;align-items:center;gap:7px;flex-wrap:wrap}.adma-pagination select{padding:6px 9px}.adma-pagination button{padding:6px 10px}.adma-pagination select:focus-visible{outline:2px solid var(--adma-red);outline-offset:2px}@media(max-width:600px){.adma-pagination>div{width:100%;gap:5px}.adma-pagination button{padding:6px 8px}}

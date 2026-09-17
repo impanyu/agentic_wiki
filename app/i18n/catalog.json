@@ -609,5 +609,13 @@
   "Read PDF documents inside this workspace.": "Read PDF documents inside this workspace.",
   "Archive Explorer": "Archive Explorer",
   "Inspect ZIP contents and extract selected files locally.": "Inspect ZIP contents and extract selected files locally.",
-  "Additional actions require their tools to be checked in Connectors. Use ADMA for binary uploads and downloads. Maps and native tools open here.": "Additional actions require their tools to be checked in Connectors. Use ADMA for binary uploads and downloads. Maps and native tools open here."
+  "Additional actions require their tools to be checked in Connectors. Use ADMA for binary uploads and downloads. Maps and native tools open here.": "Additional actions require their tools to be checked in Connectors. Use ADMA for binary uploads and downloads. Maps and native tools open here.",
+  "File list pagination": "File list pagination",
+  "Showing {start}–{end} of {total} items": "Showing {start}–{end} of {total} items",
+  "Items per page": "Items per page",
+  "First": "First",
+  "Page": "Page",
+  "Go to page": "Go to page",
+  "of {count}": "of {count}",
+  "Last": "Last"
 }
