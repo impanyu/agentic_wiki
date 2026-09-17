@@ -12,7 +12,7 @@ import {GeoViewer} from './geo/viewer';
 import {Workbench} from './tools/workbench';
 import {nativePageSource} from './tools/sources';
 import {AdmaApp} from './adma/app';
-import {namedConnectors,pageStorageProviders} from './storage/page-scope';
+import {nativeWorkspaceApp,pageStorageProviders} from './storage/page-scope';
 import {StoragePanel} from './storage/panel';
 import {DriveFolders} from './connections/google-drive/view';
 import {SandboxView} from './components-registry/sandbox-view';
@@ -355,7 +355,7 @@ export default function Workspace({ user, signIn, signOut }: {
   }
 
   const visiblePage=draft||selected;
-  const nativeApp=!draft&&visiblePage?.kind==='dynamic'&&visiblePage.dynamic?.template!=='page-program-v1'?(visiblePage.dynamic?.template==='native-app-v1'?'tools':namedConnectors(visiblePage.question||visiblePage.title).includes('adma')?'adma':namedConnectors(visiblePage.question||visiblePage.title).includes('google')&&['files-v1','chat-v1'].includes(visiblePage.labels.templateId||'')?'drive':null):null;
+  const nativeApp=!draft&&visiblePage?nativeWorkspaceApp(visiblePage):null;
   return <UiContext.Provider value={ui}><div className="browser-shell" lang={locale}>
     <header className="browser-toolbar">
       <span className="browser-brand" aria-label="AgenticWiKi"><Layers size={22} aria-hidden="true"/><span>AgenticWiKi</span></span>
@@ -406,8 +406,8 @@ export default function Workspace({ user, signIn, signOut }: {
         {visiblePage.dynamic?.template==='component-form-v1'&&<ComponentForm key={'form:'+visiblePage.id} page={visiblePage} onResult={page=>{setSelected(page);recordHistory(page.id,question,page.parameters);}}/>}
         {visiblePage.runtimeError&&<p role="alert">{t(visiblePage.runtimeError)}</p>}
         {visiblePage.dynamic?.template==='native-app-v1'&&(visiblePage.dynamic.nativeApp==='map'?<GeoViewer key={visiblePage.id+JSON.stringify(visiblePage.parameters||{})} embedded revision={filesRevision} source={nativePageSource(visiblePage)}/>:<Workbench key={visiblePage.id+JSON.stringify(visiblePage.parameters||{})} embedded revision={filesRevision} app={visiblePage.dynamic.nativeApp||'hub'} source={nativePageSource(visiblePage)}/>)}
-        {visiblePage.kind==='dynamic'&&visiblePage.dynamic?.template!=='native-app-v1'&&visiblePage.dynamic?.template!=='page-program-v1'&&namedConnectors(visiblePage.question||visiblePage.title).includes('adma')&&<AdmaApp pageId={visiblePage.id} writable={canWritePage(visiblePage)}/>}
-        {visiblePage.kind==='dynamic'&&visiblePage.dynamic?.template!=='native-app-v1'&&pageStorageProviders(visiblePage.question||visiblePage.title,visiblePage.parameters).length>0&&<StoragePanel writable={canWritePage(visiblePage)} question={visiblePage.question} key={visiblePage.id+JSON.stringify(visiblePage.parameters||{})} parameters={visiblePage.parameters} pageId={visiblePage.id} language={visiblePage.language} expanded={visiblePage.labels.templateId==='files-v1'||!!visiblePage.runtimeError}/>}
+        {nativeApp==='adma'&&<AdmaApp pageId={visiblePage.id} writable={canWritePage(visiblePage)}/>}
+        {visiblePage.kind==='dynamic'&&visiblePage.dynamic?.template==='file-browser-v1'&&pageStorageProviders(visiblePage.question||visiblePage.title,visiblePage.parameters).length>0&&<StoragePanel writable={canWritePage(visiblePage)} question={visiblePage.question} key={visiblePage.id+JSON.stringify(visiblePage.parameters||{})} parameters={visiblePage.parameters} pageId={visiblePage.id} language={visiblePage.language} expanded={visiblePage.labels.templateId==='files-v1'||!!visiblePage.runtimeError}/>}
         <div className={nativeApp?'connector-support':undefined}>
         {!draft&&<ContextFiles key={'files:'+visiblePage.id} page={visiblePage} revision={filesRevision} busy={busy} onChanged={()=>setFilesRevision(n=>n+1)} onUpload={()=>uploadInput.current?.click()}/>}
         {!draft&&<PageAgentChat key={'chat:'+visiblePage.id} page={visiblePage} onResult={setSelected} onOpenQuestion={text=>void navigate(text)}/>}

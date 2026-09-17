@@ -11,7 +11,7 @@ export function requestsDataResult(question:string){
 export function storagePageMismatch(question:string,page:{question?:string;title:string;dynamic?:{template?:string}}){
  const requested=namedConnectors(question),saved=namedConnectors(page.question||page.title);
  const basicAdmaProgram=page.dynamic?.template==='page-program-v1'&&/^(?:list|show|browse|open|manage)(?:\s+me)?(?:\s+my)?\s+adma(?:['’]s)?\s+(?:files|folders)(?:\s+and\s+(?:files|folders))?[.!?]?$/i.test((page.question||'').trim());
- if(requestsDataResult(question)&&(basicAdmaProgram||['file-browser-v1','google-drive-folders-v1'].includes(page.dynamic?.template||'')))return true;
+ if(requestsDataResult(question)&&(basicAdmaProgram||['file-browser-v1','google-drive-folders-v1','agent-chat-v1'].includes(page.dynamic?.template||'')))return true;
  if(requested.length&&saved.length&&requested.some(id=>!saved.includes(id)))return true;
  return page.dynamic?.template==='file-browser-v1'&&requested.some(id=>id!=='adma'&&!providers.includes(id as StorageProvider));
 }
@@ -23,4 +23,13 @@ export function pageStorageProviders(question:string,parameters:Record<string,un
  if(named.length)return named;
  if(providers.includes(parameters.provider as StorageProvider))return [parameters.provider as StorageProvider];
  return [...providers];
+}
+
+// Choose a renderer from the saved implementation, never from a provider word alone.
+export function nativeWorkspaceApp(page:{kind?:string;question?:string;title:string;dynamic?:{template?:string}}){
+ if(page.kind!=='dynamic')return null;
+ if(page.dynamic?.template==='native-app-v1')return 'tools';
+ if(page.dynamic?.template!=='file-browser-v1')return null;
+ const providers=namedConnectors(page.question||page.title);
+ return providers.includes('adma')?'adma':providers.includes('google')?'drive':null;
 }
