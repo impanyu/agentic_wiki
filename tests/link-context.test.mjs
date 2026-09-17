@@ -14,6 +14,16 @@ test('link resolution uses authenticated source and local passage only when need
  assert.equal(await m.contextualLinkQuestion('Transmission',origin,'user'),'Transmission');
  accessible=false;await assert.rejects(m.contextualLinkQuestion('Transmission',origin,'other'),/UNAVAILABLE/);accessible=true;
 });
+test('the root router receives a self-contained article-link question only when the visible text needs it',async()=>{
+ result={needsContext:true,question:'Malaria transmission'};
+ assert.equal(await m.contextualLinkQuestion('Transmission',origin,'user'),'Malaria transmission');
+ assert.match(request.instructions,/independently sufficient/);
+ assert.match(request.instructions,/root router/);
+ result={needsContext:false,question:'Malaria World Health Organization'};
+ const originalBody=page.body;page.body='## Organizations\nWorld Health Organization publishes guidance.';
+ assert.equal(await m.contextualLinkQuestion('World Health Organization',{...origin,highlight:{quote:'World Health Organization',segments:[{node:'line1.0',start:0,end:25}]}},'user'),'World Health Organization');
+ page.body=originalBody;
+});
 test('stale or forged link ranges fail closed',()=>{
  assert.throws(()=>m.linkContext(page,{quote:'Other',segments:origin.highlight.segments}),/CHANGED/);
  assert.throws(()=>m.linkContext(page,{quote:'Transmission',segments:[{node:'line1.0',start:0,end:1000}]}),/CHANGED/);
