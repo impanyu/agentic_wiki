@@ -25,8 +25,9 @@ test('transport sends multipart bytes intact and rejects binary files in text mo
 });
 
 test('ADMA agents discover public integration roots and can read complete paginated text',async()=>{
- globalThis.catalogZ=z;globalThis.admaPages={request:async()=>({data:{content:'a'.repeat(20000),contentType:'application/json'}}),catalog:async()=>[{id:'realm5',name:'Realm5',kind:'folder'}]};
+ globalThis.catalogZ=z;globalThis.admaPages={request:async()=>({data:{content:'a'.repeat(20000),contentType:'application/json',files:[{name:'station_2026-09-01.json'},{name:'station_2026-09-02.json'}]}}),catalog:async()=>[{id:'realm5',name:'Realm5',kind:'folder'}]};
  const a=await load('const z=globalThis.catalogZ;const {request:remoteRequest,catalog:publicThirdPartyCatalog}=globalThis.admaPages;'+strip('app/connectors/adapters.ts'));
+ const matching=await a.executeApiConnector('adma','token','list_files',{search:'2026-09-01'});assert.equal(matching.files.length,1);assert.equal(matching.files[0].name,'station_2026-09-01.json');
  const roots=await a.executeApiConnector('adma','token','list_folders',{});assert.equal(roots.thirdPartyRoots[0].name,'Realm5');
  const first=await a.executeApiConnector('adma','token','read_text_file',{file_id:'123'});assert.equal(first.content.length,16000);assert.equal(first.nextOffset,16000);
  const last=await a.executeApiConnector('adma','token','read_text_file',{file_id:'123',offset:first.nextOffset});assert.equal(last.content.length,4000);assert.equal(last.nextOffset,null);assert.equal(first.content+last.content,'a'.repeat(20000));
