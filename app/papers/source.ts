@@ -1,0 +1,2 @@
+export type PaperSource={title:string;url:string};
+export function sourcePaperPdf(sources:PaperSource[]){for(const source of sources){try{const url=new URL(source.url);if(url.protocol!=='https:')continue;if(/\.pdf(?:$|[?#])/i.test(url.pathname+url.search+url.hash))return url.href;const arxiv=url.hostname==='arxiv.org'&&url.pathname.match(/^\/abs\/([^/]+)$/);if(arxiv)return 'https://arxiv.org/pdf/'+arxiv[1];}catch{}}return '';}

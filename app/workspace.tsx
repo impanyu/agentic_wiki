@@ -406,7 +406,7 @@ export default function Workspace({ user, signIn, signOut }: {
         </div>
         {!draft&&visiblePage.kind==='dynamic'&&<section className="repository-transfer" aria-label={t('Data transfer')}><div><strong>{t('Data transfer')}</strong><p>{t('Copy or move files and folders between connected repositories and this page.')}</p></div><button type="button" onClick={()=>setTransferPage(visiblePage.id)}>{t('Transfer files')}</button></section>}
         <div hidden={!!nativeApp} ref={article} onMouseUp={captureSelection} onKeyUp={captureSelection} onTouchEnd={()=>setTimeout(captureSelection,0)}>
-          {!draft&&visiblePage.labels.templateId==='paper-v1'?<PaperWorkspace pageId={visiblePage.id} body={visiblePage.body} revision={filesRevision}>{articleView}</PaperWorkspace>:articleView}
+          {!draft&&visiblePage.labels.templateId==='paper-v1'?<PaperWorkspace pageId={visiblePage.id} body={visiblePage.body} sources={visiblePage.sources} revision={filesRevision}>{articleView}</PaperWorkspace>:articleView}
         </div>
         {visiblePage.kind==='dynamic'&&visiblePage.dynamic?.template==='unit-converter-v1'&&<UnitConverter key={visiblePage.id+JSON.stringify(visiblePage.runtime?.input)} page={visiblePage} onResult={page=>{const text=page.runtime?`${page.runtime.input.value} ${page.runtime.fromSymbol} → ${page.runtime.toSymbol}`:question;setSelected(page);setQuestion(text);recordHistory(page.id,text,page.runtime?.input);setStatus('');}}/>}
         {visiblePage.dynamic?.template==='google-drive-folders-v1'&&visiblePage.dynamic.driveLabels&&<DriveFolders key={'drive:'+visiblePage.id} pageId={visiblePage.id} labels={visiblePage.dynamic.driveLabels}/>}
