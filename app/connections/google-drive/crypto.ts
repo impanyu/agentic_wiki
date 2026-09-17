@@ -1,6 +1,8 @@
 export const DRIVE_SCOPE='https://www.googleapis.com/auth/drive.readonly https://www.googleapis.com/auth/drive.file';
 const bytes=(s:string)=>Uint8Array.from(atob(s),c=>c.charCodeAt(0));
-const base64=(b:Uint8Array)=>btoa(String.fromCharCode(...b));
+// Connector action results can be much larger than OAuth tokens. Keep each
+// conversion below the JavaScript argument limit without changing vault format.
+const base64=(b:Uint8Array)=>{let binary='';for(let i=0;i<b.length;i+=32768)binary+=String.fromCharCode(...b.subarray(i,i+32768));return btoa(binary);};
 export async function encryptSecret(value:unknown,encodedKey:string,binding:string){const raw=bytes(encodedKey);if(raw.length!==32)throw new Error('INVALID_VAULT_KEY');const key=await crypto.subtle.importKey('raw',raw,'AES-GCM',false,['encrypt']);const iv=crypto.getRandomValues(new Uint8Array(12));const ciphertext=await crypto.subtle.encrypt({name:'AES-GCM',iv,additionalData:new TextEncoder().encode(binding)},key,new TextEncoder().encode(JSON.stringify(value)));return JSON.stringify({iv:base64(iv),ciphertext:base64(new Uint8Array(ciphertext))});}
 export async function decryptSecret(text:string,encodedKey:string,binding:string){const record=JSON.parse(text),raw=bytes(encodedKey);if(raw.length!==32)throw new Error('INVALID_VAULT_KEY');const key=await crypto.subtle.importKey('raw',raw,'AES-GCM',false,['decrypt']);const plaintext=await crypto.subtle.decrypt({name:'AES-GCM',iv:bytes(record.iv),additionalData:new TextEncoder().encode(binding)},key,bytes(record.ciphertext));return JSON.parse(new TextDecoder().decode(plaintext));}
 export async function userSecretPath(userId:string){const hash=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(userId));return 'secrets/google-drive/'+Array.from(new Uint8Array(hash),v=>v.toString(16).padStart(2,'0')).join('');}
