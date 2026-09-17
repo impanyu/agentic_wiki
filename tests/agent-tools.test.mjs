@@ -10,5 +10,5 @@ test('shared toolbox dispatches directly as the actor and rechecks page permissi
  await toolbox.execute('list_data_files',{after:''});assert.equal(actor,'viewer');assert.equal(calls,1);
  await toolbox.execute('execute_code',{componentId:'c',version:1,inputJson:'{}'});assert.equal(actor,'viewer');assert.equal(calls,2);
  owned=false;await assert.rejects(toolbox.execute('execute_code',{componentId:'c',version:1,inputJson:'{}'}),/READ_ONLY/);assert.equal(calls,2);
- const readonly=await applicationToolbox(agent,context);assert.ok(!readonly.tools.some(t=>t.name==='execute_code'));assert.ok(readonly.tools.some(t=>t.name==='list_data_files'));delete globalThis.toolboxTest;
+ const readonly=await applicationToolbox(agent,context);assert.ok(!readonly.tools.some(t=>t.name==='execute_code'));assert.ok(readonly.tools.some(t=>t.name==='list_data_files'));const generator=await applicationToolbox({id:'g',role:'generation',ownerId:'viewer'},{userId:'owner',ownerId:'owner',language:'en',visibility:'private'});assert.ok(generator.tools.some(t=>t.name==='call_connector'));assert.ok(generator.tools.some(t=>t.name==='suggest_page'));await generator.execute('call_connector',{connectorId:'test',tool:'read',argumentsJson:'{}'});assert.equal(actor,'viewer');delete globalThis.toolboxTest;
 });

@@ -17,7 +17,7 @@ for(const [id,visibility] of [['11111111-1111-4111-8111-111111111111','private']
 const bucket=new FileBucket(join(dir,'objects'));await bucket.put('uploads/smoke','private file bytes');
 await db.prepare("INSERT INTO components(id,type,owner_id,visibility,language,title,description,payload,created_at) VALUES('smoke-file','data','google:smoke','private','en','file','test',?,?)").bind(JSON.stringify({kind:'data-reference',location:'r2://FILES/uploads/smoke',fileName:'test.txt',size:18}),new Date().toISOString()).run();
 await db.prepare("INSERT INTO page_files(id,page_id,component_id,owner_id,scope,created_at) VALUES('smoke-attachment','11111111-1111-4111-8111-111111111111','smoke-file','google:smoke','',?)").bind(new Date().toISOString()).run();
-const child=spawn(process.execPath,[resolve('.next/standalone/server.js')],{env:{...process.env,NODE_ENV:'production',HOSTNAME:'127.0.0.1',PORT:String(port),APP_URL:origin,DATA_DIR:dir,OPENAI_API_KEY:'',GOOGLE_CLIENT_ID:'',GOOGLE_CLIENT_SECRET:''},stdio:['ignore','pipe','pipe']});
+const child=spawn(process.execPath,[resolve('.next/standalone/server.js')],{env:{...process.env,NODE_ENV:'production',HOSTNAME:'127.0.0.1',PORT:String(port),APP_URL:origin,DATA_DIR:dir,OPENAI_API_KEY:'',GOOGLE_CLIENT_ID:'',GOOGLE_CLIENT_SECRET:'',STORAGE_TOKEN_ENCRYPTION_KEY:randomBytes(32).toString('base64')},stdio:['ignore','pipe','pipe']});
 let logs='';child.stdout.on('data',b=>logs+=b);child.stderr.on('data',b=>logs+=b);
 try{
  let ready=false;for(let i=0;i<100;i++){if(child.exitCode!==null)throw Error('Server stopped: '+logs);try{if((await fetch(origin+'/api/health')).ok){ready=true;break;}}catch{}await new Promise(r=>setTimeout(r,100));}assert.ok(ready,'Server readiness timed out');
@@ -61,10 +61,17 @@ try{
  const listing=await (await fetch(privateUrl+'/files',{headers})).json();assert.ok(listing.folders.includes('Research/Images'));assert.equal(listing.files[0].folderPath,'Research/Images');assert.equal(listing.files[0].name,'renamed.txt');
  assert.equal((await fetch(download,{method:'PATCH',headers,body:JSON.stringify({name:'renamed.txt',folderPath:'../private'})})).status,400);
  assert.ok((await (await fetch(origin+'/api/page-link-targets?q=Edited',{headers})).json()).pages.some(p=>p.id===originalPage.id));
+ const resourceRoot={space:'page',kind:'folder',id:'',name:'Page files'};
+ const resourceList=await (await fetch(privateUrl+'/resources?folder='+encodeURIComponent(JSON.stringify(resourceRoot)),{headers})).json();assert.ok(resourceList.items.some(x=>x.name==='Research'));
+ const copyRequest={operationId:crypto.randomUUID(),sources:[{space:'page',kind:'file',id:'smoke-attachment',name:'renamed.txt'}],destination:resourceRoot};
+ const copied=await (await fetch(privateUrl+'/resources',{method:'POST',headers,body:JSON.stringify(copyRequest)})).json();assert.equal(copied.state,'complete');assert.equal(copied.copied.length,1);
+ const copiedId=copied.copied[0].result.id;assert.notEqual(copiedId,'smoke-attachment');assert.equal(await (await fetch(privateUrl+'/files/'+copiedId,{headers})).text(),'private file bytes');
+ const retry=await (await fetch(privateUrl+'/resources',{method:'POST',headers,body:JSON.stringify(copyRequest)})).json();assert.equal(retry.copied[0].result.id,copiedId);
+ assert.equal((await fetch(privateUrl+'/resources',{method:'POST',headers:{origin,'Content-Type':'application/json'},body:JSON.stringify({...copyRequest,operationId:crypto.randomUUID()})})).status,400);
  assert.equal((await fetch(origin+'/auth/google',{redirect:'manual'})).status,503);
  assert.equal((await fetch(origin+'/auth/signout',{method:'POST',headers:{origin:'https://evil.example',cookie:'agenticwiki_session='+session}})).status,403);
  const loggedOut=await fetch(origin+'/auth/signout',{method:'POST',headers:{origin,cookie:'agenticwiki_session='+session},redirect:'manual'});assert.equal(loggedOut.status,303);
  assert.equal((await fetch(privateUrl,{headers:{cookie:'agenticwiki_session='+session}})).status,404);
- console.log('VM HTTP smoke passed: health, home/assets, public/private ACL, spoofed-header rejection, session access, private file download, persistent history, OAuth setup state and logout revocation.');
+ console.log('VM HTTP smoke passed: health, home/assets, public/private ACL, spoofed-header rejection, session access, private file download, binary copy and retry deduplication, persistent history, OAuth setup state and logout revocation.');
 }catch(error){console.error(logs);throw error;}
 finally{child.kill('SIGTERM');await new Promise(r=>{if(child.exitCode!==null)r();else child.once('exit',r);});db.close();await rm(dir,{recursive:true,force:true});}

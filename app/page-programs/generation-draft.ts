@@ -3,7 +3,7 @@ import {env} from '@/server/runtime';
 import {generationIntentSchema} from './generation-intent';
 import {normalizeCustomStyle} from './custom-style';
 import {indexSchema,indexAnswer} from '@/app/disambiguation';
-import {namedConnectors,pageStorageProviders} from '@/app/storage/page-scope';
+import {namedConnectors,pageStorageProviders,requestsDataResult} from '@/app/storage/page-scope';
 import {codeSchema} from '@/app/sandboxes/contracts';
 import {sandboxStatus} from '@/app/sandboxes/service';
 import {inputFieldsSchema} from './inputs';
@@ -15,7 +15,7 @@ import type {TemplateId} from '@/app/templates/catalog';
 const source=z.object({title:z.string().min(1).max(500),url:z.string().url().refine(u=>/^https?:\/\//.test(u))});
 const draftSchema=z.object({kind:z.enum(['article','disambiguation','chat','files','index','program','chart','form','converter','native']),title:z.string().min(1).max(200),summary:z.string().min(1).max(1200),body:z.string().max(40000).default(''),category:z.string().max(100).default(''),sources:z.array(source).max(40).default([]),labels:z.record(z.string().max(500)),intent:generationIntentSchema,entries:indexSchema.shape.entries.optional(),templateId:z.enum(['files-v1','dashboard-v1','table-v1','form-v1','chat-v1','geo-v1','data-tools-v1']).optional(),nativeApp:z.enum(['map','table','json','text','image','pdf','archive','hub']).optional(),program:codeSchema.optional(),inputFields:inputFieldsSchema.optional(),chart:z.unknown().optional(),dataset:z.unknown().optional(),form:formSchema.optional(),expression:z.unknown().optional(),examples:z.array(z.object({input:parametersSchema,output:parametersSchema})).max(4).optional(),parameters:parametersSchema.default({})}).strict();
 export type GenerationDraft=z.infer<typeof draftSchema>;
-export function validateGenerationDraft(raw:unknown,question:string,context:AgentContext,webSearched:boolean){
+export function validateGenerationDraft(raw:unknown,question:string,context:AgentContext,webSearched:boolean,dataConsulted=false){
  const d=draftSchema.parse(raw);
  if(d.intent.visualTheme==='custom')d.intent.visualDesign=normalizeCustomStyle(d.intent.visualDesign);
  const ambiguous=d.intent.needsDisambiguation||!d.intent.singleMeaningCertain||new Set(d.intent.interpretations.map(x=>x.trim().toLowerCase())).size>1;
@@ -32,6 +32,7 @@ export function validateGenerationDraft(raw:unknown,question:string,context:Agen
   d.intent.outputKind='article';
  }else{
   d.intent.outputKind=d.kind==='chart'?'chart':d.kind==='chat'?'conversation':'application';
+  if(d.kind==='files'&&requestsDataResult(question))throw Error('A file browser cannot fulfill an analytical result request. Read the authorized source data and build the requested chart or program; if data is unavailable, explain the missing data honestly.');
   if(d.kind==='files'&&!namedConnectors(question).includes('adma')&&!pageStorageProviders(question).length)throw Error('This connector is not a registered storage browser. Use a program or a truthful chat workspace.');
   if(d.kind==='native'&&!d.nativeApp)throw Error('A native app requires nativeApp.');
   if(d.kind==='program'){
@@ -39,7 +40,7 @@ export function validateGenerationDraft(raw:unknown,question:string,context:Agen
    if(!d.program||!d.inputFields||!d.templateId)throw Error('A program needs code, inputFields and templateId.');
    const status=sandboxStatus(context.userId);if(!status.configured||!status.allowed)throw Error('Sandbox unavailable. Choose an honest supported alternative.');
   }
-  if(d.kind==='chart'){d.chart=chartSchema.parse(d.chart);d.dataset=validateChartData(d.chart as any,d.dataset);if(!webSearched)throw Error('Research the chart observations before finalizing the dataset.');}
+  if(d.kind==='chart'){d.chart=chartSchema.parse(d.chart);d.dataset=validateChartData(d.chart as any,d.dataset);if(!webSearched&&!dataConsulted)throw Error('Read the chart observations using authorized connector/file tools or web research before finalizing the dataset.');}
   if(d.kind==='form'){
    if(!d.form||!d.examples?.length)throw Error('An expression form needs its form definition and independently calculated examples.');
    const program=validateProgram(d.expression,d.form.fields.map(f=>f.name));

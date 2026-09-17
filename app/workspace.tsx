@@ -176,19 +176,23 @@ export default function Workspace({ user, signIn, signOut }: {
     try{const stored=JSON.parse(sessionStorage.getItem('samepage-navigation')||'[]');if(Array.isArray(stored)&&stored.every(e=>typeof e.key==='string'&&typeof e.question==='string'))trail.current=stored;}catch{}
     for(const entry of trail.current){if(entry.page)saveVisit(entry.page,entry.question,entry.parameters,entry.key,true);}
     let idx=trail.current.findIndex(e=>e.key===history.state?.samepageKey);
-    if(idx<0){const key=crypto.randomUUID();trail.current=[{key,page:new URLSearchParams(location.search).get('page'),question:''}];history.replaceState({...history.state,samepageKey:key},'');idx=0;}
+    if(idx<0){const key=crypto.randomUUID(),entry={key,page:new URLSearchParams(location.search).get('page'),question:''};let previous=-1;try{const pending=JSON.parse(sessionStorage.getItem('samepage-link-navigation')||'null');sessionStorage.removeItem('samepage-link-navigation');if(pending&&Date.now()-pending.time<60000)previous=trail.current.findIndex(e=>e.key===pending.from);}catch{}trail.current=previous>=0?trail.current.slice(0,previous+1).concat(entry):[entry];history.replaceState({...history.state,samepageKey:key},'');idx=trail.current.length-1;}
+    try{sessionStorage.setItem('samepage-navigation',JSON.stringify(trail.current));}catch{}
     position.current=idx;setHistoryPosition(idx);setHistoryLength(trail.current.length);
-    void restore();
+    const initialQuestion=new URLSearchParams(location.search).get('ask');if(initialQuestion&&!new URLSearchParams(location.search).has('page'))void navigate(initialQuestion);else void restore();
     const onHistory = () => { void restore(); };
     const onShortcut = (event: KeyboardEvent) => {
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
         event.preventDefault(); input.current?.focus(); input.current?.select();
       }
     };
+    const onPageLink=(event:MouseEvent)=>{if(event.defaultPrevented||event.button!==0||event.metaKey||event.ctrlKey||event.shiftKey||event.altKey)return;const anchor=(event.target as Element)?.closest?.('a[href]') as HTMLAnchorElement|null;if(!anchor||anchor.target&&anchor.target!=='_self'||anchor.hasAttribute('download'))return;const url=new URL(anchor.href,location.href);if(url.origin!==location.origin||!(['/maps','/tools'].includes(url.pathname)||url.pathname==='/'&&url.searchParams.has('page')))return;try{sessionStorage.setItem('samepage-link-navigation',JSON.stringify({from:history.state?.samepageKey,time:Date.now()}));}catch{}};
+    window.addEventListener('click',onPageLink);
     window.addEventListener('popstate', onHistory);
     window.addEventListener('keydown', onShortcut);
     return () => {
       request.current?.abort();
+      window.removeEventListener('click',onPageLink);
       window.removeEventListener('popstate', onHistory);
       window.removeEventListener('keydown', onShortcut);
     };
@@ -406,7 +410,7 @@ export default function Workspace({ user, signIn, signOut }: {
         {visiblePage.kind==='dynamic'&&visiblePage.dynamic?.template!=='native-app-v1'&&pageStorageProviders(visiblePage.question||visiblePage.title,visiblePage.parameters).length>0&&<StoragePanel writable={canWritePage(visiblePage)} question={visiblePage.question} key={visiblePage.id+JSON.stringify(visiblePage.parameters||{})} parameters={visiblePage.parameters} pageId={visiblePage.id} language={visiblePage.language} expanded={visiblePage.labels.templateId==='files-v1'||!!visiblePage.runtimeError}/>}
         <div className={nativeApp?'connector-support':undefined}>
         {!draft&&<ContextFiles key={'files:'+visiblePage.id} page={visiblePage} revision={filesRevision} busy={busy} onChanged={()=>setFilesRevision(n=>n+1)} onUpload={()=>uploadInput.current?.click()}/>}
-        {!draft&&<PageAgentChat key={'chat:'+visiblePage.id} page={visiblePage} onResult={setSelected}/>}
+        {!draft&&<PageAgentChat key={'chat:'+visiblePage.id} page={visiblePage} onResult={setSelected} onOpenQuestion={text=>void navigate(text)}/>}
         </div>
 
         <div className="saved-note">{draft ? t(busy?'Draft · Not saved yet':'Incomplete draft · Not saved') : t('Saved {date} · {count} questions linked',{date:new Date(visiblePage.createdAt).toLocaleDateString(locale),count:visiblePage.questionCount})}</div>

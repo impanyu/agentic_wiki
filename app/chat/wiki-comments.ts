@@ -1,3 +1,5 @@
+import {resolveMentions} from '@/app/resources/service';
+import type {Mention} from '@/app/resources/contracts';
 import {ensureRoleSession} from './session';
 import {canWritePage} from '@/app/page-permissions';
 import {startJob,finishJob} from '@/app/context-index/jobs';
@@ -30,7 +32,7 @@ export async function getWikiComments(request:Request,page:AnswerPage,viewer:Vie
  const messages=rows.results.slice(0,50).reverse();
  return finish(reply({messages,before:rows.results.length>50?messages[0]?.sequence:null,userName:viewer.userName,editDraft:canWritePage(page)?(await readEditDraft(agent,page.id)||await readEditDraft(viewer.agent,page.id)):null}),viewer);
 }
-export async function postWikiComment(request:Request,page:AnswerPage,viewer:Viewer,data:{message?:string;saveDraftId?:string}){
+export async function postWikiComment(request:Request,page:AnswerPage,viewer:Viewer,data:{message?:string;saveDraftId?:string;mentions?:Mention[]}){
  await importLegacyComments(page.id,viewer.userId,viewer.userName);
  const agent=await commentAgent(page.id,viewer);
  if(data.saveDraftId&&!canWritePage(page))return finish(reply({error:'This page is read-only.'},403),viewer);
@@ -44,7 +46,7 @@ export async function postWikiComment(request:Request,page:AnswerPage,viewer:Vie
   const ownConversation=await conversationContext(agent);
   const recent=await database().prepare('SELECT author_name author,message,reply FROM wiki_comments WHERE page_id=? ORDER BY sequence DESC LIMIT 30').bind(page.id).all();
   const attachments=await fileContext(page.id,viewer.userId);
-  const context={ownConversation,pageDiscussion:recent.results.reverse(),attachedFiles:attachments.metadata};
+  const context={ownConversation,pageDiscussion:recent.results.reverse(),attachedFiles:attachments.metadata,selectedReferences:data.mentions?.length?await resolveMentions(page.id,viewer.userId,data.mentions||[]):[]};
   const result=await editWiki(page,data.message!,context,viewer.userId,agent,onReply,signal,attachments.parts);
   signal?.throwIfAborted();
   await saveComment(page.id,agent,viewer,data.message!,result.reply,createdAt);

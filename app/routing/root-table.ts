@@ -1,8 +1,9 @@
-import {database,normalize} from '@/db/store';
+import {database,getPage,normalize} from '@/db/store';
 import {assessQuestion,cosine,type Candidate} from '@/app/api/ask/ai';
 import {nearestQuestions} from '@/app/api/ask/ranking';
 import {pageIntent} from '@/app/components-registry/chart-composer';
 import {recordAction,type Agent} from '@/app/agents/runtime';
+import {storagePageMismatch} from '@/app/storage/page-scope';
 type Intent=Awaited<ReturnType<typeof pageIntent>>;
 type RootRoute={id:string;question:string;embedding:string;target_type:'wiki_router'|'session_router'|'app';app_id:string|null;intent:string};
 export function rootTarget(domain:'wiki'|'session'|'app',pageId:string){return {type:domain==='wiki'?'wiki_router':domain==='session'?'session_router':'app',appId:domain==='app'?pageId:null};}
@@ -14,7 +15,8 @@ export async function resolveRootRoute(question:string,vector:number[],language:
   if(rows.results.length<100)break;after=rows.results.at(-1)!.id;
  }
  const decision=candidates.length?await assessQuestion(question,candidates,language):null;
- const selected=decision?.confidence==='high'?candidates.find(c=>c.id===decision.questionId):null;
+ let selected=decision?.confidence==='high'?candidates.find(c=>c.id===decision.questionId):null;
+ if(selected?.route.app_id){const page=await getPage(selected.route.app_id,userId);if(!page||storagePageMismatch(question,page))selected=undefined;}
  await recordAction(agent,'Look up root routing table',{question,candidates:candidates.map(c=>({id:c.id,question:c.question,target:c.route.target_type})),matchedRouteId:selected?.id||null});
  if(selected){return {intent:JSON.parse(selected.route.intent) as Intent,appId:selected.route.app_id};}
  return {intent:await pageIntent(question,agent),appId:null};

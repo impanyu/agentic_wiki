@@ -16,3 +16,12 @@ test('named storage pages stay focused, while multi-provider tasks retain reques
 });
 
 test('rejects cross-service reuse and unsupported saved file browsers',()=>{assert.equal(storagePageMismatch('list my adma files',{question:'list my google drive',title:'Drive'}),true);assert.equal(storagePageMismatch('list my adma files',{question:'list my adma files',title:'ADMA',dynamic:{template:'file-browser-v1'}}),false);assert.equal(storagePageMismatch('list my google drive',{question:'list my google drive',title:'Drive',dynamic:{template:'file-browser-v1'}}),false);});
+
+test('analytical output requests cannot reuse storage browsers, including old ADMA programs',()=>{
+ const query='the temperature plot 9/1/2026 on adma realm5';
+ for(const template of ['file-browser-v1','page-program-v1'])assert.equal(storagePageMismatch(query,{question:'list my adma files',title:'ADMA',dynamic:{template}}),true);
+ assert.equal(storagePageMismatch('分析谷歌云盘的数据并绘图',{title:'Drive',dynamic:{template:'file-browser-v1'}}),true);
+ assert.equal(storagePageMismatch(query,{question:query,title:'Realm5 temperature',dynamic:{template:'component-chart-v1'}}),false);
+ assert.equal(storagePageMismatch(query,{question:query,title:'Realm5 temperature',dynamic:{template:'page-program-v1'}}),false);
+ assert.equal(storagePageMismatch('browse realm5 folders on adma',{question:'list my adma files',title:'ADMA',dynamic:{template:'file-browser-v1'}}),false);
+});

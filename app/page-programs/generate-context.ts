@@ -16,7 +16,7 @@ export async function generateContext(brief:GenerationBrief,context:AgentContext
  const indexPolicy=await indexGenerationPolicy(brief.question,context.userId);
  context={...context,indexLeafRequired:indexPolicy.leafRequired};
  const generator=await spawnAgent('content-generation',context.ownerId,router),ctx={...context,agent:generator};
- let draft:GenerationDraft|undefined,searched=false,lastPreview=0;
+ let draft:GenerationDraft|undefined,searched=false,dataConsulted=false,lastPreview=0;
  const checkedDrafts=new Map<string,GenerationDraft>();
  emit?.({type:'status',message:context.language.startsWith('zh')?'生成器正在处理请求…':'The generator is working on your request…'});
  const preview=(text:string)=>{
@@ -35,10 +35,10 @@ export async function generateContext(brief:GenerationBrief,context:AgentContext
    if(name==='validate_page_draft'){try{const checked=validateGenerationDraft(JSON.parse(args.draftJson),brief.question,ctx,true);if(checked.kind==='disambiguation')indexPolicy.validate(checked.entries!);const draftRef='draft:'+crypto.randomUUID();if(checkedDrafts.size>=16)checkedDrafts.delete(checkedDrafts.keys().next().value!);checkedDrafts.set(draftRef,checked);return {data:{valid:true,draftRef,note:'Structural validation only; factual claims still require consulted evidence.'}};}catch(e){return {data:{valid:false,error:e instanceof Error?e.message:'Invalid draft'}};}}
    throw Error('Unknown generation tool.');
   },
-  onEvent:e=>{if(e.kind==='tool_started')emit?.({type:'status',message:context.language.startsWith('zh')?'生成器正在使用工具…':'The generator is using a tool…'});if(e.kind==='validation_failed')emit?.({type:'status',message:context.language.startsWith('zh')?'生成器正在修正草稿…':'The generator is correcting its draft…'});},
+  onEvent:e=>{if(e.kind==='tool_finished'){const d=e.data as {tool:string;result:any};if(['call_connector','storage_execute','read_uploaded_file','execute_api','execute_code'].includes(d.tool)&&d.result&&!d.result.error&&!d.result.confirmationRequired)dataConsulted=true;}if(e.kind==='tool_started')emit?.({type:'status',message:context.language.startsWith('zh')?'生成器正在使用工具…':'The generator is using a tool…'});if(e.kind==='validation_failed')emit?.({type:'status',message:context.language.startsWith('zh')?'生成器正在修正草稿…':'The generator is correcting its draft…'});},
   validateFinal:async(response,trace)=>{
    searched ||= trace.webSearched;
-   try{const encoded=JSON.parse(output(response)).draftJson;const raw=typeof encoded==='string'&&encoded.startsWith('draft:')?checkedDrafts.get(encoded):JSON.parse(encoded);if(!raw)throw Error('Unknown draft reference. Submit the complete draft or a reference returned in this run.');draft=validateGenerationDraft(raw,brief.question,ctx,searched);if(draft.kind==='disambiguation')indexPolicy.validate(draft.entries!);}catch(e){return e instanceof Error?e.message:'Invalid page draft';}
+   try{const encoded=JSON.parse(output(response)).draftJson;const raw=typeof encoded==='string'&&encoded.startsWith('draft:')?checkedDrafts.get(encoded):JSON.parse(encoded);if(!raw)throw Error('Unknown draft reference. Submit the complete draft or a reference returned in this run.');draft=validateGenerationDraft(raw,brief.question,ctx,searched,dataConsulted);if(draft.kind==='disambiguation')indexPolicy.validate(draft.entries!);}catch(e){return e instanceof Error?e.message:'Invalid page draft';}
   }
  });
  if(!draft)throw Error('INCOMPLETE_ANSWER');
