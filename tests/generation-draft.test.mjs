@@ -51,6 +51,11 @@ test('wiki articles can rely on authorized connector evidence without public web
  assert.throws(()=>m.validateGenerationDraft(base,'Explain the document',ctx,false,false),/Research the reference subject/);
  assert.throws(()=>m.validateGenerationDraft({...base,sources:[]},'Explain the document',ctx,false,true),/cited sources/);
 });
+test('paper articles reuse the pre-coded reader while remaining editable static wiki pages',async()=>{
+ const draft=m.validateGenerationDraft({...base,templateId:'paper-v1'},'Read this research paper',ctx,true);
+ const result=await m.materializeGenerationDraft(draft,ctx);
+ assert.equal(result.templateId,'paper-v1');assert.equal(result.definition,undefined);
+});
 
 test('static articles accept isolated frontend interaction without a backend program',()=>{
  const interactive={kind:'sandbox-app',html:'<button>Explore</button>',css:'',javascript:'document.querySelector("button").onclick=()=>{}',height:400};

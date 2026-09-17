@@ -408,5 +408,18 @@
   "Move here": "移动到这里",
   "Move to…": "移动到…",
   "Remove originals only after all copied files are verified. ADMA removal is permanent; cloud files go to trash where supported. Page files are detached from this page.": "仅在所有复制文件验证成功后移除源文件。ADMA 删除是永久性的；云盘文件在支持时进入回收站；页面文件将解除与本页面的关联。",
-  "Turning on enables all tools. You can uncheck individual tools afterward.": "开启连接器时默认启用全部工具，之后可以单独取消勾选。"
+  "Turning on enables all tools. You can uncheck individual tools afterward.": "开启连接器时默认启用全部工具，之后可以单独取消勾选。",
+  "Paper Reader": "论文阅读器",
+  "Read the paper beside its detailed wiki.": "在详细 Wiki 旁阅读论文原文。",
+  "Paper PDF": "论文 PDF",
+  "Choose a page PDF": "选择页面中的 PDF",
+  "Upload a PDF in Page files": "请先将 PDF 上传到页面文件",
+  "Hide reader": "隐藏阅读器",
+  "Show reader": "显示阅读器",
+  "Ask page agent": "询问页面 Agent",
+  "Paper document": "论文原文",
+  "Open the original paper": "打开论文原文",
+  "Upload the PDF to Page files, then choose it here. The page agent can read selected PDF pages and update this wiki after you approve its proposal.": "将 PDF 上传到页面文件后在这里选择。页面 Agent 可以读取指定页，并在你批准修改预览后更新此 Wiki。",
+  "Paper analysis sections": "论文分析章节",
+  "Analysis": "分析"
 }

@@ -14,7 +14,7 @@ import {createComponent,type AgentContext,type Component} from '@/app/components
 import type {DynamicConfig,ConverterLabels} from '@/app/dynamic/units';
 import type {TemplateId} from '@/app/templates/catalog';
 const source=z.object({title:z.string().min(1).max(500),url:z.string().url().refine(u=>/^https?:\/\//.test(u))});
-const draftSchema=z.object({kind:z.enum(['article','disambiguation','chat','files','index','program','chart','form','converter','native']),title:z.string().min(1).max(200),summary:z.string().min(1).max(1200),body:z.string().max(40000).default(''),category:z.string().max(100).default(''),sources:z.array(source).max(40).default([]),labels:z.record(z.string().max(500)),intent:generationIntentSchema,entries:indexSchema.shape.entries.optional(),templateId:z.enum(['files-v1','dashboard-v1','table-v1','form-v1','chat-v1','geo-v1','data-tools-v1']).optional(),nativeApp:z.enum(['adma-tools','map','table','json','text','image','pdf','archive','hub']).optional(),interactive:sandboxSchema.optional(),program:codeSchema.optional(),inputFields:inputFieldsSchema.optional(),chart:z.unknown().optional(),dataset:z.unknown().optional(),form:formSchema.optional(),expression:z.unknown().optional(),examples:z.array(z.object({input:parametersSchema,output:parametersSchema})).max(4).optional(),parameters:parametersSchema.default({})}).strict();
+const draftSchema=z.object({kind:z.enum(['article','disambiguation','chat','files','index','program','chart','form','converter','native']),title:z.string().min(1).max(200),summary:z.string().min(1).max(1200),body:z.string().max(40000).default(''),category:z.string().max(100).default(''),sources:z.array(source).max(40).default([]),labels:z.record(z.string().max(500)),intent:generationIntentSchema,entries:indexSchema.shape.entries.optional(),templateId:z.enum(['files-v1','dashboard-v1','table-v1','form-v1','chat-v1','geo-v1','data-tools-v1','paper-v1']).optional(),nativeApp:z.enum(['adma-tools','map','table','json','text','image','pdf','archive','hub']).optional(),interactive:sandboxSchema.optional(),program:codeSchema.optional(),inputFields:inputFieldsSchema.optional(),chart:z.unknown().optional(),dataset:z.unknown().optional(),form:formSchema.optional(),expression:z.unknown().optional(),examples:z.array(z.object({input:parametersSchema,output:parametersSchema})).max(4).optional(),parameters:parametersSchema.default({})}).strict();
 export type GenerationDraft=z.infer<typeof draftSchema>;
 export function validateGenerationDraft(raw:unknown,question:string,context:AgentContext,webSearched:boolean,dataConsulted=false){
  const d=draftSchema.parse(raw);
@@ -59,10 +59,11 @@ export function validateGenerationDraft(raw:unknown,question:string,context:Agen
 export async function materializeGenerationDraft(d:GenerationDraft,context:AgentContext){
  const answer={title:d.title,summary:d.summary,body:d.body,category:d.category,sources:d.sources,labels:d.labels};
  if(d.kind==='article'){
-  if(!d.interactive)return {answer,definition:undefined,templateId:'wiki-v1' as TemplateId};
+  const articleTemplate=d.templateId==='paper-v1'?'paper-v1':'wiki-v1';
+  if(!d.interactive)return {answer,definition:undefined,templateId:articleTemplate as TemplateId};
   const frontend=await createComponent(d.title+' — interactive illustration','frontend_template',d.interactive,context);
   const config:DynamicConfig={template:'component-sandbox-v1',executor:'static-frontend-v1',version:1,labels:d.labels as ConverterLabels,components:{frontend:{id:frontend.id,version:frontend.version}}};
-  return {answer,templateId:'wiki-v1' as TemplateId,definition:{title:d.title,summary:d.summary,body:d.body,sources:d.sources,config,parameters:d.parameters,components:[{role:'frontend',component:frontend}]}};
+  return {answer,templateId:articleTemplate as TemplateId,definition:{title:d.title,summary:d.summary,body:d.body,sources:d.sources,config,parameters:d.parameters,components:[{role:'frontend',component:frontend}]}};
  }
  if(d.kind==='disambiguation')return {answer:indexAnswer({needed:true,title:d.title,summary:d.summary,entries:d.entries!}),definition:undefined,templateId:'disambiguation-v1' as TemplateId};
  let templateId:TemplateId=d.templateId||'chat-v1';
