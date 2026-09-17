@@ -667,5 +667,16 @@
   "Mention files and folders": "Mention files and folders",
   "Data transfer": "Data transfer",
   "Copy files and folders between connected repositories and this page.": "Copy files and folders between connected repositories and this page.",
-  "My ADMA files": "My ADMA files"
+  "My ADMA files": "My ADMA files",
+  "Transfer files": "Transfer files",
+  "Copy or move files and folders between connected repositories and this page.": "Copy or move files and folders between connected repositories and this page.",
+  "Select all shown": "Select all shown",
+  "Move complete": "Move complete",
+  "Transfer needs attention": "Transfer needs attention",
+  "Moved": "Moved",
+  "Move selected items to:": "Move selected items to:",
+  "Copy selected items to:": "Copy selected items to:",
+  "Move here": "Move here",
+  "Move to…": "Move to…",
+  "Remove originals only after all copied files are verified. ADMA removal is permanent; cloud files go to trash where supported. Page files are detached from this page.": "Remove originals only after all copied files are verified. ADMA removal is permanent; cloud files go to trash where supported. Page files are detached from this page."
 }

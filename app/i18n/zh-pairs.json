@@ -396,5 +396,16 @@
   "Mention files and folders": "引用文件和文件夹",
   "Data transfer": "数据传输",
   "Copy files and folders between connected repositories and this page.": "在已连接的数据仓库和本页面之间复制文件与文件夹。",
-  "My ADMA files": "我的 ADMA 文件"
+  "My ADMA files": "我的 ADMA 文件",
+  "Transfer files": "传输文件",
+  "Copy or move files and folders between connected repositories and this page.": "在已连接的数据仓库和本页面之间复制或移动文件与文件夹。",
+  "Select all shown": "选择当前显示的全部项目",
+  "Move complete": "移动完成",
+  "Transfer needs attention": "传输需要处理",
+  "Moved": "已移动",
+  "Move selected items to:": "将所选项目移动到：",
+  "Copy selected items to:": "将所选项目复制到：",
+  "Move here": "移动到这里",
+  "Move to…": "移动到…",
+  "Remove originals only after all copied files are verified. ADMA removal is permanent; cloud files go to trash where supported. Page files are detached from this page.": "仅在所有复制文件验证成功后移除源文件。ADMA 删除是永久性的；云盘文件在支持时进入回收站；页面文件将解除与本页面的关联。"
 }
