@@ -1,4 +1,5 @@
 'use client';
+import {ResourcePicker} from './resources/picker';
 import {pageVisualProps} from './page-programs/visual-style';
 import {usePageUi,UiContext} from '@/app/i18n/client';
 import dynamic from 'next/dynamic';
@@ -54,6 +55,7 @@ export default function Workspace({ user, signIn, signOut }: {
   const actorReady=useRef<Promise<void>|null>(null);
   function ensureActor(){return actorReady.current??=navigationRequest('/api/session').then(async response=>{if(!response.ok)throw new Error('Could not initialize the session.');await response.json();}).catch(error=>{actorReady.current=null;throw error;});}
   const [filesRevision,setFilesRevision]=useState(0);
+  const [transferPage,setTransferPage]=useState<string|null>(null);
   const uploadInput=useRef<HTMLInputElement>(null);
 
   const [selected, setSelected] = useState<AnswerPage | null>(null);
@@ -400,6 +402,7 @@ export default function Workspace({ user, signIn, signOut }: {
           {draft ? <span>{busy?t("Generating… You can read the page as it appears."):t("Incomplete draft — retry the question to generate a saved page.")}</span> : pending ? <><span className="selection-quote">“{pending.quote}”</span><button type="button" onMouseDown={e=>e.preventDefault()} onClick={()=>addHighlight(false)} disabled={busy}><Highlighter size={14}/>{t("Highlight")}</button><button type="button" onMouseDown={e=>e.preventDefault()} onClick={()=>addHighlight(true)} disabled={busy}>{t("Highlight & open")}<ArrowRight size={14}/></button></> : <span>{visiblePage.labels.templateId==='disambiguation-v1'?t("Choose the meaning or topic you want to explore."):t(conceptStatus)||t("Select text to highlight it or open it as a question.")}{(conceptStatus.includes('could not')||conceptStatus.includes('still'))&&<button onClick={()=>setConceptAttempt(n=>n+1)}>{t("Retry")}</button>}</span>}
         </div>
         <div hidden={!!nativeApp} ref={article} onMouseUp={captureSelection} onKeyUp={captureSelection} onTouchEnd={()=>setTimeout(captureSelection,0)}>
+          {!draft&&visiblePage.kind==='dynamic'&&<div className="file-explorer-toolbar"><button type="button" onClick={()=>setTransferPage(visiblePage.id)}>{t('Browse & copy files')}</button></div>}
           <AnswerText concepts={!draft?concepts:[]} sources={visiblePage.sources} labels={visiblePage.labels} title={visiblePage.title} summary={visiblePage.summary} body={visiblePage.labels.templateId==='disambiguation-v1'&&!visiblePage.labels.richContent?'':visiblePage.body} highlights={highlights[visiblePage.id]||[]} links={visiblePage.links||[]} onOpen={link=>void openInternal(link)} onJump={highlight=>{window.getSelection()?.removeAllRanges();void navigate(highlight.quote,{pageId:visiblePage.id,highlight})}}>{visiblePage.labels.templateId==='disambiguation-v1'&&!visiblePage.labels.richContent&&visiblePage.labels.indexEntries&&<DisambiguationIndex entries={visiblePage.labels.indexEntries} onOpen={text=>void navigate(text)} disabled={busy}/>} {visiblePage.contextIndex&&<ContextIndex page={visiblePage} onResult={setSelected} onOpen={(id,title)=>void openInternal({id,targetId:id,targetTitle:title,quote:title,segments:[],parameters:{}})}/>} {(visiblePage.view||visiblePage.runtimePending||visiblePage.dynamic?.template==='page-program-v1')&&<ProgramView page={visiblePage} onResult={setSelected}/>} {visiblePage.dynamic?.chart&&visiblePage.dynamic.dataset&&<Dashboard tableFirst={visiblePage.labels.templateId==='table-v1'} key={'chart:'+visiblePage.id} chart={visiblePage.dynamic.chart} dataset={visiblePage.dynamic.dataset}/>}{visiblePage.dynamic?.sandbox&&<SandboxView key={'sandbox:'+visiblePage.id} title={visiblePage.title} app={visiblePage.dynamic.sandbox}/>}</AnswerText>
         </div>
         {visiblePage.kind==='dynamic'&&visiblePage.dynamic?.template==='unit-converter-v1'&&<UnitConverter key={visiblePage.id+JSON.stringify(visiblePage.runtime?.input)} page={visiblePage} onResult={page=>{const text=page.runtime?`${page.runtime.input.value} ${page.runtime.fromSymbol} → ${page.runtime.toSymbol}`:question;setSelected(page);setQuestion(text);recordHistory(page.id,text,page.runtime?.input);setStatus('');}}/>}
@@ -411,6 +414,7 @@ export default function Workspace({ user, signIn, signOut }: {
         {visiblePage.kind==='dynamic'&&visiblePage.dynamic?.template==='file-browser-v1'&&pageStorageProviders(visiblePage.question||visiblePage.title,visiblePage.parameters).length>0&&<StoragePanel writable={canWritePage(visiblePage)} question={visiblePage.question} key={visiblePage.id+JSON.stringify(visiblePage.parameters||{})} parameters={visiblePage.parameters} pageId={visiblePage.id} language={visiblePage.language} expanded={visiblePage.labels.templateId==='files-v1'||!!visiblePage.runtimeError}/>}
         <div className={nativeApp?'connector-support':undefined}>
         {!draft&&<ContextFiles key={'files:'+visiblePage.id} page={visiblePage} revision={filesRevision} busy={busy} onChanged={()=>setFilesRevision(n=>n+1)} onUpload={()=>uploadInput.current?.click()}/>}
+        {transferPage===visiblePage.id&&<ResourcePicker pageId={visiblePage.id} copyMode onClose={()=>setTransferPage(null)}/>}
         {!draft&&<PageAgentChat key={'chat:'+visiblePage.id} page={visiblePage} onResult={setSelected} onOpenQuestion={text=>void navigate(text)}/>}
         </div>
 
