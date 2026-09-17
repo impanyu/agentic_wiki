@@ -68,8 +68,7 @@ async function routeAnswer(request:Request,actor:Awaited<ReturnType<typeof getAc
   const context:AgentContext={userId:uid,ownerId:uid,language,visibility:'private',sourceDocument:sourceDocument||undefined};
   const rootRouter=await spawnAgent('root-routing',context.ownerId);
   const rootRoute=await resolveRootRoute(routingQuestion,vector,language,uid,rootRouter,request.signal,!!fork);
-  const requested=sourceDocument?{...rootRoute.intent,kind:'article' as const,route:'wiki' as const,service:'none' as const,fresh:false}:rootRoute.intent;context.pageIntent=requested.kind;
-  const domain=requested.kind==='article'?'wiki':'app';
+  const requested=rootRoute.intent;
   const router=rootRouter,parameterRouter=rootRouter;context.agent=rootRouter;
   const destination=routingQuestion;
   const originalKey=sourceDocument?'url:'+sourceDocument.url:normalize(question);
@@ -92,7 +91,7 @@ async function routeAnswer(request:Request,actor:Awaited<ReturnType<typeof getAc
   async function remember(pageId:string,page:AnswerPage){
    const now=new Date().toISOString();
    const entries=sourceDocument?[[originalKey,sourceDocument.url],[normalize(sourceDocument.summary),sourceDocument.summary]]:originalKey===destinationKey?[[originalKey,question]]:[[originalKey,question],[destinationKey,destination]];
-   await database().batch([...entries.map(([key,text])=>database().prepare(`INSERT OR IGNORE INTO questions(id,page_id,normalized,question,embedding,created_at,match_version,capability,parameters,routing_scope) SELECT ?,id,?,?,?,?,?,CASE WHEN kind='dynamic' THEN COALESCE(json_extract(dynamic_config,'$.capability'),'unit-converter-v1') WHEN json_extract(labels,'$.templateId')='disambiguation-v1' THEN 'disambiguation' ELSE 'article' END,?,? FROM pages WHERE id=? AND (visibility='public' OR owner_id=?)`+(sourceDocument?' ON CONFLICT(page_id,normalized) DO UPDATE SET question=excluded.question,embedding=excluded.embedding,match_version=excluded.match_version':'')).bind(crypto.randomUUID(),key,text,JSON.stringify(vector),now,MATCH_VERSION,JSON.stringify(page.parameters||page.runtime?.input||{}),domain,pageId,uid))]);
+   await database().batch([...entries.map(([key,text])=>database().prepare(`INSERT OR IGNORE INTO questions(id,page_id,normalized,question,embedding,created_at,match_version,capability,parameters,routing_scope) SELECT ?,id,?,?,?,?,?,CASE WHEN kind='dynamic' THEN COALESCE(json_extract(dynamic_config,'$.capability'),'unit-converter-v1') WHEN json_extract(labels,'$.templateId')='disambiguation-v1' THEN 'disambiguation' ELSE 'article' END,?,? FROM pages WHERE id=? AND (visibility='public' OR owner_id=?)`+(sourceDocument?' ON CONFLICT(page_id,normalized) DO UPDATE SET question=excluded.question,embedding=excluded.embedding,match_version=excluded.match_version':'')).bind(crypto.randomUUID(),key,text,JSON.stringify(vector),now,MATCH_VERSION,JSON.stringify(page.parameters||page.runtime?.input||{}),page.kind==='static'?'wiki':'app',pageId,uid))]);
    if(page.dynamic?.template==='agent-chat-v1'){const session=await ensurePageSession(pageId,uid);await rememberSessionRoutes(pageId,uid,session.id);}
    page.forks=(await getPage(page.id,uid))?.forks;
   }
@@ -103,21 +102,13 @@ async function routeAnswer(request:Request,actor:Awaited<ReturnType<typeof getAc
    const page=await getPage(id,uid);if(page?.labels.templateId==='disambiguation-v1')await requireValidIndex(uid,page.id,destination);
    if(!page)return null;
    if(storagePageMismatch(destination,page))return null;
-   // Equivalent text must also lead to the requested kind of context.
-   if(requested.kind==='application'&&page.kind!=='dynamic')return null;
-   if(requested.kind==='article'&&page.kind!=='static')return null;
-   if(requested.kind==='chart'&&page.dynamic?.capability!=='chart')return null;
-   if(requested.service==='context_pages'&&page.dynamic?.indexKind!=='pages')return null;
-   if(requested.service==='user_jobs'&&page.dynamic?.indexKind!=='jobs')return null;
-   if(requested.service==='google_drive_folders'&&!['file-browser-v1','google-drive-folders-v1'].includes(page.dynamic?.template||''))return null;
    return id;
   }
 
   let matched=fork?null:rootRoute.pageId;
   if(matched&&sourceDocument&&(await getPage(matched,uid))?.kind!=='static')matched=null;
-  if(matched){const page=await resolvePage(matched);if(!page)return respond({error:'This page is no longer accessible. Please try again.'},404);await remember(page.id,page);const updated=await refreshMatchedPage(page,destination,requested.fresh,uid,router);return respond({page:updated,reused:true,destination});}
-  // The content generator chooses article versus disambiguation after reuse misses.
-  const presentation=requested.kind==='article'?'wiki-v1':requested.service==='google_drive_folders'?'files-v1':['context_pages','user_jobs'].includes(requested.service)?'wiki-v1':requested.kind==='chart'?'dashboard-v1':'form-v1';
+  if(matched){const page=await resolvePage(matched);if(!page)return respond({error:'This page is no longer accessible. Please try again.'},404);await remember(page.id,page);const updated=await refreshMatchedPage(page,destination,requested?.fresh||false,uid,router);return respond({page:updated,reused:true,destination});}
+  // One generator owns artifact selection after a routing miss.
   const visibility='private' as const;
   const keyBytes=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(JSON.stringify([language,destinationKey,uid])));
   const generationKey=fork?'fork:'+fork.requestId:'question:'+Array.from(new Uint8Array(keyBytes),b=>b.toString(16).padStart(2,'0')).join('');
@@ -129,10 +120,11 @@ async function routeAnswer(request:Request,actor:Awaited<ReturnType<typeof getAc
   async function generate(emit?:(event:ResearchUpdate)=>void,signal?:AbortSignal){
    signal=signal?AbortSignal.any([signal,deadline]):deadline;
    signal.throwIfAborted();
-   const generated=await generateContext({question:destination,templateId:presentation,fresh:requested.fresh,service:requested.service,route:domain},context,rootRouter,emit,signal);
+   const generated=await generateContext({question:destination},context,rootRouter,emit,signal);
    const {answer,definition}=generated,dependencies=definition?.components||[],id=fork?.requestId||crypto.randomUUID(),now=new Date().toISOString();
    const finalIntent=generated.generationIntent;
-   const generationDomain=!definition?'wiki':finalIntent.outputKind==='conversation'?'session':'app';
+   const staticPage=!definition||['static-frontend-v1','chart-view-v1'].includes(definition.config.executor);
+   const generationDomain=staticPage?'wiki':finalIntent.outputKind==='conversation'?'session':'app';
   const active=await database().prepare("SELECT token FROM generation_locks WHERE token=? AND expires>?").bind(lease,Date.now()).first();
   if(!active)throw new Error('The request took too long. Please try again.');
    signal?.throwIfAborted();
@@ -157,15 +149,15 @@ async function routeAnswer(request:Request,actor:Awaited<ReturnType<typeof getAc
    ...(fork?[
     database().prepare('INSERT OR IGNORE INTO page_forks(page_id,group_id,parent_id,created_at) VALUES(?,?,NULL,?)').bind(fork.sourceId,fork.groupId,fork.createdAt),
    ]:[]),
-   database().prepare('INSERT INTO pages(id,owner_id,question,title,summary,body,category,sources,visibility,created_at,language,labels,kind,dynamic_config) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)').bind(id,context.ownerId,sourceDocument?question:destination,answer.title,answer.summary,answer.body,answer.category,JSON.stringify(answer.sources),visibility,now,language,JSON.stringify({...answer.labels,routingFresh:requested.fresh||finalIntent.fresh,...(sourceDocument?{sourceUrl:sourceDocument.url,sourceSummary:sourceDocument.summary}:{}),templateId:generated.templateId}),definition?'dynamic':'static',definition?JSON.stringify({...definition.config,contextDomain:generationDomain,form:undefined}):null),
+   database().prepare('INSERT INTO pages(id,owner_id,question,title,summary,body,category,sources,visibility,created_at,language,labels,kind,dynamic_config) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)').bind(id,context.ownerId,sourceDocument?question:destination,answer.title,answer.summary,answer.body,answer.category,JSON.stringify(answer.sources),visibility,now,language,JSON.stringify({...answer.labels,routingFresh:finalIntent.fresh,...(sourceDocument?{sourceUrl:sourceDocument.url,sourceSummary:sourceDocument.summary}:{}),templateId:generated.templateId}),staticPage?'static':'dynamic',definition?JSON.stringify({...definition.config,contextDomain:generationDomain,form:undefined}):null),
    ...(fork?[database().prepare('INSERT INTO page_forks(page_id,group_id,parent_id,created_at) VALUES(?,?,?,?)').bind(id,fork.groupId,fork.sourceId,now)]:[]),
    ...(fork?[]:entries).map(([key,text])=>database().prepare('INSERT INTO questions(id,page_id,normalized,question,embedding,created_at,match_version,capability,parameters,routing_scope) VALUES(?,?,?,?,?,?,?,?,?,?)').bind(crypto.randomUUID(),id,key,text,JSON.stringify(vector),now,MATCH_VERSION,(definition&&'capability'in definition.config?definition.config.capability:null)||(definition?'application':generated.templateId==='disambiguation-v1'?'disambiguation':'article'),JSON.stringify(definition?.parameters||{}),generationDomain))
   ]);
-  await inheritGenerationSession(generated.generatorId,id,uid,!definition);
+  await inheritGenerationSession(generated.generatorId,id,uid,staticPage);
   if(dependencies.length)await attachComponents(id,dependencies,context);
   const page=await resolvePage(id);if(!page)throw new Error('Could not load the saved page.');
   if(definition&&page.parameters)await database().prepare('UPDATE questions SET parameters=? WHERE page_id=?').bind(JSON.stringify(page.parameters),page.id).run();
-  if(domain==='app')await recordAction(rootRouter,'Route original question to generated app',{pageId:page.id,parameters:page.parameters||page.runtime?.input||{}});
+  if(!staticPage)await recordAction(rootRouter,'Route original question to generated app',{pageId:page.id,parameters:page.parameters||page.runtime?.input||{}});
   return {page,reused:false,destination};
   }finally{await unlock(publishToken).catch(()=>{});}
 

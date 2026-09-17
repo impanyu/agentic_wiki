@@ -1,3 +1,4 @@
+import {sandboxSchema} from '@/app/components-registry/sandbox-contracts';
 import {z} from 'zod';
 import {env} from '@/server/runtime';
 import {generationIntentSchema} from './generation-intent';
@@ -13,12 +14,11 @@ import {createComponent,type AgentContext,type Component} from '@/app/components
 import type {DynamicConfig,ConverterLabels} from '@/app/dynamic/units';
 import type {TemplateId} from '@/app/templates/catalog';
 const source=z.object({title:z.string().min(1).max(500),url:z.string().url().refine(u=>/^https?:\/\//.test(u))});
-const draftSchema=z.object({kind:z.enum(['article','disambiguation','chat','files','index','program','chart','form','converter','native']),title:z.string().min(1).max(200),summary:z.string().min(1).max(1200),body:z.string().max(40000).default(''),category:z.string().max(100).default(''),sources:z.array(source).max(40).default([]),labels:z.record(z.string().max(500)),intent:generationIntentSchema,entries:indexSchema.shape.entries.optional(),templateId:z.enum(['files-v1','dashboard-v1','table-v1','form-v1','chat-v1','geo-v1','data-tools-v1']).optional(),nativeApp:z.enum(['adma-tools','map','table','json','text','image','pdf','archive','hub']).optional(),program:codeSchema.optional(),inputFields:inputFieldsSchema.optional(),chart:z.unknown().optional(),dataset:z.unknown().optional(),form:formSchema.optional(),expression:z.unknown().optional(),examples:z.array(z.object({input:parametersSchema,output:parametersSchema})).max(4).optional(),parameters:parametersSchema.default({})}).strict();
+const draftSchema=z.object({kind:z.enum(['article','disambiguation','chat','files','index','program','chart','form','converter','native']),title:z.string().min(1).max(200),summary:z.string().min(1).max(1200),body:z.string().max(40000).default(''),category:z.string().max(100).default(''),sources:z.array(source).max(40).default([]),labels:z.record(z.string().max(500)),intent:generationIntentSchema,entries:indexSchema.shape.entries.optional(),templateId:z.enum(['files-v1','dashboard-v1','table-v1','form-v1','chat-v1','geo-v1','data-tools-v1']).optional(),nativeApp:z.enum(['adma-tools','map','table','json','text','image','pdf','archive','hub']).optional(),interactive:sandboxSchema.optional(),program:codeSchema.optional(),inputFields:inputFieldsSchema.optional(),chart:z.unknown().optional(),dataset:z.unknown().optional(),form:formSchema.optional(),expression:z.unknown().optional(),examples:z.array(z.object({input:parametersSchema,output:parametersSchema})).max(4).optional(),parameters:parametersSchema.default({})}).strict();
 export type GenerationDraft=z.infer<typeof draftSchema>;
 export function validateGenerationDraft(raw:unknown,question:string,context:AgentContext,webSearched:boolean,dataConsulted=false){
  const d=draftSchema.parse(raw);
- if(context.pageIntent==='article'&&!['article','disambiguation'].includes(d.kind))throw Error('The root router requested a wiki page. Return an article or disambiguation index.');
- if(context.pageIntent&&context.pageIntent!=='article'&&d.kind==='article')throw Error('The root router requested a web app. Return the requested app/chart or an honest blocked chat workspace, not an article substitute.');
+ if(d.interactive&&d.kind!=='article')throw Error('The interactive illustration field belongs to static articles.');
  if(d.intent.visualTheme==='custom')d.intent.visualDesign=normalizeCustomStyle(d.intent.visualDesign);
  const ambiguous=d.intent.needsDisambiguation||!d.intent.singleMeaningCertain||new Set(d.intent.interpretations.map(x=>x.trim().toLowerCase())).size>1;
  if(ambiguous&&d.kind!=='disambiguation'&&!context.sourceDocument&&!context.indexLeafRequired)throw Error('Multiple plausible interpretations require a disambiguation page.');
@@ -58,7 +58,12 @@ export function validateGenerationDraft(raw:unknown,question:string,context:Agen
 // Materialization contains no model calls. The agent has already chosen and authored its artifact.
 export async function materializeGenerationDraft(d:GenerationDraft,context:AgentContext){
  const answer={title:d.title,summary:d.summary,body:d.body,category:d.category,sources:d.sources,labels:d.labels};
- if(d.kind==='article')return {answer,definition:undefined,templateId:'wiki-v1' as TemplateId};
+ if(d.kind==='article'){
+  if(!d.interactive)return {answer,definition:undefined,templateId:'wiki-v1' as TemplateId};
+  const frontend=await createComponent(d.title+' — interactive illustration','frontend_template',d.interactive,context);
+  const config:DynamicConfig={template:'component-sandbox-v1',executor:'static-frontend-v1',version:1,labels:d.labels as ConverterLabels,components:{frontend:{id:frontend.id,version:frontend.version}}};
+  return {answer,templateId:'wiki-v1' as TemplateId,definition:{title:d.title,summary:d.summary,body:d.body,sources:d.sources,config,parameters:d.parameters,components:[{role:'frontend',component:frontend}]}};
+ }
  if(d.kind==='disambiguation')return {answer:indexAnswer({needed:true,title:d.title,summary:d.summary,entries:d.entries!}),definition:undefined,templateId:'disambiguation-v1' as TemplateId};
  let templateId:TemplateId=d.templateId||'chat-v1';
  const components:{role:string;component:Component}[]=[];

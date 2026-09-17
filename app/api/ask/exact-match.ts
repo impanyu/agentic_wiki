@@ -21,7 +21,7 @@ export async function exactSavedQuestion(question:string,userId:string){
   if(normalize(page.question||'')!==normalize(question))return null;
   await requireValidIndex(userId,page.id,question);
  }
- if(!page.dynamic)return page;
+ if(page.kind==='static'||!page.dynamic)return page;
  let raw:unknown;try{raw=JSON.parse(row.parameters);}catch{return null;}
  const parsed=parametersSchema.safeParse(raw);if(!parsed.success)return null;
  const parameters=parsed.data;

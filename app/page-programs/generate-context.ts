@@ -9,7 +9,7 @@ import {runProgram} from '@/app/sandboxes/service';
 import {validateGenerationDraft,materializeGenerationDraft,type GenerationDraft} from './generation-draft';
 import {generationInstructions} from './generation-instructions';
 import {generationContract} from './generation-contracts';
-export type GenerationBrief={question:string;templateId:TemplateId;fresh:boolean;route?:string;service?:string};
+export type GenerationBrief={question:string;templateId?:TemplateId;fresh?:boolean;route?:string;service?:string};
 const fn=(name:string,description:string,properties:Record<string,unknown>)=>({type:'function',name,description,strict:true,parameters:{type:'object',additionalProperties:false,properties,required:Object.keys(properties)}});
 const tools=[fn('read_generation_contract','Read artifact formats. Choose only the format you need.',{kind:{type:'string',enum:['program','chart','form','converter','custom_style']}}),fn('validate_page_draft','Validate a draft without saving it. Returns concrete structural errors; does not judge factual accuracy.',{draftJson:{type:'string'}}),fn('test_page_program','Test generated JavaScript or Python in the configured isolated sandbox. No network or server secrets; no page is saved.',{programJson:{type:'string'},inputJson:{type:'string'}})];
 export async function generateContext(brief:GenerationBrief,context:AgentContext,router:Agent,emit:((event:ResearchUpdate)=>void)|undefined,signal:AbortSignal){
@@ -26,7 +26,7 @@ export async function generateContext(brief:GenerationBrief,context:AgentContext
    if(title!==undefined){lastPreview=Date.now();emit({type:'metadata',title,summary:partialJsonString(json,'summary')||'',category:partialJsonString(json,'category')||'',labels:{overview:'',contents:'',sources:''}});}
    if(body!==undefined){lastPreview=Date.now();emit({type:'replace',text:body});}
   };
- await askAgent(generator,generationInstructions,{question:brief.question,language:context.language,routingDecision:brief,sourceDocument:context.sourceDocument,visibility:context.visibility,indexLeafRequired:context.indexLeafRequired,asOf:new Date().toISOString()},{type:'object',additionalProperties:false,properties:{draftJson:{type:'string'}},required:['draftJson']},signal,undefined,[],{
+ await askAgent(generator,generationInstructions,{question:brief.question,language:context.language,sourceDocument:context.sourceDocument,visibility:context.visibility,indexLeafRequired:context.indexLeafRequired,asOf:new Date().toISOString()},{type:'object',additionalProperties:false,properties:{draftJson:{type:'string'}},required:['draftJson']},signal,undefined,[],{
   context:ctx,extraTools:tools,
   onOutputText:preview,onToolArguments:(name,text)=>{if(name==='validate_page_draft')preview(text);},
   executeExtra:async(name,args)=>{

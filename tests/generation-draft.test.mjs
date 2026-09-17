@@ -7,7 +7,8 @@ const load=async s=>import('data:text/javascript;base64,'+Buffer.from(ts.transpi
 const style=await load('const z=globalThis.draftZod;\n'+strip(files[0])+'\n'+strip(files[1])+'\n'+strip(files[2]));
 const contracts=await load('const z=globalThis.draftZod;\n'+strip(files[4]));const chart=await load('const z=globalThis.draftZod;\n'+strip(files[5]));const sandbox=await load('const z=globalThis.draftZod;\n'+strip(files[7]));const index=await load('const z=globalThis.draftZod;\n'+strip(files[3]));const inputs=await load('const z=globalThis.draftZod;\n'+strip(files[6]));
 const scope=await load(strip('app/storage/page-scope.ts'));
-globalThis.draftDeps={z,requestsDataResult:scope.requestsDataResult,...style,...contracts,...chart,...sandbox,...index,...inputs,namedConnectors:q=>/adma/i.test(q)?['adma']:[],pageStorageProviders:q=>/adma/i.test(q)?[]:['google'],sandboxStatus:()=>({configured:true,allowed:true})};
+const frontend=await load('const z=globalThis.draftZod;\n'+strip('app/components-registry/sandbox-contracts.ts'));
+globalThis.draftDeps={z,...frontend,requestsDataResult:scope.requestsDataResult,...style,...contracts,...chart,...sandbox,...index,...inputs,namedConnectors:q=>/adma/i.test(q)?['adma']:[],pageStorageProviders:q=>/adma/i.test(q)?[]:['google'],sandboxStatus:()=>({configured:true,allowed:true})};
 const m=await load('const {'+Object.keys(globalThis.draftDeps).join(',')+'}=globalThis.draftDeps;\n'+strip(files[8]));
 const intent={subject:'Topic',subjectType:'concept',goal:'Understand it',explicitConstraints:[],assumptions:[],uncertainties:[],mustCover:['Explain'],sourceRequirements:[],outputKind:'article',service:'none',fresh:false,needsDisambiguation:false,singleMeaningCertain:true,interpretations:['Topic']};
 const base={kind:'article',title:'Topic',summary:'Summary',body:'A substantive article with verified sources explaining the requested subject in enough detail for a useful introduction.',sources:[{title:'Source',url:'https://example.org/topic'}],labels:{overview:'Overview',invalid:'Try again'},intent};
@@ -39,9 +40,9 @@ test('connector plots reject browser substitutes and accept consulted file data 
  assert.equal(m.validateGenerationDraft(draft,question,ctx,false,true).kind,'chart');
 });
 
-test('the generator honors the root wiki/app decision while retaining disambiguation',()=>{
- assert.throws(()=>m.validateGenerationDraft({...base,kind:'chat'},'Topic',{...ctx,pageIntent:'article'},true),/root router requested a wiki/);
- assert.throws(()=>m.validateGenerationDraft(base,'Plot',{...ctx,pageIntent:'chart'},true),/root router requested a web app/);
+test('the generator owns artifact choice even with a legacy router hint',()=>{
+ assert.equal(m.validateGenerationDraft({...base,kind:'chat'},'Topic',{...ctx,pageIntent:'article'},true).kind,'chat');
+ assert.equal(m.validateGenerationDraft(base,'Plot',{...ctx,pageIntent:'chart'},true).kind,'article');
  assert.equal(m.validateGenerationDraft({...base,kind:'chat'},'Plot',{...ctx,pageIntent:'chart'},true).kind,'chat');
 });
 
@@ -49,4 +50,11 @@ test('wiki articles can rely on authorized connector evidence without public web
  assert.equal(m.validateGenerationDraft(base,'Explain the connected workspace document',{...ctx,pageIntent:'article'},false,true).kind,'article');
  assert.throws(()=>m.validateGenerationDraft(base,'Explain the document',ctx,false,false),/Research the reference subject/);
  assert.throws(()=>m.validateGenerationDraft({...base,sources:[]},'Explain the document',ctx,false,true),/cited sources/);
+});
+
+test('static articles accept isolated frontend interaction without a backend program',()=>{
+ const interactive={kind:'sandbox-app',html:'<button>Explore</button>',css:'',javascript:'document.querySelector("button").onclick=()=>{}',height:400};
+ const draft=m.validateGenerationDraft({...base,interactive},'Explain with an interactive example',ctx,true);
+ assert.equal(draft.kind,'article');assert.equal(draft.interactive.javascript,interactive.javascript);assert.equal(draft.program,undefined);
+ assert.throws(()=>m.validateGenerationDraft({...base,interactive,kind:'files'},'ADMA files',ctx,true),/static articles/);
 });
