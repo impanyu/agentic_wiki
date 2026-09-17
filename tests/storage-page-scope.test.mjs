@@ -37,3 +37,10 @@ test('ADMA and Google names cannot override a chart, custom app, or chat rendere
 test('location map requests cannot reuse a generic connector file browser',()=>{
  for(const question of ['map ADMA Realm5 locations','画出adma上realm5数据的位置','John Deere农场的地图'])assert.equal(storagePageMismatch(question,{question:'list my adma files',title:'Files',dynamic:{template:'file-browser-v1'}}),true);
 });
+
+test('explicit combined repository requests cannot reuse an index offering separate services',()=>{
+ const index={question:'adma dashboard and my google drive',title:'ADMA and Google Drive',kind:'static',labels:{templateId:'disambiguation-v1'}};
+ assert.equal(storagePageMismatch('Create a combined ADMA and Google Drive dashboard',index),true);
+ assert.equal(storagePageMismatch('Use both ADMA and Google Drive',index),true);
+ assert.equal(storagePageMismatch('Create a combined ADMA and Google Drive dashboard',{...index,labels:{},dynamic:{template:'file-browser-v1'}}),false);
+});
