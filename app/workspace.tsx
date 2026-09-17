@@ -1,4 +1,5 @@
 'use client';
+import type {NavigationOrigin} from '@/app/routing/link-context';
 import {ResourcePicker} from './resources/picker';
 import {pageVisualProps} from './page-programs/visual-style';
 import {usePageUi,UiContext} from '@/app/i18n/client';
@@ -208,7 +209,7 @@ export default function Workspace({ user, signIn, signOut }: {
     catch(error){setError(error instanceof Error?error.message:'Could not upload the file.');}finally{setBusy(false);if(uploadInput.current)uploadInput.current.value='';}
   }
 
-  async function navigate(nextText = question,origin?:{pageId:string;highlight:Highlight},fork?:{sourceId:string;requestId:string}) {
+  async function navigate(nextText = question,origin?:NavigationOrigin,fork?:{sourceId:string;requestId:string}) {
     const text = nextText.trim();
     if (!text || busy || editing) return;
     request.current?.abort();
@@ -276,7 +277,7 @@ export default function Workspace({ user, signIn, signOut }: {
       progressFinished=true;if(progressTimer)clearInterval(progressTimer);
       if (controller.signal.aborted) return;
       let linkWarning='';
-      if(origin&&canWritePage(visiblePage)){
+      if(origin&&'highlight' in origin&&canWritePage(visiblePage)){
         try{const saved=await navigationRequest('/api/links',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sourceId:origin.pageId,targetId:result.page.id,...origin.highlight,parameters:(result.page.parameters||result.page.runtime?.input)}),signal:controller.signal});const data=await saved.json() as {error?:string};if(!saved.ok)throw new Error(data.error||'Could not save the underline.');
           setHighlights(all=>({...all,[origin.pageId]:(all[origin.pageId]||[]).filter(h=>JSON.stringify(h.segments)!==JSON.stringify(origin.highlight.segments))}));
         }catch(e){if(controller.signal.aborted)return;linkWarning='The page opened, but its underline could not be saved. '+navigationError(e,'Please try again.');}
@@ -403,7 +404,7 @@ export default function Workspace({ user, signIn, signOut }: {
         </div>
         {!draft&&visiblePage.kind==='dynamic'&&<section className="repository-transfer" aria-label={t('Data transfer')}><div><strong>{t('Data transfer')}</strong><p>{t('Copy or move files and folders between connected repositories and this page.')}</p></div><button type="button" onClick={()=>setTransferPage(visiblePage.id)}>{t('Transfer files')}</button></section>}
         <div hidden={!!nativeApp} ref={article} onMouseUp={captureSelection} onKeyUp={captureSelection} onTouchEnd={()=>setTimeout(captureSelection,0)}>
-          <AnswerText concepts={!draft?concepts:[]} sources={visiblePage.sources} labels={visiblePage.labels} title={visiblePage.title} summary={visiblePage.summary} body={visiblePage.labels.templateId==='disambiguation-v1'&&!visiblePage.labels.richContent?'':visiblePage.body} highlights={highlights[visiblePage.id]||[]} links={visiblePage.links||[]} onOpen={link=>void openInternal(link)} onJump={highlight=>{window.getSelection()?.removeAllRanges();void navigate(highlight.quote,{pageId:visiblePage.id,highlight})}}>{visiblePage.labels.templateId==='disambiguation-v1'&&!visiblePage.labels.richContent&&visiblePage.labels.indexEntries&&<DisambiguationIndex entries={visiblePage.labels.indexEntries} onOpen={text=>void navigate(text)} disabled={busy}/>} {visiblePage.contextIndex&&<ContextIndex page={visiblePage} onResult={setSelected} onOpen={(id,title)=>void openInternal({id,targetId:id,targetTitle:title,quote:title,segments:[],parameters:{}})}/>} {(visiblePage.view||visiblePage.runtimePending||visiblePage.dynamic?.template==='page-program-v1')&&<ProgramView page={visiblePage} onResult={setSelected}/>} {visiblePage.dynamic?.chart&&visiblePage.dynamic.dataset&&<Dashboard tableFirst={visiblePage.labels.templateId==='table-v1'} key={'chart:'+visiblePage.id} chart={visiblePage.dynamic.chart} dataset={visiblePage.dynamic.dataset}/>}{visiblePage.dynamic?.sandbox&&<SandboxView key={'sandbox:'+visiblePage.id} title={visiblePage.title} app={visiblePage.dynamic.sandbox}/>}</AnswerText>
+          <AnswerText concepts={!draft?concepts:[]} sources={visiblePage.sources} labels={visiblePage.labels} title={visiblePage.title} summary={visiblePage.summary} body={visiblePage.labels.templateId==='disambiguation-v1'&&!visiblePage.labels.richContent?'':visiblePage.body} highlights={highlights[visiblePage.id]||[]} links={visiblePage.links||[]} onOpen={link=>void openInternal(link)} onJump={highlight=>{window.getSelection()?.removeAllRanges();void navigate(highlight.quote,{pageId:visiblePage.id,highlight})}}>{visiblePage.labels.templateId==='disambiguation-v1'&&!visiblePage.labels.richContent&&visiblePage.labels.indexEntries&&<DisambiguationIndex entries={visiblePage.labels.indexEntries} onOpen={text=>void navigate(text,{pageId:visiblePage.id,kind:'index'})} disabled={busy}/>} {visiblePage.contextIndex&&<ContextIndex page={visiblePage} onResult={setSelected} onOpen={(id,title)=>void openInternal({id,targetId:id,targetTitle:title,quote:title,segments:[],parameters:{}})}/>} {(visiblePage.view||visiblePage.runtimePending||visiblePage.dynamic?.template==='page-program-v1')&&<ProgramView page={visiblePage} onResult={setSelected}/>} {visiblePage.dynamic?.chart&&visiblePage.dynamic.dataset&&<Dashboard tableFirst={visiblePage.labels.templateId==='table-v1'} key={'chart:'+visiblePage.id} chart={visiblePage.dynamic.chart} dataset={visiblePage.dynamic.dataset}/>}{visiblePage.dynamic?.sandbox&&<SandboxView key={'sandbox:'+visiblePage.id} title={visiblePage.title} app={visiblePage.dynamic.sandbox}/>}</AnswerText>
         </div>
         {visiblePage.kind==='dynamic'&&visiblePage.dynamic?.template==='unit-converter-v1'&&<UnitConverter key={visiblePage.id+JSON.stringify(visiblePage.runtime?.input)} page={visiblePage} onResult={page=>{const text=page.runtime?`${page.runtime.input.value} ${page.runtime.fromSymbol} → ${page.runtime.toSymbol}`:question;setSelected(page);setQuestion(text);recordHistory(page.id,text,page.runtime?.input);setStatus('');}}/>}
         {visiblePage.dynamic?.template==='google-drive-folders-v1'&&visiblePage.dynamic.driveLabels&&<DriveFolders key={'drive:'+visiblePage.id} pageId={visiblePage.id} labels={visiblePage.dynamic.driveLabels}/>}
@@ -415,7 +416,7 @@ export default function Workspace({ user, signIn, signOut }: {
         <div className={nativeApp?'connector-support':undefined}>
         {!draft&&<ContextFiles key={'files:'+visiblePage.id} page={visiblePage} revision={filesRevision} busy={busy} onChanged={()=>setFilesRevision(n=>n+1)} onUpload={()=>uploadInput.current?.click()}/>}
         {transferPage===visiblePage.id&&<ResourcePicker pageId={visiblePage.id} copyMode onClose={()=>setTransferPage(null)}/>}
-        {!draft&&<PageAgentChat key={'chat:'+visiblePage.id} page={visiblePage} onResult={setSelected} onOpenQuestion={text=>void navigate(text)}/>}
+        {!draft&&<PageAgentChat key={'chat:'+visiblePage.id} page={visiblePage} onResult={setSelected} onOpenQuestion={(text,passage)=>void navigate(text,{pageId:visiblePage.id,kind:'chat',passage:passage.slice(0,6000)})}/>}
         </div>
 
         <div className="saved-note">{draft ? t(busy?'Draft · Not saved yet':'Incomplete draft · Not saved') : t('Saved {date} · {count} questions linked',{date:new Date(visiblePage.createdAt).toLocaleDateString(locale),count:visiblePage.questionCount})}</div>

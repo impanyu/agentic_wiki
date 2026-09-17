@@ -18,3 +18,17 @@ test('stale or forged link ranges fail closed',()=>{
  assert.throws(()=>m.linkContext(page,{quote:'Other',segments:origin.highlight.segments}),/CHANGED/);
  assert.throws(()=>m.linkContext(page,{quote:'Transmission',segments:[{node:'line1.0',start:0,end:1000}]}),/CHANGED/);
 });
+
+test('index navigation includes the validated entry description and rejects stale entries',async()=>{
+ page.labels={templateId:'disambiguation-v1',indexEntries:[{question:'Transmission',description:'How malaria spreads',group:'Malaria'}]};
+ result={needsContext:true,question:'Malaria transmission'};
+ assert.equal(await m.contextualLinkQuestion('Transmission',{pageId:origin.pageId,kind:'index'},'user'),'Malaria transmission');
+ assert.match(JSON.parse(request.input).context.passages,/How malaria spreads/);
+ await assert.rejects(()=>m.contextualLinkQuestion('Different',{pageId:origin.pageId,kind:'index'},'user'),/CHANGED/);
+});
+test('chat page links carry the surrounding reply while standalone wording remains unchanged',async()=>{
+ result={needsContext:false,question:'Ignore this rewrite'};
+ assert.equal(await m.contextualLinkQuestion('Malaria',{pageId:origin.pageId,kind:'chat',passage:'Read more about malaria transmission.'},'user'),'Malaria');
+ assert.match(JSON.parse(request.input).context.passages,/malaria transmission/);
+ accessible=false;await assert.rejects(()=>m.contextualLinkQuestion('Malaria',{pageId:origin.pageId,kind:'chat',passage:'text'},'other'),/UNAVAILABLE/);accessible=true;
+});

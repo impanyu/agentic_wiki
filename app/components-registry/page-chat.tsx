@@ -12,7 +12,7 @@ import type {EditDraft} from '@/app/chat/edit-draft';
 import type {AnswerPage} from '@/app/page-types';
 type ChatResponse={messages?:Comment[];userName?:string;before?:number|null;editDraft?:EditDraft|null;error?:string;reply:string;page:AnswerPage;alreadySaved?:boolean;authorName?:string;createdAt?:string};
 type Comment={user:string;reply:string;authorName?:string;createdAt?:string;sequence?:number};
-export function PageAgentChat({page,onResult,onOpenQuestion}:{page:AnswerPage;onOpenQuestion?:(question:string)=>void;onResult:(page:AnswerPage)=>void}){
+export function PageAgentChat({page,onResult,onOpenQuestion}:{page:AnswerPage;onOpenQuestion?:(question:string,passage:string)=>void;onResult:(page:AnswerPage)=>void}){
  const {t,locale}=useUi();
 
  const [references,setReferences]=useState<Mention[]>([]),[picker,setPicker]=useState(false);const mentionAt=useRef<number|null>(null),composer=useRef<HTMLTextAreaElement>(null);
