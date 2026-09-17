@@ -678,5 +678,6 @@
   "Copy selected items to:": "Copy selected items to:",
   "Move here": "Move here",
   "Move to…": "Move to…",
-  "Remove originals only after all copied files are verified. ADMA removal is permanent; cloud files go to trash where supported. Page files are detached from this page.": "Remove originals only after all copied files are verified. ADMA removal is permanent; cloud files go to trash where supported. Page files are detached from this page."
+  "Remove originals only after all copied files are verified. ADMA removal is permanent; cloud files go to trash where supported. Page files are detached from this page.": "Remove originals only after all copied files are verified. ADMA removal is permanent; cloud files go to trash where supported. Page files are detached from this page.",
+  "Turning on enables all tools. You can uncheck individual tools afterward.": "Turning on enables all tools. You can uncheck individual tools afterward."
 }

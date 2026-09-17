@@ -34,7 +34,7 @@ export async function createConnection(userId:string,raw:unknown){signedIn(userI
 export async function updateConnection(userId:string,id:string,raw:unknown){signedIn(userId);const d=z.object({enabled:z.boolean().optional(),allowed:z.array(z.string()).max(200).optional(),refresh:z.boolean().optional()}).strict().parse(raw);
  const c=(await connections(userId)).find(c=>c.id===id);if(!c)throw Error('Connector not found.');let tools=c.tools;
  if(d.refresh&&c.kind==='mcp'){const secret=await vaultRead(await vaultPath(userId,'connector-'+id));tools=await discoverMcp(c.url!,secret?.token);}
- const names=new Set(tools.map(t=>t.name)),allowed=(d.allowed||c.allowed).filter(n=>names.has(n)),automatic=[...allowed];
+ const names=new Set(tools.map(t=>t.name)),allowed=(d.allowed??(d.enabled===true?[...names]:c.allowed)).filter(n=>names.has(n)),automatic=[...allowed];
  if(d.enabled&&!c.connected)throw Error('Connect this account first.');
  await database().prepare('INSERT INTO user_connectors(id,owner_id,name,kind,url,enabled,tools,allowed,automatic,revision) VALUES(?,?,?,?,?,?,?,?,?,1) ON CONFLICT(owner_id,id) DO UPDATE SET enabled=excluded.enabled,tools=excluded.tools,allowed=excluded.allowed,automatic=excluded.automatic,revision=user_connectors.revision+1').bind(id,userId,c.name,c.kind,c.url||null,Number(d.enabled??c.enabled),JSON.stringify(tools),JSON.stringify(allowed),JSON.stringify(automatic)).run();return {saved:true};
 }

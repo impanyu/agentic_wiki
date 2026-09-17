@@ -22,6 +22,8 @@ test('checked connector tools run automatically while account, disabled-tool and
  owned=false;await assert.rejects(m.callConnector('alice','google','upload',{},'page'),/read only/);owned=true;
  await m.updateConnection('alice','google',{allowed:['list']});await assert.rejects(m.callConnector('alice','google','upload',{}),/disabled/);
  await m.updateConnection('alice',id,{enabled:false});await assert.rejects(m.callConnector('alice',id,'write',{}),/disabled/);
+ await m.updateConnection('alice',id,{allowed:[]});await m.updateConnection('alice',id,{enabled:true});assert.deepEqual((await m.connections('alice')).find(c=>c.id===id).allowed,['read','write']);
+ await m.updateConnection('alice',id,{allowed:['read']});assert.deepEqual((await m.connections('alice')).find(c=>c.id===id).allowed,['read']);
  await m.removeConnection('alice',id);assert.equal((await m.connections('alice')).some(c=>c.id===id),false);db.close();delete globalThis.connectorTest;
 });
 test('MCP initializes, sends session headers, follows pagination and closes its session',async()=>{
