@@ -14,3 +14,10 @@ test('folder trees retain nested and empty folders without filesystem traversal'
  assert.equal(tree.files[0].name,'notes.txt');assert.equal(tree.folders.find(f=>f.name==='Research').folders[0].files[0].name,'plot.png');assert.ok(tree.folders.some(f=>f.name==='Empty'));
  for(const path of ['../secret','a/../b','a\\b'])assert.throws(()=>folderPath(path));assert.equal(folderPath('/Research/Images/'),'Research/Images');assert.throws(()=>fileName('../x'));
 });
+test('title-only native app edits preserve body, media and runtime configuration',async()=>{
+ const page={id:'native',kind:'dynamic',title:'ADMA',summary:'Files',body:'Original body',labels:{sourceMedia:[{url:'https://example.org/image.png'}],templateId:'files-v1'},dynamic:{template:'chat-v1'},owned:true};let values;
+ globalThis.editorRouteTest={getActor:async()=>({userId:'owner',finish:r=>r}),canWritePage:()=>true,validateDocument,documentMarkdown,getPage:async()=>page,database:()=>({prepare:()=>({bind:(...args)=>{values=args;return {run:async()=>({meta:{changes:1}})}}})}),reply:(data,status=200)=>({data,status}),sameOrigin:()=>true,lock:async()=>'lease',unlock:async()=>{}};
+ const {PUT}=await load('const {getActor,canWritePage,validateDocument,documentMarkdown,getPage,database,reply,sameOrigin,lock,unlock}=globalThis.editorRouteTest;\n'+readFileSync('app/api/pages/[id]/content/route.ts','utf8').replace(/^import .*;$/gm,''));
+ const result=await PUT(new Request('https://wiki.example/api/pages/native/content',{method:'PUT',body:JSON.stringify({title:'My ADMA',summary:'New summary',metadataOnly:true,base:'revision'})}),{params:Promise.resolve({id:'native'})});
+ assert.equal(result.status,200);assert.equal(values[0],'My ADMA');assert.equal(values[2],page.body);assert.deepEqual(JSON.parse(values[3]),page.labels);assert.equal(values[6],'revision');assert.equal(result.data.page.dynamic.template,'chat-v1');
+});
