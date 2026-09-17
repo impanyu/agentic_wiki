@@ -1,3 +1,4 @@
+import {exactSavedQuestion} from './exact-match';
 import {deferPageExecution} from '@/app/page-programs/deferred';
 import {requireValidIndex,indexGenerationPolicy} from '@/app/disambiguation/graph';
 import {storagePageMismatch} from '@/app/storage/page-scope';
@@ -49,6 +50,7 @@ async function routeAnswer(request:Request,actor:Awaited<ReturnType<typeof getAc
    fork={sourceId:source.id,requestId:data.fork.requestId,groupId:family?.group_id||source.id,createdAt:source.createdAt};
   }
   if(!fork){const page=await matchSourceUrl(question,uid);if(page)return respond({page,reused:true,destination:question});}
+  if(!fork){const exact=await exactSavedQuestion(question,uid);if(exact)return respond({page:exact,reused:true,destination:question});}
   jobId=await startJob(uid,'navigation',question);
   if(!aiKey())return respond({error:'The AI connection is not configured yet.'},503);
   const {sourceDocument,routingQuestion,vector,language}=await prepareNavigationInput(question,request.signal);
@@ -152,7 +154,7 @@ async function routeAnswer(request:Request,actor:Awaited<ReturnType<typeof getAc
    ...(fork?[
     database().prepare('INSERT OR IGNORE INTO page_forks(page_id,group_id,parent_id,created_at) VALUES(?,?,NULL,?)').bind(fork.sourceId,fork.groupId,fork.createdAt),
    ]:[]),
-   database().prepare('INSERT INTO pages(id,owner_id,question,title,summary,body,category,sources,visibility,created_at,language,labels,kind,dynamic_config) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)').bind(id,context.ownerId,sourceDocument?question:destination,answer.title,answer.summary,answer.body,answer.category,JSON.stringify(answer.sources),visibility,now,language,JSON.stringify({...answer.labels,...(sourceDocument?{sourceUrl:sourceDocument.url,sourceSummary:sourceDocument.summary}:{}),templateId:generated.templateId}),definition?'dynamic':'static',definition?JSON.stringify({...definition.config,contextDomain:generationDomain,form:undefined}):null),
+   database().prepare('INSERT INTO pages(id,owner_id,question,title,summary,body,category,sources,visibility,created_at,language,labels,kind,dynamic_config) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)').bind(id,context.ownerId,sourceDocument?question:destination,answer.title,answer.summary,answer.body,answer.category,JSON.stringify(answer.sources),visibility,now,language,JSON.stringify({...answer.labels,routingFresh:requested.fresh||finalIntent.fresh,...(sourceDocument?{sourceUrl:sourceDocument.url,sourceSummary:sourceDocument.summary}:{}),templateId:generated.templateId}),definition?'dynamic':'static',definition?JSON.stringify({...definition.config,contextDomain:generationDomain,form:undefined}):null),
    ...(fork?[database().prepare('INSERT INTO page_forks(page_id,group_id,parent_id,created_at) VALUES(?,?,?,?)').bind(id,fork.groupId,fork.sourceId,now)]:[]),
    ...(fork?[]:entries).map(([key,text])=>database().prepare('INSERT INTO questions(id,page_id,normalized,question,embedding,created_at,match_version,capability,parameters,routing_scope) VALUES(?,?,?,?,?,?,?,?,?,?)').bind(crypto.randomUUID(),id,key,text,JSON.stringify(vector),now,MATCH_VERSION,(definition&&'capability'in definition.config?definition.config.capability:null)||(definition?'application':generated.templateId==='disambiguation-v1'?'disambiguation':'article'),JSON.stringify(definition?.parameters||{}),generationDomain))
   ]);
