@@ -1,3 +1,4 @@
+import {contextualLinkQuestion} from '@/app/routing/link-context';
 import {exactSavedQuestion} from './exact-match';
 import {deferPageExecution} from '@/app/page-programs/deferred';
 import {requireValidIndex,indexGenerationPolicy} from '@/app/disambiguation/graph';
@@ -37,9 +38,11 @@ async function routeAnswer(request:Request,actor:Awaited<ReturnType<typeof getAc
  let token:string|null=null;const respond=(data:unknown,status=200)=>actor.finish(reply(data,status));
  try{
   if(!sameOrigin(request))return respond({error:'This request must come from the site.'},403);
-  const data=await request.json() as {question?:unknown;visibility?:unknown;fork?:{sourceId?:unknown;requestId?:unknown}};
+  const data=await request.json() as {question?:unknown;visibility?:unknown;origin?:unknown;fork?:{sourceId?:unknown;requestId?:unknown}};
   if(typeof data.question!=='string'||!data.question.trim()||data.question.length>4000)return respond({error:'Enter between 1 and 4,000 characters.'},400);
-  const question=data.question.trim(),uid=actor.userId;
+  const uid=actor.userId;
+  let question=data.question.trim();
+  if(data.origin){try{question=await contextualLinkQuestion(question,data.origin,uid,request.signal);}catch(e){if(e instanceof Error&&/^(INVALID_LINK_CONTEXT|LINK_CONTEXT_CHANGED|LINK_CONTEXT_UNAVAILABLE)$/.test(e.message))return respond({error:'The linked text or source page is no longer available. Refresh the page and try again.'},400);throw e;}}
   let fork: {sourceId:string;requestId:string;groupId:string;createdAt:string}|undefined;
   if(data.fork){
    if(typeof data.fork.sourceId!=='string'||typeof data.fork.requestId!=='string'||!/^[0-9a-f-]{36}$/.test(data.fork.requestId))return respond({error:'Invalid fork request.'},400);

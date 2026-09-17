@@ -235,7 +235,7 @@ export default function Workspace({ user, signIn, signOut }: {
       while(true){
         response=await fetch('/api/ask', {
           method:'POST',headers:{'Content-Type':'application/json','Accept':'text/event-stream'},
-          body:JSON.stringify({question:text,fork,generationId}),signal:controller.signal,
+          body:JSON.stringify({question:text,fork,generationId,origin}),signal:controller.signal,
         });
         if(response.status!==409)break;
         const pending=await response.clone().json() as {retryAfter?:number};
