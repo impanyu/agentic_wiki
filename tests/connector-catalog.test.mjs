@@ -23,3 +23,13 @@ test('transport sends multipart bytes intact and rejects binary files in text mo
  contentType='application/pdf';await assert.rejects(h.remoteRequest('https://adma.aisoup.net/api/v1/files/1/download/',{},undefined,undefined,'GET',true,{textResponse:true}),/not a supported text/);
  delete globalThis.admaHttp;
 });
+
+test('ADMA agents discover public integration roots and can read complete paginated text',async()=>{
+ globalThis.catalogZ=z;globalThis.admaPages={request:async()=>({data:{content:'a'.repeat(20000),contentType:'application/json'}}),catalog:async()=>[{id:'realm5',name:'Realm5',kind:'folder'}]};
+ const a=await load('const z=globalThis.catalogZ;const {request:remoteRequest,catalog:publicThirdPartyCatalog}=globalThis.admaPages;'+strip('app/connectors/adapters.ts'));
+ const roots=await a.executeApiConnector('adma','token','list_folders',{});assert.equal(roots.thirdPartyRoots[0].name,'Realm5');
+ const first=await a.executeApiConnector('adma','token','read_text_file',{file_id:'123'});assert.equal(first.content.length,16000);assert.equal(first.nextOffset,16000);
+ const last=await a.executeApiConnector('adma','token','read_text_file',{file_id:'123',offset:first.nextOffset});assert.equal(last.content.length,4000);assert.equal(last.nextOffset,null);assert.equal(first.content+last.content,'a'.repeat(20000));
+ assert.throws(()=>a.apiOperation('adma','read_text_file',{file_id:'123',limit:100000}));
+ delete globalThis.admaPages;
+});
