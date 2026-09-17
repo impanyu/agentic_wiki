@@ -21,5 +21,13 @@ test('basic saved ADMA browsers adopt native UI while custom workflows retain th
  assert.equal(deferPageExecution(page).dynamic.template,'file-browser-v1');
  assert.equal(deferPageExecution(page).runtimePending,false);
  assert.equal(deferPageExecution({...page,question:'Analyze rainfall in my ADMA files'}).dynamic.template,'page-program-v1');
- assert.equal(deferPageExecution({...page,question:'list my google drive files'}).dynamic.template,'page-program-v1');
+ assert.equal(deferPageExecution({...page,question:'list my google drive files'}).dynamic.template,'file-browser-v1');
+});
+
+test('basic Google Drive dashboards reuse the native browser without changing custom analytics',async()=>{
+ const source=readFileSync('app/page-programs/deferred.ts','utf8').replace(/^import .*;$/gm,'');
+ const {deferPageExecution}=await import('data:text/javascript;base64,'+Buffer.from(ts.transpile(source,{module:ts.ModuleKind.ESNext})).toString('base64'));
+ const page={id:'drive',question:'Google Drive dashboard',labels:{templateId:'dashboard-v1'},dynamic:{template:'page-program-v1'},runtimePending:true};
+ const result=deferPageExecution(page,{search:'reports'});assert.equal(result.dynamic.template,'file-browser-v1');assert.equal(result.runtimePending,false);assert.equal(result.parameters.search,'reports');
+ for(const question of ['ADMA + Google Drive dashboard','analyze spending in Google Drive','Google Drive dashboard with monthly revenue chart'])assert.equal(deferPageExecution({...page,question}).dynamic.template,'page-program-v1');
 });

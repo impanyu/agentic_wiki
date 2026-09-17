@@ -136,7 +136,7 @@ export default function Workspace({ user, signIn, signOut }: {
   useEffect(()=>{
     if(!pendingRuntime)return;
     const controller=new AbortController(),page=pendingRuntime;
-    void fetch('/api/pages/'+encodeURIComponent(page.id)+'/run',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({query:page.parameters?.query,values:page.parameters||{}}),signal:controller.signal})
+    void fetch('/api/pages/'+encodeURIComponent(page.id)+'/run',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({query:page.parameters?.query,values:page.parameters||{}}),signal:AbortSignal.any([controller.signal,AbortSignal.timeout(120000)])})
       .then(readResponse).then(result=>{if(!controller.signal.aborted)setSelected(current=>current===page?{...result.page,parameters:result.page.parameters||page.parameters,runtimePending:false}:current);})
       .catch(error=>{if(!controller.signal.aborted)setSelected(current=>current===page?{...current,runtimePending:false,runtimeError:navigationError(error,'Could not load application results. Use Refresh to retry.')}:current);});
     return ()=>controller.abort();
