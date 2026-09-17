@@ -34,14 +34,14 @@ export async function runAgentResponse(agent:Agent,payload:Record<string,any>,si
  if(options.webSearch&&!payload.tools?.some((t:any)=>t.type==='web_search'))payload.tools=[...(payload.tools||[]),{type:'web_search'}];
  if(payload.tools)payload.tools=payload.tools.filter((t:any,i:number,all:any[])=>all.findIndex(x=>(x.name||x.type)===(t.name||t.type))===i);
  if(options.webSearch)payload.tool_choice=options.webSearch===true?'required':'auto';
- if(connected&&/^gpt-(?:5\.4|5\.6)/.test(selected)){
+ if(connected&&!/^(content|app)-generation$/.test(agent.role)&&/^gpt-(?:5\.4|5\.6)/.test(selected)){
   payload.tools.push({type:'function',name:'set_reasoning_effort',description:'Adjust your next reasoning step. Use low for routine work, medium for complex code or multi-step analysis, high only when necessary. This changes effort, not tools or permissions.',strict:true,parameters:{type:'object',additionalProperties:false,properties:{effort:{type:'string',enum:['low','medium','high']}},required:['effort']}});
  }
  if(connected&&(options.delegationDepth||0)<2)payload.tools.push({type:'function',name:'delegate_task',description:'Optionally ask a specialist to complete a bounded task using the same current-user permissions and tools. Return useful findings or code; delegation is never a required stage.',strict:true,parameters:{type:'object',additionalProperties:false,properties:{specialty:{type:'string',enum:['coding','research','review']},task:{type:'string'}},required:['specialty','task']}});
  if(options.extraTools)payload.tools=[...(payload.tools||[]).filter((t:any)=>!options.extraTools!.some(x=>x.name===t.name)),...options.extraTools];
  const journal=runJournal(agent);
  return runToolLoop({payload,signal,validateFinal:options.validateFinal,event:async e=>{await journal(e);options.onEvent?.(e);},request:request||((current)=>api('responses',current,signal)),execute:async(name,args)=>{
-  if(name==='set_reasoning_effort'&&connected&&['low','medium','high'].includes(args.effort)){Object.assign(payload,reasoningOptions(selected,agent.role,args.effort));return {data:{effort:args.effort}};}
+  if(name==='set_reasoning_effort'&&connected&&!/^(content|app)-generation$/.test(agent.role)&&['low','medium','high'].includes(args.effort)){Object.assign(payload,reasoningOptions(selected,agent.role,args.effort));return {data:{effort:args.effort}};}
   if(name==='delegate_task'&&connected&&(options.delegationDepth||0)<2){
    if(!['coding','research','review'].includes(args.specialty)||typeof args.task!=='string'||!args.task.trim()||args.task.length>16000)throw Error('Invalid specialist task.');
    const pageId=/^(comments|page):/.test(agent.role)?agent.role.replace(/^(comments|page):/,''):options.context?.pageId;
