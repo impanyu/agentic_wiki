@@ -305,3 +305,5 @@ a{color:inherit;text-decoration:none}button,a,input{touch-action:manipulation}bu
 .connector-page .connector-page-title{border:0;padding:0}.connector-page .drive-app h2,.connector-page .drive-app h3{font-family:Arial,sans-serif;letter-spacing:normal}
 
 .connector-support{grid-template-columns:minmax(0,1fr)}
+
+.repository-transfer{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;padding:16px 20px;margin:16px 0;border:1px solid #c9d6e5;border-radius:14px;background:#f4f8fc;width:100%;box-sizing:border-box}.repository-transfer p{margin:5px 0 0;font-size:14px}.repository-transfer button{padding:10px 16px;border:1px solid #9aaec6;border-radius:8px;background:white;cursor:pointer}

@@ -664,5 +664,7 @@
   "Filter harvest points to valid application areas.": "Filter harvest points to valid application areas.",
   "Projected coordinate system": "Projected coordinate system",
   "Rate tolerance": "Rate tolerance",
-  "Mention files and folders": "Mention files and folders"
+  "Mention files and folders": "Mention files and folders",
+  "Data transfer": "Data transfer",
+  "Copy files and folders between connected repositories and this page.": "Copy files and folders between connected repositories and this page."
 }

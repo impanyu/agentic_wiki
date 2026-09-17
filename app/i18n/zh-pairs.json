@@ -393,5 +393,7 @@
   "Harvest data": "收获数据",
   "Projected coordinate system": "投影坐标系",
   "Rate tolerance": "施用量容差",
-  "Mention files and folders": "引用文件和文件夹"
+  "Mention files and folders": "引用文件和文件夹",
+  "Data transfer": "数据传输",
+  "Copy files and folders between connected repositories and this page.": "在已连接的数据仓库和本页面之间复制文件与文件夹。"
 }
