@@ -3,7 +3,7 @@ const strip=p=>readFileSync(p,'utf8').replace(/^import .*;$/gm,'');
 const load=async s=>import('data:text/javascript;base64,'+Buffer.from(ts.transpile(s,{module:ts.ModuleKind.ESNext,target:ts.ScriptTarget.ES2022})).toString('base64'));
 globalThis.mapZ=z;
 const geo=await load(strip('app/geo/data.ts'));globalThis.mapNormalize=geo.normalizeGeoJSON;
-const {viewSchema}=await load('const z=globalThis.mapZ,normalizeGeoJSON=globalThis.mapNormalize,formSchema=z.unknown(),chartSchema=z.unknown();'+strip('app/page-programs/contracts.ts'));
+const {viewSchema}=await load('const z=globalThis.mapZ,normalizeGeoJSON=globalThis.mapNormalize,formSchema=z.unknown(),chartSchema=z.unknown();'+strip('app/resources/contracts.ts')+strip('app/page-programs/contracts.ts'));
 const feature={type:'Feature',geometry:{type:'Point',coordinates:[-93.6,42.0]},properties:{name:'Fixture station',source:'Connector fixture'}};
 const view={templateId:'dashboard-v1',title:'Locations',summary:'Authorized fixture',map:{title:'Stations',geojson:{type:'FeatureCollection',features:[feature]}}};
 test('program maps retain connector coordinates and attributes alongside other UI',()=>{
@@ -13,4 +13,11 @@ test('program maps retain connector coordinates and attributes alongside other U
 });
 test('program maps reject missing, invalid and non-WGS84 geometry',()=>{
  for(const geojson of [{type:'FeatureCollection',features:[]},{...feature,geometry:{type:'Point',coordinates:[200,42]}},{...feature,crs:{name:'EPSG:3857'}}])assert.equal(viewSchema.safeParse({...view,map:{title:'Invalid',geojson}}).success,false);
+});
+
+test('generated file rows preserve validated repository identity for inline transfers',()=>{
+ const resource={space:'adma',connectorId:'11111111-1111-4111-8111-111111111111',id:'real-file',kind:'file',name:'Data.csv'};
+ const parsed=viewSchema.parse({...view,files:[{id:'display-row',name:'Data.csv',kind:'file',resource}]});
+ assert.deepEqual(parsed.files[0].resource,resource);
+ assert.throws(()=>viewSchema.parse({...view,files:[{id:'row',name:'Data.csv',kind:'file',resource:{...resource,connectorId:undefined}}]}));
 });

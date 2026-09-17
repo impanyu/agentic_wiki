@@ -1,4 +1,6 @@
 'use client';
+import {canWritePage} from '@/app/page-permissions';
+import {TransferActions} from '@/app/resources/actions';
 import {ResourcePicker} from '@/app/resources/picker';
 import {useEffect,useRef,useState} from 'react';
 import {Folder,File,Upload,FolderPlus,ChevronRight,Pencil,X} from 'lucide-react';
@@ -30,7 +32,7 @@ export function ContextFiles({page,revision,busy,onChanged}:{page:AnswerPage;rev
   <input ref={input} hidden type="file" multiple onChange={e=>void upload(e.target.files)}/><input ref={directory} hidden type="file" multiple {...{webkitdirectory:''}} onChange={e=>void upload(e.target.files)}/>
   {newFolder!==null&&<form className="file-explorer-form" onSubmit={e=>{e.preventDefault();void action(async()=>{await request('/api/pages/'+page.id+'/files','POST',{path:[target,newFolder].filter(Boolean).join('/')});setNewFolder(null);});}}><input aria-label={t('Folder name')} value={newFolder} onChange={e=>setNewFolder(e.target.value)} required/><button disabled={working}>{t('Create folder')}</button><button type="button" onClick={()=>setNewFolder(null)}>{t('Cancel')}</button></form>}
   {editing&&<form className="file-explorer-form" onSubmit={e=>{e.preventDefault();void action(async()=>{await request(editing.url,'PATCH',{name,folderPath:moveTo});setEditing(null);});}}><label>{t('Name')}<input value={name} onChange={e=>setName(e.target.value)} required/></label><label>{t('Move to folder')}<select value={moveTo} onChange={e=>setMoveTo(e.target.value)}>{paths.map(path=><option key={path} value={path}>{path||t('Root')}</option>)}</select></label><button disabled={working}>{t('Save changes')}</button><button type="button" onClick={()=>setEditing(null)}>{t('Cancel')}</button></form>}
-  <FileBrowser items={items} title={t('Page files')} language={page.language} renderActions={fileActions}/>{!files.length&&!folders.length&&<p>{t('No files yet. Upload files or create a folder.')}</p>}{working&&<p role="status">{t('Working…')}</p>}{error&&<p role="alert">{t(error)}</p>}
+  <FileBrowser items={items} title={t('Page files')} language={page.language} renderActions={file=><>{fileActions(file)}<TransferActions pageId={page.id} resource={{space:'page',id:file.kind==='folder'?file.id.replace(/^folder:/,''):file.id,name:file.name,kind:file.kind}} canMove={canWritePage(page)}/></>}/>{!files.length&&!folders.length&&<p>{t('No files yet. Upload files or create a folder.')}</p>}{working&&<p role="status">{t('Working…')}</p>}{error&&<p role="alert">{t(error)}</p>}
  {resourcePicker&&<ResourcePicker pageId={page.id} copyMode onClose={()=>setResourcePicker(false)}/>}
  </details>;
 }
