@@ -17,6 +17,8 @@ const draftSchema=z.object({kind:z.enum(['article','disambiguation','chat','file
 export type GenerationDraft=z.infer<typeof draftSchema>;
 export function validateGenerationDraft(raw:unknown,question:string,context:AgentContext,webSearched:boolean,dataConsulted=false){
  const d=draftSchema.parse(raw);
+ if(context.pageIntent==='article'&&!['article','disambiguation'].includes(d.kind))throw Error('The root router requested a wiki page. Return an article or disambiguation index.');
+ if(context.pageIntent&&context.pageIntent!=='article'&&d.kind==='article')throw Error('The root router requested a web app. Return the requested app/chart or an honest blocked chat workspace, not an article substitute.');
  if(d.intent.visualTheme==='custom')d.intent.visualDesign=normalizeCustomStyle(d.intent.visualDesign);
  const ambiguous=d.intent.needsDisambiguation||!d.intent.singleMeaningCertain||new Set(d.intent.interpretations.map(x=>x.trim().toLowerCase())).size>1;
  if(ambiguous&&d.kind!=='disambiguation'&&!context.sourceDocument&&!context.indexLeafRequired)throw Error('Multiple plausible interpretations require a disambiguation page.');

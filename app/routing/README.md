@@ -1,0 +1,7 @@
+# Single root routing
+
+Navigation creates one `root-routing` agent. It ranks every accessible question together (wiki pages, apps and chat workspaces), retains the nearest five question records, and selects one candidate before applying the existing high / uncertain / none decision. High confidence reuses the candidate; uncertain inspects only its mapped page; none generates. Rejection never searches the next candidate. Language, ownership, session access, index limits and application capability guards still apply.
+
+A match opens a wiki page directly with the existing freshness checks. For an app, the same root extracts declared input parameters (or the registered form/conversion contract), then opens/runs the existing app. Missing inputs are not invented. A miss asks the same root to select wiki or app and invokes the autonomous generator with that decision. Charts and conversation workspaces are app presentations, not extra routing layers. Registered frontend templates and the existing component registry remain reusable.
+
+URL identity matching remains a direct address lookup; new URLs still embed their fetched summary. Explicit forks bypass reuse. Concurrent publication rechecks the same unified question pool under the existing lock. The old root/wiki route tables remain in the database for rollback compatibility but are not consulted by navigation. Session records still store chat ownership/memory, not a routing layer. Text exact-match bypasses have been removed so ordinary questions always use the requested top-five decision.

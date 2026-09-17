@@ -1,4 +1,3 @@
-import {exactSavedQuestion} from './exact-match';
 import {deferPageExecution} from '@/app/page-programs/deferred';
 import {requireValidIndex,indexGenerationPolicy} from '@/app/disambiguation/graph';
 import {storagePageMismatch} from '@/app/storage/page-scope';
@@ -6,7 +5,6 @@ import {inheritGenerationSession} from '@/app/agents/session';
 import {prepareNavigationInput} from '@/app/url-content';
 import {matchSourceUrl} from '@/app/url-content/matching';
 import {generationProgress} from '@/app/generation-progress';
-import {importWikiRoutes} from '@/db/routing-tables';
 import {ensurePageSession,rememberSessionRoutes} from '@/app/chat/session';
 import {startJob,finishJob} from '@/app/context-index/jobs';
 import {routeInputs,programNavigationInput} from '@/app/page-programs/inputs';
@@ -14,7 +12,7 @@ import {answerStream} from '@/app/answer-stream';
 import {generateContext} from '@/app/page-programs/generate-context';
 import {matchQuestion} from './question-search';
 import {refreshMatchedPage} from './refresh-matched-page';
-import {resolveRootRoute,rememberRootRoute} from '@/app/routing/root-table';
+import {resolveRootRoute} from '@/app/routing/root-table';
 import {spawnAgent,recordAction} from '@/app/agents/runtime';
 import {attachComponents,type AgentContext} from '@/app/components-registry/registry';
 import {extractApplicationInputs} from '@/app/components-registry/composer';
@@ -51,7 +49,6 @@ async function routeAnswer(request:Request,actor:Awaited<ReturnType<typeof getAc
    fork={sourceId:source.id,requestId:data.fork.requestId,groupId:family?.group_id||source.id,createdAt:source.createdAt};
   }
   if(!fork){const page=await matchSourceUrl(question,uid);if(page)return respond({page,reused:true,destination:question});}
-  if(!fork){const exact=await exactSavedQuestion(question,uid);if(exact)return respond({page:exact,reused:true,destination:question});}
   jobId=await startJob(uid,'navigation',question);
   if(!aiKey())return respond({error:'The AI connection is not configured yet.'},503);
   const {sourceDocument,routingQuestion,vector,language}=await prepareNavigationInput(question,request.signal);
@@ -65,43 +62,38 @@ async function routeAnswer(request:Request,actor:Awaited<ReturnType<typeof getAc
   }
   const context:AgentContext={userId:uid,ownerId:uid,language,visibility:'private',sourceDocument:sourceDocument||undefined};
   const rootRouter=await spawnAgent('root-routing',context.ownerId);
-  const rootRoute=await resolveRootRoute(routingQuestion,vector,language,uid,rootRouter);
+  const rootRoute=await resolveRootRoute(routingQuestion,vector,language,uid,rootRouter,request.signal,!!fork);
   const requested=sourceDocument?{...rootRoute.intent,kind:'article' as const,route:'wiki' as const,service:'none' as const,fresh:false}:rootRoute.intent;context.pageIntent=requested.kind;
-  const domain=requested.kind==='article'?'wiki':requested.service!=='none'?'app':requested.route==='session'?'session':'app';
-  const router=await spawnAgent(domain+'-routing',context.ownerId,rootRouter);context.agent=router;
-  const parameterRouter=domain==='app'?rootRouter:router;
-  await recordAction(rootRouter,'Route to context branch',{question,domain,agentId:router.id,intent:requested});
+  const domain=requested.kind==='article'?'wiki':'app';
+  const router=rootRouter,parameterRouter=rootRouter;context.agent=rootRouter;
   const destination=routingQuestion;
   const originalKey=sourceDocument?'url:'+sourceDocument.url:normalize(question);
   const destinationKey=sourceDocument?originalKey:normalize(destination);
   // Queries without an existing URL binding use semantic matching.
-  // Reuse this request’s embedding in the selected child table.
+  // All page types share this request’s embedding and one question pool.
   let intentPromise:ReturnType<typeof parseConversion>|undefined;
   const conversion=()=>intentPromise??=parseConversion(destination);
   async function resolvePage(pageId:string){
    const page=await getPage(pageId,uid);if(page?.labels.templateId==='disambiguation-v1')await requireValidIndex(uid,page.id,destination);
-   if(page?.dynamic?.template==='agent-chat-v1'){const session=await ensurePageSession(page.id,uid);await rememberSessionRoutes(page.id,uid,session.id);await recordAction(router,'Open persistent chat session',{pageId:page.id,sessionId:session.id});return {...page,sessionId:session.id};}
+   if(page?.dynamic?.template==='agent-chat-v1'){const parameters=await routeInputs(destination,page,rootRouter);const session=await ensurePageSession(page.id,uid);await rememberSessionRoutes(page.id,uid,session.id);await recordAction(router,'Open persistent chat session',{pageId:page.id,sessionId:session.id});return {...page,parameters,sessionId:session.id};}
    if(page?.dynamic?.template==='context-index-v1'){const parameters=await routeInputs(destination,page,parameterRouter);return executePage(page,parameters,uid);}
    if(page?.dynamic?.template==='page-program-v1'){const parameters=await routeInputs(destination,page,parameterRouter);return deferPageExecution(page,parameters);}
    if(page?.dynamic?.template==='file-browser-v1')return {...page,parameters:await routeInputs(destination,page,parameterRouter)};
-   if(['component-chart-v1','component-sandbox-v1','google-drive-folders-v1','native-app-v1','file-browser-v1','agent-chat-v1'].includes(page?.dynamic?.template||''))return page;
+   if(['component-chart-v1','component-sandbox-v1','google-drive-folders-v1','native-app-v1','file-browser-v1','agent-chat-v1'].includes(page?.dynamic?.template||''))return {...page!,parameters:await routeInputs(destination,page!,rootRouter)};
    if(page?.dynamic?.template==='component-form-v1'&&page.dynamic.form){const input=await extractApplicationInputs(destination,page.dynamic.form,parameterRouter);page.parameters=input;try{return await executePage(page,input,uid);}catch{return page;}}
    if(page?.kind==='dynamic'&&page.dynamic){const intent=await conversion();if(intent.intent!=='unit_conversion')throw new Error('AI_UNAVAILABLE');if(intent.input){try{Object.assign(page,await executePage(page,intent.input,uid));}catch{page.runtimeError=page.dynamic.labels.invalid;}}}
    return page;
   }
   async function remember(pageId:string,page:AnswerPage){
-   await rememberRootRoute(routingQuestion,vector,language,uid,domain,pageId,requested,originalKey);
    const now=new Date().toISOString();
    const entries=sourceDocument?[[originalKey,sourceDocument.url],[normalize(sourceDocument.summary),sourceDocument.summary]]:originalKey===destinationKey?[[originalKey,question]]:[[originalKey,question],[destinationKey,destination]];
    await database().batch([...entries.map(([key,text])=>database().prepare(`INSERT OR IGNORE INTO questions(id,page_id,normalized,question,embedding,created_at,match_version,capability,parameters,routing_scope) SELECT ?,id,?,?,?,?,?,CASE WHEN kind='dynamic' THEN COALESCE(json_extract(dynamic_config,'$.capability'),'unit-converter-v1') WHEN json_extract(labels,'$.templateId')='disambiguation-v1' THEN 'disambiguation' ELSE 'article' END,?,? FROM pages WHERE id=? AND (visibility='public' OR owner_id=?)`+(sourceDocument?' ON CONFLICT(page_id,normalized) DO UPDATE SET question=excluded.question,embedding=excluded.embedding,match_version=excluded.match_version':'')).bind(crypto.randomUUID(),key,text,JSON.stringify(vector),now,MATCH_VERSION,JSON.stringify(page.parameters||page.runtime?.input||{}),domain,pageId,uid))]);
-   if(domain==='wiki')await importWikiRoutes(database(),uid);
-   if(domain==='session'){const session=await ensurePageSession(pageId,uid);await rememberSessionRoutes(pageId,uid,session.id);}
+   if(page.dynamic?.template==='agent-chat-v1'){const session=await ensurePageSession(pageId,uid);await rememberSessionRoutes(pageId,uid,session.id);}
    page.forks=(await getPage(page.id,uid))?.forks;
   }
   async function findMatch(signal?:AbortSignal){
    if(sourceDocument){const exact=await matchSourceUrl(question,uid);if(exact)return exact.id;}
-   const rootApp=!sourceDocument&&rootRoute.appId?await getPage(rootRoute.appId,uid):null;
-   const id=rootApp?.kind==='dynamic'?rootApp.id:await matchQuestion(destination,vector,language,uid,router,signal,domain);
+   const id=await matchQuestion(destination,vector,language,uid,rootRouter,signal);
    if(!id)return null;
    const page=await getPage(id,uid);if(page?.labels.templateId==='disambiguation-v1')await requireValidIndex(uid,page.id,destination);
    if(!page)return null;
@@ -116,10 +108,11 @@ async function routeAnswer(request:Request,actor:Awaited<ReturnType<typeof getAc
    return id;
   }
 
-  let matched=fork?null:await findMatch();
+  let matched=fork?null:rootRoute.pageId;
+  if(matched&&sourceDocument&&(await getPage(matched,uid))?.kind!=='static')matched=null;
   if(matched){const page=await resolvePage(matched);if(!page)return respond({error:'This page is no longer accessible. Please try again.'},404);await remember(page.id,page);const updated=await refreshMatchedPage(page,destination,requested.fresh,uid,router);return respond({page:updated,reused:true,destination});}
   // The content generator chooses article versus disambiguation after reuse misses.
-  const presentation=requested.kind==='article'?'wiki-v1':domain==='session'?'chat-v1':requested.service==='google_drive_folders'?'files-v1':['context_pages','user_jobs'].includes(requested.service)?'wiki-v1':requested.kind==='chart'?'dashboard-v1':'form-v1';
+  const presentation=requested.kind==='article'?'wiki-v1':requested.service==='google_drive_folders'?'files-v1':['context_pages','user_jobs'].includes(requested.service)?'wiki-v1':requested.kind==='chart'?'dashboard-v1':'form-v1';
   const visibility='private' as const;
   const keyBytes=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(JSON.stringify([language,destinationKey,uid])));
   const generationKey=fork?'fork:'+fork.requestId:'question:'+Array.from(new Uint8Array(keyBytes),b=>b.toString(16).padStart(2,'0')).join('');
@@ -131,12 +124,10 @@ async function routeAnswer(request:Request,actor:Awaited<ReturnType<typeof getAc
   async function generate(emit?:(event:ResearchUpdate)=>void,signal?:AbortSignal){
    signal=signal?AbortSignal.any([signal,deadline]):deadline;
    signal.throwIfAborted();
-   if(domain==='app')await recordAction(router,'Return app cache miss to root',{question:destination,rootAgentId:rootRouter.id});
-   const generated=await generateContext({question:destination,templateId:presentation,fresh:requested.fresh,service:requested.service,route:domain},context,domain==='app'?rootRouter:router,emit,signal);
+   const generated=await generateContext({question:destination,templateId:presentation,fresh:requested.fresh,service:requested.service,route:domain},context,rootRouter,emit,signal);
    const {answer,definition}=generated,dependencies=definition?.components||[],id=fork?.requestId||crypto.randomUUID(),now=new Date().toISOString();
    const finalIntent=generated.generationIntent;
    const generationDomain=!definition?'wiki':finalIntent.outputKind==='conversation'?'session':'app';
-   const generationRequest={...requested,route:generationDomain as 'wiki'|'session'|'app',kind:(!definition?'article':finalIntent.outputKind==='chart'?'chart':'application') as 'article'|'chart'|'application',service:finalIntent.service,fresh:requested.fresh||finalIntent.fresh};
   const active=await database().prepare("SELECT token FROM generation_locks WHERE token=? AND expires>?").bind(lease,Date.now()).first();
   if(!active)throw new Error('The request took too long. Please try again.');
    signal?.throwIfAborted();
@@ -167,10 +158,8 @@ async function routeAnswer(request:Request,actor:Awaited<ReturnType<typeof getAc
   ]);
   await inheritGenerationSession(generated.generatorId,id,uid,!definition);
   if(dependencies.length)await attachComponents(id,dependencies,context);
-  if(generationDomain==='wiki')await importWikiRoutes(database(),uid);
   const page=await resolvePage(id);if(!page)throw new Error('Could not load the saved page.');
   if(definition&&page.parameters)await database().prepare('UPDATE questions SET parameters=? WHERE page_id=?').bind(JSON.stringify(page.parameters),page.id).run();
-  if(!fork)await rememberRootRoute(routingQuestion,vector,language,uid,generationDomain,page.id,generationRequest,originalKey);
   if(domain==='app')await recordAction(rootRouter,'Route original question to generated app',{pageId:page.id,parameters:page.parameters||page.runtime?.input||{}});
   return {page,reused:false,destination};
   }finally{await unlock(publishToken).catch(()=>{});}

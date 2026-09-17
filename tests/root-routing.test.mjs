@@ -1,26 +1,19 @@
-import test from 'node:test';import assert from 'node:assert/strict';import {DatabaseSync} from 'node:sqlite';import {readFileSync,readdirSync} from 'node:fs';import ts from 'typescript';
-test('root targets branches or apps, never wiki pages or sessions; routes are user scoped and revoked apps are excluded',async()=>{
- const db=new DatabaseSync(':memory:');for(const f of readdirSync('drizzle').filter(f=>f.endsWith('.sql')).sort())db.exec(readFileSync('drizzle/'+f,'utf8'));
- let confidence='high',classified=0,candidates=[],mismatch=false;
- globalThis.rootRoutingTest={getPage:async()=>({title:'ADMA',dynamic:{template:'file-browser-v1'}}),storagePageMismatch:()=>mismatch,database:()=>({prepare(sql){return {bind(...args){return {all:async()=>({results:db.prepare(sql).all(...args)}),run:async()=>db.prepare(sql).run(...args)}}}}}),normalize:s=>s.toLowerCase(),cosine:()=>1,nearestQuestions:c=>c.slice(0,5),assessQuestion:async(q,c)=>{candidates=c;return {questionId:(q.includes('temperature plot')?c.find(x=>x.question==='Files'):c[0])?.id,confidence}},pageIntent:async()=>{classified++;return {route:'wiki',kind:'article',fresh:false,service:'none'}},recordAction:async()=>{}};
- const source=readFileSync('app/routing/root-table.ts','utf8').replace(/^import .*;$/gm,'')+'\nconst {database,getPage,storagePageMismatch,normalize,cosine,nearestQuestions,assessQuestion,pageIntent,recordAction}=globalThis.rootRoutingTest;';
- const mod=await import('data:text/javascript;base64,'+Buffer.from(ts.transpile(source,{module:ts.ModuleKind.ESNext,target:ts.ScriptTarget.ES2022})).toString('base64'));
- const wiki={route:'wiki',kind:'article',fresh:false,service:'none'},session={...wiki,route:'session',kind:'application'};
- await mod.rememberRootRoute('China',[1],'en','alice','wiki','wiki-page',wiki);
- await mod.rememberRootRoute('Help me plan',[1],'en','bob','session','session-page',session);
- const rows=db.prepare('SELECT * FROM root_routes ORDER BY owner_id').all();assert.equal(rows[0].target_type,'wiki_router');assert.equal(rows[0].app_id,null);assert.equal(rows[1].target_type,'session_router');assert.equal(rows[1].app_id,null);
- assert.equal((await mod.resolveRootRoute('China',[1],'en','alice',{})).intent.route,'wiki');assert.equal(candidates.length,1);assert.equal(candidates[0].question,'China');assert.equal(classified,0);
- confidence='uncertain';await mod.resolveRootRoute('China today',[1],'en','alice',{});assert.equal(classified,1);
- db.exec("INSERT INTO pages(id,owner_id,question,title,summary,body,category,sources,language,created_at,kind,visibility) VALUES('app','alice','files','Files','','','App','[]','en','now','dynamic','public')");
- await mod.rememberRootRoute('Files',[1],'en','bob','app','app',{...session,route:'app'});
- mismatch=true;confidence='high';
- const before=classified;const result=await mod.resolveRootRoute('the temperature plot 9/1/2026 on adma realm5',[1],'en','bob',{});
- assert.equal(result.appId,null);assert.equal(classified,before+1);mismatch=false;
- db.exec("UPDATE pages SET visibility='private' WHERE id='app'");
- confidence='high';await mod.resolveRootRoute('Files',[1],'en','bob',{});assert.equal(candidates.some(c=>c.question==='Files'),false);
- await mod.rememberRootRoute('Webpage content summary',[0.25,0.75],'en','alice','wiki','wiki-page',wiki,'url:https://example.org/Paper');
- await mod.rememberRootRoute('Different source content',[0.75,0.25],'en','alice','wiki','wiki-page',wiki,'url:https://example.org/paper');
- const urls=db.prepare("SELECT question,normalized,embedding FROM root_routes WHERE normalized LIKE 'url:%' ORDER BY normalized").all();
- assert.equal(urls.length,2);assert.equal(urls[0].question,'Webpage content summary');assert.deepEqual(JSON.parse(urls[0].embedding),[0.25,0.75]);assert.equal(urls[0].normalized,'url:https://example.org/Paper');
- db.close();delete globalThis.rootRoutingTest;
+import test from 'node:test';import assert from 'node:assert/strict';import {readFileSync} from 'node:fs';import ts from 'typescript';
+const load=s=>import('data:text/javascript;base64,'+Buffer.from(ts.transpile(s,{module:ts.ModuleKind.ESNext,target:ts.ScriptTarget.ES2022})).toString('base64'));
+test('one root routes matched wiki/apps, classifies only misses, and bypasses matching for explicit forks',async()=>{
+ let match='wiki',classified=0,searches=0,mismatch=false;const calls=[];
+ const pages={wiki:{id:'wiki',kind:'static',title:'Wiki'},app:{id:'app',kind:'dynamic',title:'App',dynamic:{capability:'application'}},chart:{id:'chart',kind:'dynamic',title:'Chart',dynamic:{capability:'chart'}}};
+ globalThis.rootTest={getPage:async id=>pages[id],matchQuestion:async(...args)=>{searches++;calls.push(args);return match;},pageIntent:async()=>{classified++;return {route:'app',kind:'chart',service:'none',fresh:false};},recordAction:async()=>{},storagePageMismatch:()=>mismatch};
+ const m=await load('const {'+Object.keys(globalThis.rootTest).join(',')+'}=globalThis.rootTest;'+readFileSync('app/routing/root-table.ts','utf8').replace(/^import .*;$/gm,''));
+ const root={id:'root',role:'root-routing',ownerId:'u'};
+ assert.equal((await m.resolveRootRoute('q',[1],'en','u',root)).intent.route,'wiki');
+ match='app';assert.equal((await m.resolveRootRoute('q',[1],'en','u',root)).intent.route,'app');
+ match='chart';assert.equal((await m.resolveRootRoute('q',[1],'en','u',root)).intent.kind,'chart');assert.equal(classified,0);
+ mismatch=true;assert.equal((await m.resolveRootRoute('q',[1],'en','u',root)).pageId,null);assert.equal(classified,1);
+ mismatch=false;match=null;assert.equal((await m.resolveRootRoute('q',[1],'en','u',root)).pageId,null);assert.equal(classified,2);
+ const before=searches;await m.resolveRootRoute('q',[1],'en','u',root,undefined,true);assert.equal(searches,before);assert.equal(classified,3);
+ assert.ok(calls.every(a=>a[4]===root&&a.length===6),'same root and no domain filter');delete globalThis.rootTest;
+});
+test('navigation spawns no branch router and sends the root to parameter extraction and generation',()=>{
+ const s=readFileSync('app/api/ask/route.ts','utf8');assert.match(s,/spawnAgent\('root-routing'/);assert.doesNotMatch(s,/spawnAgent\(domain|exactSavedQuestion|rememberRootRoute|importWikiRoutes/);assert.match(s,/parameterRouter=rootRouter/);assert.match(s,/context,rootRouter,emit,signal/);
 });

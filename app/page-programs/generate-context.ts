@@ -26,7 +26,7 @@ export async function generateContext(brief:GenerationBrief,context:AgentContext
    if(title!==undefined){lastPreview=Date.now();emit({type:'metadata',title,summary:partialJsonString(json,'summary')||'',category:partialJsonString(json,'category')||'',labels:{overview:'',contents:'',sources:''}});}
    if(body!==undefined){lastPreview=Date.now();emit({type:'replace',text:body});}
   };
- await askAgent(generator,generationInstructions,{question:brief.question,language:context.language,initialRoutingHint:brief,sourceDocument:context.sourceDocument,visibility:context.visibility,indexLeafRequired:context.indexLeafRequired,asOf:new Date().toISOString()},{type:'object',additionalProperties:false,properties:{draftJson:{type:'string'}},required:['draftJson']},signal,undefined,[],{
+ await askAgent(generator,generationInstructions,{question:brief.question,language:context.language,routingDecision:brief,sourceDocument:context.sourceDocument,visibility:context.visibility,indexLeafRequired:context.indexLeafRequired,asOf:new Date().toISOString()},{type:'object',additionalProperties:false,properties:{draftJson:{type:'string'}},required:['draftJson']},signal,undefined,[],{
   context:ctx,extraTools:tools,
   onOutputText:preview,onToolArguments:(name,text)=>{if(name==='validate_page_draft')preview(text);},
   executeExtra:async(name,args)=>{

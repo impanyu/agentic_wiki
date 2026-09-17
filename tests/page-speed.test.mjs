@@ -11,23 +11,6 @@ test('nested streaming decodes partial article text without exposing nested code
  assert.equal(partialJsonString('{"code":{"body":"secret"},"body":"Visible','body'),'Visible');
  assert.equal(partialJsonString('{"other":"body","value":"hidden"}','body'),undefined);
 });
-test('exact saved question fast path uses real SQL permissions, freshness, and mapping version',async()=>{
- const dir=mkdtempSync(join(tmpdir(),'wiki-exact-')),path=join(dir,'test.sqlite');migrate(path);const db=new SqliteDatabase(path);
- const page={id:'p',question:'Photosynthesis',kind:'static',labels:{},owned:true,createdAt:new Date().toISOString()};
- globalThis.exactDeps={database:()=>db,getPage:async()=>page,normalize:s=>s.trim().toLowerCase(),repairKnownMappings:async()=>{},MATCH_VERSION:5,needsReview:()=>false,storagePageMismatch:()=>false,requireValidIndex:async()=>{},deferPageExecution:p=>({...p,runtimePending:true}),parametersSchema:z.record(z.union([z.string(),z.number(),z.boolean()]))};
- try{
-  await db.prepare("INSERT INTO pages(id,owner_id,question,title,summary,body,category,sources,labels,visibility,created_at,language) VALUES('p','u','Photosynthesis','Photosynthesis','','','','[]','{}','private',?,'en')").bind(page.createdAt).run();
-  await db.prepare("INSERT INTO questions(id,page_id,normalized,question,embedding,created_at,match_version,routing_scope,parameters) VALUES('q','p','photosynthesis','Photosynthesis','[]',?,5,'wiki','{}')").bind(page.createdAt).run();
-  await db.prepare("INSERT INTO root_routes(id,owner_id,question,normalized,language,embedding,target_type,intent,created_at) VALUES('r','u','Photosynthesis','photosynthesis','en','[]','wiki_router','{\"fresh\":false}',?)").bind(page.createdAt).run();
-  const m=await load('const {'+Object.keys(globalThis.exactDeps).join(',')+'}=globalThis.exactDeps;'+strip('app/api/ask/exact-match.ts'));
-  assert.equal((await m.exactSavedQuestion('Photosynthesis','u')).id,'p');
-  assert.equal(await m.exactSavedQuestion('Photosynthesis','other'),null);
-  assert.equal(await m.exactSavedQuestion('Latest photosynthesis','u'),null);
-  await db.prepare("UPDATE root_routes SET intent='{\"fresh\":true}'").run();assert.equal(await m.exactSavedQuestion('Photosynthesis','u'),null);
-  await db.prepare("UPDATE root_routes SET intent='{\"fresh\":false}'").run();
-  await db.prepare('UPDATE questions SET match_version=0').run();assert.equal(await m.exactSavedQuestion('Photosynthesis','u'),null);
- }finally{db.close();rmSync(dir,{recursive:true,force:true});delete globalThis.exactDeps;}
-});
 test('deferred reads return the saved app without executing its backend',async()=>{
  let calls=0;const page={id:'p',kind:'dynamic',dynamic:{template:'page-program-v1'},parameters:{}};
  const {deferPageExecution,registeredAdmaPage}=await load(strip('app/page-programs/deferred.ts'));

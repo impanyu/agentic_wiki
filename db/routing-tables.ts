@@ -1,5 +1,5 @@
-// Each routing agent owns a separate logical table in the question pool.
-// Wiki questions and session questions never compete; root_routes is independent.
+// Legacy storage scopes remain for compatibility and session ownership.
+// Navigation now ranks all accessible questions together in the root router.
 export type RoutingScope='wiki'|'session'|'app';
 export const routingScopeRepairSql=`UPDATE questions SET routing_scope=CASE WHEN p.kind='static' THEN 'wiki' ELSE COALESCE(json_extract(p.dynamic_config,'$.contextDomain'),CASE WHEN json_extract(p.dynamic_config,'$.template')='agent-chat-v1' THEN 'session' ELSE 'app' END) END FROM pages p WHERE p.id=questions.page_id AND (p.visibility='public' OR p.owner_id=?) AND routing_scope<>CASE WHEN p.kind='static' THEN 'wiki' ELSE COALESCE(json_extract(p.dynamic_config,'$.contextDomain'),CASE WHEN json_extract(p.dynamic_config,'$.template')='agent-chat-v1' THEN 'session' ELSE 'app' END) END`;
 export async function ensureRoutingScopes(db:D1Database,userId:string){await db.prepare(routingScopeRepairSql).bind(userId).run();}

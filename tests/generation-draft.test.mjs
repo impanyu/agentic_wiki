@@ -38,3 +38,9 @@ test('connector plots reject browser substitutes and accept consulted file data 
  assert.throws(()=>m.validateGenerationDraft(draft,question,ctx,false,false),/Read the chart observations/);
  assert.equal(m.validateGenerationDraft(draft,question,ctx,false,true).kind,'chart');
 });
+
+test('the generator honors the root wiki/app decision while retaining disambiguation',()=>{
+ assert.throws(()=>m.validateGenerationDraft({...base,kind:'chat'},'Topic',{...ctx,pageIntent:'article'},true),/root router requested a wiki/);
+ assert.throws(()=>m.validateGenerationDraft(base,'Plot',{...ctx,pageIntent:'chart'},true),/root router requested a web app/);
+ assert.equal(m.validateGenerationDraft({...base,kind:'chat'},'Plot',{...ctx,pageIntent:'chart'},true).kind,'chat');
+});

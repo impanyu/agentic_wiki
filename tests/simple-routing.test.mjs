@@ -15,7 +15,7 @@ test('top five questions then mapped page; refresh updates in place and preserve
  assert.equal(await search.matchQuestion('input',[0],'en','u',{}),'p6');assert.deepEqual(seen.map(c=>c.id),['q6','q5','q4','q3','q2']);
  db.prepare("UPDATE pages SET kind='dynamic',dynamic_config=? WHERE id='p6'").run(JSON.stringify({template:'agent-chat-v1'}));
  db.exec("INSERT INTO agent_instances VALUES('session6','page:p6','u',NULL,'now'); INSERT INTO session_routes VALUES('r6','u','q6','session6','p6','now')");
- assert.equal(await search.matchQuestion('input',[0],'en','u',{},undefined,'wiki'),'p5');assert.equal(await search.matchQuestion('input',[0],'en','u',{},undefined,'session'),'p6');assert.equal(await search.matchQuestion('input',[0],'en','u',{},undefined,'app'),null);
+ assert.equal(await search.matchQuestion('input',[0],'en','u',{}),'p6');assert.ok(seen.some(c=>c.page_id==='p5'),'wiki and app questions compete in the same top five');
  db.exec("UPDATE pages SET kind='static',dynamic_config=NULL WHERE id='p6'");
  db.prepare("UPDATE pages SET question='Chinese',labels=? WHERE id='p6'").run(JSON.stringify({templateId:'disambiguation-v1',indexEntries:[{question:'Chinese people'},{question:'Chinese language'}]}));
  db.prepare("UPDATE questions SET question='Chinese people',normalized='chinese people' WHERE id='q6'").run();
