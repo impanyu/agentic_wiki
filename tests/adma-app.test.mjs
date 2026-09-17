@@ -29,5 +29,5 @@ test('basic Google Drive dashboards reuse the native browser without changing cu
  const {deferPageExecution}=await import('data:text/javascript;base64,'+Buffer.from(ts.transpile(source,{module:ts.ModuleKind.ESNext})).toString('base64'));
  const page={id:'drive',question:'Google Drive dashboard',labels:{templateId:'dashboard-v1'},dynamic:{template:'page-program-v1'},runtimePending:true};
  const result=deferPageExecution(page,{search:'reports'});assert.equal(result.dynamic.template,'file-browser-v1');assert.equal(result.runtimePending,false);assert.equal(result.parameters.search,'reports');
- for(const question of ['ADMA + Google Drive dashboard','analyze spending in Google Drive','Google Drive dashboard with monthly revenue chart'])assert.equal(deferPageExecution({...page,question}).dynamic.template,'page-program-v1');
+ for(const question of ['analyze spending in Google Drive','Google Drive dashboard with monthly revenue chart'])assert.equal(deferPageExecution({...page,question}).dynamic.template,'page-program-v1');
 });

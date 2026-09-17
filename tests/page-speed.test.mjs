@@ -64,3 +64,15 @@ test('exact saved question fast path uses real SQL permissions, freshness, and m
   await db.prepare('UPDATE questions SET match_version=0').run();assert.equal(await m.exactSavedQuestion('Photosynthesis','u'),null);
  }finally{db.close();rmSync(dir,{recursive:true,force:true});delete globalThis.exactDeps;}
 });
+test('ordinary combined repositories reuse native panels while analytical dashboards retain code',async()=>{
+ const {deferPageExecution,basicCombinedRepositories}=await load(strip('app/page-programs/deferred.ts'));
+ for(const question of ['Create a combined ADMA and Google Drive dashboard','adma and google drive dashboard','Show my Google Drive and ADMA files']){
+  assert.equal(basicCombinedRepositories(question),true);
+  const page=deferPageExecution({id:'existing',kind:'dynamic',question,labels:{},dynamic:{template:'page-program-v1'},runtimeError:'old failure',view:{}},{search:'field'});
+  assert.equal(page.id,'existing');assert.equal(page.dynamic.template,'file-browser-v1');assert.equal(page.runtimePending,false);assert.equal(page.runtimeError,undefined);assert.equal(page.view,undefined);assert.equal(page.parameters.search,'field');
+ }
+ for(const question of ['Plot ADMA and Google Drive data','Create a combined ADMA and Google Drive dashboard with temperature charts','Compare ADMA and Google Drive duplicates']){
+  assert.equal(basicCombinedRepositories(question),false);
+  assert.equal(deferPageExecution({question,dynamic:{template:'page-program-v1'}}).runtimePending,true);
+ }
+});

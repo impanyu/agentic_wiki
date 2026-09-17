@@ -1,3 +1,4 @@
+import {registeredAdmaPage} from '@/app/page-programs/deferred';
 import {executeContextIndex} from '@/app/context-index/server';
 import {runPageProgram} from '@/app/page-programs/runtime';
 import {executeCodeComponent} from '@/app/sandboxes/service';
@@ -28,6 +29,8 @@ export async function hydrateComponents(page:AnswerPage,userId:string){
  return page;
 }
 export async function executePage(page:AnswerPage,input:unknown,userId:string){
+ page=registeredAdmaPage(page);
+ if(page.dynamic?.template==='file-browser-v1')return {...page,runtimePending:false,runtimeError:undefined};
  const config=page.dynamic;if(!config)throw new Error('NOT_APPLICATION');
  if(config.template==='context-index-v1')return executeContextIndex(page,input,userId);
  if(config.template==='page-program-v1')return runPageProgram(page,input,userId);
