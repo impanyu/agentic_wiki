@@ -8,6 +8,7 @@ import {canWritePage,pageAccess,type PageAccess} from './page-permissions';
 import {DisambiguationIndex} from './disambiguation/view';
 import {ProgramView} from './page-programs/view';
 import {ConnectorPanel} from './connectors/panel';
+import {ProcessingPanel} from './adma/processing-panel';
 import {GeoViewer} from './geo/viewer';
 import {Workbench} from './tools/workbench';
 import {nativePageSource} from './tools/sources';
@@ -405,7 +406,7 @@ export default function Workspace({ user, signIn, signOut }: {
         {visiblePage.dynamic?.template==='google-drive-folders-v1'&&visiblePage.dynamic.driveLabels&&<DriveFolders key={'drive:'+visiblePage.id} pageId={visiblePage.id} labels={visiblePage.dynamic.driveLabels}/>}
         {visiblePage.dynamic?.template==='component-form-v1'&&<ComponentForm key={'form:'+visiblePage.id} page={visiblePage} onResult={page=>{setSelected(page);recordHistory(page.id,question,page.parameters);}}/>}
         {visiblePage.runtimeError&&<p role="alert">{t(visiblePage.runtimeError)}</p>}
-        {visiblePage.dynamic?.template==='native-app-v1'&&(visiblePage.dynamic.nativeApp==='map'?<GeoViewer key={visiblePage.id+JSON.stringify(visiblePage.parameters||{})} embedded revision={filesRevision} source={nativePageSource(visiblePage)}/>:<Workbench key={visiblePage.id+JSON.stringify(visiblePage.parameters||{})} embedded revision={filesRevision} app={visiblePage.dynamic.nativeApp||'hub'} source={nativePageSource(visiblePage)}/>)}
+        {visiblePage.dynamic?.template==='native-app-v1'&&(visiblePage.dynamic.nativeApp==='adma-tools'?<ProcessingPanel key={visiblePage.id} pageId={visiblePage.id} writable={canWritePage(visiblePage)} initialTool={String(visiblePage.parameters?.tool||'')}/>:visiblePage.dynamic.nativeApp==='map'?<GeoViewer key={visiblePage.id+JSON.stringify(visiblePage.parameters||{})} embedded revision={filesRevision} source={nativePageSource(visiblePage)}/>:<Workbench key={visiblePage.id+JSON.stringify(visiblePage.parameters||{})} embedded revision={filesRevision} app={visiblePage.dynamic.nativeApp||'hub'} source={nativePageSource(visiblePage)}/>)}
         {nativeApp==='adma'&&<AdmaApp pageId={visiblePage.id} writable={canWritePage(visiblePage)}/>}
         {visiblePage.kind==='dynamic'&&visiblePage.dynamic?.template==='file-browser-v1'&&pageStorageProviders(visiblePage.question||visiblePage.title,visiblePage.parameters).length>0&&<StoragePanel writable={canWritePage(visiblePage)} question={visiblePage.question} key={visiblePage.id+JSON.stringify(visiblePage.parameters||{})} parameters={visiblePage.parameters} pageId={visiblePage.id} language={visiblePage.language} expanded={visiblePage.labels.templateId==='files-v1'||!!visiblePage.runtimeError}/>}
         <div className={nativeApp?'connector-support':undefined}>

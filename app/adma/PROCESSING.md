@@ -1,0 +1,13 @@
+# ADMA processing apps
+
+The shared `ProcessingPanel` is available in the ADMA browser's expandable Tools section and as `nativeApp: adma-tools` (Native apps catalog). Generator drafts use `kind: native`, `templateId: data-tools-v1`, optional `parameters.tool` with a catalog slug. It is a normal page with chat, files, forks and permissions. Shared read-only catalog pages require a private fork to run write operations.
+
+The current user's ADMA connector exposes `list_processing_tools`, five `run_*` calls and `processing_status`. Existing accounts must explicitly enable these newly added tools in Connectors. Agents and generated programs use the same discovery/call interface; no new agent or routing tier is involved.
+
+Calls target the existing `/api/v1/tools/{slug}/run/` and status endpoints. Parameter names mirror the task signatures in ADMA's repo. SI validates conditional inputs for the four workflows. Every launch uses a UUID `operation_id`; retry the same ID with the same inputs. Unknown network outcomes are never blindly resubmitted. Task records are encrypted and scoped by user and connector because upstream status lookup does not itself verify task ownership.
+
+ADMA currently derives output ownership and visibility from the primary file and only checks that primary file in several tasks. The integration checks each selected input and destination through authenticated metadata endpoints and requires private resources, which upstream only exposes to their owner. Public/shared inputs must first be copied into the user's private ADMA workspace. No automatic sharing or copying is performed. Processing can update output files with matching names according to ADMA's existing behavior.
+
+The UI submits only on Run and preserves its latest task ID per page/account in local browser storage. Check status does not restart the job. Results expose returned file IDs for existing native-tool/ADMA links; private contents are not embedded in a reusable template. Programs cannot call these launch tools from navigation/refresh; a submitted form or explicit task message is required. Programs should keep task IDs in form inputs or session context across refreshes.
+
+Validation covers schema rejection, conditional SI inputs, private-resource preflight, retry deduplication, uncertain outcomes and cross-user/connector status isolation. Scientific algorithms remain on ADMA; the integration does not claim to validate their numerical results.

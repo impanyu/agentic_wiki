@@ -6,7 +6,7 @@ export function namedConnectors(question:string){
 // A storage provider names the source, not the requested output. These are
 // explicit analytical outputs that the registered file browser cannot produce.
 export function requestsDataResult(question:string){
- return /\b(map|mapping|plot|chart|graph|visuali[sz](?:e|ation)|analy[sz]e|analysis|correlat(?:e|ion)|forecast|histogram|regression|aggregate)\b|地图|地理位置|画出.{0,40}位置|绘图|画图|图表|曲线|可视化|分析|相关性|预测|汇总/i.test(question);
+ return /\b(seeding tool|shape to json|si tool|yield summary|valid yield extractor|map|mapping|plot|chart|graph|visuali[sz](?:e|ation)|analy[sz]e|analysis|correlat(?:e|ion)|forecast|histogram|regression|aggregate)\b|地图|地理位置|画出.{0,40}位置|绘图|画图|图表|曲线|可视化|分析|相关性|预测|汇总/i.test(question);
 }
 export function storagePageMismatch(question:string,page:{question?:string;title:string;dynamic?:{template?:string}}){
  const requested=namedConnectors(question),saved=namedConnectors(page.question||page.title);

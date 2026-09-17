@@ -22,7 +22,7 @@ async function executePageProgram(page:AnswerPage,input:unknown,userId:string){
   const c=step.call;if(Object.hasOwn(results,c.id))throw Error('PAGE_PROGRAM_REPEATED_STEP');let result:unknown;
   try{
    if(c.tool==='connectors.list')result=await enabledConnectors(userId);
-   else if(c.tool==='connectors.call')result=await callConnector(userId,String(c.args.connectorId),String(c.args.tool),c.args.arguments,page.id);
+   else if(c.tool==='connectors.call'){if(/^run_(seeding_tool|shape_to_json|si_tool|yield_summary|valid_yield_extractor)$/.test(String(c.args.tool))&&(!input||typeof input!=='object'||!('submitted' in input&&input.submitted===true)&&!('message' in input&&input.message)))throw Error('Starting ADMA processing requires an explicit submitted task, not navigation or refresh.');result=await callConnector(userId,String(c.args.connectorId),String(c.args.tool),c.args.arguments,page.id);}
    else if(c.tool==='contexts.search')result=await queryContexts(userId,c.args);
    else if(c.tool==='jobs.list')result=await listRunningJobs(userId);
    else if(c.tool==='storage.connections')result=await storageStatus(userId);

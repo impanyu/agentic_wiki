@@ -27,7 +27,7 @@ test('ADMA cannot become a Google Drive browser and expression examples are chec
  assert.throws(()=>m.validateGenerationDraft({...d,examples:[{input:{x:3},output:{double:9}}]},'Double',ctx,false),/example failed/);
 });
 test('native apps materialize reusable implementations without generated backend code',async()=>{
- for(const nativeApp of ['map','table','json','text','image','pdf','archive','hub']){const draft=m.validateGenerationDraft({...base,kind:'native',nativeApp},'Open data tools',ctx,false),result=await m.materializeGenerationDraft(draft,ctx);assert.equal(result.definition.config.template,'native-app-v1');assert.equal(result.definition.config.nativeApp,nativeApp);assert.equal(result.templateId,nativeApp==='map'?'geo-v1':'data-tools-v1');assert.deepEqual(result.definition.components,[]);}
+ for(const nativeApp of ['adma-tools','map','table','json','text','image','pdf','archive','hub']){const draft=m.validateGenerationDraft({...base,kind:'native',nativeApp},'Open data tools',ctx,false),result=await m.materializeGenerationDraft(draft,ctx);assert.equal(result.definition.config.template,'native-app-v1');assert.equal(result.definition.config.nativeApp,nativeApp);assert.equal(result.templateId,nativeApp==='map'?'geo-v1':'data-tools-v1');assert.deepEqual(result.definition.components,[]);}
  assert.throws(()=>m.validateGenerationDraft({...base,kind:'native'},'Tools',ctx,false),/nativeApp/);
 });
 

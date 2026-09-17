@@ -5,7 +5,7 @@ import ts from 'typescript';
 import {z} from 'zod';
 globalThis.admaZ=z;
 const source=readFileSync('app/connectors/adapters.ts','utf8').replace(/^import .*;$/gm,'');
-const {apiOperation,apiTools}=await import('data:text/javascript;base64,'+Buffer.from(ts.transpile('const z=globalThis.admaZ;\n'+source,{module:ts.ModuleKind.ESNext,target:ts.ScriptTarget.ES2022})).toString('base64'));
+const {apiOperation,apiTools}=await import('data:text/javascript;base64,'+Buffer.from(ts.transpile('const z=globalThis.admaZ,processingTools=[];\n'+source,{module:ts.ModuleKind.ESNext,target:ts.ScriptTarget.ES2022})).toString('base64'));
 test('ADMA mutations match server routes, default private, and reject injected identifiers',()=>{
  const create=apiOperation('adma','create_folder',{name:'Research',parent_id:'parent-id'});
  assert.equal(create.method,'POST');assert.equal(new URL(create.url).pathname,'/api/v1/folders/create/');assert.deepEqual(create.body,{name:'Research',parent_id:'parent-id',is_public:false});
