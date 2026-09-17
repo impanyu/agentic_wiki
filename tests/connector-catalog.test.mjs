@@ -16,11 +16,14 @@ test('ADMA uses Token auth, fixed documented routes, private multipart uploads a
  delete globalThis.admaTransport;
 });
 test('transport sends multipart bytes intact and rejects binary files in text mode',async()=>{
- const {EventEmitter}=await import('node:events'),{Readable}=await import('node:stream');let contentType='text/csv',sent;
- globalThis.admaHttp={lookup:async()=>[{address:'203.0.113.10'}],sourceUrl:u=>new URL(u),publicIPv4:()=>true,request:(_url,options,callback)=>{const req=new EventEmitter();req.end=body=>{sent=body;queueMicrotask(()=>{const res=Readable.from([Buffer.from('name,value\n北京,12')]);res.statusCode=200;res.headers={'content-type':contentType};callback(res);});};return req;}};
+ const {EventEmitter}=await import('node:events'),{Readable}=await import('node:stream');let contentType='text/csv',disposition='',payload=Buffer.from('name,value\n北京,12'),sent;
+ globalThis.admaHttp={lookup:async()=>[{address:'203.0.113.10'}],sourceUrl:u=>new URL(u),publicIPv4:()=>true,request:(_url,options,callback)=>{const req=new EventEmitter();req.end=body=>{sent=body;queueMicrotask(()=>{const res=Readable.from([payload]);res.statusCode=200;res.headers={'content-type':contentType,'content-disposition':disposition};callback(res);});};return req;}};
  const h=await load('const {lookup,sourceUrl,publicIPv4,request}=globalThis.admaHttp;\n'+strip('app/connectors/http.ts'));
  const body=Buffer.from('multipart bytes');const result=await h.remoteRequest('https://adma.aisoup.net/api/v1/files/1/download/',{},body,undefined,'GET',true,{textResponse:true});assert.equal(sent,body);assert.equal(result.data.content,'name,value\n北京,12');
- contentType='application/pdf';await assert.rejects(h.remoteRequest('https://adma.aisoup.net/api/v1/files/1/download/',{},undefined,undefined,'GET',true,{textResponse:true}),/not a supported text/);
+ contentType='application/octet-stream';disposition='attachment; filename="weather.json"';
+ assert.equal((await h.remoteRequest('https://adma.aisoup.net/api/v1/files/1/download/',{},undefined,undefined,'GET',true,{textResponse:true})).data.content,'name,value\n北京,12');
+ payload=Buffer.from([0xff,0xfe,0x00]);await assert.rejects(h.remoteRequest('https://adma.aisoup.net/api/v1/files/1/download/',{},undefined,undefined,'GET',true,{textResponse:true}),/Invalid connector response/);
+ payload=Buffer.from('safe text');contentType='application/pdf';await assert.rejects(h.remoteRequest('https://adma.aisoup.net/api/v1/files/1/download/',{},undefined,undefined,'GET',true,{textResponse:true}),/not a supported text/);
  delete globalThis.admaHttp;
 });
 
