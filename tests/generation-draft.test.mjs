@@ -44,3 +44,9 @@ test('the generator honors the root wiki/app decision while retaining disambigua
  assert.throws(()=>m.validateGenerationDraft(base,'Plot',{...ctx,pageIntent:'chart'},true),/root router requested a web app/);
  assert.equal(m.validateGenerationDraft({...base,kind:'chat'},'Plot',{...ctx,pageIntent:'chart'},true).kind,'chat');
 });
+
+test('wiki articles can rely on authorized connector evidence without public web search',()=>{
+ assert.equal(m.validateGenerationDraft(base,'Explain the connected workspace document',{...ctx,pageIntent:'article'},false,true).kind,'article');
+ assert.throws(()=>m.validateGenerationDraft(base,'Explain the document',ctx,false,false),/Research the reference subject/);
+ assert.throws(()=>m.validateGenerationDraft({...base,sources:[]},'Explain the document',ctx,false,true),/cited sources/);
+});

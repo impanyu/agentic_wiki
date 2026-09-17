@@ -29,7 +29,7 @@ export function validateGenerationDraft(raw:unknown,question:string,context:Agen
   d.intent.needsDisambiguation=true;d.intent.singleMeaningCertain=false;d.intent.outputKind='article';
  }else if(d.kind==='article'){
   if(d.body.trim().length<80||!d.sources.length)throw Error('A reference article needs substantive content and cited sources.');
-  if(!webSearched&&!context.sourceDocument)throw Error('Research the reference subject with web search before finalizing factual content.');
+  if(!webSearched&&!dataConsulted&&!context.sourceDocument)throw Error('Research the reference subject with web search or authorized connector/file tools before finalizing factual content.');
   if(context.sourceDocument&&!d.body.includes(context.sourceDocument.url))throw Error('Identify and cite the supplied document URL in the article.');
   d.intent.outputKind='article';
  }else{
