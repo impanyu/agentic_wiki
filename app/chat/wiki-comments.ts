@@ -45,7 +45,8 @@ export async function postWikiComment(request:Request,page:AnswerPage,viewer:Vie
   if(data.saveDraftId){const draftAgent=(await readEditDraft(viewer.agent,page.id))?.id===data.saveDraftId?viewer.agent:agent;const result=await saveEditDraft(draftAgent,page.id,data.saveDraftId),response=page.language.startsWith('zh')?'更改已保存。':'Changes saved.';if(!result.alreadySaved)await saveComment(page.id,agent,viewer,page.language.startsWith('zh')?'保存更改':'Save changes',response,createdAt);return {page:result.page,reply:response,alreadySaved:result.alreadySaved,editDraft:null,authorName:viewer.userName,createdAt};}
   const ownConversation=await conversationContext(agent);
   const recent=await database().prepare('SELECT author_name author,message,reply FROM wiki_comments WHERE page_id=? ORDER BY sequence DESC LIMIT 30').bind(page.id).all();
-  const attachments=await fileContext(page.id,viewer.userId);
+  const selectedFileIds=data.mentions?.flatMap(m=>m.type==='resource'&&m.resource.space==='page'&&m.resource.kind==='file'?[m.resource.id]:[])||[];
+  const attachments=await fileContext(page.id,viewer.userId,selectedFileIds.length?selectedFileIds:undefined);
   const context={ownConversation,pageDiscussion:recent.results.reverse(),attachedFiles:attachments.metadata,selectedReferences:data.mentions?.length?await resolveMentions(page.id,viewer.userId,data.mentions||[]):[]};
   const result=await editWiki(page,data.message!,context,viewer.userId,agent,onReply,signal,attachments.parts);
   signal?.throwIfAborted();
