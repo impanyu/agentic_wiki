@@ -23,6 +23,6 @@ export type NativeQuery=Record<string,string|string[]|undefined>;
 export function nativePageAddress(id:string,query:NativeQuery){
  const parameters:Record<string,string>={};
  // Carry references only in this visit's URL/history, never in the shared page.
- for(const [key,target,max] of [['page','sourcePage',200],['file','file',200],['connector','connector',200],['name','name',300]] as const){const value=query[key];if(typeof value==='string'&&value.length<=max)parameters[target]=value;}
+ for(const [key,target,max] of [['page','sourcePage',200],['file','file',200],['connector','connector',200],['name','name',300],['space','space',20]] as const){const value=query[key];if(typeof value==='string'&&value.length<=max)parameters[target]=value;}
  return pageAddress(id,parameters);
 }
