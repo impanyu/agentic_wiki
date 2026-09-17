@@ -33,3 +33,7 @@ test('ADMA and Google names cannot override a chart, custom app, or chat rendere
  assert.equal(nativeWorkspaceApp({kind:'dynamic',question:'list my ADMA files',title:'Files',dynamic:{template:'file-browser-v1'}}),'adma');
  assert.equal(nativeWorkspaceApp({kind:'dynamic',question:'list my Google Drive files',title:'Files',dynamic:{template:'file-browser-v1'}}),'drive');
 });
+
+test('location map requests cannot reuse a generic connector file browser',()=>{
+ for(const question of ['map ADMA Realm5 locations','画出adma上realm5数据的位置','John Deere农场的地图'])assert.equal(storagePageMismatch(question,{question:'list my adma files',title:'Files',dynamic:{template:'file-browser-v1'}}),true);
+});
