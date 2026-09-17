@@ -33,3 +33,13 @@ test('Drive exports use Office formats and cloud uploads keep bytes without over
  await binary.uploadBinary('dropbox','/folder',file,'token',async(url,init)=>{const arg=JSON.parse(init.headers['Dropbox-API-Arg']);assert.equal(arg.mode,'add');assert.equal(arg.strict_conflict,true);assert.deepEqual(init.body,bytes);return Response.json({id:'d'});});
  await binary.uploadBinary('onedrive','parent',file,'token',async(url,init)=>{assert.match(url,/conflictBehavior=fail/);assert.deepEqual(init.body,bytes);return Response.json({id:'o'});});
 });
+test('ADMA transfer browser exposes personal root independently from third-party catalog',async()=>{
+ const calls=[],id='11111111-1111-4111-8111-111111111111';
+ const mocks={...contracts,getPage:async()=>({id:'p'}),signedIn:()=>{},connections:async()=>[{id,provider:'adma',enabled:true,connected:true,allowed:['list_files','list_folders']}],publicThirdPartyCatalog:async()=>[{id:'realm',name:'Realm5',kind:'folder'}],callConnector:async(u,c,t,args)=>{calls.push({t,args});return t==='list_files'?{files:[{id:'own',name:'Own.csv'}]}:{folders:[]};}};
+ globalThis.admaRootTest=mocks;const {browseResources,copyResources}=await load('const {'+Object.keys(mocks).join(',')+'}=globalThis.admaRootTest;'+strip('app/resources/service.ts'));
+ const root={space:'adma',connectorId:id,id:'repositories',kind:'folder',name:'ADMA'};
+ const top=await browseResources('p','u',root);assert.deepEqual(top.items.map(x=>x.id),['','third-party']);assert.equal(calls.length,0);
+ const mine=await browseResources('p','u',top.items[0]);assert.equal(mine.items[0].name,'Own.csv');assert.deepEqual(calls.map(x=>x.args),[{},{}]);
+ const shared=await browseResources('p','u',top.items[1]);assert.equal(shared.items[0].id,'realm');
+ await assert.rejects(copyResources('p','u',{operationId:crypto.randomUUID(),sources:[mine.items[0]],destination:root}),/destination/);
+});
