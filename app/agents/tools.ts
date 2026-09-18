@@ -43,6 +43,7 @@ const definitions=[
  tool('use_computer','Delegate a bounded GUI task to a computer-use agent in a disposable desktop. Pass an empty sessionId to create a session, or an existing owned ID to continue. Requires configured sandbox service. No personal computer access.',{task:string,sessionId:string}),
  tool('read_generation_contract','Read the complete page artifact contract for an app revision.',{kind:string}),
  tool('find_images','Find actual illustration URLs and attribution for wiki articles, including photographs, maps and explanatory diagrams. Results contain url, source, description and credit; selected images can be embedded in Markdown body as ![caption](url) followed by [credit](source). Inspect metadata and select only images matching the requested subject and scope; never relabel an unrelated image.',{query:string}),
+ tool('search_public_media','Search free public catalogs for images, video, audio, documents and datasets. kind is all|image|video|audio|document|dataset. Results include source pages, URLs, provider and available creator/license metadata. This covers Openverse, Wikimedia Commons and Internet Archive, not the entire web. Verify identity and rights before embedding.',{query:string,kind:string}),
  tool('search_components','Search the reusable component registry by natural-language question and arbitrary component type. Returns an equivalent reusable component if found.',{question:string,componentType:string}),
  tool('inspect_component','Read a component at its pinned version, within this user’s access permissions.',{componentId:string,version:{type:'integer'}}),
  tool('remember_component','Save a reusable resource with its own typed question mapping. Unknown types are inert JSON data. Executable frontend/backend/workflow types require validated contracts. Never store secrets; credentials can contain only secretRef and provider.',{question:string,componentType:string,payloadJson:string}),
@@ -75,6 +76,7 @@ export async function applicationToolbox(agent:Agent,context?:AgentContext,signa
    if(connectorTools.some(t=>t.name===call.name)){result=await connectorAgentCall(ctx.userId,String(call.name),args,ctx.pageId,signal);
    }else if(call.name==='read_generation_contract'){const {generationContract}=await import('@/app/page-programs/generation-contracts');result=generationContract(String(args.kind));
    }else if(call.name==='find_images'){const {findIllustrations}=await import('@/app/api/ask/images');result=await findIllustrations(z.string().min(1).max(160).parse(args.query));
+   }else if(call.name==='search_public_media'){const {searchPublicMedia,publicMediaKind}=await import('@/app/web-media/search');result=await searchPublicMedia(z.string().min(1).max(300).parse(args.query),publicMediaKind.parse(args.kind),signal);
    }else if(call.name==='search_contexts'){result=await queryContexts(ctx.userId,{page_kind:args.pageKind,topic_terms:args.topicTermsJson});
    }else if(call.name==='list_running_jobs'){result=await listRunningJobs(ctx.userId);
    }else if(call.name==='storage_connections'){result=await storageStatus(ctx.userId);

@@ -10,7 +10,12 @@ export const apiTools:Record<string,RemoteTool[]>={
  slack:[tool('list_channels','List accessible Slack conversations. types may include public_channel,private_channel,im,mpim; token scopes must allow the requested types.',{cursor:str,types:str}),tool('read_messages','Read messages in a conversation.',{channel:str,cursor:str},['channel']),tool('send_message','Send a message to a conversation.',{channel:str,text:str,thread_ts:str},['channel','text'],false)],
  airtable:[tool('list_bases','List accessible Airtable bases.',{cursor:str}),tool('list_tables','Read the schema of a base.',{baseId:str},['baseId']),tool('list_records','Read records from a table.',{baseId:str,tableId:str,cursor:str},['baseId','tableId']),tool('create_record','Create one record using JSON field values.',{baseId:str,tableId:str,fields:{type:'object',additionalProperties:true}},['baseId','tableId','fields'],false)],
  todoist:[tool('list_projects','List your projects.',{cursor:str}),tool('list_tasks','List active tasks, optionally in a project.',{project_id:str,cursor:str}),tool('create_task','Create a task.',{content:str,project_id:str,due_string:str},['content'],false),tool('complete_task','Mark a task complete.',{taskId:str},['taskId'],false)],
- brave:[tool('web_search','Search the web and return source URLs and snippets.',{query:str},['query'])],
+ brave:[
+  tool('web_search','Search the whole web and return source URLs, snippets and available structured result data.',{query:str,count:{type:'integer',minimum:1,maximum:20},country:str,search_lang:str},['query']),
+  tool('image_search','Search images across the whole web. Returns proxied thumbnails, original image URLs, dimensions and source pages. Search results do not grant reuse rights; verify identity and usage rights before embedding.',{query:str,count:{type:'integer',minimum:1,maximum:50},country:str,search_lang:str},['query']),
+  tool('video_search','Search videos across the whole web. Returns titles, source pages, thumbnails, descriptions and available duration/publisher metadata. Link to the source page unless embedding rights are clear.',{query:str,count:{type:'integer',minimum:1,maximum:20},country:str,search_lang:str},['query']),
+  tool('news_search','Search current news across the whole web. Returns article URLs, descriptions, publishers and available publication times.',{query:str,count:{type:'integer',minimum:1,maximum:20},country:str,search_lang:str},['query']),
+ ],
 };
 const id=z.string().min(1).max(200).regex(/^[a-zA-Z0-9_-]+$/),uuid=z.string().regex(/^[a-fA-F0-9-]{32,36}$/),cursor=z.string().max(3000).optional(),text=z.string().min(1).max(16000);
 export function apiOperation(provider:string,name:string,raw:unknown){
@@ -54,7 +59,11 @@ export function apiOperation(provider:string,name:string,raw:unknown){
   else if(name==='list_tasks'){const a=parse({project_id:id.optional(),cursor});path='/api/v1/tasks';query={project_id:a.project_id,cursor:a.cursor,limit:'50'};}
   else if(name==='create_task'){const a=parse({content:text,project_id:id.optional(),due_string:z.string().max(300).optional()});path='/api/v1/tasks';method='POST';body=a;}
   else if(name==='complete_task'){const a=parse({taskId:id});path='/api/v1/tasks/'+a.taskId+'/close';method='POST';}
- }else if(provider==='brave'&&name==='web_search'){const a=parse({query:z.string().min(1).max(400)});path='/res/v1/web/search';query={q:a.query,count:'10'};}
+ }else if(provider==='brave'&&['web_search','image_search','video_search','news_search'].includes(name)){
+  const a=parse({query:z.string().min(1).max(400),count:z.number().int().min(1).max(name==='image_search'?50:20).optional(),country:z.string().regex(/^(?:[A-Z]{2}|ALL)$/).optional(),search_lang:z.string().regex(/^[a-z]{2,3}(?:-[a-z]{2})?$/i).optional()});
+  const endpoint={web_search:'web',image_search:'images',video_search:'videos',news_search:'news'}[name]!;
+  path='/res/v1/'+endpoint+'/search';query={q:a.query,count:String(a.count||10),country:a.country,search_lang:a.search_lang,safesearch:name==='image_search'||name==='video_search'?'strict':undefined};
+ }
  if(!path)throw Error('Unknown connector operation.');
  const origin:Record<string,string>={adma:'https://adma.aisoup.net',notion:'https://api.notion.com',slack:'https://slack.com',airtable:'https://api.airtable.com',todoist:'https://api.todoist.com',brave:'https://api.search.brave.com'};
  const url=new URL(path,origin[provider]);for(const [key,value] of Object.entries(query))if(value!==undefined)url.searchParams.set(key,value);return {url:url.href,method,body,headers:extraHeaders,textResponse};

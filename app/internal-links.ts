@@ -1,6 +1,6 @@
 export type Highlight={quote:string;segments:{node:string;start:number;end:number}[]};
 export type InternalLink=Highlight&{parameters?:import('./components-registry/contracts').Parameters;id:string;targetId:string;targetTitle:string};
-export const inlinePattern=/(\[[^\]]+\]\(https?:\/\/(?:[^\s()]|\([^()]*\))+\)|\*\*[^*]+\*\*)/g;
+export const inlinePattern=/(\[[^\]]+\]\(https?:\/\/(?:[^\s()]|\([^()]*\))+\)|\*\*[^*]+\*\*|\*[^*\n]+\*)/g;
 export const linkPattern=/^\[([^\]]+)\]\((https?:\/\/(?:[^\s()]|\([^()]*\))+)\)$/;
 export const isSourceLabel=(label:string)=>/^(?:https?:\/\/)?(?:www\.)?[a-z0-9.-]+\.[a-z]{2,}(?:\/.*)?$/i.test(label)||/^\d+$/.test(label);
 // Replace citation wrapper parentheses with spaces to preserve saved text offsets.
@@ -18,7 +18,7 @@ export function inlineParts(value:string){
 }
 export function articleNodes(page:{title:string;summary:string;body:string}){
  const nodes=new Map<string,string>([['title',page.title]]);
- function inline(value:string,id:string){inlineParts(value).forEach((part,i)=>{const link=part.match(linkPattern);if(link&&isSourceLabel(link[1]))return;nodes.set(id+'.'+i,link?link[1]:part.startsWith('**')&&part.endsWith('**')?part.slice(2,-2):part);});}
+ function inline(value:string,id:string){inlineParts(value).forEach((part,i)=>{const link=part.match(linkPattern);if(link&&isSourceLabel(link[1]))return;nodes.set(id+'.'+i,link?link[1]:/^\*{1,2}[^*]+\*{1,2}$/.test(part)?part.replace(/^\*{1,2}|\*{1,2}$/g,''):part);});}
  inline(page.summary,'summary');
  const lines=page.body.split('\n');
  lines.forEach((line,i)=>{

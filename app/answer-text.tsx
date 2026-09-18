@@ -41,7 +41,7 @@ export function AnswerText({body,title,summary,labels,sources,highlights,links=[
   }
   return <span data-text-id={id} key={id}>{pieces}</span>;
  }
- function inline(value:string,id:string){return inlineParts(value).map((part,i)=>{const key=id+'.'+i;const link=part.match(linkPattern);if(link){const sourceLabel=isSourceLabel(link[1]);return <span key={key}>{!sourceLabel&&text(link[1],key)}{citation(link[2],link[1],key)}</span>;}if(part.startsWith('**')&&part.endsWith('**'))return <strong key={key}>{text(part.slice(2,-2),key)}</strong>;return text(part,key);});}
+ function inline(value:string,id:string){return inlineParts(value).map((part,i)=>{const key=id+'.'+i;const link=part.match(linkPattern);if(link){const sourceLabel=isSourceLabel(link[1]);return <span key={key}>{!sourceLabel&&text(link[1],key)}{citation(link[2],link[1],key)}</span>;}if(part.startsWith('**')&&part.endsWith('**'))return <strong key={key}>{text(part.slice(2,-2),key)}</strong>;if(part.startsWith('*')&&part.endsWith('*'))return <em key={key}>{text(part.slice(1,-1),key)}</em>;return text(part,key);});}
  const richDocument=labels.richBody===body?labels.richContent:undefined;
  const lines=body.split(/\n/);
  // Older articles already contain their own introduction. Keep its text and
@@ -59,6 +59,14 @@ export function AnswerText({body,title,summary,labels,sources,highlights,links=[
   if(skipped.has(i)||!lines[i].trim())continue;
   const line=lines[i],id='line'+i,heading=line.match(/^(#{1,3}) (.+)$/);
   if(heading){blocks.push(heading[1].length===3?<h3 id={'section-'+i} key={id}>{inline(heading[2],id)}</h3>:<h2 id={'section-'+i} key={id}>{inline(heading[2],id)}</h2>);continue;}
+  const nextContent=(from:number)=>{let at=from;while(at<lines.length&&!lines[at].trim())at++;return at;};
+  const separator=nextContent(i+1);
+  if(line.includes('|')&&separator<lines.length&&/^\s*\\?\|?\s*:?-{3,}/.test(lines[separator])){
+   const cells=(value:string)=>value.trim().replace(/^\\?\|\s*/,'').replace(/\s*\\?\|$/,'').split(/\s*\|\s*/);
+   const header=cells(line),rows:{at:number;cells:string[]}[]=[];let cursor=separator+1;
+   while(cursor<lines.length){const at=nextContent(cursor),value=lines[at];if(at>=lines.length||!value.includes('|')){cursor=at;break;}rows.push({at,cells:cells(value)});cursor=at+1;}
+   blocks.push(<div className="wiki-table" key={id}><table><thead><tr>{header.map((cell,column)=><th key={column}>{inline(cell,'line'+i+'.cell'+column)}</th>)}</tr></thead><tbody>{rows.map(row=><tr key={row.at}>{header.map((_,column)=><td key={column}>{inline(row.cells[column]||'','line'+row.at+'.cell'+column)}</td>)}</tr>)}</tbody></table></div>);i=Math.max(i,cursor-1);continue;
+  }
   const list=line.match(/^(?:[-*] |\d+\. )(.+)$/);
   if(list){const ordered=/^\d+\. /.test(line),items:ReactNode[]=[];let j=i;for(;j<lines.length;j++){const match=lines[j].match(ordered?/^\d+\. (.+)$/:/^[-*] (.+)$/);if(!match||skipped.has(j))break;items.push(<li key={j}>{inline(match[1],'line'+j)}</li>);}blocks.push(ordered?<ol key={id}>{items}</ol>:<ul key={id}>{items}</ul>);i=j-1;continue;}
   blocks.push(<p key={id}>{inline(line,id)}</p>);
