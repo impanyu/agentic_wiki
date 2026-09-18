@@ -2,6 +2,7 @@
 import {useUi} from '@/app/i18n/client';
 import {RichContent,richHeadings} from './page-editor/view';
 import {SourceMediaView} from './url-content/media-view';
+import {videoEmbedUrl} from './url-content/media';
 import {availableConcepts} from './concepts/ranges';
 import {useState, type ReactNode} from 'react';
 import {pageAddress} from './dynamic/units';
@@ -44,6 +45,9 @@ export function AnswerText({body,title,summary,labels,sources,highlights,links=[
  function inline(value:string,id:string){return inlineParts(value).map((part,i)=>{const key=id+'.'+i;const link=part.match(linkPattern);if(link){const sourceLabel=isSourceLabel(link[1]);return <span key={key}>{!sourceLabel&&text(link[1],key)}{citation(link[2],link[1],key)}</span>;}if(part.startsWith('**')&&part.endsWith('**'))return <strong key={key}>{text(part.slice(2,-2),key)}</strong>;if(part.startsWith('*')&&part.endsWith('*'))return <em key={key}>{text(part.slice(1,-1),key)}</em>;return text(part,key);});}
  const richDocument=labels.richBody===body?labels.richContent:undefined;
  const lines=body.split(/\n/);
+ const bodyHeadingLines=lines.flatMap((line,i)=>/^(#{1,3}) (.+)$/.test(line)?[i]:[]);
+ const lastBodyHeading=bodyHeadingLines.at(-1);
+ const redundantSourcesAt=references.length&&lastBodyHeading!==undefined&&/^(?:sources|references|source list|来源|参考来源|參考來源|参考资料|參考資料)$/i.test(lines[lastBodyHeading].replace(/^#{1,3}\s+/,'').replace(/\*\*/g,'').trim())?lastBodyHeading:-1;
  // Older articles already contain their own introduction. Keep its text and
  // original node IDs intact, and omit only the redundant metadata summary.
  const overviewName=(value:string)=>value.replace(/[#*：:]/g,'').trim().toLocaleLowerCase();
@@ -56,9 +60,19 @@ export function AnswerText({body,title,summary,labels,sources,highlights,links=[
  lines.forEach((line,i)=>{const match=line.match(/^!\[([^\]]*)\]\((https:\/\/(?:upload|thumb)\.wikimedia\.org\/[^\s)]+)\)$/);if(match){const credit=/^\[[^\]]+\]\(https:\/\/commons\.wikimedia\.org\/[^\s]+\)$/.test(lines[i+1]||'')?lines[i+1]:'';media.set(i,{url:match[2],caption:match[1],credit});skipped.add(i);if(credit)skipped.add(i+1);}});
  const blocks:ReactNode[]=[];
  for(let i=0;i<lines.length&&!richDocument;i++){
+  if(i===redundantSourcesAt)break;
   if(skipped.has(i)||!lines[i].trim())continue;
   const line=lines[i],id='line'+i,heading=line.match(/^(#{1,3}) (.+)$/);
   if(heading){blocks.push(heading[1].length===3?<h3 id={'section-'+i} key={id}>{inline(heading[2],id)}</h3>:<h2 id={'section-'+i} key={id}>{inline(heading[2],id)}</h2>);continue;}
+  const iframe=line.match(/<iframe\b[^>]*\bsrc=["']([^"']+)["'][^>]*>\s*<\/iframe>/i);
+  if(iframe){
+   const embed=videoEmbedUrl(iframe[1]);
+   if(embed){
+    const title=line.match(/<iframe\b[^>]*\btitle=["']([^"']*)["']/i)?.[1]||t("Source video");
+    const before=line.slice(0,iframe.index).trim(),after=line.slice((iframe.index||0)+iframe[0].length).trim();
+    blocks.push(<figure className="wiki-figure source-media-item" key={id}>{before&&<figcaption>{inline(before,id+'.before')}</figcaption>}<iframe title={title} src={embed} sandbox="allow-scripts allow-same-origin allow-presentation" allow="fullscreen; picture-in-picture" allowFullScreen referrerPolicy="no-referrer"/>{after&&<figcaption>{inline(after,id+'.after')}</figcaption>}</figure>);continue;
+   }
+  }
   const nextContent=(from:number)=>{let at=from;while(at<lines.length&&!lines[at].trim())at++;return at;};
   const separator=nextContent(i+1);
   if(line.includes('|')&&separator<lines.length&&/^\s*\\?\|?\s*:?-{3,}/.test(lines[separator])){
