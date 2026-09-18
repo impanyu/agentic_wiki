@@ -10,7 +10,11 @@ export async function remoteRequest(endpoint:string,headers:Record<string,string
  return new Promise<{headers:Record<string,string|string[]|undefined>;data:any}>((resolve,reject)=>{
   let size=0,text='',done=false;const textChunks:Buffer[]=[];const id=body&&typeof body==='object'&&'id'in body?body.id:undefined;
   const req=request(url,{method,agent:false,family:4,signal:deadline,lookup:(_h,_o,cb)=>cb(null,addresses[0].address,4),headers:{Accept:'application/json, text/event-stream','Content-Type':'application/json','Accept-Encoding':'identity',...headers}},res=>{
-   if((res.statusCode||0)<200||(res.statusCode||0)>=300){res.resume();reject(Error('Connector request failed (HTTP '+res.statusCode+').'));return;}
+   if((res.statusCode||0)<200||(res.statusCode||0)>=300){
+    let errorText='';res.setEncoding('utf8');res.on('data',(chunk:string)=>{if(errorText.length<16384)errorText+=chunk.slice(0,16384-errorText.length);});
+    res.on('end',()=>{let detail='';if(parsed.hostname==='www.googleapis.com'){try{const failure=JSON.parse(errorText)?.error;const reason=failure?.errors?.[0]?.reason,message=String(failure?.message||'').replace(/[\r\n]+/g,' ').slice(0,300);detail=[reason,message].filter(Boolean).join(': ');}catch{}}
+     reject(Error('Connector request failed (HTTP '+res.statusCode+')'+(detail?': '+detail:'')+'.'));});return;
+   }
    const namedTextDownload=/^application\/octet-stream(?:;|$)/i.test(String(res.headers['content-type']||''))&&/filename(?:\*)?=(?:UTF-8''|")?[^;\r\n]*\.(?:txt|csv|tsv|json|geojson|xml|md)(?:"|;|$)/i.test(String(res.headers['content-disposition']||''));
    if(options.textResponse&&!namedTextDownload&&!/^(text\/|application\/(?:[a-z0-9.+-]*json|[a-z0-9.+-]*xml|csv|javascript)(?:;|$))/i.test(String(res.headers['content-type']||''))){res.resume();reject(Error('This ADMA file is not a supported text format.'));return;}
    const finish=(data:any)=>{if(done)return;done=true;resolve({headers:res.headers,data});res.destroy();};
