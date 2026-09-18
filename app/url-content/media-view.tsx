@@ -17,7 +17,7 @@ function SourceMediaItem({item}:{item:SourceMedia}){
  return <figure className="wiki-figure source-media-item">
   {!failed&&item.kind==='image'&&<img src={url} alt={caption} loading="lazy" decoding="async" referrerPolicy="no-referrer" onError={()=>setFailed(true)}/>}
   {!failed&&item.kind==='video'&&<video controls preload="none" poster={item.poster?publicMediaUrl(item.poster)||undefined:undefined} onError={()=>setFailed(true)}><source src={url}/></video>}
-  {embed&&(playing?<iframe title={caption||t("Source video")} src={embed} sandbox="allow-scripts allow-same-origin allow-presentation" allow="fullscreen; picture-in-picture" allowFullScreen referrerPolicy="no-referrer"/>:<button type="button" onClick={()=>setPlaying(true)} aria-label={caption||t("Play source video")}>▶ {caption||t("Video")}</button>)}
+  {embed&&(playing?<iframe title={caption||t("Source video")} src={embed} sandbox="allow-scripts allow-same-origin allow-presentation" allow="fullscreen; picture-in-picture" allowFullScreen referrerPolicy="strict-origin-when-cross-origin"/>:<button type="button" onClick={()=>setPlaying(true)} aria-label={caption||t("Play source video")}>▶ {caption||t("Video")}</button>)}
   <figcaption>{caption&&<p>{caption}</p>}<a href={source} target="_blank" rel="noopener noreferrer">{new URL(source).hostname} ↗</a>{item.kind!=='image'&&<>{' · '}<a href={url} target="_blank" rel="noopener noreferrer">▶ ↗</a></>}</figcaption>
  </figure>;
 }

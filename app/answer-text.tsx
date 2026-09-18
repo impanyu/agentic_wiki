@@ -70,7 +70,7 @@ export function AnswerText({body,title,summary,labels,sources,highlights,links=[
    if(embed){
     const title=line.match(/<iframe\b[^>]*\btitle=["']([^"']*)["']/i)?.[1]||t("Source video");
     const before=line.slice(0,iframe.index).trim(),after=line.slice((iframe.index||0)+iframe[0].length).trim();
-    blocks.push(<figure className="wiki-figure source-media-item" key={id}>{before&&<figcaption>{inline(before,id+'.before')}</figcaption>}<iframe title={title} src={embed} sandbox="allow-scripts allow-same-origin allow-presentation" allow="fullscreen; picture-in-picture" allowFullScreen referrerPolicy="no-referrer"/>{after&&<figcaption>{inline(after,id+'.after')}</figcaption>}</figure>);continue;
+    blocks.push(<figure className="wiki-figure source-media-item" key={id}>{before&&<figcaption>{inline(before,id+'.before')}</figcaption>}<iframe title={title} src={embed} sandbox="allow-scripts allow-same-origin allow-presentation" allow="fullscreen; picture-in-picture" allowFullScreen referrerPolicy="strict-origin-when-cross-origin"/>{after&&<figcaption>{inline(after,id+'.after')}</figcaption>}</figure>);continue;
    }
   }
   const nextContent=(from:number)=>{let at=from;while(at<lines.length&&!lines[at].trim())at++;return at;};
