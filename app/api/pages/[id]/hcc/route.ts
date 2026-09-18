@@ -1,0 +1,8 @@
+import {getActor} from '@/app/actor';
+import {connections,callConnector} from '@/app/connectors/service';
+import {reply,sameOrigin} from '@/db/store';
+import {z} from 'zod';
+const reads=new Set(['account_status','list_files','read_text_file','list_jobs','job_details','read_job_log','list_partitions','search_modules']);
+const tools=z.enum(['account_status','list_files','read_text_file','write_text_file','create_folder','list_jobs','job_details','read_job_log','list_partitions','search_modules','submit_job','cancel_job']);
+export async function GET(request:Request){try{const actor=await getActor(request),accounts=(await connections(actor.userId)).filter(c=>c.provider==='unl-hcc'&&c.enabled&&c.connected).map(c=>({id:c.id,name:c.name,allowed:c.allowed}));return actor.finish(reply({accounts}));}catch{return reply({error:'Could not load UNL HCC connections.'},400);}}
+export async function POST(request:Request,{params}:{params:Promise<{id:string}>}){try{if(!sameOrigin(request))return reply({error:'Invalid origin.'},403);const actor=await getActor(request),pageId=(await params).id,raw=z.object({connectorId:z.string().uuid(),tool:tools,args:z.record(z.unknown()),confirm:z.boolean().optional()}).strict().parse(await request.json()),connection=(await connections(actor.userId)).find(c=>c.id===raw.connectorId&&c.provider==='unl-hcc');if(!connection)throw Error('UNL HCC connection unavailable.');if(!reads.has(raw.tool)&&raw.confirm!==true)throw Error('Confirm this change first.');return actor.finish(reply({result:await callConnector(actor.userId,connection.id,raw.tool,raw.args,pageId,request.signal)}));}catch(e){return reply({error:e instanceof Error?e.message:'UNL HCC request failed.'},400);}}

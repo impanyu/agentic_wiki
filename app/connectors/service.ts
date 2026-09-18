@@ -23,11 +23,13 @@ export async function createConnection(userId:string,raw:unknown){signedIn(userI
  const kind=preset?.kind==='api'?'api':'mcp',name=preset?.name||d.name;
  if(!name||!preset&&!d.url)throw Error('Enter a connector name and endpoint.');
  if(preset?.auth==='token'&&!d.token?.trim())throw Error('An API token is required.');
+ if(preset?.auth==='ssh'&&(!d.username||!d.privateKey?.includes('PRIVATE KEY')))throw Error('An HCC username and unencrypted OpenSSH private key are required.');
+ const credential=preset?.auth==='ssh'?JSON.stringify({username:d.username,privateKey:d.privateKey?.trim()}):d.token||'';
  const url=kind==='api'?'api:'+preset!.id:connectorUrl(preset?.url||d.url!).href;
  if((await connections(userId)).length>=43)throw Error('You can connect up to 40 services.');
  let tools:RemoteTool[];
- if(kind==='api'){await verifyApiConnector(preset!.id,d.token!);tools=apiTools[preset!.id];}else tools=await discoverMcp(url,d.token);
- const id=crypto.randomUUID();await vaultWrite(await vaultPath(userId,'connector-'+id),{token:d.token||''});
+ if(kind==='api'){if(preset!.id==='unl-hcc')await (await import('./hcc')).verifyHccConnector(credential);else await verifyApiConnector(preset!.id,credential);tools=apiTools[preset!.id];}else tools=await discoverMcp(url,d.token);
+ const id=crypto.randomUUID();await vaultWrite(await vaultPath(userId,'connector-'+id),{token:credential});
  try{await database().prepare('INSERT INTO user_connectors(id,owner_id,name,kind,url,enabled,tools,allowed,automatic) VALUES(?,?,?,?,?,0,?,?,\'[]\')').bind(id,userId,name,kind,url,JSON.stringify(tools),JSON.stringify(tools.map(t=>t.name))).run();}catch(e){await vaultDelete(await vaultPath(userId,'connector-'+id));throw e;}return {id};
 }
 
@@ -44,7 +46,7 @@ async function authorized(userId:string,id:string,tool:string,pageId?:string){si
 async function execute(c:Connection,userId:string,tool:string,args:unknown,signal?:AbortSignal){
  if(c.provider==='adma'&&tool==='upload_file'){const data=z.object({pageId:z.string().uuid(),fileId:z.string().uuid(),folderId:z.string().max(200).optional(),operationId:z.string().uuid()}).strict().parse(args);const {copyResources}=await import('@/app/resources/service');return copyResources(data.pageId,userId,{operationId:data.operationId,sources:[{space:'page',kind:'file',id:data.fileId,name:'Selected file'}],destination:{space:'adma',connectorId:c.id,kind:'folder',id:data.folderId||'',name:'ADMA'}});}
  if(c.kind==='storage')return providerOperation(storageRequest.parse({provider:c.id,operation:tool,args}),await storageToken(c.id as StorageProvider,userId));
- const secret=await vaultRead(await vaultPath(userId,'connector-'+c.id));if(!secret)throw Error('Reconnect this connector.');const result=c.provider==='adma'&&(tool==='list_processing_tools'||tool==='processing_status'||tool.startsWith('run_'))?await (await import('@/app/adma/processing-server')).executeProcessing(userId,c.id,secret.token,tool,args,signal):c.kind==='api'?await executeApiConnector(c.provider!,secret.token,tool,args,signal):await callMcp(c.url!,secret.token,tool,args,signal);const json=JSON.stringify(result);return JSON.parse(secret.token?json.split(secret.token).join('[redacted]'):json);
+ const secret=await vaultRead(await vaultPath(userId,'connector-'+c.id));if(!secret)throw Error('Reconnect this connector.');const result=c.provider==='unl-hcc'?await (await import('./hcc')).executeHccConnector(secret.token,tool,args,signal):c.provider==='adma'&&(tool==='list_processing_tools'||tool==='processing_status'||tool.startsWith('run_'))?await (await import('@/app/adma/processing-server')).executeProcessing(userId,c.id,secret.token,tool,args,signal):c.kind==='api'?await executeApiConnector(c.provider!,secret.token,tool,args,signal):await callMcp(c.url!,secret.token,tool,args,signal);const json=JSON.stringify(result);return JSON.parse(secret.token?json.split(secret.token).join('[redacted]'):json);
 }
 export async function callConnector(userId:string,id:string,tool:string,args:unknown,pageId?:string,signal?:AbortSignal){
  if(!args||typeof args!=='object'||Array.isArray(args)||JSON.stringify(args).length>64000)throw Error('Invalid connector arguments.');
