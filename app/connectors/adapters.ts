@@ -16,6 +16,7 @@ export const apiTools:Record<string,RemoteTool[]>={
   tool('video_search','Search videos across the whole web. Returns titles, source pages, thumbnails, descriptions and available duration/publisher metadata. Link to the source page unless embedding rights are clear.',{query:str,count:{type:'integer',minimum:1,maximum:20},country:str,search_lang:str},['query']),
   tool('news_search','Search current news across the whole web. Returns article URLs, descriptions, publishers and available publication times.',{query:str,count:{type:'integer',minimum:1,maximum:20},country:str,search_lang:str},['query']),
  ],
+ youtube:[tool('search','Search public YouTube videos, channels or playlists. Returns canonical IDs, titles, descriptions, channel names, publication times and thumbnails. type is video|channel|playlist.',{query:str,type:str,count:{type:'integer',minimum:1,maximum:25}},['query'])],
 };
 const id=z.string().min(1).max(200).regex(/^[a-zA-Z0-9_-]+$/),uuid=z.string().regex(/^[a-fA-F0-9-]{32,36}$/),cursor=z.string().max(3000).optional(),text=z.string().min(1).max(16000);
 export function apiOperation(provider:string,name:string,raw:unknown){
@@ -63,13 +64,16 @@ export function apiOperation(provider:string,name:string,raw:unknown){
   const a=parse({query:z.string().min(1).max(400),count:z.number().int().min(1).max(name==='image_search'?50:20).optional(),country:z.string().regex(/^(?:[A-Z]{2}|ALL)$/).optional(),search_lang:z.string().regex(/^[a-z]{2,3}(?:-[a-z]{2})?$/i).optional()});
   const endpoint={web_search:'web',image_search:'images',video_search:'videos',news_search:'news'}[name]!;
   path='/res/v1/'+endpoint+'/search';query={q:a.query,count:String(a.count||10),country:a.country,search_lang:a.search_lang,safesearch:name==='image_search'||name==='video_search'?'strict':undefined};
+ }else if(provider==='youtube'&&name==='search'){
+  const a=parse({query:z.string().min(1).max(400),type:z.enum(['video','channel','playlist']).optional(),count:z.number().int().min(1).max(25).optional()});path='/youtube/v3/search';query={part:'snippet',q:a.query,type:a.type||'video',maxResults:String(a.count||10),safeSearch:'moderate'};
  }
  if(!path)throw Error('Unknown connector operation.');
- const origin:Record<string,string>={adma:'https://adma.aisoup.net',notion:'https://api.notion.com',slack:'https://slack.com',airtable:'https://api.airtable.com',todoist:'https://api.todoist.com',brave:'https://api.search.brave.com'};
+ const origin:Record<string,string>={adma:'https://adma.aisoup.net',notion:'https://api.notion.com',slack:'https://slack.com',airtable:'https://api.airtable.com',todoist:'https://api.todoist.com',brave:'https://api.search.brave.com',youtube:'https://www.googleapis.com'};
  const url=new URL(path,origin[provider]);for(const [key,value] of Object.entries(query))if(value!==undefined)url.searchParams.set(key,value);return {url:url.href,method,body,headers:extraHeaders,textResponse};
 }
 export async function executeApiConnector(provider:string,token:string,name:string,args:unknown,signal?:AbortSignal){
- const op=apiOperation(provider,name,args),headers:Record<string,string>={Accept:'application/json',...(provider==='brave'?{'X-Subscription-Token':token}:{Authorization:(provider==='adma'?'Token ':'Bearer ')+token}),...(provider==='notion'?{'Notion-Version':'2025-09-03'}:{}),...op.headers};
+ const op=apiOperation(provider,name,args);if(provider==='youtube'){const url=new URL(op.url);url.searchParams.set('key',token);op.url=url.href;}
+ const headers:Record<string,string>={Accept:'application/json',...(provider==='brave'?{'X-Subscription-Token':token}:provider==='youtube'?{}:{Authorization:(provider==='adma'?'Token ':'Bearer ')+token}),...(provider==='notion'?{'Notion-Version':'2025-09-03'}:{}),...op.headers};
  const {data}=await remoteRequest(op.url,headers,op.body,signal,op.method,true,{textResponse:op.textResponse});
  if(provider==='adma'&&name==='list_files'&&(args as {search?:string}).search){const query=(args as {search:string}).search.toLowerCase(),files=Array.isArray(data?.files)?data.files.filter((f:any)=>String(f.name||'').toLowerCase().includes(query)):[];return {...data,files,count:files.length,search:query};}
  if(provider==='adma'&&name==='list_folders'&&!(args as {parent_id?:string}).parent_id){try{return {...data,thirdPartyRoots:await publicThirdPartyCatalog(signal)};}catch{return {...data,thirdPartyRoots:[],thirdPartyError:'Public catalog unavailable; do not interpret this as no third-party data.'};}}
@@ -80,6 +84,6 @@ export async function executeApiConnector(provider:string,token:string,name:stri
 export async function verifyApiConnector(provider:string,token:string){
  if(!token)throw Error('An API token is required.');
  if(provider==='slack'){const {data}=await remoteRequest('https://slack.com/api/auth.test',{Authorization:'Bearer '+token},undefined,undefined,'POST');if(!data?.ok)throw Error('Slack token could not be verified.');return;}
- if(provider==='brave')return; // Avoid a billable search just to save a key.
+ if(provider==='brave'||provider==='youtube')return; // Avoid consuming search quota just to save a key.
  await executeApiConnector(provider,token,provider==='adma'?'list_folders':provider==='notion'?'search':provider==='airtable'?'list_bases':'list_projects',{});
 }
