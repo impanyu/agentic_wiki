@@ -679,5 +679,13 @@
   "Move here": "Move here",
   "Move to…": "Move to…",
   "Remove originals only after all copied files are verified. ADMA removal is permanent; cloud files go to trash where supported. Page files are detached from this page.": "Remove originals only after all copied files are verified. ADMA removal is permanent; cloud files go to trash where supported. Page files are detached from this page.",
-  "Turning on enables all tools. You can uncheck individual tools afterward.": "Turning on enables all tools. You can uncheck individual tools afterward."
+  "Turning on enables all tools. You can uncheck individual tools afterward.": "Turning on enables all tools. You can uncheck individual tools afterward.",
+  "Research resources": "Research resources",
+  "Verified datasets, code, models, project pages and supplementary material associated with this paper.": "Verified datasets, code, models, project pages and supplementary material associated with this paper.",
+  "Code repository": "Code repository",
+  "Dataset": "Dataset",
+  "Model or demo": "Model or demo",
+  "Project page": "Project page",
+  "Supplementary material": "Supplementary material",
+  "No verified code, datasets, models or supplementary resources were saved for this paper.": "No verified code, datasets, models or supplementary resources were saved for this paper."
 }

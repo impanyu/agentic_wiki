@@ -6,3 +6,9 @@ test('paper reader prefers a verified PDF source and derives arXiv PDFs',()=>{
  assert.equal(m.sourcePaperPdf([{title:'arXiv HTML',url:'https://arxiv.org/html/1706.03762v7'}]),'https://arxiv.org/pdf/1706.03762');
  assert.equal(m.sourcePaperPdf([{title:'unsafe',url:'http://example.org/paper.pdf'}]),'');
 });
+
+test('paper resources classify verified research artifacts without duplicating references',()=>{
+ const resources=m.paperResources([{title:'Official code repository',url:'https://github.com/org/project'},{title:'Training dataset',url:'https://zenodo.org/records/123'},{title:'Paper',url:'https://arxiv.org/abs/1234.5678'},{title:'Official code repository',url:'https://github.com/org/project'}]);
+ assert.deepEqual(resources.map(x=>x.kind),['code','dataset']);
+ assert.equal(resources.length,2);
+});

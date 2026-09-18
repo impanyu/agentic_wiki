@@ -423,5 +423,13 @@
   "Open the original paper": "打开论文原文",
   "Upload the PDF to Page files, then choose it here. The page agent can read selected PDF pages and update this wiki after you approve its proposal.": "将 PDF 上传到页面文件后在这里选择。页面 Agent 可以读取指定页，并在你批准修改预览后更新此 Wiki。",
   "Paper analysis sections": "论文分析章节",
-  "Analysis": "分析"
+  "Analysis": "分析",
+  "Research resources": "研究资源",
+  "Verified datasets, code, models, project pages and supplementary material associated with this paper.": "与本文相关且经过验证的数据集、代码、模型、项目页面和补充材料。",
+  "Code repository": "代码仓库",
+  "Dataset": "数据集",
+  "Model or demo": "模型或演示",
+  "Project page": "项目页面",
+  "Supplementary material": "补充材料",
+  "No verified code, datasets, models or supplementary resources were saved for this paper.": "此论文尚未保存经过验证的代码、数据集、模型或补充资源。"
 }
