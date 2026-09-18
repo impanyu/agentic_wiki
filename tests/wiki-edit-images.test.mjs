@@ -25,3 +25,8 @@ test('confirmed edit offers become a concrete preview within the same loop',asyn
  const e=await editor(page,[proposal([],{apply:false,reply:'I can prepare it.'}),proposal([],{summary:'Updated overview'})],true);const r=await e.run();assert.equal(e.stats().agentCalls,1);assert.equal(e.stats().calls,2);assert.equal(r.editDraft.summary,'Updated overview');assert.match(r.reply,/Save changes/);
 });
 test('overview replacements update the summary without touching the article',()=>{const base={title:'India',summary:'India is in South Asia.',body:'Saved map and article'};const d=proposal([{operation:'replace',oldText:base.summary,newText:'New overview'}],{summary:'New overview'});const r=patches.applyWikiPatches(base,d);assert.equal(r.summary,'New overview');assert.equal(r.body,base.body);});
+test('disambiguation edits update the visible index instead of hidden body text',async()=>{
+ const original=[{question:'Japanese orange fly',description:'A fruit fly.',group:'Insects'},{question:'Orange fishing fly',description:'A fishing lure.',group:'Fishing'}],added={question:'Orange fly (橙飞一下)',description:'A Chinese food-content creator.',group:'People'};
+ const page={id:'p',kind:'static',owned:true,title:'Orange fly',language:'en',summary:'Several meanings.',body:'Hidden index body',sources:[],labels:{templateId:'disambiguation-v1',indexEntries:original}};
+ const e=await editor(page,[proposal([],{indexEntries:[...original,added]})]);const r=await e.run();assert.deepEqual(r.editDraft.indexEntries,[...original,added]);assert.equal(r.editDraft.body,page.body);
+});
