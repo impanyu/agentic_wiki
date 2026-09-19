@@ -1,26 +1,39 @@
-import {mkdtemp,writeFile,rm} from 'node:fs/promises';
+import {mkdtemp,writeFile,rm,access} from 'node:fs/promises';
 import {spawn} from 'node:child_process';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {z} from 'zod';
 
-const credentials=z.object({username:z.string().regex(/^[A-Za-z0-9._-]{1,64}$/),privateKey:z.string().min(100).max(10000)}).strict();
+const credentials=z.object({username:z.string().regex(/^[A-Za-z0-9._-]{1,64}$/),privateKey:z.string().min(100).max(10000).optional(),sessionId:z.string().uuid().optional()}).passthrough();
 const safePath=z.string().min(1).max(1000).refine(value=>!/[\0\r\n]/.test(value),'Invalid path.');
 const jobId=z.string().regex(/^\d+(?:_[\d-]+)?$/);
 const knownHost='swan.unl.edu ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFH3i+E4EKT20y+tXmnizsXN2c6Lg2SlaGjsbERegll6\n';
 const quote=(value:string)=>"'"+value.replaceAll("'","'\\''")+"'";
+const socketFor=(id:string)=>join(tmpdir(),'agenticwiki-hcc-'+id+'.sock');
+async function run(args:string[],options:{env?:NodeJS.ProcessEnv;detached?:boolean;timeout?:number}={}){return await new Promise<{stdout:string;stderr:string}>((resolve,reject)=>{const child=spawn('ssh',args,{stdio:['ignore','pipe','pipe'],env:options.env,detached:options.detached});let stdout='',stderr='',done=false;const finish=(e?:Error)=>{if(done)return;done=true;clearTimeout(timer);e?reject(e):resolve({stdout,stderr});};child.stdout?.on('data',(c:Buffer)=>stdout+=c);child.stderr?.on('data',(c:Buffer)=>stderr+=c);child.on('error',finish);child.on('close',code=>code===0?finish():finish(Error(stderr.trim()||'HCC SSH command failed.')));const timer=setTimeout(()=>{child.kill('SIGKILL');finish(Error('HCC authentication timed out. Check the password and approve Duo promptly.'));},options.timeout||45000);});}
+
+export async function hccSessionStatus(secret:string){const auth=credentials.parse(JSON.parse(secret));if(auth.privateKey)return {connected:true,method:'ssh-key',expiresAt:null};if(!auth.sessionId)return {connected:false,method:'duo',expiresAt:null};try{const result=await run(['-S',socketFor(auth.sessionId),'-O','check',auth.username+'@swan.unl.edu'],{timeout:5000});const match=(result.stderr+result.stdout).match(/pid=\d+/);return {connected:true,method:'duo',expiresAt:null,detail:match?.[0]||'active'};}catch{return {connected:false,method:'duo',expiresAt:null};}}
+
+export async function startHccSession(secret:string,password:string,duoResponse='1'){
+ const auth=credentials.parse(JSON.parse(secret));if(!auth.sessionId)throw Error('Reconnect the UNL HCC connector to enable Duo sessions.');if(!password||password.length>500)throw Error('Enter your HCC password.');if(!/^[0-9A-Za-z.,#*-]{1,80}$/.test(duoResponse))throw Error('Invalid Duo response.');
+ const socket=socketFor(auth.sessionId),dir=await mkdtemp(join(tmpdir(),'agenticwiki-hcc-auth-')),passwordFile=join(dir,'password'),duoFile=join(dir,'duo'),askpass=join(dir,'askpass.sh'),hosts=join(dir,'known_hosts');await rm(socket,{force:true});
+ await Promise.all([writeFile(passwordFile,password,{mode:0o600}),writeFile(duoFile,duoResponse,{mode:0o600}),writeFile(hosts,knownHost,{mode:0o600}),writeFile(askpass,`#!/bin/sh\ncase "$1" in *assword*) cat "${passwordFile}";; *) cat "${duoFile}";; esac\n`,{mode:0o700})]);
+ const child=spawn('ssh',['-M','-S',socket,'-o','ControlPersist=2h','-o','ConnectTimeout=20','-o','ServerAliveInterval=30','-o','ServerAliveCountMax=3','-o','StrictHostKeyChecking=yes','-o','UserKnownHostsFile='+hosts,'-o','PreferredAuthentications=keyboard-interactive,password','-o','PubkeyAuthentication=no','-N',auth.username+'@swan.unl.edu'],{stdio:'ignore',detached:true,env:{...process.env,DISPLAY:':0',SSH_ASKPASS:askpass,SSH_ASKPASS_REQUIRE:'force'}});child.unref();
+ try{const deadline=Date.now()+70000;while(Date.now()<deadline){await new Promise(r=>setTimeout(r,1000));try{await access(socket);const status=await hccSessionStatus(secret);if(status.connected)return {...status,message:'HCC compute session connected. It will be reused for up to two hours.'};}catch{}if(child.exitCode!==null)break;}throw Error('HCC login did not complete. Check your password, choose the correct Duo response, and approve the Duo request.');}finally{await rm(dir,{recursive:true,force:true});}
+}
 
 async function ssh(secret:string,command:string,signal?:AbortSignal){
  const auth=credentials.parse(JSON.parse(secret)),dir=await mkdtemp(join(tmpdir(),'agenticwiki-hcc-')),key=join(dir,'key'),hosts=join(dir,'known_hosts');
- await Promise.all([writeFile(key,auth.privateKey.trim()+'\n',{mode:0o600}),writeFile(hosts,knownHost,{mode:0o600})]);
+ if(!auth.privateKey){const status=await hccSessionStatus(secret);if(!status.connected)throw Error('HCC compute session expired. Open Connectors and reconnect with password and Duo.');}
+ await Promise.all([...(auth.privateKey?[writeFile(key,auth.privateKey.trim()+'\n',{mode:0o600})]:[]),writeFile(hosts,knownHost,{mode:0o600})]);
  try{return await new Promise<string>((resolve,reject)=>{
-  const child=spawn('ssh',['-i',key,'-o','BatchMode=yes','-o','IdentitiesOnly=yes','-o','ConnectTimeout=12','-o','ServerAliveInterval=10','-o','StrictHostKeyChecking=yes','-o','UserKnownHostsFile='+hosts,auth.username+'@swan.unl.edu','bash','-lc',quote(command)],{stdio:['ignore','pipe','pipe']});
+  const sessionArgs=auth.privateKey?['-i',key,'-o','IdentitiesOnly=yes']:['-S',socketFor(auth.sessionId!)];const child=spawn('ssh',[...sessionArgs,'-o','BatchMode=yes','-o','ConnectTimeout=12','-o','ServerAliveInterval=10','-o','StrictHostKeyChecking=yes','-o','UserKnownHostsFile='+hosts,auth.username+'@swan.unl.edu','bash','-lc',quote(command)],{stdio:['ignore','pipe','pipe']});
   let stdout='',stderr='',size=0,done=false;let timer:ReturnType<typeof setTimeout>;
   const abort=()=>{child.kill('SIGKILL');finish(Error('HCC request cancelled.'));};
   const finish=(error?:Error)=>{if(done)return;done=true;clearTimeout(timer);signal?.removeEventListener('abort',abort);error?reject(error):resolve(stdout.trim());};
   const collect=(chunk:Buffer,target:'out'|'err')=>{size+=chunk.length;if(size>2_000_000){child.kill('SIGKILL');finish(Error('HCC response exceeded 2 MB. Narrow the request.'));return;}if(target==='out')stdout+=chunk;else stderr+=chunk;};
   child.stdout.on('data',(c:Buffer)=>collect(c,'out'));child.stderr.on('data',(c:Buffer)=>collect(c,'err'));child.on('error',e=>finish(e));child.on('close',code=>code===0?finish():finish(Error(stderr.trim()||'HCC SSH command failed. Check the registered key and HCC access.')));signal?.addEventListener('abort',abort,{once:true});
-  timer=setTimeout(()=>{child.kill('SIGKILL');finish(Error('HCC did not respond in time. Password/Duo-interactive logins are not supported by this connector.'));},45000);
+  timer=setTimeout(()=>{child.kill('SIGKILL');finish(Error('HCC did not respond in time. Reconnect the compute session if it expired.'));},45000);
  });}finally{await rm(dir,{recursive:true,force:true});}
 }
 

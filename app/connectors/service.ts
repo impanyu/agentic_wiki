@@ -23,15 +23,17 @@ export async function createConnection(userId:string,raw:unknown){signedIn(userI
  const kind=preset?.kind==='api'?'api':'mcp',name=preset?.name||d.name;
  if(!name||!preset&&!d.url)throw Error('Enter a connector name and endpoint.');
  if(preset?.auth==='token'&&!d.token?.trim())throw Error('An API token is required.');
- if(preset?.auth==='ssh'&&(!d.username||!d.privateKey?.includes('PRIVATE KEY')))throw Error('An HCC username and unencrypted OpenSSH private key are required.');
- const credential=preset?.auth==='ssh'?JSON.stringify({username:d.username,privateKey:d.privateKey?.trim()}):d.token||'';
+ if(preset?.auth==='ssh'&&!d.username)throw Error('An HCC username is required.');
+ const credential=preset?.auth==='ssh'?JSON.stringify({username:d.username,sessionId:crypto.randomUUID()}):d.token||'';
  const url=kind==='api'?'api:'+preset!.id:connectorUrl(preset?.url||d.url!).href;
  if((await connections(userId)).length>=43)throw Error('You can connect up to 40 services.');
  let tools:RemoteTool[];
- if(kind==='api'){if(preset!.id==='unl-hcc')await (await import('./hcc')).verifyHccConnector(credential);else await verifyApiConnector(preset!.id,credential);tools=apiTools[preset!.id];}else tools=await discoverMcp(url,d.token);
+ if(kind==='api'){if(preset!.id!=='unl-hcc')await verifyApiConnector(preset!.id,credential);tools=apiTools[preset!.id];}else tools=await discoverMcp(url,d.token);
  const id=crypto.randomUUID();await vaultWrite(await vaultPath(userId,'connector-'+id),{token:credential});
  try{await database().prepare('INSERT INTO user_connectors(id,owner_id,name,kind,url,enabled,tools,allowed,automatic) VALUES(?,?,?,?,?,0,?,?,\'[]\')').bind(id,userId,name,kind,url,JSON.stringify(tools),JSON.stringify(tools.map(t=>t.name))).run();}catch(e){await vaultDelete(await vaultPath(userId,'connector-'+id));throw e;}return {id};
 }
+
+export async function hccSession(userId:string,id:string,password?:string,duoResponse?:string){signedIn(userId);const c=(await connections(userId)).find(c=>c.id===id&&c.provider==='unl-hcc');if(!c)throw Error('UNL HCC connector not found.');const path=await vaultPath(userId,'connector-'+id),saved=await vaultRead(path);if(!saved?.token)throw Error('Reconnect this connector.');const hcc=await import('./hcc');if(password===undefined)return hcc.hccSessionStatus(saved.token);return hcc.startHccSession(saved.token,password,duoResponse||'1');}
 
 export async function updateConnection(userId:string,id:string,raw:unknown){signedIn(userId);const d=z.object({enabled:z.boolean().optional(),allowed:z.array(z.string()).max(200).optional(),refresh:z.boolean().optional()}).strict().parse(raw);
  const c=(await connections(userId)).find(c=>c.id===id);if(!c)throw Error('Connector not found.');let tools=c.tools;
