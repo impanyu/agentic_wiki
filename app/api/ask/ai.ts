@@ -6,7 +6,7 @@ import {aiKey,model} from '@/db/store';
 import {z} from 'zod';
 import {findIllustrations} from './images';
 import {readEvents} from '@/app/event-stream';
-type AIResponse={data?:{embedding:number[]}[];output?:{type:string;status?:string;content?:{type:string;text?:string;annotations?:{type:string;url:string;title?:string}[]}[];action?:{sources?:{url:string;title?:string}[]}}[]};
+type AIResponse={status?:string;data?:{embedding:number[]}[];output?:{type:string;status?:string;content?:{type:string;text?:string;annotations?:{type:string;url:string;title?:string}[]}[];action?:{sources?:{url:string;title?:string}[]}}[]};
 export async function api(path:string,body:unknown,signal?:AbortSignal):Promise<AIResponse>{
  if(path==='responses'&&body&&typeof body==='object'){const request=body as Record<string,any>;body={...reasoningOptions(String(request.model||'')),...request};}
  const key=aiKey();if(!key)throw new Error('AI_SETUP');
@@ -32,8 +32,8 @@ export async function streamArticle(body:Record<string,unknown>,emit:(event:Rese
   if(event.type==='response.output_text.delta'&&typeof event.delta==='string'){
    if(!writing){writing=true;emit({type:'status',message:'Writing your page…'});}
    emit({type:'delta',text:event.delta});
-  }else if(event.type==='response.completed'){completed=event.response as AIResponse;}
-  else if(['error','response.failed','response.incomplete'].includes(String(event.type)))throw new Error('AI_UNAVAILABLE');
+  }else if(['response.completed','response.failed','response.incomplete'].includes(String(event.type))){completed=event.response as AIResponse;}
+  else if(event.type==='error')throw new Error('AI_UNAVAILABLE');
  }
  if(!completed)throw new Error('AI_UNAVAILABLE');
  return completed;

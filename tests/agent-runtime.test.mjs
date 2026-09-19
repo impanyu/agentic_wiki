@@ -50,3 +50,11 @@ test('final validation feedback stays in the same loop and the agent can choose 
  },execute:async()=>({data:'needed evidence'}),validateFinal:async r=>r.invalid?'Missing required evidence':undefined,event:async e=>events.push(e)});
  assert.equal(turn,3);assert.equal(result.limited,false);assert.equal(events.filter(e=>e.kind==='validation_failed').length,1);assert.equal(events.filter(e=>e.kind==='model_finished').length,3);assert.ok(events.filter(e=>e.kind==='model_finished').every(e=>e.data.durationMs>=0));
 });
+test('an incomplete model response is retried once before the agent fails',async()=>{
+ let requests=0;const events=[];
+ const result=await runToolLoop({payload:{input:'Task'},request:async()=>++requests===1?{status:'incomplete',output:[]}:done,execute:async()=>({data:true}),event:async e=>events.push(e)});
+ assert.equal(requests,2);assert.equal(result.response.status,'completed');assert.deepEqual(events.filter(e=>e.kind==='model_finished').map(e=>e.data.attempt),[1,2]);
+ requests=0;
+ await assert.rejects(runToolLoop({payload:{input:'Task'},request:async()=>{requests++;return {status:'incomplete',output:[]};},execute:async()=>({data:true})}),/AGENT_RESPONSE_INCOMPLETE/);
+ assert.equal(requests,2);
+});

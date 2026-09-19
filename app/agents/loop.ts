@@ -19,9 +19,13 @@ export async function runToolLoop(options:{
   for(let round=0;round<=maxRounds;round++){
    signal?.throwIfAborted();
    if(round===maxRounds||callsUsed>=maxCalls||payload.input.reduce((n:number,i:any)=>n+(typeof i.content==='string'?i.content.length:Array.isArray(i.content)?i.content.reduce((m:number,c:any)=>m+(typeof c.text==='string'?c.text.length:0),0):String(i.output||i.arguments||'').length),0)>180000){payload.tool_choice='none';limited=true;payload.input.push({role:'user',content:'Execution budget reached. Return an honest final result with completed work, remaining work and any pending approvals. Do not claim unfinished work completed.'});}
-   const started=Date.now();
-   const response=await request(payload);
-   await event?.({kind:'model_finished',data:{round:round+1,model:payload.model,reasoning:payload.reasoning?.effort,durationMs:Date.now()-started,usage:response.usage}});
+   let response:any;
+   for(let attempt=0;attempt<2;attempt++){
+    const started=Date.now();
+    response=await request(payload);
+    await event?.({kind:'model_finished',data:{round:round+1,attempt:attempt+1,model:payload.model,reasoning:payload.reasoning?.effort,durationMs:Date.now()-started,usage:response.usage,status:response.status}});
+    if(response.status!=='incomplete'&&response.status!=='failed')break;
+   }
    if(payload.tool_choice==='required')payload.tool_choice='auto';
    signal?.throwIfAborted();
    if(response.status==='incomplete'||response.status==='failed')throw Error('AGENT_RESPONSE_INCOMPLETE');
