@@ -32,3 +32,9 @@ test('router passes only typed declared inputs and keeps the navigation question
  const fields=[{name:'city',type:'string',description:'City',required:true},{name:'year',type:'number',description:'Year',required:true}];
  const params=await routeInputs('GDP of Beijing in 2025',{title:'GDP browser',dynamic:{inputFields:fields}},{});assert.deepEqual(params,{city:'Beijing',year:2025,query:'GDP of Beijing in 2025'});assert.throws(()=>filterInputs({year:'2025'},fields));const input=programNavigationInput(params);assert.equal(input.values.year,2025);assert.equal(input.message,undefined);delete globalThis.inputTest;
 });
+test('existing context indexes gain a deterministic creation-year input',async()=>{
+ const {z}=await import('zod');globalThis.inputTest={z,parametersSchema:z.record(z.union([z.string(),z.number(),z.boolean()])),askAgent:async()=>({inputJson:JSON.stringify({created_year:2026})})};
+ const {routeInputs,effectiveInputFields}=await load('const {z,parametersSchema,askAgent}=globalThis.inputTest;\n'+strip('app/page-programs/inputs.ts'));
+ const page={title:'My articles',dynamic:{template:'context-index-v1',indexKind:'pages',inputFields:[{name:'page_kind',type:'string',description:'Kind',required:false}]}};
+ assert.ok(effectiveInputFields(page).some(field=>field.name==='created_year'));assert.deepEqual(await routeInputs('the articles i wrote in 2025',page,{}),{created_year:2025,query:'the articles i wrote in 2025'});delete globalThis.inputTest;
+});

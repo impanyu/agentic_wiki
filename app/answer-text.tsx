@@ -7,6 +7,8 @@ import {availableConcepts} from './concepts/ranges';
 import {useState, type ReactNode} from 'react';
 import {pageAddress} from './dynamic/units';
 import {CornerUpLeft} from 'lucide-react';
+import {Dashboard} from './templates/dashboard';
+import {chartSchema,validateChartData} from './components-registry/chart-contracts';
 import {inlineParts,linkPattern,isSourceLabel,linkLevels,type Highlight,type InternalLink} from './internal-links';
 export type {Highlight} from './internal-links';
 export function AnswerText({body,title,summary,labels,sources,highlights,links=[],concepts=[],onJump,onOpen,children}:{children?:React.ReactNode;body:string;title:string;summary:string;labels:import('./page-types').AnswerPage['labels'];sources:{title:string;url:string}[];highlights:Highlight[];links?:InternalLink[];concepts?:Highlight[];onJump:(highlight:Highlight)=>void;onOpen:(link:InternalLink)=>void}){
@@ -63,6 +65,10 @@ export function AnswerText({body,title,summary,labels,sources,highlights,links=[
   if(i===redundantSourcesAt)break;
   if(skipped.has(i)||!lines[i].trim())continue;
   const line=lines[i],id='line'+i,heading=line.match(/^(#{1,3}) (.+)$/);
+  if(/^```chart\s*$/.test(line.trim())){
+   const end=lines.findIndex((value,at)=>at>i&&/^```\s*$/.test(value.trim()));
+   if(end>i){try{const raw=JSON.parse(lines.slice(i+1,end).join('\n')) as {chart?:unknown;dataset?:unknown},chart=chartSchema.parse(raw.chart),dataset=validateChartData(chart,raw.dataset);blocks.push(<Dashboard key={id} chart={chart} dataset={dataset}/>);i=end;continue;}catch{/* Render malformed chart markup as ordinary text so content is never silently lost. */}}
+  }
   if(heading){blocks.push(heading[1].length===3?<h3 id={'section-'+i} key={id}>{inline(heading[2],id)}</h3>:<h2 id={'section-'+i} key={id}>{inline(heading[2],id)}</h2>);continue;}
   const iframe=line.match(/<iframe\b[^>]*\bsrc=["']([^"']+)["'][^>]*>\s*<\/iframe>/i);
   if(iframe){
