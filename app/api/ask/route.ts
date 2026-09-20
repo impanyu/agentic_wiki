@@ -19,6 +19,7 @@ import {spawnAgent,recordAction} from '@/app/agents/runtime';
 import {attachComponents,type AgentContext} from '@/app/components-registry/registry';
 import {extractApplicationInputs} from '@/app/components-registry/composer';
 import {executePage} from '@/app/components-registry/runtime';
+import {registeredContextIndexPage} from '@/app/context-index/server';
 import type {AnswerPage} from '@/app/page-types';
 import {getActor} from '@/app/actor';
 import {database,getPage,reply,sameOrigin,normalize,lock,unlock,aiKey} from '@/db/store';
@@ -78,7 +79,7 @@ async function routeAnswer(request:Request,actor:Awaited<ReturnType<typeof getAc
   let intentPromise:ReturnType<typeof parseConversion>|undefined;
   const conversion=()=>intentPromise??=parseConversion(destination);
   async function resolvePage(pageId:string){
-   const page=await getPage(pageId,uid);if(page?.labels.templateId==='disambiguation-v1')await requireValidIndex(uid,page.id,destination);
+   const stored=await getPage(pageId,uid),page=stored?registeredContextIndexPage(stored):stored;if(page?.labels.templateId==='disambiguation-v1')await requireValidIndex(uid,page.id,destination);
    if(page?.dynamic?.template==='agent-chat-v1'){const parameters=await routeInputs(destination,page,rootRouter);const session=await ensurePageSession(page.id,uid);await rememberSessionRoutes(page.id,uid,session.id);await recordAction(router,'Open persistent chat session',{pageId:page.id,sessionId:session.id});return {...page,parameters,sessionId:session.id};}
    if(page?.dynamic?.template==='context-index-v1'){const parameters=await routeInputs(destination,page,parameterRouter);return executePage(page,parameters,uid);}
    if(page?.dynamic?.template==='page-program-v1'){const parameters=await routeInputs(destination,page,parameterRouter);return deferPageExecution(page,parameters);}
@@ -99,7 +100,7 @@ async function routeAnswer(request:Request,actor:Awaited<ReturnType<typeof getAc
    if(sourceDocument){const exact=await matchSourceUrl(question,uid);if(exact)return exact.id;}
    const id=await matchQuestion(destination,vector,language,uid,rootRouter,signal);
    if(!id)return null;
-   const page=await getPage(id,uid);if(page?.labels.templateId==='disambiguation-v1')await requireValidIndex(uid,page.id,destination);
+   const stored=await getPage(id,uid),page=stored?registeredContextIndexPage(stored):stored;if(page?.labels.templateId==='disambiguation-v1')await requireValidIndex(uid,page.id,destination);
    if(!page)return null;
    if(storagePageMismatch(destination,page))return null;
    return id;

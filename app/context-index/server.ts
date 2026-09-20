@@ -1,5 +1,10 @@
 import {database} from '@/db/store';import type {AnswerPage} from '@/app/page-types';import {parametersSchema} from '@/app/components-registry/contracts';
 export type ContextIndexItem={id:string;title:string;pageId?:string;kind:string;state?:string;createdAt:string;summary?:string};
+export function personalArticleYear(question:string){const match=question.match(/\b(?:articles?|pages?)\s+(?:that\s+)?i\s+(?:wrote|created|authored)\s+in\s+((?:19|20)\d{2})\b/i);return match?Number(match[1]):undefined;}
+export function registeredContextIndexPage(page:AnswerPage):AnswerPage{
+ const year=personalArticleYear(page.question||'');if(!year)return page;
+ return {...page,title:`Your ${year} articles`,summary:`Pages you created in ${year}, loaded from your current saved pages.`,body:'',labels:{...page.labels,templateId:'wiki-v1'},dynamic:{template:'context-index-v1',executor:'context-index-v1',version:1,indexKind:'pages',labels:page.dynamic?.labels||{},inputFields:[{name:'page_kind',type:'string',description:'static, dynamic or all',required:false},{name:'topic_terms',type:'string',description:'JSON array of synonymous topic keywords; [] for all',required:false},{name:'created_year',type:'number',description:'Four-digit year in which the page was created.',required:false}]}} as AnswerPage;
+}
 export const myContextsSql=`SELECT id,title,kind,category,summary,created_at createdAt FROM pages WHERE owner_id=? AND (?='all' OR kind=?) AND (?='' OR created_at>=?) AND (?='' OR created_at<?) AND NOT EXISTS(SELECT 1 FROM page_aliases a WHERE a.id=pages.id) ORDER BY created_at DESC,id`;
 export function contextYearBounds(raw:unknown){
  const year=typeof raw==='number'&&Number.isInteger(raw)&&raw>=1970&&raw<=9998?raw:undefined;
@@ -7,7 +12,7 @@ export function contextYearBounds(raw:unknown){
 }
 export function filterContexts(rows:(ContextIndexItem&{category?:string})[],terms:string[]){return rows.filter(p=>!terms.length||terms.some(t=>[p.title,p.category||'',p.summary||''].join(' ').toLocaleLowerCase().includes(t.toLocaleLowerCase())));}
 export async function executeContextIndex(page:AnswerPage,raw:unknown,userId:string){
- const parameters=parametersSchema.parse(raw||{});let items:ContextIndexItem[]=[];
+ const parameters=parametersSchema.parse(raw||{}),questionYear=personalArticleYear(page.question||'');if(questionYear&&!parameters.created_year)parameters.created_year=questionYear;let items:ContextIndexItem[]=[];
  if(page.dynamic?.indexKind==='jobs'){
   const jobs=await database().prepare("SELECT id,title,page_id pageId,kind,state,created_at createdAt FROM context_jobs WHERE owner_id=? AND state='running' AND expires>? AND NOT(kind='navigation' AND title=?) ORDER BY created_at DESC").bind(userId,Date.now(),String(parameters.query||'')).all<ContextIndexItem>();
   const sandboxes=await database().prepare("SELECT id,kind,state,created_at FROM sandbox_sessions WHERE owner_id=? AND state IN ('starting','active') AND expires_at>?").bind(userId,Date.now()).all<{id:string;kind:string;state:string;created_at:number}>();
