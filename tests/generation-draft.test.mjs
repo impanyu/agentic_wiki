@@ -38,6 +38,9 @@ test('connector plots reject browser substitutes and accept consulted file data 
  const draft={...base,kind:'chart',chart:{kind:'chart',xLabel:'Time',unit:'°C',series:[{key:'temperature',label:'Temperature'}],labels:{line:'Line',bar:'Bar',data:'Data',download:'Download'}},dataset:{rows:[{x:'2026-09-01T12:00:00Z',values:{temperature:21},sources:[1]}],sources:[{title:'Realm5 observations',url:'https://adma.aisoup.net/'}],notes:'Fixture observations'}};
  assert.throws(()=>m.validateGenerationDraft(draft,question,ctx,false,false),/Read the chart observations/);
  assert.equal(m.validateGenerationDraft(draft,question,ctx,false,true).kind,'chart');
+ assert.throws(()=>m.validateGenerationDraft(draft,'Realm5 temperature since 9/1/2026',ctx,false,true),/only the starting date/);
+ const later={...draft,dataset:{...draft.dataset,rows:[...draft.dataset.rows,{x:'2026-09-02T12:00:00Z',values:{temperature:22},sources:[1]}]}};
+ assert.equal(m.validateGenerationDraft(later,'Realm5 temperature since 9/1/2026',ctx,false,true).kind,'chart');
 });
 
 test('the generator owns artifact choice even with a legacy router hint',()=>{

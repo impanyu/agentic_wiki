@@ -6,19 +6,19 @@ export async function runToolLoop(options:{
  payload:Record<string,any>;request:(payload:Record<string,any>)=>Promise<any>;
  execute:(name:string,args:any)=>Promise<ToolResult>;event?:(event:LoopEvent)=>Promise<void>;
  validateFinal?:(response:any,trace:{webSearched:boolean})=>Promise<string|void>;
- signal?:AbortSignal;maxRounds?:number;maxCalls?:number;
+ signal?:AbortSignal;maxRounds?:number;maxCalls?:number;maxInputChars?:number;
 }){
  const {payload,request,execute,event}=options;
  const timeout=AbortSignal.timeout(600000),signal=options.signal?AbortSignal.any([options.signal,timeout]):timeout;
- const maxRounds=options.maxRounds??24,maxCalls=options.maxCalls??48;
+ const maxRounds=options.maxRounds??24,maxCalls=options.maxCalls??48,maxInputChars=options.maxInputChars??180000;
  let callsUsed=0,webSearched=false,limited=false,waiting=false;
  const seen=new Map<string,{signature:string;result:ToolResult}>();
  payload.input=typeof payload.input==='string'?[{role:'user',content:payload.input}]:[...(payload.input||[])];
- await event?.({kind:'started',data:{maxRounds,maxCalls}});
+ await event?.({kind:'started',data:{maxRounds,maxCalls,maxInputChars}});
  try{
   for(let round=0;round<=maxRounds;round++){
    signal?.throwIfAborted();
-   if(round===maxRounds||callsUsed>=maxCalls||payload.input.reduce((n:number,i:any)=>n+(typeof i.content==='string'?i.content.length:Array.isArray(i.content)?i.content.reduce((m:number,c:any)=>m+(typeof c.text==='string'?c.text.length:0),0):String(i.output||i.arguments||'').length),0)>180000){payload.tool_choice='none';limited=true;payload.input.push({role:'user',content:'Execution budget reached. Return an honest final result with completed work, remaining work and any pending approvals. Do not claim unfinished work completed.'});}
+   if(round===maxRounds||callsUsed>=maxCalls||payload.input.reduce((n:number,i:any)=>n+(typeof i.content==='string'?i.content.length:Array.isArray(i.content)?i.content.reduce((m:number,c:any)=>m+(typeof c.text==='string'?c.text.length:0),0):String(i.output||i.arguments||'').length),0)>maxInputChars){payload.tool_choice='none';limited=true;payload.input.push({role:'user',content:'Execution budget reached. Return an honest final result with completed work, remaining work and any pending approvals. Do not claim unfinished work completed.'});}
    let response:any;
    for(let attempt=0;attempt<2;attempt++){
     const started=Date.now();

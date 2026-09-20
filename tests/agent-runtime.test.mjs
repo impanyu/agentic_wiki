@@ -16,6 +16,10 @@ test('repeated call IDs do not repeat external effects and conflicting IDs fail 
 test('tool budget requires a final response and does not execute excess calls',async()=>{
  let count=0,round=0;const r=await runToolLoop({maxCalls:1,payload:{input:'x'},request:async p=>{if(round++){assert.equal(p.tool_choice,'none');return done;}return {output:[call('1'),call('2')]};},execute:async()=>({data:++count})});assert.equal(count,1);assert.equal(r.limited,true);
 });
+test('a caller can grant a bounded larger context budget for data-heavy page work',async()=>{
+ let round=0;const r=await runToolLoop({maxInputChars:300000,payload:{input:'x'.repeat(190000)},request:async p=>round++?done:{output:[call('1')]},execute:async()=>({data:true})});
+ assert.equal(r.limited,false);assert.equal(round,2);
+});
 test('approval is persisted as pending, journal failure prevents a retry, cancellation stops execution',async()=>{
  let round=0;const r=await runToolLoop({payload:{input:[]},request:async()=>round++?done:{output:[call('1')]},execute:async()=>({data:{confirmationRequired:true,actionId:'a'}})});assert.equal(r.waiting,true);
  let count=0;await assert.rejects(runToolLoop({payload:{input:[]},request:async()=>({output:[call('1')]}),execute:async()=>({data:++count}),event:async e=>{if(e.kind==='tool_finished')throw Error('disk failure');}}),/disk failure/);assert.equal(count,1);
