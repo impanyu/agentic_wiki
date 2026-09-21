@@ -38,3 +38,8 @@ test('existing context indexes gain a deterministic creation-year input',async()
  const page={title:'My articles',dynamic:{template:'context-index-v1',indexKind:'pages',inputFields:[{name:'page_kind',type:'string',description:'Kind',required:false}]}};
  assert.ok(effectiveInputFields(page).some(field=>field.name==='created_year'));assert.deepEqual(await routeInputs('the articles i wrote in 2025',page,{}),{created_year:2025,query:'the articles i wrote in 2025'});delete globalThis.inputTest;
 });
+test('short plot commands require a concrete wiki edit',async()=>{
+ globalThis.plotEditTest={};const m=await load('const canWritePage=()=>true,confirmsEditOffer=()=>false,output=()=>"",wikiEditSchema={},wikiEditFormat={},applyWikiPatches=()=>{},getPage=()=>{},askAgent=()=>{},readEditDraft=()=>{},stageEdit=()=>{},discardEditDraft=()=>{};\n'+strip('app/chat/edit-page.ts'));
+ for(const message of ['plot now','plot','please chart it','can you plot'])assert.equal(m.requestsVisualizationEdit(message),true);
+ assert.equal(m.requestsVisualizationEdit('explain the existing plot'),false);delete globalThis.plotEditTest;
+});
