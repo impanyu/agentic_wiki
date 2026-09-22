@@ -9,22 +9,40 @@ import {basicAdmaDashboard} from './deferred';
 const bucket=()=>(env as unknown as {FILES:R2Bucket}).FILES;
 const path=(agent:Agent)=>'app-edit-drafts/'+agent.id+'.json';
 type Draft=EditDraft&{pageBody?:string;ownerId:string;pageId:string;base:string;config:NonNullable<AnswerPage['dynamic']>;templateId:AnswerPage['labels']['templateId'];saved?:boolean};
-const revision=(page:AnswerPage)=>JSON.stringify([page.title,page.summary,page.body,page.dynamic?.template,page.dynamic?.components,page.dynamic?.inputFields,page.dynamic?.sessionInstructions,page.dynamic?.visualTheme,page.dynamic?.visualDesign,page.labels.templateId]);
+const revision=(page:AnswerPage)=>JSON.stringify([page.title,page.summary,page.body,page.dynamic?.template,page.dynamic?.components,page.dynamic?.inputFields,page.dynamic?.sessionInstructions,page.dynamic?.visualTheme,page.dynamic?.visualDesign,page.dynamic?.ui,page.labels.templateId]);
+const basemaps=['osm','streets-vector','satellite','hybrid','topo-vector','terrain','gray-vector','dark-gray-vector'] as const;
+const renderedUiRequest=(message:string)=>/\b(?:ui|interface|layout|panel|button|control|menu|icon|map|basemap|default|display|show|hide|move|position|reader|viewer|frontend|front-end)\b|(?:界面|布局|面板|按钮|控件|菜单|图标|地图|底图|默认|显示|隐藏|移动|前端)/i.test(message);
+const explicitReplacement=(message:string)=>/\b(?:replace|rebuild|recreate|convert)\b.{0,24}\b(?:app|application|page|dashboard|interface)\b|\b(?:from scratch|entire app|whole app)\b|(?:替换|重建|重新创建|转换).{0,18}(?:应用|页面|仪表盘|界面)|(?:整个|全部).{0,8}(?:应用|页面|仪表盘)/i.test(message);
+export function appEditCapabilities(page:AnswerPage){
+ const configurable=page.dynamic?.template==='native-app-v1'&&page.dynamic.nativeApp==='map'?{mapBasemap:basemaps}:{};
+ const registered=['native-app-v1','file-browser-v1','google-drive-folders-v1'].includes(page.dynamic?.template||'');
+ return {appearance:true,agentBehavior:!registered,configurable,replacement:registered?'explicit-whole-app-only':'supported'};
+}
 async function stored(agent:Agent,pageId:string){const object=await bucket().get(path(agent));if(!object)return null;const draft=await object.json<Draft>();return draft.ownerId===agent.ownerId&&draft.pageId===pageId?draft:null;}
 const preview=(draft:Draft):EditDraft=>({id:draft.id,title:draft.title,summary:draft.summary,body:draft.body});
 export async function readAppDraft(agent:Agent,pageId:string){const draft=await stored(agent,pageId);return draft&&!draft.saved?preview(draft):null;}
 export async function discardAppDraft(agent:Agent){await bucket().delete(path(agent));}
-export async function stageAppRevision(page:AnswerPage,raw:unknown,agent:Agent){
+export async function stageAppRevision(page:AnswerPage,raw:unknown,agent:Agent,request=''){
  if(!page.dynamic||!canWritePage(page))throw Error('PAGE_READ_ONLY');
  const change=z.discriminatedUnion('kind',[
   z.object({kind:z.literal('appearance'),visualTheme:z.enum(visualThemes),visualDesign:customStyleSchema.nullable().optional(),description:z.string().max(10000)}).strict(),
   z.object({kind:z.literal('session'),instructions:z.string().min(1).max(10000)}).strict(),
+  z.object({kind:z.literal('configuration'),mapBasemap:z.enum(basemaps)}).strict(),
   z.object({kind:z.literal('replacement'),draft:z.unknown()}).strict()
  ]).parse(raw);
  let config=page.dynamic,title=page.title,summary=page.summary,body='',templateId=page.labels.templateId,pageBody=page.body;
  if(change.kind==='appearance'){config={...config,visualTheme:change.visualTheme,visualDesign:change.visualTheme==='custom'?normalizeCustomStyle(change.visualDesign):null};body=change.description;}
- else if(change.kind==='session'){config={...config,sessionInstructions:change.instructions};body=change.instructions;}
+ else if(change.kind==='session'){
+  if(renderedUiRequest(request))throw Error('Agent instructions cannot change rendered controls or layout. Use a supported configuration edit or a concrete application revision.');
+  config={...config,sessionInstructions:change.instructions};body=change.instructions;
+ }
+ else if(change.kind==='configuration'){
+  if(page.dynamic.template!=='native-app-v1'||page.dynamic.nativeApp!=='map')throw Error('This renderer does not expose that page-level setting. Preserve the current app and report the unsupported renderer capability; do not save an instruction as a UI change.');
+  config={...config,ui:{...config.ui,mapBasemap:change.mapBasemap}};body='Map basemap: '+change.mapBasemap;
+ }
  else{
+  const registered=['native-app-v1','file-browser-v1','google-drive-folders-v1'].includes(page.dynamic.template);
+  if(registered&&!explicitReplacement(request))throw Error('A targeted edit cannot replace this registered app. Use its supported configuration fields; if the renderer lacks the requested field, report that concrete limitation without staging a false preview.');
   const {validateGenerationDraft,materializeGenerationDraft}=await import('./generation-draft');
   const context={pageId:page.id,userId:agent.ownerId,ownerId:agent.ownerId,language:page.language,visibility:'private' as const,agent};
   const draft=validateGenerationDraft(change.draft,page.question||page.title,context,true),result=await materializeGenerationDraft(draft,context);
@@ -32,6 +50,7 @@ export async function stageAppRevision(page:AnswerPage,raw:unknown,agent:Agent){
   if(basicAdmaDashboard(page.question||'')&&result.definition.config.template!=='file-browser-v1')throw Error('This replacement would remove the ADMA dashboard file browser, folders and transfer controls. Preserve the registered ADMA dashboard and change its shared renderer instead.');
   config={...result.definition.config,contextDomain:page.dynamic.contextDomain};title=draft.title;summary=draft.summary;templateId=result.templateId;pageBody=draft.body;body=draft.program?.code||draft.body||draft.summary;
  }
+ if(JSON.stringify([title,summary,pageBody,config,templateId])===JSON.stringify([page.title,page.summary,page.body,page.dynamic,page.labels.templateId]))throw Error('This proposal does not change any saved, renderable page property.');
  const draft:Draft={id:crypto.randomUUID(),ownerId:agent.ownerId,pageId:page.id,base:revision(page),title,summary,body,pageBody,config,templateId};
  await bucket().put(path(agent),JSON.stringify(draft));return {editDraft:preview(draft),saved:false};
 }

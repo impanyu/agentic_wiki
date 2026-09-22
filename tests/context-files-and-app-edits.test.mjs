@@ -33,3 +33,13 @@ test('appearance-only proposals preserve body, execution and layout without invo
  const custom=await load('const {z,env,askAgent,sandboxStatus}=globalThis.themeEdit;\n// custom\n'+strip('app/page-programs/custom-style.ts')+'\n'+strip('app/page-programs/visual-style.ts')+'\n'+strip('app/page-programs/edit-app.ts'));
  await custom.stageAppRevision(page,{kind:'appearance',visualTheme:'custom',visualDesign:customDesign,description:'Night sky design'}, {id:'a',ownerId:'owner'});const customDraft=JSON.parse([...objects.values()][0]);assert.deepEqual(customDraft.config.visualDesign,customDesign);assert.equal(customDraft.config.executor,'existing');assert.equal(customDraft.pageBody,page.body);assert.equal(page.dynamic.visualTheme,undefined);delete globalThis.themeEdit;
 });
+test('registered apps accept real renderer settings and reject instruction-only UI edits or accidental replacement',async()=>{
+ const objects=new Map(),page={id:'map',owned:true,title:'Geo Viewer',summary:'Map',body:'',question:'Geo Viewer',language:'en',labels:{templateId:'geo-v1'},dynamic:{template:'native-app-v1',executor:'native-app-v1',nativeApp:'map',version:1,labels:{}}};
+ globalThis.nativeEdit={z,env:{FILES:{get:async key=>objects.has(key)?{json:async()=>JSON.parse(objects.get(key))}:null,put:async(key,value)=>objects.set(key,value),delete:async key=>objects.delete(key)}},sandboxStatus:()=>({configured:false,allowed:false})};
+ const m=await load('const {z,env,sandboxStatus}=globalThis.nativeEdit;\n'+strip('app/page-programs/custom-style.ts')+'\n'+strip('app/page-programs/visual-style.ts')+'\n'+strip('app/page-programs/edit-app.ts'));
+ const result=await m.stageAppRevision(page,{kind:'configuration',mapBasemap:'hybrid'},{id:'map-session',ownerId:'alice'},'Use imagery with labels by default');
+ assert.ok(result.editDraft.id);assert.equal(JSON.parse([...objects.values()][0]).config.ui.mapBasemap,'hybrid');
+ await assert.rejects(m.stageAppRevision(page,{kind:'session',instructions:'Show a new button'},{id:'map-session',ownerId:'alice'},'Add a button to the map UI'),/cannot change rendered controls/);
+ await assert.rejects(m.stageAppRevision(page,{kind:'replacement',draft:{}},{id:'map-session',ownerId:'alice'},'Add a button'),/targeted edit cannot replace/);
+ assert.deepEqual(m.appEditCapabilities(page).configurable.mapBasemap,['osm','streets-vector','satellite','hybrid','topo-vector','terrain','gray-vector','dark-gray-vector']);delete globalThis.nativeEdit;
+});

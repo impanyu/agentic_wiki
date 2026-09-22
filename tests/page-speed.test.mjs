@@ -81,5 +81,5 @@ test('a saved ADMA dashboard cannot remain replaced by a map-only app',async()=>
  assert.equal(basicAdmaDashboard('adma dashboard'),true);
  const restored=registeredAdmaPage({id:'adma',kind:'dynamic',question:'adma dashboard',title:'ADMA Geo Viewer',summary:'Map only',body:'',labels:{templateId:'geo-v1'},dynamic:{template:'native-app-v1',executor:'native-app-v1',nativeApp:'map'}});
  assert.equal(restored.title,'ADMA Dashboard');assert.equal(restored.dynamic.template,'file-browser-v1');assert.equal(restored.dynamic.nativeApp,undefined);assert.equal(restored.labels.templateId,'files-v1');
- const viewer=readFileSync('app/geo/viewer.tsx','utf8');assert.match(viewer,/useState\('satellite'\)/);assert.match(viewer,/Basemap\.fromId\('satellite'\)/);
+ const viewer=readFileSync('app/geo/viewer.tsx','utf8');assert.match(viewer,/initialBasemap='satellite'/);assert.match(viewer,/Basemap\.fromId\(initialBasemap\)/);
 });
