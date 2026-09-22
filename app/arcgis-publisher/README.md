@@ -1,4 +1,4 @@
-# ArcGIS Publisher
+# ArcGIS Maps
 
 Open `/tools?app=arcgis-publisher`. The generator may reuse `kind=native`, `nativeApp=arcgis-publisher`. Source references are visit parameters, never shared page data.
 
@@ -6,7 +6,11 @@ Open `/tools?app=arcgis-publisher`. The generator may reuse `kind=native`, `nati
 
 Register an ArcGIS Online application for **user authentication**, with redirect URL `https://wiki.aisoup.net/arcgis-oauth-callback.html` (also register a local callback for development). Set `ARCGIS_CLIENT_ID` and optionally `ARCGIS_PORTAL_URL` in the server environment. The app also accepts a client ID in its settings. This is a public OAuth client using the SDK's authorization-code/PKCE flow; do not configure or expose a client secret. The callback follows Esri's jsapi-resources/oauth sample.
 
-Each visitor connects their own ArcGIS account. The account must have `portal:publisher:publishFeatures`. Browser login to ArcGIS alone does not authorize AgenticWiKi. Source reads reuse existing current-user connector/page permissions. No ArcGIS credential is sent to the AgenticWiKi server or put in links/page content.
+Each visitor connects their own ArcGIS account. Reading maps only requires access to those maps. Publishing additionally requires `portal:publisher:publishFeatures`. Browser login to ArcGIS alone does not authorize AgenticWiKi. Source reads reuse existing current-user connector/page permissions. No ArcGIS credential is sent to the AgenticWiKi server or put in links/page content.
+
+## Browsing
+
+Search My maps, Organization maps, or All accessible maps with pagination; open an accessible Web Map by its item ID or ArcGIS URL. The SDK embeds that saved Web Map with its original layers, basemap and permissions. Layer/app IDs are rejected rather than rendered as incorrect maps.
 
 ## Publishing
 

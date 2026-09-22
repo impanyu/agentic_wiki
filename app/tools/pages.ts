@@ -17,6 +17,7 @@ export function nativePageDefinition(app:string,language='en'){
 export async function ensureNativePage(app:string,language?:string){
  const p=nativePageDefinition(app,language);
  await database().prepare("INSERT OR IGNORE INTO pages(id,owner_id,question,title,summary,body,category,sources,visibility,public_write,created_at,language,labels,kind,dynamic_config) VALUES(?,'system:native-apps',?,?,?,'','Native apps','[]','public',0,?,?,?,'dynamic',?)").bind(p.id,p.title,p.title,p.summary,new Date().toISOString(),p.language,JSON.stringify(p.labels),JSON.stringify(p.config)).run();
+ if(app==='arcgis-publisher')await database().prepare("UPDATE pages SET title=?,summary=? WHERE id=? AND owner_id='system:native-apps'").bind(p.title,p.summary,p.id).run();
  return p.id;
 }
 export type NativeQuery=Record<string,string|string[]|undefined>;
