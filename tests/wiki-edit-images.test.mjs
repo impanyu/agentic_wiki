@@ -5,7 +5,7 @@ globalThis.patchZod=z;const patches=await load('const z=globalThis.patchZod;\n'+
 let fixture=0;
 async function editor(page,drafts,confirmed=false){
  let calls=0,agentCalls=0,feedback=[];
- globalThis.wikiDirect={getPage:async()=>page,readEditDraft:async()=>null,discardEditDraft:async()=>{},stageEdit:async(a,p,d)=>({id:'preview',...d}),confirmsEditOffer:()=>confirmed,output:r=>r.text,askAgent:async(a,i,t,s,signal,onReply,files,options)=>{agentCalls++;for(const d of drafts){calls++;const error=await options.validateFinal({text:JSON.stringify(d)});if(!error)return d;feedback.push(error);}throw Error('No valid draft');}};
+ globalThis.wikiDirect={readAppDraft:async()=>null,appEditCapabilities:()=>({}),discardAppDraft:async()=>{},getPage:async()=>page,readEditDraft:async()=>null,discardEditDraft:async()=>{},stageEdit:async(a,p,d)=>({id:'preview',...d}),confirmsEditOffer:()=>confirmed,output:r=>r.text,askAgent:async(a,i,t,s,signal,onReply,files,options)=>{agentCalls++;for(const d of drafts){calls++;const error=await options.validateFinal({text:JSON.stringify(d)});if(!error)return d;feedback.push(error);}throw Error('No valid draft');}};
  const m=await load('const {wikiEditSchema,wikiEditFormat,applyWikiPatches}=globalThis.directPatches;const {'+Object.keys(globalThis.wikiDirect).join(',')+'}=globalThis.wikiDirect;\n'+strip('app/chat/edit-page.ts')+'\n//fixture '+(++fixture));
  return {run:()=>m.editWiki(page,'request',{},'owner',{}),stats:()=>({calls,agentCalls,feedback})};
 }

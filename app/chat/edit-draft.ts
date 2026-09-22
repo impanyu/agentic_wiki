@@ -4,7 +4,7 @@ import {database,getPage,lock,unlock} from '@/db/store';
 import {relocateQuote} from '@/app/api/ask/refresh-matched-page';
 import type {AnswerPage} from '@/app/page-types';
 import type {Agent} from '@/app/agents/runtime';
-export type EditDraft={id:string;title:string;summary:string;body:string;indexEntries?:NonNullable<AnswerPage['labels']['indexEntries']>};
+export type EditDraft={pageCode?:import('../page-programs/page-code').PageCode;id:string;title:string;summary:string;body:string;indexEntries?:NonNullable<AnswerPage['labels']['indexEntries']>};
 type StoredDraft=EditDraft&{ownerId:string;pageId:string;base:string;saved?:boolean};
 const bucket=()=>(env as unknown as {FILES:R2Bucket}).FILES;
 const path=(agent:Agent)=>'page-edit-drafts/'+agent.id+'.json';

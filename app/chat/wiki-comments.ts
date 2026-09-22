@@ -1,3 +1,4 @@
+import {readAppDraft,saveAppDraft} from '@/app/page-programs/edit-app';
 import {resolveMentions} from '@/app/resources/service';
 import type {Mention} from '@/app/resources/contracts';
 import {ensureRoleSession} from './session';
@@ -30,7 +31,7 @@ export async function getWikiComments(request:Request,page:AnswerPage,viewer:Vie
  const agent=await commentAgent(page.id,viewer);
  const rows=await database().prepare('SELECT sequence,message user,reply,author_name authorName,created_at createdAt FROM wiki_comments WHERE page_id=? AND sequence<? ORDER BY sequence DESC LIMIT 51').bind(page.id,before).all<{sequence:number;user:string;reply:string;authorName:string;createdAt:string}>();
  const messages=rows.results.slice(0,50).reverse();
- return finish(reply({messages,before:rows.results.length>50?messages[0]?.sequence:null,userName:viewer.userName,editDraft:canWritePage(page)?(await readEditDraft(agent,page.id)||await readEditDraft(viewer.agent,page.id)):null}),viewer);
+ return finish(reply({messages,before:rows.results.length>50?messages[0]?.sequence:null,userName:viewer.userName,editDraft:canWritePage(page)?(await readAppDraft(agent,page.id)||await readEditDraft(agent,page.id)||await readEditDraft(viewer.agent,page.id)):null}),viewer);
 }
 export async function postWikiComment(request:Request,page:AnswerPage,viewer:Viewer,data:{message?:string;saveDraftId?:string;mentions?:Mention[]}){
  await importLegacyComments(page.id,viewer.userId,viewer.userName);
@@ -42,7 +43,7 @@ export async function postWikiComment(request:Request,page:AnswerPage,viewer:Vie
  let released=false;const release=async()=>{if(released)return;await unlock(lease);released=true;await finishJob(jobId,jobState).catch(()=>{});};
  const run=async(onReply?:(text:string)=>void,signal?:AbortSignal)=>{
   const createdAt=new Date().toISOString();
-  if(data.saveDraftId){const draftAgent=(await readEditDraft(viewer.agent,page.id))?.id===data.saveDraftId?viewer.agent:agent;const result=await saveEditDraft(draftAgent,page.id,data.saveDraftId),response=page.language.startsWith('zh')?'更改已保存。':'Changes saved.';if(!result.alreadySaved)await saveComment(page.id,agent,viewer,page.language.startsWith('zh')?'保存更改':'Save changes',response,createdAt);return {page:result.page,reply:response,alreadySaved:result.alreadySaved,editDraft:null,authorName:viewer.userName,createdAt};}
+  if(data.saveDraftId){const draftAgent=(await readEditDraft(viewer.agent,page.id))?.id===data.saveDraftId?viewer.agent:agent;const result=(await readAppDraft(agent,page.id))?.id===data.saveDraftId?await saveAppDraft(agent,page.id,data.saveDraftId):await saveEditDraft(draftAgent,page.id,data.saveDraftId),response=page.language.startsWith('zh')?'更改已保存。':'Changes saved.';if(!result.alreadySaved)await saveComment(page.id,agent,viewer,page.language.startsWith('zh')?'保存更改':'Save changes',response,createdAt);return {page:result.page,reply:response,alreadySaved:result.alreadySaved,editDraft:null,authorName:viewer.userName,createdAt};}
   const ownConversation=await conversationContext(agent);
   const recent=await database().prepare('SELECT author_name author,message,reply FROM wiki_comments WHERE page_id=? ORDER BY sequence DESC LIMIT 30').bind(page.id).all();
   const selectedFileIds=data.mentions?.flatMap(m=>m.type==='resource'&&m.resource.space==='page'&&m.resource.kind==='file'?[m.resource.id]:[])||[];

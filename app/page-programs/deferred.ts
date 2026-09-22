@@ -8,6 +8,7 @@ export function basicCombinedRepositories(question:string){
 export function basicAdmaDashboard(question:string){return /^(?:my\s+)?adma\s+dashboard[.!?]?$/i.test(question.trim());}
 // Upgrade only basic saved storage browsers; preserve custom analytical programs.
 export function registeredAdmaPage(page:AnswerPage):AnswerPage{
+ if(page.dynamic?.customized)return page;
  const question=(page.question||'').trim();
  const basic=/^(?:list|show|browse|open|manage)(?:\s+me)?(?:\s+my)?\s+adma(?:['’]s)?\s+(?:files|folders)(?:\s+and\s+(?:files|folders))?[.!?]?$/i.test(question);
  const drive=/^(?:(?:list|show|browse|open|manage)(?:\s+me)?(?:\s+my)?\s+)?(?:my\s+)?google\s+drive(?:['’]s)?(?:\s+(?:files|folders|dashboard|file browser))?(?:\s+and\s+folders)?[.!?]?$/i.test(question);

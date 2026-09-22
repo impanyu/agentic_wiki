@@ -1,4 +1,5 @@
 'use client';
+import {MapPreference} from './geo/viewer';
 import type {NavigationOrigin} from '@/app/routing/link-context';
 import {ResourcePicker} from './resources/picker';
 import {pageVisualProps} from './page-programs/visual-style';
@@ -391,7 +392,7 @@ export default function Workspace({ user, signIn, signOut }: {
     <main className="browser-content" aria-busy={busy}>
       {error && <div className="request-error" role="alert">{t(error)}</div>}
       {status && <div className="navigation-status" role="status">{busy ? <LoaderCircle size={15} className="spinner"/> : <Check size={15}/>} {t(status)}</div>}
-      {visiblePage ? <article {...pageVisualProps(visiblePage)} className={'answer '+(visiblePage.kind==='dynamic'?'dynamic-answer ':'')+'template-'+(visiblePage.labels.templateId||'wiki-v1')+(nativeApp?' connector-page connector-page-'+nativeApp:'')} lang={visiblePage.language==='und'?undefined:visiblePage.language} dir={['ar','he','fa','ur','ps','dv','yi'].includes(visiblePage.language)?'rtl':'ltr'}>
+      {visiblePage ? <MapPreference.Provider value={visiblePage.dynamic?.ui?.mapBasemap}><article {...pageVisualProps(visiblePage)} className={'answer '+(visiblePage.kind==='dynamic'?'dynamic-answer ':'')+'template-'+(visiblePage.labels.templateId||'wiki-v1')+(nativeApp?' connector-page connector-page-'+nativeApp:'')} lang={visiblePage.language==='und'?undefined:visiblePage.language} dir={['ar','he','fa','ur','ps','dv','yi'].includes(visiblePage.language)?'rtl':'ltr'}>
         {!draft&&visiblePage.forks&&visiblePage.forks.length>0&&<details className="page-forks-disclosure" open={nativeApp?undefined:true}><summary>{t("Context forks")}</summary><nav className="page-forks" aria-label={t("Context forks")}><span>{t("Context forks")}</span><div>{visiblePage.forks.map((fork,i)=><div className="fork-choice" key={fork.id}><button aria-current={fork.id===visiblePage.id?'page':undefined} disabled={busy||fork.id===visiblePage.id} onClick={()=>void openInternal({id:'fork:'+fork.id,targetId:fork.id,targetTitle:fork.title,quote:question||fork.title,segments:[],parameters:{}})}><strong>{fork.isOriginal?(t("Original")):(t("Fork"))+' '+(i+1)}</strong> {fork.title}<small>{pageAccess(fork)==='private'?t("Private"):pageAccess(fork)==='public-write'?t("Public read & write"):t("Public read only")}</small></button>{fork.removable&&<button className="remove-fork" disabled={busy} onClick={()=>void removePageFork(fork.id)} aria-label={t("Remove fork: ")+fork.title}><Trash2 size={13}/>{t("Remove")}</button>}</div>)}</div></nav></details>}
         {!draft&&<div className="context-actions">{nativeApp&&<h1 className="connector-page-title">{visiblePage.title}</h1>}<div className="context-action-buttons"><button onClick={()=>void createFork()} disabled={busy||saving}><GitFork size={15}/>{t("Fork")}</button>{canWritePage(visiblePage)&&<button disabled={busy||saving} onClick={()=>{setEditing(true);setSaving(true);}}>{t('Edit page')}</button>}<PageShare key={visiblePage.id} page={visiblePage} disabled={busy||saving} onAccess={changeVisibility}/></div><span>{t("Generate a fresh private fork from this question")}</span></div>}
         {editing&&!draft&&<PageEditor metadataOnly={visiblePage.kind==='dynamic'} page={visiblePage} onFiles={()=>setFilesRevision(n=>n+1)} onClose={()=>{setEditing(false);setSaving(false);}} onSave={page=>{setSelected({...visiblePage,...page});setEditing(false);setSaving(false);setPending(null);setHighlights(all=>({...all,[page.id]:[]}));}}/>}
@@ -406,6 +407,8 @@ export default function Workspace({ user, signIn, signOut }: {
           {draft ? <span>{busy?t("Generating… You can read the page as it appears."):t("Incomplete draft — retry the question to generate a saved page.")}</span> : pending ? <><span className="selection-quote">“{pending.quote}”</span><button type="button" onMouseDown={e=>e.preventDefault()} onClick={()=>addHighlight(false)} disabled={busy}><Highlighter size={14}/>{t("Highlight")}</button><button type="button" onMouseDown={e=>e.preventDefault()} onClick={()=>addHighlight(true)} disabled={busy}>{t("Highlight & open")}<ArrowRight size={14}/></button></> : <span>{visiblePage.labels.templateId==='disambiguation-v1'?t("Choose the meaning or topic you want to explore."):t(conceptStatus)||t("Select text to highlight it or open it as a question.")}{(conceptStatus.includes('could not')||conceptStatus.includes('still'))&&<button onClick={()=>setConceptAttempt(n=>n+1)}>{t("Retry")}</button>}</span>}
         </div>
         {!draft&&visiblePage.kind==='dynamic'&&<section className="repository-transfer" aria-label={t('Data transfer')}><div><strong>{t('Data transfer')}</strong><p>{t('Copy or move files and folders between connected repositories and this page.')}</p></div><button type="button" onClick={()=>setTransferPage(visiblePage.id)}>{t('Transfer files')}</button></section>}
+        {visiblePage.dynamic?.pageCode&&visiblePage.dynamic.pageCode.placement!=='after'&&<SandboxView app={visiblePage.dynamic.pageCode.frontend} title={visiblePage.title} pageId={visiblePage.id}/>}
+        <div hidden={visiblePage.dynamic?.pageCode?.placement==='replace'}>
         <div hidden={!!nativeApp} ref={article} onMouseUp={captureSelection} onKeyUp={captureSelection} onTouchEnd={()=>setTimeout(captureSelection,0)}>
           {articleView}
         </div>
@@ -416,6 +419,8 @@ export default function Workspace({ user, signIn, signOut }: {
         {visiblePage.dynamic?.template==='native-app-v1'&&(visiblePage.dynamic.nativeApp==='adma-tools'?<ProcessingPanel key={visiblePage.id} pageId={visiblePage.id} writable={canWritePage(visiblePage)} initialTool={String(visiblePage.parameters?.tool||'')}/>:visiblePage.dynamic.nativeApp==='unl-hcc'?<HccApp key={visiblePage.id} pageId={visiblePage.id} writable={canWritePage(visiblePage)}/>:visiblePage.dynamic.nativeApp==='map'?<GeoViewer key={visiblePage.id+JSON.stringify(visiblePage.parameters||{})} embedded revision={filesRevision} source={nativePageSource(visiblePage)} initialBasemap={visiblePage.dynamic.ui?.mapBasemap}/>:<Workbench key={visiblePage.id+JSON.stringify(visiblePage.parameters||{})} embedded revision={filesRevision} app={visiblePage.dynamic.nativeApp||'hub'} source={nativePageSource(visiblePage)}/>)}
         {nativeApp==='adma'&&<AdmaApp pageId={visiblePage.id} writable={canWritePage(visiblePage)}/>}
         {visiblePage.kind==='dynamic'&&visiblePage.dynamic?.template==='file-browser-v1'&&pageStorageProviders(visiblePage.question||visiblePage.title,visiblePage.parameters).length>0&&<StoragePanel writable={canWritePage(visiblePage)} question={visiblePage.question} key={visiblePage.id+JSON.stringify(visiblePage.parameters||{})} parameters={visiblePage.parameters} pageId={visiblePage.id} language={visiblePage.language} expanded={visiblePage.labels.templateId==='files-v1'||!!visiblePage.runtimeError}/>} 
+        </div>
+        {visiblePage.dynamic?.pageCode?.placement==='after'&&<SandboxView app={visiblePage.dynamic.pageCode.frontend} title={visiblePage.title} pageId={visiblePage.id}/>}
         <div className={nativeApp?'connector-support':undefined}>
         {!draft&&visiblePage.labels.templateId==='paper-v1'&&<PaperWorkspace pageId={visiblePage.id} sources={visiblePage.sources} revision={filesRevision}/>} 
         {!draft&&<ContextFiles key={'files:'+visiblePage.id} page={visiblePage} revision={filesRevision} busy={busy} onChanged={()=>setFilesRevision(n=>n+1)} onUpload={()=>uploadInput.current?.click()}/>} 
@@ -425,7 +430,7 @@ export default function Workspace({ user, signIn, signOut }: {
 
         <div className="saved-note">{draft ? t(busy?'Draft · Not saved yet':'Incomplete draft · Not saved') : t('Saved {date} · {count} questions linked',{date:new Date(visiblePage.createdAt).toLocaleDateString(locale),count:visiblePage.questionCount})}</div>
         </div>
-      </article> : !busy && <div className="blank-page"><p>{t("A question is an address.")}</p><span>{t("Type above and press Enter.")}</span></div>}
+      </article></MapPreference.Provider> : !busy && <div className="blank-page"><p>{t("A question is an address.")}</p><span>{t("Type above and press Enter.")}</span></div>}
     </main>
   </div></UiContext.Provider>;
 }
