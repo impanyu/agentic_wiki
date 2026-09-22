@@ -5,6 +5,7 @@ import {env} from '@/server/runtime';import {z} from 'zod';
 import {database,getPage,lock,unlock} from '@/db/store';import {askAgent,type Agent} from '@/app/agents/runtime';
 import {getComponent} from '@/app/components-registry/registry';import {composePageProgram} from './composer';import {sandboxStatus} from '@/app/sandboxes/service';
 import type {AnswerPage} from '@/app/page-types';import type {EditDraft} from '@/app/chat/edit-draft';import type {FilePart} from '@/app/context-files/server';
+import {basicAdmaDashboard} from './deferred';
 const bucket=()=>(env as unknown as {FILES:R2Bucket}).FILES;
 const path=(agent:Agent)=>'app-edit-drafts/'+agent.id+'.json';
 type Draft=EditDraft&{pageBody?:string;ownerId:string;pageId:string;base:string;config:NonNullable<AnswerPage['dynamic']>;templateId:AnswerPage['labels']['templateId'];saved?:boolean};
@@ -28,6 +29,7 @@ export async function stageAppRevision(page:AnswerPage,raw:unknown,agent:Agent){
   const context={pageId:page.id,userId:agent.ownerId,ownerId:agent.ownerId,language:page.language,visibility:'private' as const,agent};
   const draft=validateGenerationDraft(change.draft,page.question||page.title,context,true),result=await materializeGenerationDraft(draft,context);
   if(!result.definition)throw Error('An app revision must contain an application definition.');
+  if(basicAdmaDashboard(page.question||'')&&result.definition.config.template!=='file-browser-v1')throw Error('This replacement would remove the ADMA dashboard file browser, folders and transfer controls. Preserve the registered ADMA dashboard and change its shared renderer instead.');
   config={...result.definition.config,contextDomain:page.dynamic.contextDomain};title=draft.title;summary=draft.summary;templateId=result.templateId;pageBody=draft.body;body=draft.program?.code||draft.body||draft.summary;
  }
  const draft:Draft={id:crypto.randomUUID(),ownerId:agent.ownerId,pageId:page.id,base:revision(page),title,summary,body,pageBody,config,templateId};

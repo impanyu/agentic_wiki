@@ -14,7 +14,7 @@ test('nested streaming decodes partial article text without exposing nested code
 test('deferred reads return the saved app without executing its backend',async()=>{
  let calls=0;const page={id:'p',kind:'dynamic',dynamic:{template:'page-program-v1'},parameters:{}};
  const {deferPageExecution,registeredAdmaPage}=await load(strip('app/page-programs/deferred.ts'));
- globalThis.deferDeps={parametersSchema:z.record(z.union([z.string(),z.number(),z.boolean()])),programNavigationInput:p=>({values:p}),deferPageExecution,registeredAdmaPage,executePage:async p=>{calls++;return {...p,view:{}};},getActor:async()=>({userId:'u',finish:r=>r}),getPage:async()=>page,reply:(data,status=200)=>Response.json(data,{status})};
+ globalThis.deferDeps={parametersSchema:z.record(z.union([z.string(),z.number(),z.boolean()])),programNavigationInput:p=>({values:p}),deferPageExecution,registeredAdmaPage,registeredContextIndexPage:p=>p,executePage:async p=>{calls++;return {...p,view:{}};},getActor:async()=>({userId:'u',finish:r=>r}),getPage:async()=>page,reply:(data,status=200)=>Response.json(data,{status})};
  const code=strip('app/api/pages/[id]/route.ts').split('export async function PATCH')[0];
  const m=await load('const {'+Object.keys(globalThis.deferDeps).join(',')+'}=globalThis.deferDeps;'+code);
  const response=await m.GET(new Request('https://wiki.test/api/pages/p?defer=1'),{params:Promise.resolve({id:'p'})});
@@ -75,4 +75,11 @@ test('ordinary combined repositories reuse native panels while analytical dashbo
   assert.equal(basicCombinedRepositories(question),false);
   assert.equal(deferPageExecution({question,dynamic:{template:'page-program-v1'}}).runtimePending,true);
  }
+});
+test('a saved ADMA dashboard cannot remain replaced by a map-only app',async()=>{
+ const {registeredAdmaPage,basicAdmaDashboard}=await load(strip('app/page-programs/deferred.ts'));
+ assert.equal(basicAdmaDashboard('adma dashboard'),true);
+ const restored=registeredAdmaPage({id:'adma',kind:'dynamic',question:'adma dashboard',title:'ADMA Geo Viewer',summary:'Map only',body:'',labels:{templateId:'geo-v1'},dynamic:{template:'native-app-v1',executor:'native-app-v1',nativeApp:'map'}});
+ assert.equal(restored.title,'ADMA Dashboard');assert.equal(restored.dynamic.template,'file-browser-v1');assert.equal(restored.dynamic.nativeApp,undefined);assert.equal(restored.labels.templateId,'files-v1');
+ const viewer=readFileSync('app/geo/viewer.tsx','utf8');assert.match(viewer,/useState\('satellite'\)/);assert.match(viewer,/Basemap\.fromId\('satellite'\)/);
 });
