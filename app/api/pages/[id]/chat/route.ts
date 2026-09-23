@@ -11,10 +11,10 @@ import {runningTurn,trackTurn} from '@/app/chat/running';
 import {activityReporter} from '@/app/agents/activity';
 import {appEditCapabilities,readAppDraft,stageAppRevision,discardAppDraft,saveAppDraft} from '@/app/page-programs/edit-app';
 import {fileContext} from '@/app/context-files/server';
-import {getWikiComments,postWikiComment} from '@/app/chat/wiki-comments';
+import {getWikiComments,postWikiComment,discardWikiDrafts} from '@/app/chat/wiki-comments';
 import {sandboxStatus} from '@/app/sandboxes/service';
 import {storageStatus} from '@/app/storage/oauth';
-import {readEditDraft,saveEditDraft} from '@/app/chat/edit-draft';
+import {readEditDraft,saveEditDraft,discardEditDraft} from '@/app/chat/edit-draft';
 import {editWiki} from '@/app/chat/edit-page';
 import {saveTurn,readTurns,conversationContext} from '@/app/chat/history';
 import {runPageProgram} from '@/app/page-programs/runtime';
@@ -44,6 +44,14 @@ export async function GET(request:Request,{params}:{params:Promise<{id:string}>}
  if(!history.messages.length&&!before){const recent=await memory(s.agent);history.messages=recent.filter(m=>m.action.startsWith('User: ')).map(m=>({user:m.action.slice(6),reply:JSON.parse(m.result).reply||'',sequence:0,createdAt:''}));}
  return respond({...history,sessionId:s.agent.id,userName:s.userName,editDraft:canWritePage(page)&&page.dynamic?await readAppDraft(s.agent,page.id):null},s.cookie);
  }catch{return reply({error:'Could not load the page conversation.'},503);}
+}
+// Cancel an unsaved proposal without touching the page.
+export async function DELETE(request:Request,{params}:{params:Promise<{id:string}>}){
+ if(!sameOrigin(request))return reply({error:'This request must come from the site.'},403);
+ try{const id=(await params).id,s=await session(request,id),rawPage=await getPage(id,s.userId),page=rawPage?registeredAdmaPage(rawPage):null;if(!page)return reply({error:'This page is private or does not exist.'},404);
+  if(page.kind==='static')await discardWikiDrafts(page,s);else await Promise.all([discardAppDraft(s.agent),discardEditDraft(s.agent)]);
+  return respond({discarded:true},s.cookie);
+ }catch{return reply({error:'Could not cancel the proposal.'},503);}
 }
 export async function POST(request:Request,route:{params:Promise<{id:string}>}){
  const actor=await getActor(request);

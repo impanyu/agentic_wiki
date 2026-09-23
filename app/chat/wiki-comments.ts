@@ -1,4 +1,4 @@
-import {readAppDraft,saveAppDraft} from '@/app/page-programs/edit-app';
+import {readAppDraft,saveAppDraft,discardAppDraft} from '@/app/page-programs/edit-app';
 import {resolveMentions} from '@/app/resources/service';
 import type {Mention} from '@/app/resources/contracts';
 import {ensureRoleSession} from './session';
@@ -11,7 +11,7 @@ import type {Agent} from '@/app/agents/runtime';
 import {conversationContext} from './history';
 import {importLegacyComments} from './shared-history';
 import {editWiki} from './edit-page';
-import {readEditDraft,saveEditDraft} from './edit-draft';
+import {readEditDraft,saveEditDraft,discardEditDraft} from './edit-draft';
 type Viewer={userId:string;userName:string;cookie:string|null;agent:Agent};
 async function commentAgent(pageId:string,viewer:Viewer){
  return ensureRoleSession('comments:'+pageId,viewer.userId);
@@ -65,3 +65,6 @@ export async function postWikiComment(request:Request,page:AnswerPage,viewer:Vie
  },cancel(){detached=true;}});
  return finish(new Response(stream,{headers:{'Content-Type':'text/event-stream; charset=utf-8','Cache-Control':'no-store, private','Vary':'Cookie','X-Accel-Buffering':'no'}}),viewer);
 }
+
+// Cancels an unsaved proposal: the article stays as it is.
+export async function discardWikiDrafts(page:AnswerPage,viewer:Viewer){const agent=await commentAgent(page.id,viewer);await Promise.all([discardEditDraft(viewer.agent),discardEditDraft(agent),discardAppDraft(agent)]);}
