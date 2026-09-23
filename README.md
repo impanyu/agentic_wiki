@@ -22,6 +22,8 @@ npm run build
 npm start
 ```
 
+Fast deploys: build on a workstation and ship only the bundle. `scripts/deploy/build-release.sh` builds, packs `.next/standalone` (without `node_modules`) and publishes it as GitHub release `deploy-<sha>`; on the VM `scripts/deploy/install-release.sh <sha>` checks out the commit, downloads the asset, links the VM's own `node_modules`, swaps `.next/standalone` and restarts the service. Downtime is the restart only.
+
 Set `NODE_ENV=production` and `APP_URL=https://your-domain.example` in your service environment. Startup applies versioned migrations before accepting requests. A systemd example is in `deploy/agenticwiki.service`; adjust its Node path and service account for your VM.
 
 ## Deploy on a cloud VM with Docker
