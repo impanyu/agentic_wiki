@@ -45,7 +45,7 @@ async function readResponse(response: Response) {
   if (!response.headers.get('content-type')?.includes('application/json')) {
     throw new Error('The server returned an unexpected response. Please try opening the page again.');
   }
-  const result = await response.json() as {page:AnswerPage;reused?:boolean;error?:string};
+  const result = await response.json() as {page:AnswerPage;reused?:boolean;question?:string;error?:string};
   if (!response.ok) throw new Error(result.error || 'Could not open this answer. Please try again.');
   return result;
 }
@@ -236,7 +236,7 @@ export default function Workspace({ user, signIn, signOut }: {
           if(progress.started)setDraft({id:'draft',title:progress.title||text,summary:progress.summary||'',body:progress.body||'',language:progress.language||'en',labels:progress.labels||{},category:progress.category||'',visibility:'private',owned:false,createdAt:'',questionCount:0,sources:[]});
         }).catch(()=>{}).finally(()=>{readingProgress=false;});
       },800);
-      let result:{page:AnswerPage;reused?:boolean}|undefined;
+      let result:{page:AnswerPage;reused?:boolean;question?:string}|undefined;
       try{
       let response:Response;
       const waitingSince=Date.now();
@@ -269,7 +269,7 @@ export default function Workspace({ user, signIn, signOut }: {
             if(performance.now()-lastPaint>60){const snapshot=body;setDraft(page=>page?{...page,body:snapshot}:page);lastPaint=performance.now();}
           }else if(event.type==='ping')setDraft(page=>page?{...page,body}:page);
           else if(event.type==='metadata')setDraft(page=>page?{...page,body,title:String(event.title),summary:String(event.summary),category:String(event.category),labels:event.labels as AnswerPage['labels']}:page);
-          else if(event.type==='done'){result={page:event.page as AnswerPage,reused:!!event.reused};break;}
+          else if(event.type==='done'){result={page:event.page as AnswerPage,reused:!!event.reused,question:typeof event.question==='string'?event.question:undefined};break;}
           else if(event.type==='error'){if(!body.trim())setDraft(null);throw new Error(String(event.message));}
         }
         if(!result)throw new Error('The connection ended before the page was saved. Please try again.');
@@ -293,8 +293,10 @@ export default function Workspace({ user, signIn, signOut }: {
       setError(linkWarning);
       setSelected(result.page);setDraft(null);
       if(fork)forkRequest.current=null;
-      setQuestion(text);
-      recordHistory(result.page.id,text,(result.page.parameters||result.page.runtime?.input));
+      // A link routed with page context shows the routed question, not the bare link text.
+      const shown=result.question?.trim()||text;
+      setQuestion(shown);
+      recordHistory(result.page.id,shown,(result.page.parameters||result.page.runtime?.input));
       setStatus(result.reused ? 'Redirected to ' + result.page.title : 'Created a new answer');
       return {pageId:result.page.id,reused:!!result.reused};
     } catch (e) {

@@ -35,14 +35,16 @@ export async function POST(request:Request){
 }
 async function routeAnswer(request:Request,actor:Awaited<ReturnType<typeof getActor>>){
  let jobId:string|null=null,jobState='completed';
- let token:string|null=null;const respond=(data:unknown,status=200)=>actor.finish(reply(data,status));
+ let token:string|null=null,rewritten:string|undefined;
+ // A link question rewritten with page context is echoed back so the address bar shows the routed question.
+ const respond=(data:unknown,status=200)=>actor.finish(reply(rewritten&&data&&typeof data==='object'&&'page' in data?{...data,question:rewritten}:data,status));
  try{
   if(!sameOrigin(request))return respond({error:'This request must come from the site.'},403);
   const data=await request.json() as {question?:unknown;visibility?:unknown;origin?:unknown;fork?:{sourceId?:unknown;requestId?:unknown}};
   if(typeof data.question!=='string'||!data.question.trim()||data.question.length>4000)return respond({error:'Enter between 1 and 4,000 characters.'},400);
   const uid=actor.userId;
   let question=data.question.trim();
-  if(data.origin){try{question=await contextualLinkQuestion(question,data.origin,uid,request.signal);}catch(e){if(e instanceof Error&&/^(INVALID_LINK_CONTEXT|LINK_CONTEXT_CHANGED|LINK_CONTEXT_UNAVAILABLE)$/.test(e.message))return respond({error:'The linked text or source page is no longer available. Refresh the page and try again.'},400);throw e;}}
+  if(data.origin){try{const routed=await contextualLinkQuestion(question,data.origin,uid,request.signal);if(routed!==question)rewritten=routed;question=routed;}catch(e){if(e instanceof Error&&/^(INVALID_LINK_CONTEXT|LINK_CONTEXT_CHANGED|LINK_CONTEXT_UNAVAILABLE)$/.test(e.message))return respond({error:'The linked text or source page is no longer available. Refresh the page and try again.'},400);throw e;}}
   let fork: {sourceId:string;requestId:string;groupId:string;createdAt:string}|undefined;
   if(data.fork){
    if(typeof data.fork.sourceId!=='string'||typeof data.fork.requestId!=='string'||!/^[0-9a-f-]{36}$/.test(data.fork.requestId))return respond({error:'Invalid fork request.'},400);
@@ -184,7 +186,7 @@ async function routeAnswer(request:Request,actor:Awaited<ReturnType<typeof getAc
     emit({type:'start',question,language,cancelToken:lease});
     emit({type:'status',message:'Finding or composing the right page…'});
     void (async()=>{
-     try{const result=await generate(emit,cancellation.signal);emit({type:'done',...result});}
+     try{const result=await generate(emit,cancellation.signal);emit({type:'done',...result,...(rewritten?{question:rewritten}:{})});}
      catch(e){jobState='failed';if(!cancellation.signal.aborted){console.error('Streamed answer failed',e instanceof Error?e.message.slice(0,200):'Unknown error');emit({type:'error',message:e instanceof Error&&e.message==='DISAMBIGUATION_INCOMPLETE'?'The possible meanings could not be organized into a valid index. Please retry or specify which meaning you want. No page was saved.':e instanceof Error&&e.message==='INCOMPLETE_ANSWER'?'The answer could not be verified after revision. No page was saved.':e instanceof Error&&e.message.startsWith('SANDBOX_')?'This application needs the sandbox service. Open Sandboxes to check its connection.':e instanceof Error&&e.message==='APPLICATION_CAPABILITY_UNAVAILABLE'?'This application needs an execution capability that is not configured yet. No placeholder page was saved.':'Generation did not finish. This draft has not been saved. Please try again.'});}}
      finally{if(streamJob)await finishJob(streamJob,cancellation.signal.aborted?'cancelled':jobState).catch(()=>{});clearInterval(heartbeat);clearInterval(cancellationCheck);request.signal.removeEventListener('abort',onDisconnect);await unlock(lease).catch(()=>{});closed=true;try{controller.close();}catch{}}
     })();

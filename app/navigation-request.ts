@@ -25,19 +25,19 @@ export function navigationError(error:unknown,fallback:string){
 // After a dropped stream (background tab, suspended mobile browser) the server
 // keeps generating; poll the progress record until the page is saved or the
 // generation reports an error. Never repeats the POST.
-export async function waitForGenerationResult<T>(generationId:string,signal:AbortSignal,timeoutMs=600000,intervalMs=2000):Promise<{page:T;reused?:boolean}|undefined>{
+export async function waitForGenerationResult<T>(generationId:string,signal:AbortSignal,timeoutMs=600000,intervalMs=2000):Promise<{page:T;reused?:boolean;question?:string}|undefined>{
  const deadline=Date.now()+timeoutMs;
  while(!signal.aborted&&Date.now()<deadline){
   try{
    const response=await navigationRequest('/api/ask?generationId='+encodeURIComponent(generationId),{cache:'no-store',signal});
    if(response.status===404||response.status===403)return;
-   if(response.ok){const progress=await response.json() as {done?:boolean;page?:T;reused?:boolean;error?:string;pending?:boolean};if(progress.done&&progress.page)return {page:progress.page,reused:progress.reused};if(progress.error)return;}
+   if(response.ok){const progress=await response.json() as {done?:boolean;page?:T;reused?:boolean;question?:string;error?:string;pending?:boolean};if(progress.done&&progress.page)return {page:progress.page,reused:progress.reused,...(progress.question?{question:progress.question}:{})};if(progress.error)return;}
   }catch(error){if(signal.aborted)return;}
   await new Promise<void>((resolve,reject)=>{const abort=()=>{clearTimeout(timer);reject(signal.reason||new DOMException('Aborted','AbortError'));};const timer=setTimeout(()=>{signal.removeEventListener('abort',abort);resolve();},intervalMs);if(signal.aborted)abort();else signal.addEventListener('abort',abort,{once:true});}).catch(()=>{});
  }
 }
 // Recover the saved result using a read-only request; never repeat generation.
-export async function recoverGenerationResult<T>(generationId:string,signal:AbortSignal):Promise<{page:T;reused?:boolean}|undefined>{
+export async function recoverGenerationResult<T>(generationId:string,signal:AbortSignal):Promise<{page:T;reused?:boolean;question?:string}|undefined>{
  try{
   const response=await navigationRequest('/api/ask?generationId='+encodeURIComponent(generationId),{cache:'no-store',signal});
   if(!response.ok||signal.aborted)return;
