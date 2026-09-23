@@ -4,7 +4,7 @@ import {presetById} from './catalog';
 import {apiTools,verifyApiConnector,executeApiConnector} from './adapters';
 import {z} from 'zod';
 import {database,getPage,lock,unlock} from '@/db/store';
-import {canWritePage} from '@/app/page-permissions';
+import {canUseConnectorsOn} from '@/app/page-permissions';
 import {vaultPath,vaultRead,vaultWrite,vaultDelete,vaultReady,signedIn} from '@/app/storage/vault';
 import {storageStatus,storageToken,disconnectStorage} from '@/app/storage/oauth';
 import {providerOperation} from '@/app/storage/adapters';
@@ -46,7 +46,7 @@ export async function updateConnection(userId:string,id:string,raw:unknown){sign
 }
 export async function removeConnection(userId:string,id:string){signedIn(userId);if(id==='arcgis'){await updateConnection(userId,id,{enabled:false});await disconnectArcgis(userId);}else if(isStorage(id)){await updateConnection(userId,id,{enabled:false});await disconnectStorage(id as StorageProvider,userId);}else{await database().prepare('DELETE FROM user_connectors WHERE owner_id=? AND id=?').bind(userId,id).run();await vaultDelete(await vaultPath(userId,'connector-'+id));}return {disconnected:true};}
 export async function enabledConnectors(userId:string){return (await connections(userId)).filter(c=>c.enabled&&c.connected).map(c=>({id:c.id,name:c.name,tools:c.tools.filter(t=>c.allowed.includes(t.name)).map(t=>({name:t.name,description:t.description,inputSchema:t.inputSchema,confirmationRequired:!c.automatic.includes(t.name)}))}));}
-async function authorized(userId:string,id:string,tool:string,pageId?:string){signedIn(userId);const c=(await connections(userId)).find(c=>c.id===id);if(!c?.enabled||!c.connected||!c.allowed.includes(tool)||!c.tools.some(t=>t.name===tool))throw Error('Connector or tool is disabled.');if(pageId){const page=await getPage(pageId,userId);if(!page)throw Error('Page is inaccessible.');if(!canWritePage(page)&&!(c.kind==='storage'&&['list','read'].includes(tool))&&!c.tools.find(t=>t.name===tool)?.annotations?.readOnlyHint)throw Error('This page is read only.');}return c;}
+async function authorized(userId:string,id:string,tool:string,pageId?:string){signedIn(userId);const c=(await connections(userId)).find(c=>c.id===id);if(!c?.enabled||!c.connected||!c.allowed.includes(tool)||!c.tools.some(t=>t.name===tool))throw Error('Connector or tool is disabled.');if(pageId){const page=await getPage(pageId,userId);if(!page)throw Error('Page is inaccessible.');if(!canUseConnectorsOn(page)&&!(c.kind==='storage'&&['list','read'].includes(tool))&&!c.tools.find(t=>t.name===tool)?.annotations?.readOnlyHint)throw Error('This page is read only.');}return c;}
 async function execute(c:Connection,userId:string,tool:string,args:unknown,signal?:AbortSignal,pageId?:string){
  if(c.provider==='arcgis')return (await import('@/app/arcgis-connector/execute')).executeArcgis(userId,tool,args,pageId);
  if(c.provider==='adma'&&tool==='upload_file'){const data=z.object({pageId:z.string().uuid(),fileId:z.string().uuid(),folderId:z.string().max(200).optional(),operationId:z.string().uuid()}).strict().parse(args);const {copyResources}=await import('@/app/resources/service');return copyResources(data.pageId,userId,{operationId:data.operationId,sources:[{space:'page',kind:'file',id:data.fileId,name:'Selected file'}],destination:{space:'adma',connectorId:c.id,kind:'folder',id:data.folderId||'',name:'ADMA'}});}

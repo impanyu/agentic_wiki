@@ -36,7 +36,7 @@ function ToolWorkbench({pageId,writable,slug,onFork}:{pageId:string;writable:boo
  async function run(){setBusy(true);setError('');setResult(null);try{const args=Object.fromEntries(activeFields.filter(f=>values[f.name]?.trim()).map(f=>[f.name,f.type==='number'?Number(values[f.name]):values[f.name].trim()]));const key=JSON.stringify([account,slug,args]);if(operation.current?.key!==key)operation.current={key,id:crypto.randomUUID()};const r=await call(processingRunName(slug),{...args,operation_id:operation.current.id},true);setTask(r.task_id);setResult(r);try{localStorage.setItem(historyKey,r.task_id);}catch{}}catch(e){setError(String(e));}finally{setBusy(false);}}
  async function check(){setBusy(true);setError('');try{setResult(await call('processing_status',{task_id:task}));}catch(e){setError(String(e));}finally{setBusy(false);}}
  // Shared catalog pages are read only; transfers and runs continue on the visitor's private fork.
- function needFork(){if(onFork)onFork();else setError(t('Fork this page first: transferring files from other sources needs your private copy.'));}
+ function needFork(){setError(t('Fork this page first: transferring files from other sources needs your private copy.'));}
  async function guard(fn:()=>Promise<void>){setBusy(true);setError('');try{await fn();}catch(e){setError(String(e));}finally{setBusy(false);}}
  // A selection from another repository is first transferred into the user's
  // private ADMA workspace; the tool then runs on the new ADMA file.
