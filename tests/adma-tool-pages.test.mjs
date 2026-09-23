@@ -4,14 +4,14 @@ const load=async s=>import('data:text/javascript;base64,'+Buffer.from(ts.transpi
 const React=await import('react'),{renderToStaticMarkup}=await import('react-dom/server');
 const catalog=await load(strip('app/adma/processing-catalog.ts'));
 const Icon=()=>null;
-globalThis.toolPageDeps={React,useEffect:()=>{},useRef:value=>({current:value}),Sprout:Icon,ArrowLeftRight:Icon,TrendingUp:Icon,BarChart3:Icon,Filter:Icon,ArrowLeft:Icon,ExternalLink:Icon,ResourcePicker:()=>null,useUi:()=>({locale:'en',t:text=>text}),toolHref:()=>'#',...catalog};
+globalThis.toolPageDeps={React,useEffect:()=>{},useRef:value=>({current:value}),Sprout:Icon,ArrowLeftRight:Icon,TrendingUp:Icon,BarChart3:Icon,Filter:Icon,ArrowLeft:Icon,ExternalLink:Icon,FolderSearch:Icon,HardDriveUpload:Icon,ResourcePicker:()=>null,useUi:()=>({locale:'en',t:text=>text}),toolHref:()=>'#',...catalog};
 const info=await load('const {Sprout,ArrowLeftRight,TrendingUp,BarChart3,Filter}=globalThis.toolPageDeps;\n'+strip('app/adma/tool-info.ts'));
 Object.assign(globalThis.toolPageDeps,info);
 // A shared state stub: identical data-URL modules are cached, so the stub is
 // installed once and each render swaps in its own seeded state array.
 const holder={state:[]};
 globalThis.toolPageDeps.useState=initial=>{const value=holder.state.shift();return [value===undefined?initial:value,()=>{}];};
-const panel=await load('const {React,useEffect,useState,useRef,ArrowLeft,ExternalLink,processingCatalog,processingRunName,toolInfo,siFieldState,ResourcePicker,useUi,toolHref}=globalThis.toolPageDeps;\n'+strip('app/adma/processing-panel.tsx'));
+const panel=await load('const {React,useEffect,useState,useRef,ArrowLeft,ExternalLink,FolderSearch,HardDriveUpload,processingCatalog,processingRunName,toolInfo,siFieldState,ResourcePicker,useUi,toolHref}=globalThis.toolPageDeps;\n'+strip('app/adma/processing-panel.tsx'));
 async function render(state,slug){
  holder.state=[...state];
  return renderToStaticMarkup(React.createElement(panel.ProcessingPanel,{pageId:'page',writable:true,initialTool:slug}));
@@ -27,7 +27,7 @@ test('each catalog tool renders its own dedicated page with banner, steps and fi
   assert.ok(html.includes(spec.name));assert.ok(html.includes(meta.subtitle));assert.ok(html.includes(meta.runLabel));
   for(const [term] of meta.outputs)assert.ok(html.includes(term),spec.slug+' lists output '+term);
   assert.ok(html.includes('step-badge'),spec.slug+' shows numbered steps');
-  assert.ok(html.includes('Browse all sources…')&&html.includes('Upload local file'),spec.slug+' offers cross-repository selection');
+  assert.ok(html.includes('Google Drive')&&html.includes('all sources…')&&html.includes('Upload from computer'),spec.slug+' offers cross-repository selection');
  }
 });
 test('the tool directory shows one card per tool instead of a shared form',async()=>{
@@ -40,7 +40,7 @@ test('file selectors list only matching private ADMA files and folders default t
  // Buffer sector select offers .shp files only; the CSV select offers the CSV.
  assert.ok(html.includes('sectors.shp'));assert.ok(html.includes('plots.csv'));
  assert.ok(html.includes('Auto-create output folder (default)'));
- assert.ok(html.includes('Choose a file…'));
+ assert.ok(html.includes('Choose from my ADMA files…'));
 });
 test('SI workflows show and require only their own inputs',async()=>{
  const uav=await render(seed({workflow:'standard_uav'}),'si-tool');

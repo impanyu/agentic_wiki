@@ -544,5 +544,9 @@
   "Transfer to ADMA failed.": "传输到 ADMA 失败。",
   "ADMA did not accept this file.": "ADMA 未接受此文件。",
   "Upload failed.": "上传失败。",
-  "Upload did not attach to this page.": "上传未能附加到此页面。"
+  "Upload did not attach to this page.": "上传未能附加到此页面。",
+  "Choose from my ADMA files…": "从我的 ADMA 文件中选择…",
+  "Google Drive & all sources…": "Google Drive 及全部来源…",
+  "Upload from computer": "从本机上传",
+  "Use selected file": "使用所选文件"
 }

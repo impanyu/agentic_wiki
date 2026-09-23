@@ -808,5 +808,9 @@
   "Transfer to ADMA failed.": "Transfer to ADMA failed.",
   "ADMA did not accept this file.": "ADMA did not accept this file.",
   "Upload failed.": "Upload failed.",
-  "Upload did not attach to this page.": "Upload did not attach to this page."
+  "Upload did not attach to this page.": "Upload did not attach to this page.",
+  "Choose from my ADMA files…": "Choose from my ADMA files…",
+  "Google Drive & all sources…": "Google Drive & all sources…",
+  "Upload from computer": "Upload from computer",
+  "Use selected file": "Use selected file"
 }

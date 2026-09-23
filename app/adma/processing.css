@@ -21,6 +21,8 @@
 .tool-account{display:flex;flex-direction:column;gap:7px;max-width:320px;margin:14px 0}
 .adma-processing .field-link{display:inline;border:0;background:none;color:var(--tool-accent,#a62b2b);padding:0;margin:0;font-size:inherit;text-decoration:underline;cursor:pointer}
 .field-selected{color:#146c43}
-.field-sources{display:flex;gap:14px;font-size:12px}
+.field-sources{display:flex;gap:8px;flex-wrap:wrap;font-size:12px}
+.adma-processing .field-sources button{display:inline-flex;align-items:center;gap:6px;margin:0;padding:6px 10px;font-size:12px;background:#fff;color:#54423f;border:1px solid #d7c7c5;border-radius:6px}
+.adma-processing .field-sources button:hover:not(:disabled){border-color:var(--tool-accent,#a62b2b);color:var(--tool-accent,#a62b2b)}
 .processing-tool button.tool-run{background:var(--tool-accent);border-color:var(--tool-accent);font-size:15px;padding:11px 22px;margin:16px 0 0}
 @media(max-width:650px){.processing-tool .tool-banner{flex-direction:column;gap:12px}.tool-return{flex-wrap:wrap}}

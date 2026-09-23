@@ -1,6 +1,6 @@
 'use client';
 import {useEffect,useState,useRef,type CSSProperties} from 'react';
-import {ArrowLeft,ExternalLink} from 'lucide-react';
+import {ArrowLeft,ExternalLink,FolderSearch,HardDriveUpload} from 'lucide-react';
 import {processingCatalog,processingRunName,type ProcessingField} from './processing-catalog';
 import {toolInfo,siFieldState} from './tool-info';
 import {ResourcePicker} from '@/app/resources/picker';
@@ -61,14 +61,14 @@ function ToolWorkbench({pageId,writable,slug}:{pageId:string;writable:boolean;sl
    return <label key={f.name}>{t(f.label)}{required?' *':''}
     {manual?<><input list={f.type==='file'?(info?.accept[f.name]?'processing-files-'+f.name:'processing-files'):'processing-folders'} required={required} type="text" value={values[f.name]||''} onChange={e=>setValues({...values,[f.name]:e.target.value})}/><small>{t('Paste an ADMA resource ID, or')} <button type="button" className="field-link" onClick={()=>{setCustom({...custom,[f.name]:false});setValues({...values,[f.name]:''});}}>{t('choose from your files')}</button></small></>
     :<><select required={required} value={chosen?values[f.name]:''} onChange={e=>{if(e.target.value==='__custom'){setCustom({...custom,[f.name]:true});setValues({...values,[f.name]:''});}else setValues({...values,[f.name]:e.target.value});}}>
-     <option value="">{f.type==='folder'?t('Auto-create output folder (default)'):t('Choose a file…')}</option>
+     <option value="">{f.type==='folder'?t('Auto-create output folder (default)'):t('Choose from my ADMA files…')}</option>
      {matches.map(x=><option key={x.id} value={x.id}>{x.name}</option>)}
      <option value="__custom">{t('Enter an ID manually…')}</option>
     </select>
     {f.type==='file'&&!matches.length&&<small>{t('No matching private files found in your ADMA account.')}</small>}
     {chosen&&<small className="field-selected">✓ {t('Selected:')} {chosen.name}</small>}
     {help&&<small>{t(help)}</small>}</>}
-    {f.type==='file'&&<span className="field-sources"><button type="button" className="field-link" disabled={busy} onClick={()=>setPicker(f.name)}>{t('Browse all sources…')}</button><button type="button" className="field-link" disabled={busy} onClick={()=>{uploadField.current=f.name;uploadInput.current?.click();}}>{t('Upload local file')}</button></span>}
+    {f.type==='file'&&<span className="field-sources"><button type="button" disabled={busy} onClick={()=>setPicker(f.name)}><FolderSearch size={14}/>{t('Google Drive & all sources…')}</button><button type="button" disabled={busy} onClick={()=>{uploadField.current=f.name;uploadInput.current?.click();}}><HardDriveUpload size={14}/>{t('Upload from computer')}</button></span>}
    </label>;
   }
   return <label key={f.name}>{t(f.label)}{required?' *':''}{f.type==='select'?<select required={required} value={values[f.name]||''} onChange={e=>setValues({...values,[f.name]:e.target.value})}>{f.options?.map(x=><option key={x}>{x}</option>)}</select>:<><input required={required} type={f.type==='number'?'number':'text'} step="any" value={values[f.name]||''} onChange={e=>setValues({...values,[f.name]:e.target.value})}/>{help&&<small>{t(help)}</small>}</>}</label>;}
@@ -94,6 +94,6 @@ function ToolWorkbench({pageId,writable,slug}:{pageId:string;writable:boolean;sl
  {result&&<><p role="status">{t('Status')}: {String(result.status||'SUBMITTED')}{result.result?.success===false?' · '+t('Task failed'):''}</p>{outputFiles.length>0&&<ul>{outputFiles.map(f=><li key={f.id}><strong>{f.name}</strong> <a href={toolHref(/\.(geojson|kml|gpx)$/i.test(f.name)?'map':'hub',{page:pageId,connector:account,file:f.id,name:f.name,language:locale})}>{t('Open with…')}</a> <a href={'https://adma.aisoup.net/file/'+encodeURIComponent(f.id)+'/'} target="_blank" rel="noreferrer">{t('Open in ADMA')}</a></li>)}</ul>}<details><summary>{t('Result details')}</summary><pre>{JSON.stringify(result,null,2)}</pre></details></>}
  </>}{error&&<p role="alert">{error}</p>}
  <input hidden ref={uploadInput} type="file" onChange={e=>{const file=e.target.files?.[0];e.target.value='';if(file)void guard(()=>uploadLocal(uploadField.current,file));}}/>
- {picker&&<ResourcePicker pageId={pageId} onClose={()=>setPicker('')} onSelect={mentions=>{const mention=mentions.find(m=>m.type==='resource');const name=picker;if(mention&&'resource' in mention)void guard(()=>adopt(name,mention.resource));}}/>}
+ {picker&&<ResourcePicker pageId={pageId} selectLabel="Use selected file" onClose={()=>setPicker('')} onSelect={mentions=>{const mention=mentions.find(m=>m.type==='resource');const name=picker;if(mention&&'resource' in mention)void guard(()=>adopt(name,mention.resource));}}/>}
  </section>;
 }
