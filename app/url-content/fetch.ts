@@ -22,7 +22,10 @@ export function sourceUrl(input:string):URL|null{
  url.hash='';
  return url;
 }
-export async function fetchSource(url:URL,signal:AbortSignal){
+export type FetchOptions={accept?:string;allowType?:(type:string)=>boolean;maxBytes?:number;referer?:string};
+const documentTypes=['text/html','application/xhtml+xml','text/plain','text/markdown','application/json','application/pdf'];
+export async function fetchSource(url:URL,signal:AbortSignal,options:FetchOptions={}){
+ const max=options.maxBytes||limit;
  const deadline=AbortSignal.any([signal,AbortSignal.timeout(25000)]);
  for(let redirects=0;redirects<=5;redirects++){
   deadline.throwIfAborted();
@@ -34,22 +37,22 @@ export async function fetchSource(url:URL,signal:AbortSignal){
   });
   if(!addresses.length||addresses.some(a=>!publicIPv4(a.address)))throw Error('URL_PRIVATE');
   const result=await new Promise<{status:number;location?:string;type:string;charset?:string;bytes:Buffer}>((resolve,reject)=>{
-   const req=(url.protocol==='https:'?httpsRequest:httpRequest)(url,{method:'GET',agent:false,family:4,signal:deadline,lookup:(_host,_options,callback)=>callback(null,addresses[0].address,4),headers:{Accept:'text/html,application/pdf,text/plain,application/json','Accept-Encoding':'identity','User-Agent':'AgenticWiki/1.0 (page reader)'}},res=>{
+   const req=(url.protocol==='https:'?httpsRequest:httpRequest)(url,{method:'GET',agent:false,family:4,signal:deadline,lookup:(_host,_options,callback)=>callback(null,addresses[0].address,4),headers:{Accept:options.accept||'text/html,application/pdf,text/plain,application/json','Accept-Encoding':'identity','User-Agent':'AgenticWiki/1.0 (page reader)',...(options.referer?{Referer:options.referer}:{})}},res=>{
     const status=res.statusCode||0;
     if(status>=300&&status<400){res.destroy();resolve({status,location:res.headers.location,type:'',bytes:Buffer.alloc(0)});return;}
     if(status<200||status>=300){res.destroy();reject(Error('URL_UNAVAILABLE'));return;}
     const contentType=String(res.headers['content-type']||'').toLowerCase(),type=contentType.split(';')[0].trim(),charset=contentType.match(/charset=["']?([a-z0-9_-]+)/)?.[1];
-    if(!['text/html','application/xhtml+xml','text/plain','text/markdown','application/json','application/pdf'].includes(type)){res.destroy();reject(Error('URL_UNSUPPORTED'));return;}
+    if(!(options.allowType?options.allowType(type):documentTypes.includes(type))){res.destroy();reject(Error('URL_UNSUPPORTED'));return;}
     let size=0;const chunks:Buffer[]=[];
-    res.on('data',(chunk:Buffer)=>{size+=chunk.length;if(size>limit){res.destroy(Error('URL_TOO_LARGE'));return;}chunks.push(chunk);});
+    res.on('data',(chunk:Buffer)=>{size+=chunk.length;if(size>max){res.destroy(Error('URL_TOO_LARGE'));return;}chunks.push(chunk);});
     res.on('error',reject);
     res.on('end',()=>{try{
      let bytes=Buffer.concat(chunks);const encoding=res.headers['content-encoding'];
-     if(encoding==='gzip')bytes=gunzipSync(bytes,{maxOutputLength:limit});
-     else if(encoding==='deflate')bytes=inflateSync(bytes,{maxOutputLength:limit});
-     else if(encoding==='br')bytes=brotliDecompressSync(bytes,{maxOutputLength:limit});
+     if(encoding==='gzip')bytes=gunzipSync(bytes,{maxOutputLength:max});
+     else if(encoding==='deflate')bytes=inflateSync(bytes,{maxOutputLength:max});
+     else if(encoding==='br')bytes=brotliDecompressSync(bytes,{maxOutputLength:max});
      else if(encoding&&encoding!=='identity')throw Error('URL_UNSUPPORTED');
-     if(bytes.length>limit)throw Error('URL_TOO_LARGE');resolve({status,type,charset,bytes});
+     if(bytes.length>max)throw Error('URL_TOO_LARGE');resolve({status,type,charset,bytes});
     }catch{reject(Error('URL_TOO_LARGE'));}});
    });req.on('error',reject);req.end();
   });

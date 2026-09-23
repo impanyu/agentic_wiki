@@ -8,6 +8,7 @@ import {codeSchema} from '@/app/sandboxes/contracts';
 import {runProgram} from '@/app/sandboxes/service';
 import {validateGenerationDraft,materializeGenerationDraft,type GenerationDraft} from './generation-draft';
 import {imageLinePattern} from '@/app/internal-links';
+import {unreachableImages} from '@/app/chat/image-check';
 import {generationInstructions} from './generation-instructions';
 import {generationContract} from './generation-contracts';
 export type GenerationBrief={question:string;templateId?:TemplateId;fresh?:boolean;route?:string;service?:string};
@@ -47,7 +48,8 @@ export async function generateContext(brief:GenerationBrief,context:AgentContext
    searched ||= trace.webSearched;
    try{const encoded=JSON.parse(output(response)).draftJson;const raw=typeof encoded==='string'&&encoded.startsWith('draft:')?checkedDrafts.get(encoded):JSON.parse(encoded);if(!raw)throw Error('Unknown draft reference. Submit the complete draft or a reference returned in this run.');draft=validateGenerationDraft(raw,brief.question,ctx,searched,dataConsulted);if(draft.kind==='disambiguation')indexPolicy.validate(draft.entries!);
     // A wiki article ships with at least one verified illustration unless a real image search came up empty.
-    if(draft.kind==='article'&&draft.templateId!=='paper-v1'&&!imageSearched&&!draft.body.split('\n').some(line=>imageLinePattern.test(line))){draft=undefined;return 'The article has no image. Search with find_images (try precise and alternative subject queries) or search_public_media and embed at least one verified, relevant image on its own line as ![caption](url) with a [credit](source) line; add a table, chart or video where the subject supports it.';}}catch(e){return e instanceof Error?e.message:'Invalid page draft';}
+    if(draft.kind==='article'&&draft.templateId!=='paper-v1'&&!imageSearched&&!draft.body.split('\n').some(line=>imageLinePattern.test(line))){draft=undefined;return 'The article has no image. Search with find_images (try precise and alternative subject queries) or search_public_media and embed at least one verified, relevant image on its own line as ![caption](url) with a [credit](source) line; add a table, chart or video where the subject supports it.';}
+    if(draft.body){const broken=await unreachableImages(draft.body,signal);if(broken.length){draft=undefined;return 'These image URLs do not serve an image to readers (the host may block direct embedding): '+broken.join(', ')+'. Copy each into Page files with import_image and embed the returned url, or choose another image.';}}}catch(e){return e instanceof Error?e.message:'Invalid page draft';}
   }
  });
  if(!draft)throw Error('INCOMPLETE_ANSWER');

@@ -39,3 +39,19 @@ export async function plotChart(pageId:string,ctx:AgentContext,args:{specJson:st
  const svg=renderChartSvg(JSON.parse(args.specJson));
  return await storePageTextFile(pageId,ctx.userId,imageName(args.name,'svg'),svg,ctx.language||'en','',ctx.pageId?undefined:ctx.pendingFiles);
 }
+
+// Downloads a found image (when hotlinking is blocked or unreliable) and stores a
+// copy in the page's files, so the article serves it from this site.
+export async function importImage(pageId:string,ctx:AgentContext,args:{url:string;name:string;sourcePage?:string},signal?:AbortSignal){
+ const {sourceUrl,fetchSource}=await import('@/app/url-content/fetch');
+ const url=sourceUrl(args.url);if(!url)throw Error('Give the image as an http(s) URL.');
+ const fetched=await fetchSource(url,signal||AbortSignal.timeout(30000),{accept:'image/avif,image/webp,image/png,image/jpeg,image/gif,image/svg+xml,image/*;q=0.8',allowType:type=>type.startsWith('image/'),maxBytes:15*1024*1024,referer:args.sourcePage});
+ const base=args.name.replace(/\.[a-z0-9]+$/i,'')||'image';
+ if(fetched.type==='image/svg+xml')return {...await storePageTextFile(pageId,ctx.userId,base+'.svg',fetched.bytes.toString('utf8'),ctx.language||'en','',ctx.pageId?undefined:ctx.pendingFiles),importedFrom:fetched.url};
+ let bytes=new Uint8Array(fetched.bytes),extension=({'image/png':'png','image/jpeg':'jpg','image/webp':'webp','image/gif':'gif'} as Record<string,string>)[fetched.type]||'';
+ // Normalize to a web-friendly size and format; keep transparency as PNG.
+ try{const sharp=(await import('sharp')).default,image=sharp(bytes,{animated:false}),meta=await image.metadata();if(!meta.width)throw Error('not an image');const resized=image.rotate().resize({width:1800,withoutEnlargement:true});
+  if(meta.hasAlpha){bytes=new Uint8Array(await resized.png({compressionLevel:9}).toBuffer());extension='png';}else{bytes=new Uint8Array(await resized.jpeg({quality:86,mozjpeg:true}).toBuffer());extension='jpg';}}
+ catch{if(!extension)throw Error('The URL did not return a usable image.');}
+ return {...await storePageFile(pageId,ctx.userId,base+'.'+extension,bytes,ctx.language||'en','',ctx.pageId?undefined:ctx.pendingFiles),importedFrom:fetched.url};
+}
