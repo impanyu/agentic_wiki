@@ -1,1 +1,26 @@
 .adma-processing{background:#fff;border:1px solid #ecd8d6;border-radius:12px;padding:24px;margin:24px 0;color:#302727}.adma-processing header{border-left:4px solid #bc3634;padding-left:16px}.adma-processing h2{margin:0 0 8px}.adma-processing p{line-height:1.6;font-size:14px}.processing-selectors,.processing-fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px;margin:20px 0}.adma-processing label{display:flex;flex-direction:column;gap:7px;font-size:13px}.adma-processing input,.adma-processing select{padding:10px;border:1px solid #d7c7c5;border-radius:6px;min-width:0;background:white;color:inherit}.adma-processing small{color:#74615f}.adma-processing button{padding:9px 15px;border:1px solid #be3835;border-radius:6px;background:#be3835;color:#fff;cursor:pointer;margin:5px}.adma-processing button:disabled{opacity:.4;cursor:default}.adma-processing fieldset{border:0;padding:0;margin:0;min-width:0}.processing-task{display:flex;align-items:end;gap:8px;margin:24px 0}.processing-task label{flex:1}.adma-processing pre{max-height:320px;overflow:auto;font-size:12px;white-space:pre-wrap;overflow-wrap:anywhere}.adma-processing a{color:#a62b2b}.adma-processing li{margin:12px 0}.adma-processing [role=alert]{color:#a32121}@media(max-width:650px){.processing-selectors,.processing-fields{grid-template-columns:1fr}.processing-task{flex-wrap:wrap}.adma-processing{padding:16px}}
+/* Tool directory: card grid adapted from ADMA's tools_list.html panel view. */
+.hub-cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:16px;margin-top:20px}
+.processing-hub .hub-card{display:flex;flex-direction:column;gap:8px;border:1px solid #e9dedd;border-radius:12px;padding:0 0 14px;background:#fff;color:#302727;text-decoration:none;overflow:hidden;transition:transform .15s,box-shadow .15s}
+.processing-hub .hub-card:hover{transform:translateY(-4px);box-shadow:0 8px 22px #3a1c1a1e}
+.hub-thumb{display:flex;align-items:center;justify-content:center;height:96px}
+.hub-card strong{padding:2px 14px 0;font-size:15px}
+.hub-description{padding:0 14px;font-size:12.5px;color:#74615f;line-height:1.5}
+/* Dedicated tool pages: banner, numbered steps and accent from tool-info.ts. */
+.processing-tool{--tool-accent:#be3835}
+.tool-return{display:flex;justify-content:space-between;gap:10px;margin-bottom:14px;font-size:13px}
+.tool-return a{display:inline-flex;align-items:center;gap:5px}
+.processing-tool .tool-banner{display:flex;gap:18px;border:0;border-radius:12px;padding:20px 22px;margin-bottom:20px}
+.tool-banner h2{margin:0}.tool-banner .tool-subtitle{font-weight:600;margin:4px 0 8px}
+.tool-banner .tool-outputs{margin:8px 0 0;padding-left:18px}.tool-outputs li{margin:4px 0;font-size:13px}
+.tool-glyph{display:flex;align-items:center;justify-content:center;flex:none;width:64px;height:64px;border-radius:14px;background:#ffffffb8;color:var(--tool-accent)}
+.tool-step{border:1px solid #ecdfde;border-radius:10px;padding:14px 16px;margin:14px 0}
+.tool-step h3{display:flex;align-items:center;gap:10px;margin:0;font-size:15px}
+.step-badge{display:inline-flex;align-items:center;justify-content:center;flex:none;width:24px;height:24px;border-radius:50%;background:var(--tool-accent);color:#fff;font-size:13px}
+.step-help{margin:8px 0 0;color:#74615f;font-size:13px}
+.tool-account{display:flex;flex-direction:column;gap:7px;max-width:320px;margin:14px 0}
+.adma-processing .field-link{display:inline;border:0;background:none;color:var(--tool-accent,#a62b2b);padding:0;margin:0;font-size:inherit;text-decoration:underline;cursor:pointer}
+.field-selected{color:#146c43}
+.field-sources{display:flex;gap:14px;font-size:12px}
+.processing-tool button.tool-run{background:var(--tool-accent);border-color:var(--tool-accent);font-size:15px;padding:11px 22px;margin:16px 0 0}
+@media(max-width:650px){.processing-tool .tool-banner{flex-direction:column;gap:12px}.tool-return{flex-wrap:wrap}}
