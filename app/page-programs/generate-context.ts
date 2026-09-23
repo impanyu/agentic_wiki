@@ -7,6 +7,7 @@ import {output,type ResearchUpdate} from '@/app/api/ask/ai';
 import {codeSchema} from '@/app/sandboxes/contracts';
 import {runProgram} from '@/app/sandboxes/service';
 import {validateGenerationDraft,materializeGenerationDraft,type GenerationDraft} from './generation-draft';
+import {imageLinePattern} from '@/app/internal-links';
 import {generationInstructions} from './generation-instructions';
 import {generationContract} from './generation-contracts';
 export type GenerationBrief={question:string;templateId?:TemplateId;fresh?:boolean;route?:string;service?:string};
@@ -16,7 +17,7 @@ export async function generateContext(brief:GenerationBrief,context:AgentContext
  const indexPolicy=await indexGenerationPolicy(brief.question,context.userId);
  context={...context,indexLeafRequired:indexPolicy.leafRequired};
  const generator=await spawnAgent('content-generation',context.ownerId,router),ctx={...context,agent:generator};
- let draft:GenerationDraft|undefined,searched=false,dataConsulted=false,lastPreview=0;
+ let draft:GenerationDraft|undefined,searched=false,dataConsulted=false,imageSearched=false,lastPreview=0;
  const checkedDrafts=new Map<string,GenerationDraft>();
  emit?.({type:'status',message:context.language.startsWith('zh')?'生成器正在处理请求…':'The generator is working on your request…'});
  // The page is streamed to the reader once: from the validate_page_draft call
@@ -41,10 +42,12 @@ export async function generateContext(brief:GenerationBrief,context:AgentContext
    if(name==='validate_page_draft'){try{const checked=validateGenerationDraft(JSON.parse(args.draftJson),brief.question,ctx,true);if(checked.kind==='disambiguation')indexPolicy.validate(checked.entries!);const draftRef='draft:'+crypto.randomUUID();if(checkedDrafts.size>=16)checkedDrafts.delete(checkedDrafts.keys().next().value!);checkedDrafts.set(draftRef,checked);return {data:{valid:true,draftRef,note:'Structural validation only; factual claims still require consulted evidence.'}};}catch(e){return {data:{valid:false,error:e instanceof Error?e.message:'Invalid draft'}};}}
    throw Error('Unknown generation tool.');
   },
-  onEvent:e=>{if(e.kind==='tool_finished'){const d=e.data as {tool:string;result:any};if(['call_connector','storage_execute','read_uploaded_file','execute_api','execute_code'].includes(d.tool)&&d.result&&!d.result.error&&!d.result.confirmationRequired)dataConsulted=true;}if(e.kind==='tool_started')emit?.({type:'status',message:context.language.startsWith('zh')?'生成器正在使用工具…':'The generator is using a tool…'});if(e.kind==='validation_failed')emit?.({type:'status',message:context.language.startsWith('zh')?'生成器正在修正草稿…':'The generator is correcting its draft…'});},
+  onEvent:e=>{if(e.kind==='tool_finished'){const d=e.data as {tool:string;result:any};if(['call_connector','storage_execute','read_uploaded_file','execute_api','execute_code'].includes(d.tool)&&d.result&&!d.result.error&&!d.result.confirmationRequired)dataConsulted=true;if(d.tool==='find_images'||d.tool==='search_public_media'||(d.tool==='call_connector'&&/image/i.test(JSON.stringify((e.data as {arguments?:unknown}).arguments||''))))imageSearched=true;}if(e.kind==='tool_started')emit?.({type:'status',message:context.language.startsWith('zh')?'生成器正在使用工具…':'The generator is using a tool…'});if(e.kind==='validation_failed')emit?.({type:'status',message:context.language.startsWith('zh')?'生成器正在修正草稿…':'The generator is correcting its draft…'});},
   validateFinal:async(response,trace)=>{
    searched ||= trace.webSearched;
-   try{const encoded=JSON.parse(output(response)).draftJson;const raw=typeof encoded==='string'&&encoded.startsWith('draft:')?checkedDrafts.get(encoded):JSON.parse(encoded);if(!raw)throw Error('Unknown draft reference. Submit the complete draft or a reference returned in this run.');draft=validateGenerationDraft(raw,brief.question,ctx,searched,dataConsulted);if(draft.kind==='disambiguation')indexPolicy.validate(draft.entries!);}catch(e){return e instanceof Error?e.message:'Invalid page draft';}
+   try{const encoded=JSON.parse(output(response)).draftJson;const raw=typeof encoded==='string'&&encoded.startsWith('draft:')?checkedDrafts.get(encoded):JSON.parse(encoded);if(!raw)throw Error('Unknown draft reference. Submit the complete draft or a reference returned in this run.');draft=validateGenerationDraft(raw,brief.question,ctx,searched,dataConsulted);if(draft.kind==='disambiguation')indexPolicy.validate(draft.entries!);
+    // A wiki article ships with at least one verified illustration unless a real image search came up empty.
+    if(draft.kind==='article'&&draft.templateId!=='paper-v1'&&!imageSearched&&!draft.body.split('\n').some(line=>imageLinePattern.test(line))){draft=undefined;return 'The article has no image. Search with find_images (try precise and alternative subject queries) or search_public_media and embed at least one verified, relevant image on its own line as ![caption](url) with a [credit](source) line; add a table, chart or video where the subject supports it.';}}catch(e){return e instanceof Error?e.message:'Invalid page draft';}
   }
  });
  if(!draft)throw Error('INCOMPLETE_ANSWER');
