@@ -21,6 +21,8 @@ export function applyWikiPatches(base:{title:string;summary:string;body:string;i
    body=edit.operation==='append'?body+edit.newText:edit.newText+body;
   }
  }
+ // Models sometimes pad the URL inside an image link; normalize so the line renders as a figure.
+ body=body.split('\n').map(line=>line.replace(/^(!\[[^\]]*\]\()\s*([^\s)]+)\s*\)\s*$/,'$1$2)')).join('\n');
  if(summary.length>2000)throw Error('EDIT_PATCH_INVALID: overview exceeds 2000 characters.');
  if(body.length>120000)throw Error('EDIT_PATCH_INVALID: article exceeds 120000 characters.');
  const indexEntries=decision.indexEntries??base.indexEntries;
