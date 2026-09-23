@@ -1,12 +1,14 @@
 import {Script} from 'node:vm';
 import {pageCodeSchema,pageCodeContract} from './page-code';
+import {codeSchema} from '@/app/sandboxes/contracts';
+import {inputFieldsSchema} from './inputs';
 import {registeredAdmaPage} from './deferred';
 import {customStyleSchema,normalizeCustomStyle} from './custom-style';
 import {visualThemes} from './visual-style';
 import {canWritePage} from '@/app/page-permissions';
 import {env} from '@/server/runtime';import {z} from 'zod';
 import {database,getPage,lock,unlock} from '@/db/store';import {askAgent,type Agent} from '@/app/agents/runtime';
-import {getComponent} from '@/app/components-registry/registry';import {composePageProgram} from './composer';import {sandboxStatus} from '@/app/sandboxes/service';
+import {getComponent,createComponent} from '@/app/components-registry/registry';import {composePageProgram} from './composer';import {sandboxStatus} from '@/app/sandboxes/service';
 import type {AnswerPage} from '@/app/page-types';import type {EditDraft} from '@/app/chat/edit-draft';import type {FilePart} from '@/app/context-files/server';
 const bucket=()=>(env as unknown as {FILES:R2Bucket}).FILES;
 const path=(agent:Agent)=>'app-edit-drafts/'+agent.id+'.json';
@@ -16,7 +18,7 @@ const basemaps=['osm','streets-vector','satellite','hybrid','topo-vector','terra
 const renderedUiRequest=(message:string)=>/\b(?:ui|interface|layout|panel|button|control|menu|icon|map|basemap|default|display|show|hide|move|position|reader|viewer|frontend|front-end)\b|(?:界面|布局|面板|按钮|控件|菜单|图标|地图|底图|默认|显示|隐藏|移动|前端)/i.test(message);
 export function appEditCapabilities(page:AnswerPage){
  const configurable={mapBasemap:basemaps};
- return {appearance:true,agentBehavior:true,configurable,frontendCode:pageCodeContract,replacement:'supported; preserve unrelated functionality'};
+ return {appearance:true,agentBehavior:true,configurable,frontendCode:pageCodeContract,content:'{kind:"content",title?,summary?,body?} edits the page title, summary and Markdown body in place',backendProgram:page.dynamic?.template==='page-program-v1'?'{kind:"program",program:{kind:"sandbox-program",language:"javascript"|"python",code},inputFields?} replaces only the saved backend program; the pre-coded renderer and other components stay':'this page has no backend program; use a replacement draft with kind=program to add one',replacement:'supported; preserve unrelated functionality'};
 }
 async function stored(agent:Agent,pageId:string){const object=await bucket().get(path(agent));if(!object)return null;const draft=await object.json<Draft>();return draft.ownerId===agent.ownerId&&draft.pageId===pageId?draft:null;}
 const preview=(draft:Draft):EditDraft=>({id:draft.id,title:draft.title,summary:draft.summary,body:draft.body,pageCode:draft.config.pageCode});
@@ -30,6 +32,8 @@ export async function stageAppRevision(page:AnswerPage,raw:unknown,agent:Agent,r
   z.object({kind:z.literal('session'),instructions:z.string().min(1).max(10000)}).strict(),
   z.object({kind:z.literal('code'),code:pageCodeSchema.nullable()}).strict(),
   z.object({kind:z.literal('configuration'),mapBasemap:z.enum(basemaps)}).strict(),
+  z.object({kind:z.literal('content'),title:z.string().trim().min(1).max(200).optional(),summary:z.string().max(1200).optional(),body:z.string().max(40000).optional()}).strict(),
+  z.object({kind:z.literal('program'),program:codeSchema,inputFields:inputFieldsSchema.optional()}).strict(),
   z.object({kind:z.literal('replacement'),draft:z.unknown()}).strict()
  ]).parse(raw);
  let config:NonNullable<AnswerPage['dynamic']>=page.dynamic||{template:'agent-chat-v1',executor:'page-agent-v1',version:1,labels:page.labels as any},title=page.title,summary=page.summary,body='',templateId=page.labels.templateId,pageBody=page.body;
@@ -44,6 +48,17 @@ export async function stageAppRevision(page:AnswerPage,raw:unknown,agent:Agent,r
    const {pageCode:_removed,...rest}=config;config=rest as typeof config;body='Remove the custom frontend code panel and restore the native workspace';
   }
   else{try{new Script(change.code.frontend.javascript);}catch(e){throw Error('Frontend JavaScript syntax error: '+(e instanceof Error?e.message:'Invalid JavaScript'));}config={...config,pageCode:change.code,customized:true};body='Frontend code ('+change.code.placement+')';}
+ }
+ else if(change.kind==='content'){
+  if(change.title===undefined&&change.summary===undefined&&change.body===undefined)throw Error('A content edit needs a title, summary or body.');
+  title=change.title??title;summary=change.summary??summary;pageBody=change.body??pageBody;body=[change.title!==undefined?'title':'',change.summary!==undefined?'summary':'',change.body!==undefined?'body':''].filter(Boolean).join(', ')+' updated';
+ }
+ else if(change.kind==='program'){
+  if(config.template!=='page-program-v1')throw Error('This page has no backend program to edit. Propose a replacement draft with kind=program to give it one.');
+  // Backend programs are ES modules; strip export keywords so the classic-script syntax check applies.
+  if(change.program.language==='javascript'){try{new Script(change.program.code.replace(/^\s*export\s+(?:default\s+)?/gm,''));}catch(e){throw Error('Backend JavaScript syntax error: '+(e instanceof Error?e.message:'Invalid JavaScript'));}}
+  const backend=await createComponent(page.title+' — page view program','backend_code',change.program,{pageId:page.id,userId:agent.ownerId,ownerId:agent.ownerId,language:page.language,visibility:'private',agent});
+  config={...config,components:{...config.components,frontend:config.components?.frontend as NonNullable<NonNullable<typeof config.components>['frontend']>,backend:{id:backend.id,version:backend.version}},...(change.inputFields?{inputFields:change.inputFields}:{}),customized:true};body=change.program.code;
  }
  else if(change.kind==='configuration'){
   config={...config,ui:{...config.ui,mapBasemap:change.mapBasemap}};body='Map basemap: '+change.mapBasemap;
