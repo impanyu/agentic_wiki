@@ -20,7 +20,7 @@ const basemaps=['osm','streets-vector','satellite','hybrid','topo-vector','terra
 const renderedUiRequest=(message:string)=>/\b(?:ui|interface|layout|panel|button|control|menu|icon|map|basemap|default|display|show|hide|move|position|reader|viewer|frontend|front-end)\b|(?:界面|布局|面板|按钮|控件|菜单|图标|地图|底图|默认|显示|隐藏|移动|前端)/i.test(message);
 export function appEditCapabilities(page:AnswerPage){
  const configurable={mapBasemap:basemaps};
- return {appearance:true,agentBehavior:true,configurable,frontendCode:pageCodeContract,content:'{kind:"content",title?,summary?,body?} edits the page title, summary and Markdown body in place',backendProgram:page.dynamic?.template==='page-program-v1'?'{kind:"program",program:{kind:"sandbox-program",language:"javascript"|"python",code},inputFields?} replaces only the saved backend program; the pre-coded renderer and other components stay':'this page has no backend program; use a replacement draft with kind=program to add one',replacement:'supported; preserve unrelated functionality'};
+ return {appearance:true,agentBehavior:true,configurable,frontendCode:pageCodeContract,content:'{kind:"content",title?,summary?,body?,sources?,category?} edits the page title, summary, Markdown body, source list and category in place',backendProgram:page.dynamic?.template==='page-program-v1'?'{kind:"program",program:{kind:"sandbox-program",language:"javascript"|"python",code},inputFields?} replaces only the saved backend program; the pre-coded renderer and other components stay':'this page has no backend program; use a replacement draft with kind=program to add one',replacement:'supported; preserve unrelated functionality'};
 }
 async function stored(agent:Agent,pageId:string){const object=await bucket().get(path(agent));if(!object)return null;const draft=await object.json<Draft>();return draft.ownerId===agent.ownerId&&draft.pageId===pageId?draft:null;}
 const preview=(draft:Draft):EditDraft=>({id:draft.id,title:draft.title,summary:draft.summary,body:draft.body,pageCode:draft.config?.pageCode});
@@ -34,7 +34,7 @@ export async function stageAppRevision(page:AnswerPage,raw:unknown,agent:Agent,r
   z.object({kind:z.literal('session'),instructions:z.string().min(1).max(10000)}).strict(),
   z.object({kind:z.literal('code'),code:pageCodeSchema.nullable()}).strict(),
   z.object({kind:z.literal('configuration'),mapBasemap:z.enum(basemaps)}).strict(),
-  z.object({kind:z.literal('content'),title:z.string().trim().min(1).max(200).optional(),summary:z.string().max(1200).optional(),body:z.string().max(40000).optional()}).strict(),
+  z.object({kind:z.literal('content'),title:z.string().trim().min(1).max(200).optional(),summary:z.string().max(1200).optional(),body:z.string().max(40000).optional(),sources:z.array(z.object({title:z.string().trim().min(1).max(300),url:z.string().url().max(2000)}).strict()).max(60).optional(),category:z.string().trim().max(100).optional()}).strict(),
   z.object({kind:z.literal('program'),program:codeSchema,inputFields:inputFieldsSchema.optional()}).strict(),
   z.object({kind:z.literal('replacement'),draft:z.unknown()}).strict()
  ]).parse(raw);
@@ -53,8 +53,9 @@ export async function stageAppRevision(page:AnswerPage,raw:unknown,agent:Agent,r
   else{try{new Script(change.code.frontend.javascript);}catch(e){throw Error('Frontend JavaScript syntax error: '+(e instanceof Error?e.message:'Invalid JavaScript'));}config={...config,pageCode:change.code,customized:true};body='Frontend code ('+change.code.placement+')';}
  }
  else if(change.kind==='content'){
-  if(change.title===undefined&&change.summary===undefined&&change.body===undefined)throw Error('A content edit needs a title, summary or body.');
-  title=change.title??title;summary=change.summary??summary;pageBody=change.body??pageBody;if(change.body!==undefined){const broken=await unreachableImages(change.body);if(broken.length)throw Error('These image URLs do not serve an image and would render as gaps: '+broken.join(', ')+'. Use find_images or a page file, one image per line as ![caption](url).');}body=[change.title!==undefined?'title':'',change.summary!==undefined?'summary':'',change.body!==undefined?'body':''].filter(Boolean).join(', ')+' updated';
+  if(change.title===undefined&&change.summary===undefined&&change.body===undefined&&change.sources===undefined&&change.category===undefined)throw Error('A content edit needs a title, summary, body, sources or category.');
+  if(change.sources!==undefined)sources=change.sources;if(change.category!==undefined)category=change.category;
+  title=change.title??title;summary=change.summary??summary;pageBody=change.body??pageBody;if(change.body!==undefined){const broken=await unreachableImages(change.body);if(broken.length)throw Error('These image URLs do not serve an image and would render as gaps: '+broken.join(', ')+'. Use find_images or a page file, one image per line as ![caption](url).');}body=[change.title!==undefined?'title':'',change.summary!==undefined?'summary':'',change.body!==undefined?'body':'',change.sources!==undefined?'sources':'',change.category!==undefined?'category':''].filter(Boolean).join(', ')+' updated';
  }
  else if(change.kind==='program'){
   if(config.template!=='page-program-v1')throw Error('This page has no backend program to edit. Propose a replacement draft with kind=program to give it one.');
@@ -80,7 +81,7 @@ export async function stageAppRevision(page:AnswerPage,raw:unknown,agent:Agent,r
   }
  }
  const savedConfig=nextConfig===undefined?config:nextConfig;
- if(JSON.stringify([pageKind,title,summary,pageBody,savedConfig,templateId])===JSON.stringify([page.kind==='static'?'static':'dynamic',page.title,page.summary,page.body,page.dynamic,page.labels.templateId]))throw Error('This proposal does not change any saved, renderable page property.');
+ if(JSON.stringify([pageKind,title,summary,pageBody,savedConfig,templateId,sources,category])===JSON.stringify([page.kind==='static'?'static':'dynamic',page.title,page.summary,page.body,page.dynamic,page.labels.templateId,page.sources,page.category]))throw Error('This proposal does not change any saved, renderable page property.');
  const draft:Draft={id:crypto.randomUUID(),ownerId:agent.ownerId,pageId:page.id,base:revision(page),title,summary,body,pageBody,config:savedConfig,kind:pageKind,sources,category,labels:extraLabels,templateId};
  await bucket().put(path(agent),JSON.stringify(draft));return {editDraft:preview(draft),saved:false};
 }
