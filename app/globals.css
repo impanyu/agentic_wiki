@@ -314,3 +314,24 @@ a{color:inherit;text-decoration:none}button,a,input{touch-action:manipulation}bu
 
 .connector-hcc-session{display:grid;grid-template-columns:minmax(0,1fr);gap:10px;margin:12px 0;padding:12px;border:1px solid #e3e6ea;border-radius:8px;background:#fafbfc;overflow:hidden}.connector-hcc-session label{display:grid;gap:5px;min-width:0;font-size:12px}.connector-hcc-session input{box-sizing:border-box;width:100%;min-width:0;border:1px solid #cbd5e1;border-radius:6px;padding:8px}.connector-hcc-session small{color:#667085;line-height:1.45}.connector-hcc-session .connector-hcc-connect{width:100%;justify-content:center;white-space:normal}
 .connector-hcc-session .connector-hcc-result{margin:0;padding:9px 10px;border-radius:7px;font-size:13px;line-height:1.4}.connector-hcc-session .connector-hcc-error{border:1px solid #f0a9a9;background:#fff1f1;color:#9b1c1c}.connector-hcc-session .connector-hcc-success{border:1px solid #9fd4ae;background:#eefbf1;color:#176b35}.connector-hcc-session input[aria-invalid="true"]{border-color:#c73d3d;box-shadow:0 0 0 1px #c73d3d}
+
+/* Print report: html[data-print=report] is set while the Print report button runs window.print(). */
+.print-report-header{display:none}
+@media print{
+ html[data-print=report] .browser-toolbar,html[data-print=report] #address-help,html[data-print=report] .context-actions,html[data-print=report] .selection-tools,html[data-print=report] .repository-transfer,html[data-print=report] .page-forks-disclosure,html[data-print=report] .page-agent,html[data-print=report] .page-visibility,html[data-print=report] .navigation-status,html[data-print=report] .request-error,html[data-print=report] dialog,html[data-print=report] .context-files summary button,html[data-print=report] .context-files [class*=upload],html[data-print=report] .context-files [class*=actions],html[data-print=report] button{display:none!important}
+ html[data-print=report] .print-report-header{display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap;padding-bottom:8px;margin-bottom:16px;border-bottom:1px solid #999;font-size:11px;color:#444}
+ html[data-print=report] .browser-content{padding:0;max-width:none}
+ html[data-print=report] .answer{margin:0;max-width:none;box-shadow:none}
+ html[data-print=report] .answer *:not([class*=map] *):not([class*=esri] *):not([class*=leaflet] *):not(canvas){overflow:visible!important;max-height:none!important;box-shadow:none!important}
+ html[data-print=report] .selection-tools,html[data-print=report] .wiki-contents,html[data-print=report] .browser-toolbar{position:static!important}
+ html[data-print=report] .answer iframe{min-height:640px;width:100%!important;border:1px solid #bbb!important;break-inside:avoid}
+ html[data-print=report] .answer canvas,html[data-print=report] .answer svg,html[data-print=report] .answer img,html[data-print=report] .answer table,html[data-print=report] .answer pre,html[data-print=report] .answer figure{break-inside:avoid;max-width:100%}
+ html[data-print=report] .answer h1,html[data-print=report] .answer h2,html[data-print=report] .answer h3{break-after:avoid}
+ html[data-print=report] .wiki-layout{display:block}
+ html[data-print=report] .wiki-contents{position:static;max-height:none}
+ html[data-print=report] .sources,html[data-print=report] .saved-note{margin-left:0}
+ html[data-print=report] .answer a{color:inherit;text-decoration:none}
+ html[data-print=report] .answer a[href^=http]::after{content:" (" attr(href) ")";font-size:.8em;color:#555;word-break:break-all}
+ html[data-print=report] .sources a[href^=http]::after{content:""}
+ @page{margin:16mm 14mm}
+}

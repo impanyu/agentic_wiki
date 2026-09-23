@@ -31,7 +31,7 @@ import {UnitConverter} from './dynamic/unit-converter';
 import {pageAddress,inputQuery,type ConversionInput} from './dynamic/units';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ArrowLeft, ArrowRight, Highlighter, Check, Globe2, Layers, LoaderCircle, LockKeyhole, GitFork, Trash2 } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Highlighter, Check, Globe2, Layers, LoaderCircle, LockKeyhole, GitFork, Trash2, Printer } from 'lucide-react';
 import {ContextIndex} from './context-index/view';
 import {ContextFiles} from './context-files/panel';
 import type { AnswerPage } from './page-types';
@@ -348,6 +348,17 @@ export default function Workspace({ user, signIn, signOut }: {
   }
 
   const forkRequest=useRef<{sourceId:string;id:string}|null>(null);
+  // Print report: the browser's print-to-PDF renders the page as a report.
+  // Collapsed sections open and the page chrome hides through print styles;
+  // sandboxed panels, charts and maps print as rendered at that moment.
+  function printReport(){
+    const root=document.documentElement,opened=[...document.querySelectorAll<HTMLDetailsElement>('article.answer details:not([open])')];
+    for(const d of opened)d.open=true;
+    root.dataset.print='report';
+    const done=()=>{delete root.dataset.print;for(const d of opened)d.open=false;window.removeEventListener('afterprint',done);};
+    window.addEventListener('afterprint',done);
+    setTimeout(()=>{window.print();setTimeout(()=>{if(root.dataset.print)done();},60000);},150);
+  }
   async function createFork(){
     if(!selected||busy)return;const sourceId=selected.id;
     if(forkRequest.current?.sourceId!==sourceId)forkRequest.current={sourceId,id:crypto.randomUUID()};
@@ -397,9 +408,10 @@ export default function Workspace({ user, signIn, signOut }: {
       {status && <div className="navigation-status" role="status">{busy ? <LoaderCircle size={15} className="spinner"/> : <Check size={15}/>} {t(status)}</div>}
       {visiblePage ? <MapPreference.Provider value={visiblePage.dynamic?.ui?.mapBasemap}><article {...pageVisualProps(visiblePage)} className={'answer '+(visiblePage.kind==='dynamic'?'dynamic-answer ':'')+'template-'+(visiblePage.labels.templateId||'wiki-v1')+(nativeApp?' connector-page connector-page-'+nativeApp:'')} lang={visiblePage.language==='und'?undefined:visiblePage.language} dir={['ar','he','fa','ur','ps','dv','yi'].includes(visiblePage.language)?'rtl':'ltr'}>
         {!draft&&visiblePage.forks&&visiblePage.forks.length>0&&<details className="page-forks-disclosure" open={nativeApp?undefined:true}><summary>{t("Context forks")}</summary><nav className="page-forks" aria-label={t("Context forks")}><span>{t("Context forks")}</span><div>{visiblePage.forks.map((fork,i)=><div className="fork-choice" key={fork.id}><button aria-current={fork.id===visiblePage.id?'page':undefined} disabled={busy||fork.id===visiblePage.id} onClick={()=>void openInternal({id:'fork:'+fork.id,targetId:fork.id,targetTitle:fork.title,quote:question||fork.title,segments:[],parameters:{}})}><strong>{fork.isOriginal?(t("Original")):(t("Fork"))+' '+(i+1)}</strong> {fork.title}<small>{pageAccess(fork)==='private'?t("Private"):pageAccess(fork)==='public-write'?t("Public read & write"):t("Public read only")}</small></button>{fork.removable&&<button className="remove-fork" disabled={busy} onClick={()=>void removePageFork(fork.id)} aria-label={t("Remove fork: ")+fork.title}><Trash2 size={13}/>{t("Remove")}</button>}</div>)}</div></nav></details>}
-        {!draft&&<div className="context-actions">{nativeApp&&<h1 className="connector-page-title">{visiblePage.title}</h1>}<div className="context-action-buttons"><button onClick={()=>void createFork()} disabled={busy||saving}><GitFork size={15}/>{t("Fork")}</button>{canWritePage(visiblePage)&&<button disabled={busy||saving} onClick={()=>{setEditing(true);setSaving(true);}}>{t('Edit page')}</button>}<PageShare key={visiblePage.id} page={visiblePage} disabled={busy||saving} onAccess={changeVisibility}/></div><span>{t("Generate a fresh private fork from this question")}</span></div>}
+        {!draft&&<div className="context-actions">{nativeApp&&<h1 className="connector-page-title">{visiblePage.title}</h1>}<div className="context-action-buttons"><button onClick={()=>void createFork()} disabled={busy||saving}><GitFork size={15}/>{t("Fork")}</button>{canWritePage(visiblePage)&&<button disabled={busy||saving} onClick={()=>{setEditing(true);setSaving(true);}}>{t('Edit page')}</button>}<PageShare key={visiblePage.id} page={visiblePage} disabled={busy||saving} onAccess={changeVisibility}/><button type="button" onClick={printReport} disabled={busy||saving} title={t("Print this page as a PDF report")}><Printer size={15}/>{t("Print report")}</button></div><span>{t("Generate a fresh private fork from this question")}</span></div>}
         {editing&&!draft&&<PageEditor metadataOnly={visiblePage.kind==='dynamic'} page={visiblePage} onFiles={()=>setFilesRevision(n=>n+1)} onClose={()=>{setEditing(false);setSaving(false);}} onSave={page=>{setSelected({...visiblePage,...page});setEditing(false);setSaving(false);setPending(null);setHighlights(all=>({...all,[page.id]:[]}));}}/>}
         <div hidden={editing&&visiblePage.kind!=='dynamic'}>
+        <header className="print-report-header" aria-hidden="true"><span>AgenticWiKi · {t("Report")}</span><span>{visiblePage.question&&visiblePage.question!==visiblePage.title?visiblePage.question:""}</span><span>{new Date().toLocaleString(locale)} · {typeof location!=="undefined"?location.origin+"/?page="+visiblePage.id:""}</span></header>
         <div className="page-meta"><span>{visiblePage.category}</span><div className="page-visibility">
           {visiblePage.visibility === 'public' ? <Globe2 size={14}/> : <LockKeyhole size={14}/>}
           {visiblePage.owned?<select aria-label={t("Page access")} value={pageAccess(visiblePage)} disabled={saving||busy} onChange={e=>void changeVisibility(e.target.value as PageAccess)}>

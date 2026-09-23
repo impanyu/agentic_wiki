@@ -822,5 +822,8 @@
   "This is the shared catalog page. Fork it to pick files from Google Drive, your computer or page files, and to run the tool in your private workspace.": "This is the shared catalog page. Fork it to pick files from Google Drive, your computer or page files, and to run the tool in your private workspace.",
   "Fork this page and continue": "Fork this page and continue",
   "Fork this page to run": "Fork this page to run",
-  "Connection interrupted. Waiting for the page to finish generating…": "Connection interrupted. Waiting for the page to finish generating…"
+  "Connection interrupted. Waiting for the page to finish generating…": "Connection interrupted. Waiting for the page to finish generating…",
+  "Print report": "Print report",
+  "Report": "Report",
+  "Print this page as a PDF report": "Print this page as a PDF report"
 }
