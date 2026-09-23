@@ -16,20 +16,41 @@ async function run(args:string[],options:{env?:NodeJS.ProcessEnv;detached?:boole
 
 export async function hccSessionStatus(secret:string){const auth=credentials.parse(JSON.parse(secret));if(auth.privateKey)return {connected:true,method:'ssh-key',expiresAt:null};if(!auth.sessionId)return {connected:false,method:'duo',expiresAt:null};try{const touched=Number(await readFile(touchedFor(auth.sessionId),'utf8').catch(()=>String(Date.now()))),expiresAt=touched+idleLimitMs;if(expiresAt<=Date.now()){await run(['-S',socketFor(auth.sessionId),'-O','exit',auth.username+'@swan.unl.edu'],{timeout:5000}).catch(()=>{});await Promise.all([rm(socketFor(auth.sessionId),{force:true}),rm(touchedFor(auth.sessionId),{force:true})]);return {connected:false,method:'duo',expiresAt:null};}const result=await run(['-S',socketFor(auth.sessionId),'-O','check',auth.username+'@swan.unl.edu'],{timeout:5000});const match=(result.stderr+result.stdout).match(/pid=\d+/);return {connected:true,method:'duo',expiresAt,detail:match?.[0]||'active'};}catch{return {connected:false,method:'duo',expiresAt:null};}}
 
+// A login attempt outlives the HTTP request that started it: Duo pushes take up to a
+// minute and mobile browsers abort fetches at 60 seconds, so the client polls the status.
+type Attempt={done:boolean;reported:boolean;startedAt:number;prompts:string[];result?:Awaited<ReturnType<typeof login>>;error?:string};
+const attempts=new Map<string,Attempt>();
+const pendingReport=(attempt:Attempt)=>({connected:false,pending:true,method:'duo' as const,expiresAt:null,prompts:attempt.prompts,message:attempt.prompts.some(p=>/Duo|Passcode|option/.test(p))?'Swan sent the Duo request. Approve it on your phone, or wait for the passcode prompt.':'Waiting for Swan to accept the password…'});
+export function loginAttempt(sessionId:string){
+ const attempt=attempts.get(sessionId);if(!attempt)return null;
+ if(!attempt.done)return pendingReport(attempt);
+ attempts.delete(sessionId);if(attempt.error)return {connected:false,pending:false,method:'duo' as const,expiresAt:null,prompts:attempt.prompts,error:attempt.error};
+ return attempt.result!;
+}
+export async function hccSessionReport(secret:string){const auth=credentials.parse(JSON.parse(secret));return (auth.sessionId&&loginAttempt(auth.sessionId))||hccSessionStatus(secret);}
 export async function startHccSession(secret:string,password:string,duoResponse='1'){
  const auth=credentials.parse(JSON.parse(secret));if(!auth.sessionId)throw Error('Reconnect the UNL HCC connector to enable Duo sessions.');if(!password||password.length>500)throw Error('Enter your HCC password.');if(!/^[0-9A-Za-z.,#*-]{1,80}$/.test(duoResponse))throw Error('Invalid Duo response.');
+ const running=attempts.get(auth.sessionId);if(running&&!running.done)return pendingReport(running);
+ const attempt:Attempt={done:false,reported:false,startedAt:Date.now(),prompts:[]};attempts.set(auth.sessionId,attempt);
+ const run=login(secret,auth as {username:string;sessionId:string},password,duoResponse,attempt).then(result=>{attempt.result=result;},e=>{attempt.error=e instanceof Error?e.message:'HCC login failed.';}).finally(()=>{attempt.done=true;});
+ await Promise.race([run,new Promise(resolve=>setTimeout(resolve,20000))]);
+ if(!attempt.done)return pendingReport(attempt);
+ attempts.delete(auth.sessionId);if(attempt.error)throw Error(attempt.error);return attempt.result!;
+}
+async function login(secret:string,auth:{username:string;sessionId:string},password:string,duoResponse:string,attempt:Attempt){
  const socket=socketFor(auth.sessionId),dir=await mkdtemp(join(tmpdir(),'agenticwiki-hcc-auth-')),passwordFile=join(dir,'password'),duoFile=join(dir,'duo'),stageFile=join(dir,'stage'),askpass=join(dir,'askpass.sh'),hosts=join(dir,'known_hosts');await Promise.all([rm(socket,{force:true}),rm(touchedFor(auth.sessionId),{force:true})]);
  // The askpass script records every prompt Swan shows (never the answers) so a failed
  // login can report exactly where the exchange stopped; ssh -E keeps its own log in the same directory.
  const sshLog=join(dir,'ssh.log');
  await Promise.all([writeFile(passwordFile,password,{mode:0o600}),writeFile(duoFile,duoResponse,{mode:0o600}),writeFile(stageFile,'',{mode:0o600}),writeFile(hosts,knownHost,{mode:0o600}),writeFile(askpass,`#!/bin/sh\nprintf '%s\\n' "$1" | tr '\\n' ' ' | cut -c1-400 >> "${stageFile}"; echo >> "${stageFile}"\ncase "$1" in *assword*) echo '@password' >> "${stageFile}"; cat "${passwordFile}";; *Duo*|*Passcode*|*option*) echo '@duo' >> "${stageFile}"; cat "${duoFile}";; *) echo '@other' >> "${stageFile}"; cat "${duoFile}";; esac\n`,{mode:0o700})]);
  const child=spawn('ssh',['-v','-E',sshLog,'-M','-S',socket,'-o','ControlPersist=2h','-o','ConnectTimeout=20','-o','ServerAliveInterval=30','-o','ServerAliveCountMax=3','-o','StrictHostKeyChecking=yes','-o','UserKnownHostsFile='+hosts,'-o','PreferredAuthentications=keyboard-interactive,password','-o','PubkeyAuthentication=no','-N',auth.username+'@swan.unl.edu'],{stdio:'ignore',detached:true,env:{...process.env,DISPLAY:':0',SSH_ASKPASS:askpass,SSH_ASKPASS_REQUIRE:'force'}});child.unref();
- try{const deadline=Date.now()+70000;while(Date.now()<deadline){await new Promise(r=>setTimeout(r,1000));try{await access(socket);const status=await hccSessionStatus(secret);if(status.connected){await writeFile(touchedFor(auth.sessionId),String(Date.now()),{mode:0o600});return {...status,expiresAt:Date.now()+idleLimitMs,message:'HCC compute session connected. It remains available until it has been idle for two hours.'};}}catch{}if(child.exitCode!==null)break;}child.kill('SIGTERM');
-  const stages=await readFile(stageFile,'utf8').catch(()=> ''),log=await readFile(sshLog,'utf8').catch(()=> '');
-  const prompts=stages.split('\n').filter(line=>line&&!line.startsWith('@')).map(line=>line.trim()),outcome=log.split('\n').filter(line=>/denied|Authentication|Connection|timed out|refused|Too many|Host key/i.test(line)&&!/^debug1: (Authentications that can continue|Next authentication method)/.test(line)).slice(-3).map(line=>line.replace(/^debug1: /,'').trim());
+ const readPrompts=async()=>{const stages=await readFile(stageFile,'utf8').catch(()=> '');attempt.prompts=stages.split('\n').filter(line=>line&&!line.startsWith('@')).map(line=>line.trim());return stages;};
+ try{const deadline=Date.now()+100000;while(Date.now()<deadline){await new Promise(r=>setTimeout(r,1000));await readPrompts();try{await access(socket);const status=await hccSessionStatus(secret);if(status.connected){await writeFile(touchedFor(auth.sessionId),String(Date.now()),{mode:0o600});return {...status,pending:false,expiresAt:Date.now()+idleLimitMs,message:'HCC compute session connected. It remains available until it has been idle for two hours.'};}}catch{}if(child.exitCode!==null)break;}child.kill('SIGTERM');
+  const stages=await readPrompts(),log=await readFile(sshLog,'utf8').catch(()=> '');
+  const prompts=attempt.prompts,outcome=log.split('\n').filter(line=>/denied|Authentication|Connection|timed out|refused|Too many|Host key/i.test(line)&&!/^debug1: (Authentications that can continue|Next authentication method)/.test(line)).slice(-3).map(line=>line.replace(/^debug1: /,'').trim());
   console.error('HCC login failed for',auth.username,{exitCode:child.exitCode,prompts,outcome});
   const detail=' Prompts seen: '+(prompts.length?prompts.map(p=>'"'+p+'"').join(' → '):'none')+(outcome.length?'. ssh: '+outcome.join(' | '):'')+'.';
-  if(stages.includes('@duo'))throw Error('Swan accepted your password and requested Duo, but authentication was not approved within 70 seconds. Check Duo Mobile or enter a current Duo passcode.'+detail);
+  if(stages.includes('@duo'))throw Error('Swan accepted your password and requested Duo, but authentication was not approved within 100 seconds. Check Duo Mobile or enter a current Duo passcode.'+detail);
   if(stages.includes('@password'))throw Error('Swan did not accept the HCC username or password, so no Duo request was sent.'+detail);
   throw Error('Swan did not present an authentication prompt. Check HCC availability and the configured username.'+detail);}finally{await rm(dir,{recursive:true,force:true});}
 }
