@@ -13,7 +13,10 @@ export async function POST(request:Request){
   const data=parsed.data,page=await getPage(data.pageId,actor.userId);
   if(!page||page.kind==='resource')return respond({error:'This page is private or does not exist.'},404);
   const now=Date.now();
-  const parameters=page.kind==='dynamic'&&data.parameters?(page.dynamic?.template==='component-form-v1'?parametersSchema.parse(data.parameters):executeConversion(data.parameters).input):{};
+  // Only unit-converter pages normalize their input through the converter; every
+  // other app keeps its validated parameters as given.
+  let parameters:unknown={};
+  if(page.kind==='dynamic'&&data.parameters){try{parameters=page.dynamic?.template==='unit-converter-v1'?executeConversion(data.parameters).input:parametersSchema.parse(data.parameters);}catch{parameters={};}}
   await database().prepare('INSERT OR IGNORE INTO page_visits(id,owner_key,page_id,title,question,parameters,visited_at,recorded_at) VALUES(?,?,?,?,?,?,?,?)').bind(data.id,actor.historyKey,page.id,page.title,data.question,JSON.stringify(parameters),data.legacy?null:now,now).run();
   return respond({saved:true});
  }catch{return respond({error:'Could not save this visit.'},503);}

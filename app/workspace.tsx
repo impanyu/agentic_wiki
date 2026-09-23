@@ -98,6 +98,8 @@ export default function Workspace({ user, signIn, signOut }: {
     visitWrites.current=visitWrites.current.then(async()=>{
       await ensureActor();
       const response=await fetch('/api/history',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id,pageId,question:text,parameters,legacy}),keepalive:true});
+      // A visit the server rejects outright (deleted or private page, invalid entry) can never succeed; drop it.
+      if(response.status>=400&&response.status<500){failedVisits.current.delete(id);if(!failedVisits.current.size)setHistorySaveError('');return;}
       if(!response.ok)throw new Error('Some visits could not be saved.');
       failedVisits.current.delete(id);if(!failedVisits.current.size)setHistorySaveError('');
     }).catch(()=>{if(!legacy){failedVisits.current.set(id,{pageId,text,parameters,id,legacy});setHistorySaveError('Some visits could not be saved.');}});
