@@ -818,5 +818,8 @@
   "Other sources": "Other sources",
   "Browse Google Drive, Dropbox, OneDrive & more…": "Browse Google Drive, Dropbox, OneDrive & more…",
   "Upload from my computer…": "Upload from my computer…",
-  "Fork this page first: transferring files from other sources needs your private copy.": "Fork this page first: transferring files from other sources needs your private copy."
+  "Fork this page first: transferring files from other sources needs your private copy.": "Fork this page first: transferring files from other sources needs your private copy.",
+  "This is the shared catalog page. Fork it to pick files from Google Drive, your computer or page files, and to run the tool in your private workspace.": "This is the shared catalog page. Fork it to pick files from Google Drive, your computer or page files, and to run the tool in your private workspace.",
+  "Fork this page and continue": "Fork this page and continue",
+  "Fork this page to run": "Fork this page to run"
 }

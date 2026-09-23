@@ -12,9 +12,9 @@ type Account={id:string;name:string;allowed:string[]};type Item={id:string;name:
 const toolPageHref=(locale:string,slug?:string)=>'/tools?'+new URLSearchParams({app:'adma-tools',language:locale,...(slug?{tool:slug}:{})});
 // Each catalog tool has its own dedicated page (ToolWorkbench); without a tool
 // reference this renders the tool directory, like ADMA's own Tools page.
-export function ProcessingPanel({pageId,writable,initialTool=''}:{pageId:string;writable:boolean;initialTool?:string}){
+export function ProcessingPanel({pageId,writable,initialTool='',onFork}:{pageId:string;writable:boolean;initialTool?:string;onFork?:()=>void}){
  const spec=processingCatalog.find(s=>s.slug===initialTool);
- return spec?<ToolWorkbench pageId={pageId} writable={writable} slug={spec.slug}/>:<ToolsHub/>;
+ return spec?<ToolWorkbench pageId={pageId} writable={writable} slug={spec.slug} onFork={onFork}/>:<ToolsHub/>;
 }
 function ToolsHub(){
  const {t,locale}=useUi();
@@ -22,7 +22,7 @@ function ToolsHub(){
  <div className="hub-cards">{processingCatalog.map(spec=>{const info=toolInfo[spec.slug];return <a key={spec.slug} className="hub-card" href={toolPageHref(locale,spec.slug)}><span className="hub-thumb" style={{background:info?.gradient,color:info?.accent}} aria-hidden="true">{info&&<info.Icon size={34}/>}</span><strong>{t(spec.name)}</strong><span className="hub-description">{t(spec.description)}</span></a>;})}</div>
  </section>;
 }
-function ToolWorkbench({pageId,writable,slug}:{pageId:string;writable:boolean;slug:string}){
+function ToolWorkbench({pageId,writable,slug,onFork}:{pageId:string;writable:boolean;slug:string;onFork?:()=>void}){
  const {t,locale}=useUi(),[accounts,setAccounts]=useState<Account[]>([]),[account,setAccount]=useState(''),[values,setValues]=useState<Record<string,string>>({}),[files,setFiles]=useState<Item[]>([]),[folders,setFolders]=useState<Item[]>([]),[pageFiles,setPageFiles]=useState<Item[]>([]),[custom,setCustom]=useState<Record<string,boolean>>({}),[picker,setPicker]=useState(''),[busy,setBusy]=useState(false),[error,setError]=useState(''),[task,setTask]=useState(''),[result,setResult]=useState<any>(null);
  const operation=useRef<{key:string;id:string}|null>(null),uploadInput=useRef<HTMLInputElement>(null),uploadField=useRef('');
  const spec=processingCatalog.find(s=>s.slug===slug)!,info=toolInfo[slug],connection=accounts.find(a=>a.id===account),can=(name:string)=>!!connection?.allowed.includes(name),endpoint='/api/pages/'+encodeURIComponent(pageId)+'/adma',historyKey='adma-processing:'+pageId+':'+account+':'+slug;
@@ -35,6 +35,8 @@ function ToolWorkbench({pageId,writable,slug}:{pageId:string;writable:boolean;sl
  useEffect(()=>{setFiles([]);setFolders([]);setResult(null);setTask('');if(!account)return;try{setTask(localStorage.getItem(historyKey)||'');}catch{}let live=true;Promise.all([can('list_files')?call('list_files',{}):{files:[]},can('list_folders')?call('list_folders',{}):{folders:[]}]).then(([a,b])=>{if(live){setFiles((a.files||[]).filter((f:Item)=>f.is_public===false));setFolders((b.folders||[]).filter((f:Item)=>f.is_public===false));}}).catch(e=>live&&setError(String(e)));return()=>{live=false;};},[account]);
  async function run(){setBusy(true);setError('');setResult(null);try{const args=Object.fromEntries(activeFields.filter(f=>values[f.name]?.trim()).map(f=>[f.name,f.type==='number'?Number(values[f.name]):values[f.name].trim()]));const key=JSON.stringify([account,slug,args]);if(operation.current?.key!==key)operation.current={key,id:crypto.randomUUID()};const r=await call(processingRunName(slug),{...args,operation_id:operation.current.id},true);setTask(r.task_id);setResult(r);try{localStorage.setItem(historyKey,r.task_id);}catch{}}catch(e){setError(String(e));}finally{setBusy(false);}}
  async function check(){setBusy(true);setError('');try{setResult(await call('processing_status',{task_id:task}));}catch(e){setError(String(e));}finally{setBusy(false);}}
+ // Shared catalog pages are read only; transfers and runs continue on the visitor's private fork.
+ function needFork(){if(onFork)onFork();else setError(t('Fork this page first: transferring files from other sources needs your private copy.'));}
  async function guard(fn:()=>Promise<void>){setBusy(true);setError('');try{await fn();}catch(e){setError(String(e));}finally{setBusy(false);}}
  // A selection from another repository is first transferred into the user's
  // private ADMA workspace; the tool then runs on the new ADMA file.
@@ -63,8 +65,8 @@ function ToolWorkbench({pageId,writable,slug}:{pageId:string;writable:boolean;sl
     {manual?<><input list={f.type==='file'?(info?.accept[f.name]?'processing-files-'+f.name:'processing-files'):'processing-folders'} required={required} type="text" value={values[f.name]||''} onChange={e=>setValues({...values,[f.name]:e.target.value})}/><small>{t('Paste an ADMA resource ID, or')} <button type="button" className="field-link" onClick={()=>{setCustom({...custom,[f.name]:false});setValues({...values,[f.name]:''});}}>{t('choose from your files')}</button></small></>
     :<><select required={required} value={chosen?values[f.name]:''} onChange={e=>{const value=e.target.value;
       if(value==='__custom'){setCustom({...custom,[f.name]:true});setValues({...values,[f.name]:''});}
-      else if(value==='__browse'){if(writable)setPicker(f.name);else setError(t('Fork this page first: transferring files from other sources needs your private copy.'));}
-      else if(value==='__upload'){if(writable){uploadField.current=f.name;uploadInput.current?.click();}else setError(t('Fork this page first: transferring files from other sources needs your private copy.'));}
+      else if(value==='__browse'){if(writable)setPicker(f.name);else needFork();}
+      else if(value==='__upload'){if(writable){uploadField.current=f.name;uploadInput.current?.click();}else needFork();}
       else if(value.startsWith('page:')){const attachment=pageFiles.find(x=>'page:'+x.id===value);if(attachment)void guard(()=>adopt(f.name,{space:'page',id:attachment.id,kind:'file',name:attachment.name}));}
       else setValues({...values,[f.name]:value});}}>
      <option value="">{f.type==='folder'?t('Auto-create output folder (default)'):t('Choose a file from any source…')}</option>
@@ -92,7 +94,7 @@ function ToolWorkbench({pageId,writable,slug}:{pageId:string;writable:boolean;sl
  <header className="tool-banner" style={{background:info.gradient}}><span className="tool-glyph" aria-hidden="true"><info.Icon size={38}/></span><div><h2>{t(spec.name)}</h2><p className="tool-subtitle">{t(info.subtitle)}</p><p>{t(info.intro)}</p><ul className="tool-outputs">{info.outputs.map(([term,text])=><li key={term}><strong>{t(term)}</strong> – {t(text)}</li>)}</ul></div></header>
  {!account?<p>{t('Enable your ADMA connection in Connectors to browse your files.')}</p>:<>
  {accounts.length>1&&<label className="tool-account">{t('Account')}<select value={account} disabled={busy} onChange={e=>setAccount(e.target.value)}>{accounts.map(a=><option key={a.id} value={a.id}>{a.name}</option>)}</select></label>}
- {!writable&&<p>{t("Fork this page to run tools in your private workspace.")}</p>}
+ {!writable&&<div className="tool-fork-notice" role="note"><p>{t("This is the shared catalog page. Fork it to pick files from Google Drive, your computer or page files, and to run the tool in your private workspace.")}</p>{onFork&&<button type="button" disabled={busy} onClick={onFork}>{t("Fork this page and continue")}</button>}</div>}
  <p>{t('Processing writes output files. Use private input files and a private output folder. Copy shared datasets into your private ADMA workspace first.')}</p>
  <p className="step-help">{t('Files picked from Page files, Google Drive, Dropbox, OneDrive or your computer are transferred into your private ADMA workspace before the tool runs. Shapefiles need their sidecar files (.dbf, .shx, .prj) transferred as well.')}</p>
  <datalist id="processing-files">{files.map(f=><option key={f.id} value={f.id}>{f.name}</option>)}</datalist><datalist id="processing-folders">{folders.map(f=><option key={f.id} value={f.id}>{f.name}</option>)}</datalist>
@@ -100,7 +102,7 @@ function ToolWorkbench({pageId,writable,slug}:{pageId:string;writable:boolean;sl
  <form onSubmit={e=>{e.preventDefault();void run();}}><fieldset disabled={busy}>
  {info.steps.map((step,index)=>{const stepFields=step.fields.map(name=>spec.fields.find(f=>f.name===name)).filter((f):f is ProcessingField=>!!f&&state(f.name)!=='hidden'&&!(slug==='si-tool'&&f.name==='workflow'));const isWorkflow=slug==='si-tool'&&step.fields.includes('workflow');if(!isWorkflow&&!stepFields.length)return null;
   return <section className="tool-step" key={step.title}><h3><span className="step-badge">{index+1}</span>{t(step.title)}</h3>{step.help&&<p className="step-help">{t(step.help)}</p>}{isWorkflow?workflowStep():<div className="processing-fields">{stepFields.map(field)}</div>}</section>;})}
- <button className="tool-run" disabled={!writable||!can(processingRunName(slug))||!!task&&!['SUCCESS','FAILURE','REVOKED'].includes(result?.status)}>{t(info.runLabel)}</button></fieldset></form>
+ {!writable&&onFork?<button type="button" className="tool-run" disabled={busy} onClick={onFork}>{t('Fork this page to run')}</button>:<button className="tool-run" disabled={!writable||!can(processingRunName(slug))||!!task&&!['SUCCESS','FAILURE','REVOKED'].includes(result?.status)}>{t(info.runLabel)}</button>}</fieldset></form>
  {!can(processingRunName(slug))&&<p>{t('Enable this tool in Connectors.')} <code>{processingRunName(slug)}</code></p>}
  <div className="processing-task"><label>{t('Task ID')}<input value={task} onChange={e=>{setTask(e.target.value);setResult(null);}}/></label><button disabled={busy||!task||!can('processing_status')} onClick={()=>void check()}>{t('Check status')}</button><button disabled={busy} onClick={()=>{operation.current=null;setTask('');setResult(null);try{localStorage.removeItem(historyKey);}catch{}}}>{t('New task')}</button></div>
  {result&&<><p role="status">{t('Status')}: {String(result.status||'SUBMITTED')}{result.result?.success===false?' · '+t('Task failed'):''}</p>{outputFiles.length>0&&<ul>{outputFiles.map(f=><li key={f.id}><strong>{f.name}</strong> <a href={toolHref(/\.(geojson|kml|gpx)$/i.test(f.name)?'map':'hub',{page:pageId,connector:account,file:f.id,name:f.name,language:locale})}>{t('Open with…')}</a> <a href={'https://adma.aisoup.net/file/'+encodeURIComponent(f.id)+'/'} target="_blank" rel="noreferrer">{t('Open in ADMA')}</a></li>)}</ul>}<details><summary>{t('Result details')}</summary><pre>{JSON.stringify(result,null,2)}</pre></details></>}

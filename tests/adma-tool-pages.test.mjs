@@ -47,6 +47,8 @@ test('read-only catalog pages keep the file menus usable and disable only Run',a
  const html=await render(seed({}),'yield-summary',false);
  assert.ok(!html.includes('<fieldset disabled'),'form stays enabled on shared pages');
  assert.ok(/class="tool-run" disabled/.test(html),'Run requires a private fork');
+ holder.state=[...seed({})];const forked=renderToStaticMarkup(React.createElement(panel.ProcessingPanel,{pageId:'page',writable:false,initialTool:'yield-summary',onFork:()=>{}}));
+ assert.ok(forked.includes('Fork this page and continue')&&forked.includes('Fork this page to run'),'shared pages offer one-click fork');
  assert.ok(html.includes('Choose a file from any source…')&&html.includes('Other sources'));
 });
 test('SI workflows show and require only their own inputs',async()=>{

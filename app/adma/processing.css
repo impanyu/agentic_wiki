@@ -26,3 +26,5 @@
 .adma-processing .field-sources button:hover:not(:disabled){border-color:var(--tool-accent,#a62b2b);color:var(--tool-accent,#a62b2b)}
 .processing-tool button.tool-run{background:var(--tool-accent);border-color:var(--tool-accent);font-size:15px;padding:11px 22px;margin:16px 0 0}
 @media(max-width:650px){.processing-tool .tool-banner{flex-direction:column;gap:12px}.tool-return{flex-wrap:wrap}}
+
+.tool-fork-notice{display:flex;align-items:center;gap:14px;flex-wrap:wrap;background:#fff7e6;border:1px solid #f0d9a8;border-radius:10px;padding:12px 16px;margin:14px 0}.tool-fork-notice p{margin:0;flex:1;min-width:240px}.adma-processing .tool-fork-notice button{background:var(--tool-accent,#be3835);border-color:var(--tool-accent,#be3835);margin:0}
