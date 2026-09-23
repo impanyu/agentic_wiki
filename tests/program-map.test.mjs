@@ -3,7 +3,7 @@ const strip=p=>readFileSync(p,'utf8').replace(/^import .*;$/gm,'');
 const load=async s=>import('data:text/javascript;base64,'+Buffer.from(ts.transpile(s,{module:ts.ModuleKind.ESNext,target:ts.ScriptTarget.ES2022})).toString('base64'));
 globalThis.mapZ=z;
 const geo=await load(strip('app/geo/data.ts'));globalThis.mapNormalize=geo.normalizeGeoJSON;
-const {viewSchema}=await load('const z=globalThis.mapZ,normalizeGeoJSON=globalThis.mapNormalize,formSchema=z.unknown(),chartSchema=z.unknown();'+strip('app/resources/contracts.ts')+strip('app/page-programs/contracts.ts'));
+const {viewSchema}=await load('const z=globalThis.mapZ,normalizeGeoJSON=globalThis.mapNormalize,formSchema=z.unknown(),programFormSchema=z.unknown(),chartSchema=z.unknown();'+strip('app/resources/contracts.ts')+strip('app/page-programs/contracts.ts'));
 const feature={type:'Feature',geometry:{type:'Point',coordinates:[-93.6,42.0]},properties:{name:'Fixture station',source:'Connector fixture'}};
 const view={templateId:'dashboard-v1',title:'Locations',summary:'Authorized fixture',map:{title:'Stations',geojson:{type:'FeatureCollection',features:[feature]}}};
 test('program maps retain connector coordinates and attributes alongside other UI',()=>{

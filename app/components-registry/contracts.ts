@@ -7,6 +7,8 @@ export type Parameters=Record<string,string|number|boolean>;
 export const parametersSchema=z.record(z.union([z.string().max(4000),z.number().finite(),z.boolean()])).refine(v=>Object.keys(v).length<=30);
 const name=z.string().regex(/^[a-z][a-z0-9_]{0,39}$/);
 export const formSchema=z.object({kind:z.literal('form'),submit:z.string().min(1).max(80),fields:z.array(z.object({name,label:z.string().min(1).max(120),type:z.enum(['number','text']),default:z.union([z.string().max(4000),z.number().finite()]).nullable()})).min(1).max(12),outputs:z.array(z.object({name,label:z.string().min(1).max(120)})).min(1).max(12)}).strict().superRefine((v,c)=>{for(const rows of [v.fields,v.outputs])if(new Set(rows.map(x=>x.name)).size!==rows.length)c.addIssue({code:'custom',message:'Duplicate field'});});
+// A page program's view form may only collect inputs; its results render elsewhere in the view.
+export const programFormSchema=z.object({kind:z.literal('form'),submit:z.string().min(1).max(80),fields:z.array(z.object({name,label:z.string().min(1).max(120),type:z.enum(['number','text']),default:z.union([z.string().max(4000),z.number().finite()]).nullable()})).min(1).max(12),outputs:z.array(z.object({name,label:z.string().min(1).max(120)})).max(12).default([])}).strict().superRefine((v,c)=>{for(const rows of [v.fields,v.outputs])if(new Set(rows.map(x=>x.name)).size!==rows.length)c.addIssue({code:'custom',message:'Duplicate field'});});
 export type FormDefinition=z.infer<typeof formSchema>;
 // A bounded, data-only language: no eval, imports, loops, ambient secrets or arbitrary network.
 export type Expression=number|string|{input:string}|{step:string}|{op:string;args:Expression[]};
