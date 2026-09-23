@@ -29,6 +29,10 @@ export async function discardAppDraft(agent:Agent){await bucket().delete(path(ag
 export async function stageAppRevision(page:AnswerPage,raw:unknown,agent:Agent,request=''){
  if(!canWritePage(page))throw Error('PAGE_READ_ONLY');
  page=registeredAdmaPage(page);
+ // Consecutive proposals in one conversation build on the unsaved draft instead of
+ // replacing it, so "change the code, then the text" saves both.
+ const saved=page,pending=await stored(agent,page.id);
+ if(pending&&!pending.saved&&pending.base===revision(saved))page={...page,kind:pending.kind||page.kind,title:pending.title,summary:pending.summary,body:pending.pageBody??page.body,dynamic:pending.config??undefined,sources:pending.sources??page.sources,category:pending.category??page.category,labels:{...page.labels,...(pending.labels||{}),templateId:pending.templateId}};
  const change=z.discriminatedUnion('kind',[
   z.object({kind:z.literal('appearance'),visualTheme:z.enum(visualThemes),visualDesign:customStyleSchema.nullable().optional(),description:z.string().max(10000)}).strict(),
   z.object({kind:z.literal('session'),instructions:z.string().min(1).max(10000)}).strict(),
@@ -82,7 +86,7 @@ export async function stageAppRevision(page:AnswerPage,raw:unknown,agent:Agent,r
  }
  const savedConfig=nextConfig===undefined?config:nextConfig;
  if(JSON.stringify([pageKind,title,summary,pageBody,savedConfig,templateId,sources,category])===JSON.stringify([page.kind==='static'?'static':'dynamic',page.title,page.summary,page.body,page.dynamic,page.labels.templateId,page.sources,page.category]))throw Error('This proposal does not change any saved, renderable page property.');
- const draft:Draft={id:crypto.randomUUID(),ownerId:agent.ownerId,pageId:page.id,base:revision(page),title,summary,body,pageBody,config:savedConfig,kind:pageKind,sources,category,labels:extraLabels,templateId};
+ const draft:Draft={id:crypto.randomUUID(),ownerId:agent.ownerId,pageId:page.id,base:revision(saved),title,summary,body,pageBody,config:savedConfig,kind:pageKind,sources,category,labels:extraLabels,templateId};
  await bucket().put(path(agent),JSON.stringify(draft));return {editDraft:preview(draft),saved:false};
 }
 export async function saveAppDraft(agent:Agent,pageId:string,draftId:string){
