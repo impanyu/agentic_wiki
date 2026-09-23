@@ -9,7 +9,7 @@ import {fileContext,sandboxContextFiles} from '@/app/context-files/server';
 import {runProgram,sandboxStatus} from '@/app/sandboxes/service';import {getComponent} from '@/app/components-registry/registry';import {executeApi} from '@/app/components-registry/api-executor';import {storageStatus} from '@/app/storage/oauth';import {executeStorage} from '@/app/storage/service';import {listDataFiles} from '@/app/templates/files';import {api,output} from '@/app/api/ask/ai';import {model} from '@/db/store';import {programOutput,type PageView} from './contracts';import {validateChartData} from '@/app/components-registry/chart-contracts';import type {AnswerPage} from '@/app/page-types';
 export type ProgramProposal={actionId:string;request:unknown};
 export async function runPageProgram(page:AnswerPage,input:unknown,userId:string):Promise<AnswerPage>{
- try{return await executePageProgram(page,input,userId);}catch(e){return {...page,runtimeError:e instanceof Error&&e.message.startsWith('OPENAI_SANDBOX_')?sandboxMessage(e):"The page program could not finish. Your saved page and conversation are intact. Try again or check its connections."};}
+ try{return await executePageProgram(page,input,userId);}catch(e){console.error('Page program failed',page.id,e instanceof Error?e.message.slice(0,1500):String(e));return {...page,runtimeError:e instanceof Error&&e.message.startsWith('OPENAI_SANDBOX_')?sandboxMessage(e):"The page program could not finish. Your saved page and conversation are intact. Try again or check its connections."};}
 }
 async function executePageProgram(page:AnswerPage,input:unknown,userId:string){
  const ref=page.dynamic?.components?.backend;if(!ref)throw Error('PAGE_PROGRAM_MISSING');const status=sandboxStatus(userId);if(!status.configured||!status.allowed)return {...page,...(page.labels.templateId==='files-v1'?{summary:'Connect your storage account below to browse its files and folders.',body:''}:{}),runtimeError:status.allowed?'Automated page tasks need an execution sandbox. Connection setup, Browse files, and assistant help remain available below.':'Sign in to run this page application. Connection setup instructions remain available below.'};
@@ -17,7 +17,7 @@ async function executePageProgram(page:AnswerPage,input:unknown,userId:string){
  input={...(input&&typeof input==='object'?input:{}),files:attached.metadata};
  const component=await getComponent(ref,{userId},'backend_code'),program=JSON.parse(component.payload),results:Record<string,unknown>={},proposals:ProgramProposal[]=[];
  for(let round=0;round<8;round++){
-  const execution=await runProgram(program,{input,results},{userId},attached.uploads);if(!execution.ok)throw Error('PAGE_PROGRAM_FAILED');const step=programOutput.parse(execution.result);
+  const execution=await runProgram(program,{input,results},{userId},attached.uploads);if(!execution.ok)throw Error('PAGE_PROGRAM_FAILED round '+round+': '+String((execution as {stderr?:string}).stderr||'').slice(-1200));const step=programOutput.parse(execution.result);
   if('view'in step){const view=step.view;if(view.chart){if(!view.dataset)throw Error('PAGE_DATA_MISSING');view.dataset=validateChartData(view.chart,view.dataset);}return {...page,title:view.title,summary:view.summary,body:view.body||'',sources:view.sources||[],labels:{...page.labels,templateId:view.templateId},view,proposals,runtimeError:undefined};}
   const c=step.call;if(Object.hasOwn(results,c.id))throw Error('PAGE_PROGRAM_REPEATED_STEP');let result:unknown;
   try{
