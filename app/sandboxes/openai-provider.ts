@@ -50,12 +50,18 @@ export async function runOpenAIProgram(program:CodeProgram,input:unknown,uploads
    if(current.status==='failed'||current.status==='requires_action')throw new OpenAISandboxError('OPENAI_SANDBOX_SETUP_FAILED');
    await pause(1000);
   }
-  let artifact:{id:string;size_bytes:number}|undefined,after='';
-  do{
-   const list=await (await call('/agents/sessions/'+encodeURIComponent(sessionId)+'/artifacts?limit=100'+(after?'&after='+encodeURIComponent(after):''))).json() as {data:{id:string;path:string;turn_id:string;size_bytes:number}[];has_more:boolean};
-   artifact=list.data.find(a=>a.path===REPORT&&a.turn_id===turnId);if(artifact||!list.has_more)break;after=list.data.at(-1)!.id;
-  }while(after);
-  if(!artifact||artifact.size_bytes>256000)throw new OpenAISandboxError('OPENAI_SANDBOX_RESULT_MISSING');
+  // Artifacts are listed a little after the turn completes; poll briefly before giving up.
+  let artifact:{id:string;size_bytes:number}|undefined;
+  for(let attempt=0;!artifact&&attempt<20;attempt++){
+   if(attempt)await pause(1000);
+   let after='';
+   do{
+    const list=await (await call('/agents/sessions/'+encodeURIComponent(sessionId)+'/artifacts?limit=100'+(after?'&after='+encodeURIComponent(after):''))).json() as {data:{id:string;path:string;turn_id:string;size_bytes:number}[];has_more:boolean};
+    artifact=list.data.find(a=>a.path===REPORT&&a.turn_id===turnId)||list.data.find(a=>a.path===REPORT);if(artifact||!list.has_more)break;after=list.data.at(-1)!.id;
+   }while(after);
+  }
+  if(!artifact)throw new OpenAISandboxError('OPENAI_SANDBOX_RESULT_MISSING');
+  if(artifact.size_bytes>256000)throw new OpenAISandboxError('OPENAI_SANDBOX_RESULT_TOO_LARGE');
   const response=await call('/agents/sessions/'+encodeURIComponent(sessionId)+'/artifacts/'+encodeURIComponent(artifact.id)+'/content');
   const reader=response.body!.getReader();let size=0,text='';const decoder=new TextDecoder();
   try{while(true){const {done,value}=await reader.read();if(done)break;size+=value.byteLength;if(size>256000)throw new OpenAISandboxError('OPENAI_SANDBOX_RESULT_TOO_LARGE');text+=decoder.decode(value,{stream:true});}text+=decoder.decode();}finally{await reader.cancel().catch(()=>{});}

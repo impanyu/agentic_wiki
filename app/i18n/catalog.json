@@ -838,5 +838,6 @@
   "Image unavailable": "Image unavailable",
   "Queued · sends when the current reply finishes": "Queued · sends when the current reply finishes",
   "Remove queued message": "Remove queued message",
-  "Queue this message": "Queue this message"
+  "Queue this message": "Queue this message",
+  "Running the report… this can take a minute.": "Running the report… this can take a minute."
 }
