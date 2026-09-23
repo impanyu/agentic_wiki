@@ -4,14 +4,14 @@ const load=async s=>import('data:text/javascript;base64,'+Buffer.from(ts.transpi
 const React=await import('react'),{renderToStaticMarkup}=await import('react-dom/server');
 const catalog=await load(strip('app/adma/processing-catalog.ts'));
 const Icon=()=>null;
-globalThis.toolPageDeps={React,useEffect:()=>{},useRef:value=>({current:value}),Sprout:Icon,ArrowLeftRight:Icon,TrendingUp:Icon,BarChart3:Icon,Filter:Icon,ArrowLeft:Icon,ExternalLink:Icon,FolderSearch:Icon,HardDriveUpload:Icon,ResourcePicker:()=>null,useUi:()=>({locale:'en',t:text=>text}),toolHref:()=>'#',...catalog};
+globalThis.toolPageDeps={React,useEffect:()=>{},useRef:value=>({current:value}),pageAddress:(id,p)=>'/?page='+id+'&inputs='+encodeURIComponent(JSON.stringify(p)),Sprout:Icon,ArrowLeftRight:Icon,TrendingUp:Icon,BarChart3:Icon,Filter:Icon,ArrowLeft:Icon,ExternalLink:Icon,FolderSearch:Icon,HardDriveUpload:Icon,ResourcePicker:()=>null,useUi:()=>({locale:'en',t:text=>text}),toolHref:()=>'#',...catalog};
 const info=await load('const {Sprout,ArrowLeftRight,TrendingUp,BarChart3,Filter}=globalThis.toolPageDeps;\n'+strip('app/adma/tool-info.ts'));
 Object.assign(globalThis.toolPageDeps,info);
 // A shared state stub: identical data-URL modules are cached, so the stub is
 // installed once and each render swaps in its own seeded state array.
 const holder={state:[]};
 globalThis.toolPageDeps.useState=initial=>{const value=holder.state.shift();return [value===undefined?initial:value,()=>{}];};
-const panel=await load('const {React,useEffect,useState,useRef,ArrowLeft,ExternalLink,FolderSearch,HardDriveUpload,processingCatalog,processingRunName,toolInfo,siFieldState,ResourcePicker,useUi,toolHref}=globalThis.toolPageDeps;\n'+strip('app/adma/processing-panel.tsx'));
+const panel=await load('const {React,useEffect,useState,useRef,ArrowLeft,ExternalLink,FolderSearch,HardDriveUpload,pageAddress,processingCatalog,processingRunName,toolInfo,siFieldState,ResourcePicker,useUi,toolHref}=globalThis.toolPageDeps;\n'+strip('app/adma/processing-panel.tsx'));
 async function render(state,slug,writable=true){
  holder.state=[...state];
  return renderToStaticMarkup(React.createElement(panel.ProcessingPanel,{pageId:'page',writable,initialTool:slug}));
@@ -32,7 +32,7 @@ test('each catalog tool renders its own dedicated page with banner, steps and fi
 });
 test('the tool directory shows one card per tool instead of a shared form',async()=>{
  const html=await render([],'');
- for(const spec of catalog.processingCatalog)assert.ok(html.includes('tool='+spec.slug),'card links to '+spec.slug);
+ for(const spec of catalog.processingCatalog)assert.ok(html.includes('page=page')&&html.includes(encodeURIComponent(JSON.stringify({tool:spec.slug})).replace(/%22/g,'&quot;'))||html.includes(spec.slug),'card links to '+spec.slug+' within the current page');
  assert.ok(!html.includes('tool-run'));
 });
 test('file selectors list only matching private ADMA files and folders default to auto-create',async()=>{

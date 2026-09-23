@@ -7,19 +7,22 @@ import {ResourcePicker} from '@/app/resources/picker';
 import type {Resource} from '@/app/resources/contracts';
 import {useUi} from '@/app/i18n/client';
 import {toolHref} from '@/app/tools/sources';
+import {pageAddress} from '@/app/dynamic/units';
 import './processing.css';
 type Account={id:string;name:string;allowed:string[]};type Item={id:string;name:string;is_public?:boolean};
-const toolPageHref=(locale:string,slug?:string)=>'/tools?'+new URLSearchParams({app:'adma-tools',language:locale,...(slug?{tool:slug}:{})});
+// Tool pages stay inside the current page (the visitor's own edition of the app)
+// instead of redirecting through the shared /tools catalog page.
+const toolPageHref=(pageId:string,slug?:string)=>pageAddress(pageId,slug?{tool:slug}:{});
 // Each catalog tool has its own dedicated page (ToolWorkbench); without a tool
 // reference this renders the tool directory, like ADMA's own Tools page.
 export function ProcessingPanel({pageId,writable,initialTool='',onFork}:{pageId:string;writable:boolean;initialTool?:string;onFork?:()=>void}){
  const spec=processingCatalog.find(s=>s.slug===initialTool);
- return spec?<ToolWorkbench pageId={pageId} writable={writable} slug={spec.slug} onFork={onFork}/>:<ToolsHub/>;
+ return spec?<ToolWorkbench pageId={pageId} writable={writable} slug={spec.slug} onFork={onFork}/>:<ToolsHub pageId={pageId}/>;
 }
-function ToolsHub(){
- const {t,locale}=useUi();
+function ToolsHub({pageId}:{pageId:string}){
+ const {t}=useUi();
  return <section className="adma-processing processing-hub"><header><h2>{t('ADMA processing tools')}</h2><p>{t('Run agricultural data tools with your connected ADMA account.')} {t('Each tool opens on its own page.')}</p></header>
- <div className="hub-cards">{processingCatalog.map(spec=>{const info=toolInfo[spec.slug];return <a key={spec.slug} className="hub-card" href={toolPageHref(locale,spec.slug)}><span className="hub-thumb" style={{background:info?.gradient,color:info?.accent}} aria-hidden="true">{info&&<info.Icon size={34}/>}</span><strong>{t(spec.name)}</strong><span className="hub-description">{t(spec.description)}</span></a>;})}</div>
+ <div className="hub-cards">{processingCatalog.map(spec=>{const info=toolInfo[spec.slug];return <a key={spec.slug} className="hub-card" href={toolPageHref(pageId,spec.slug)}><span className="hub-thumb" style={{background:info?.gradient,color:info?.accent}} aria-hidden="true">{info&&<info.Icon size={34}/>}</span><strong>{t(spec.name)}</strong><span className="hub-description">{t(spec.description)}</span></a>;})}</div>
  </section>;
 }
 function ToolWorkbench({pageId,writable,slug,onFork}:{pageId:string;writable:boolean;slug:string;onFork?:()=>void}){
@@ -90,7 +93,7 @@ function ToolWorkbench({pageId,writable,slug,onFork}:{pageId:string;writable:boo
  function workflowStep(){const [treatment,imagery]=workflow.split('_'),set=(a:string,b:string)=>setValues({...values,workflow:a+'_'+b});return <div className="processing-fields"><label>{t('Treatment methodology')}<select value={treatment} onChange={e=>set(e.target.value,imagery)}><option value="standard">{t('STANDARD')}</option><option value="sbf">{t('SBF (Sensor-Based Fertigation)')}</option></select></label><label>{t('Imagery type')}<select value={imagery} onChange={e=>set(treatment,e.target.value)}><option value="uav">{t('UAV')}</option><option value="satellite">{t('Satellite')}</option></select></label></div>;}
  if(!info||!spec)return null;
  return <section className="adma-processing processing-tool" style={{'--tool-accent':info.accent} as CSSProperties}>
- <nav className="tool-return"><a href={toolPageHref(locale)}><ArrowLeft size={15}/>{t('All ADMA tools')}</a><a href="https://adma.aisoup.net/tools/" target="_blank" rel="noreferrer">{t('Open in ADMA')} <ExternalLink size={13}/></a></nav>
+ <nav className="tool-return"><a href={toolPageHref(pageId)}><ArrowLeft size={15}/>{t('All ADMA tools')}</a><a href="https://adma.aisoup.net/tools/" target="_blank" rel="noreferrer">{t('Open in ADMA')} <ExternalLink size={13}/></a></nav>
  <header className="tool-banner" style={{background:info.gradient}}><span className="tool-glyph" aria-hidden="true"><info.Icon size={38}/></span><div><h2>{t(spec.name)}</h2><p className="tool-subtitle">{t(info.subtitle)}</p><p>{t(info.intro)}</p><ul className="tool-outputs">{info.outputs.map(([term,text])=><li key={term}><strong>{t(term)}</strong> – {t(text)}</li>)}</ul></div></header>
  {!account?<p>{t('Enable your ADMA connection in Connectors to browse your files.')}</p>:<>
  {accounts.length>1&&<label className="tool-account">{t('Account')}<select value={account} disabled={busy} onChange={e=>setAccount(e.target.value)}>{accounts.map(a=><option key={a.id} value={a.id}>{a.name}</option>)}</select></label>}
