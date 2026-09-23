@@ -10,6 +10,6 @@ if [ -n "$(git status --porcelain --untracked-files=no)" ]; then echo "Commit an
 "$NODE" node_modules/next/dist/bin/next build --webpack
 "$NODE" scripts/prepare-standalone.mjs
 asset="${TMPDIR:-/tmp}/agenticwiki-$sha.tgz"
-tar -C .next/standalone --exclude=node_modules --exclude=data -czf "$asset" .
+COPYFILE_DISABLE=1 tar -C .next/standalone --exclude=node_modules --exclude=data --no-xattrs -czf "$asset" . 2>/dev/null || COPYFILE_DISABLE=1 tar -C .next/standalone --exclude=node_modules --exclude=data -czf "$asset" .
 gh release create "deploy-$sha" "$asset" --title "deploy $sha" --notes "Built artifact for $sha" --latest=false
 echo "Published deploy-$sha. On the VM run: scripts/deploy/install-release.sh $sha"
