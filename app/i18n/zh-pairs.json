@@ -557,5 +557,6 @@
   "Fork this page first: transferring files from other sources needs your private copy.": "请先 Fork 此页面：从其他来源传输文件需要你的私有副本。",
   "This is the shared catalog page. Fork it to pick files from Google Drive, your computer or page files, and to run the tool in your private workspace.": "这是共享目录页面。Fork 后即可从 Google Drive、本机或页面文件中选择文件，并在你的私有工作区运行工具。",
   "Fork this page and continue": "Fork 此页面并继续",
-  "Fork this page to run": "Fork 此页面以运行"
+  "Fork this page to run": "Fork 此页面以运行",
+  "Connection interrupted. Waiting for the page to finish generating…": "连接已中断，正在等待页面生成完成…"
 }

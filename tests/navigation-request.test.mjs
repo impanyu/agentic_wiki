@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import ts from 'typescript';
 import {readFileSync} from 'node:fs';
 const source=ts.transpile(readFileSync('app/navigation-request.ts','utf8'),{module:ts.ModuleKind.ESNext,target:ts.ScriptTarget.ES2022});
-const {navigationRequest,recoverGenerationResult}=await import('data:text/javascript;base64,'+Buffer.from(source).toString('base64'));
+const {navigationRequest,recoverGenerationResult,waitForGenerationResult}=await import('data:text/javascript;base64,'+Buffer.from(source).toString('base64'));
 test('a transient fetch failure retries the exact saved destination',async()=>{
  const original=globalThis.fetch;let calls=[];
  globalThis.fetch=async(url,init)=>{calls.push([url,init.method]);if(calls.length===1)throw new TypeError('Load failed');return new Response('{}');};
@@ -27,5 +27,12 @@ test('interrupted generation recovers only a saved result without replaying POST
   payload={done:false};assert.equal(await recoverGenerationResult('request-id',new AbortController().signal),undefined);
   status=404;assert.equal(await recoverGenerationResult('request-id',new AbortController().signal),undefined);
   assert.ok(calls.every(([url,method])=>url==='/api/ask?generationId=request-id'&&!method));
+ }finally{globalThis.fetch=original;}
+});
+test('a dropped stream waits for the running generation instead of failing once',async()=>{
+ const original=globalThis.fetch;let polls=0;
+ globalThis.fetch=async()=>{polls++;return Response.json(polls<3?{pending:true}:{done:true,page:{id:'saved'}});};
+ try{assert.deepEqual(await waitForGenerationResult('request-id',new AbortController().signal,10000,5),{page:{id:'saved'},reused:undefined});assert.equal(polls,3);
+  polls=0;globalThis.fetch=async()=>Response.json({error:'failed'});assert.equal(await waitForGenerationResult('request-id',new AbortController().signal,10000,5),undefined);
  }finally{globalThis.fetch=original;}
 });

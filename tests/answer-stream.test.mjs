@@ -20,3 +20,13 @@ test('permission and validation failures remain errors, not saved pages',async()
  const output=[];for await(const event of readEvents(answerStream(async()=>Response.json({error:'Private page'},{status:403}),new AbortController().signal).body))output.push(event);
  assert.equal(output.at(-1).type,'error');assert.equal(output.at(-1).message,'Private page');
 });
+test('a client disconnect stops writes but the generation still completes and records progress',async()=>{
+ const encoder=new TextEncoder(),client=new AbortController(),recorded=[];let release;const gate=new Promise(r=>release=r);
+ const body=new ReadableStream({async start(c){c.enqueue(encoder.encode('data: {"type":"delta","text":"a"}\n\n'));await gate;c.enqueue(encoder.encode('data: {"type":"done","page":{"id":"saved"}}\n\n'));c.close();}});
+ let runSignal;const response=answerStream(signal=>{runSignal=signal;return Promise.resolve(new Response(body,{headers:{'Content-Type':'text/event-stream'}}));},client.signal,'Finding…',{event:e=>recorded.push(e.type),finish:async()=>{}});
+ const reader=readEvents(response.body);assert.equal((await reader.next()).value.type,'status');
+ client.abort();await response.body.cancel().catch(()=>{});
+ release();await new Promise(r=>setTimeout(r,50));
+ assert.equal(runSignal.aborted,false,'generation keeps running after the client leaves');
+ assert.ok(recorded.includes('done'),'progress records the saved page for later recovery');
+});

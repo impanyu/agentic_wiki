@@ -38,7 +38,7 @@ import type { AnswerPage } from './page-types';
 import {AnswerText,type Highlight} from './answer-text';
 import type {InternalLink} from './internal-links';
 import {readEvents} from './event-stream';
-import {navigationRequest,navigationError,recoverGenerationResult} from './navigation-request';
+import {navigationRequest,navigationError,waitForGenerationResult} from './navigation-request';
 
 async function readResponse(response: Response) {
   if (!response.headers.get('content-type')?.includes('application/json')) {
@@ -275,7 +275,9 @@ export default function Workspace({ user, signIn, signOut }: {
       }else result=await readResponse(response);
       }catch(error){
         if(controller.signal.aborted)throw error;
-        result=await recoverGenerationResult<AnswerPage>(generationId,controller.signal);
+        // The stream dropped (for example a background tab); the server keeps generating.
+        setStatus(t('Connection interrupted. Waiting for the page to finish generating…'));
+        result=await waitForGenerationResult<AnswerPage>(generationId,controller.signal);
         if(!result)throw error;
       }
       progressFinished=true;if(progressTimer)clearInterval(progressTimer);
