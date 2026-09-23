@@ -12,6 +12,13 @@ test('link resolution uses authenticated source and local passage only when need
  assert.match(JSON.parse(request.input).context.passages,/mosquitoes/);
  result={needsContext:false,question:'Unwanted rewrite'};
  assert.equal(await m.contextualLinkQuestion('Transmission',origin,'user'),'Transmission');
+ // A standalone proper name is never turned into a relation with the page subject.
+ result={standalone:true,needsContext:true,question:'India-Pakistan border'};
+ assert.equal(await m.contextualLinkQuestion('Transmission',origin,'user'),'Transmission');
+ result={standalone:false,needsContext:true,question:'India-Pakistan border'};
+ assert.equal(await m.contextualLinkQuestion('Transmission',origin,'user'),'Transmission');
+ assert.match(request.instructions,/Pakistan inside an India article -> Pakistan/);
+ assert.equal(request.reasoning.effort,'low');
  accessible=false;await assert.rejects(m.contextualLinkQuestion('Transmission',origin,'other'),/UNAVAILABLE/);accessible=true;
 });
 test('the root router receives a self-contained article-link question only when the visible text needs it',async()=>{
