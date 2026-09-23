@@ -568,5 +568,7 @@
   "No public pages yet.": "还没有公开页面。",
   "Type above and press Enter, or reopen a page below.": "在上方输入问题并回车，或从下方重新打开页面。",
   "Web app": "Web 应用",
-  "Wiki page": "Wiki 页面"
+  "Wiki page": "Wiki 页面",
+  "Unpublish": "取消发布",
+  "Unpublish (make private)": "取消发布（改为私有）"
 }

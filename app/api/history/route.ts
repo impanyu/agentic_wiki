@@ -4,7 +4,7 @@ import {getActor} from '@/app/actor';
 import {database,getPage,reply,sameOrigin} from '@/db/store';
 import {executeConversion} from '@/app/dynamic/execute';
 const visitSchema=z.object({id:z.string().uuid(),pageId:z.string().min(1).max(200),question:z.string().max(4000),parameters:parametersSchema.optional(),legacy:z.boolean().optional()});
-const removeSchema=z.object({id:z.string().uuid()});
+const removeSchema=z.union([z.object({id:z.string().uuid()}).strict(),z.object({pageId:z.string().min(1).max(200)}).strict()]);
 export async function POST(request:Request){
  const actor=await getActor(request);const respond=(data:unknown,status=200)=>actor.finish(reply(data,status));
  if(!sameOrigin(request))return respond({error:'This request must come from the site.'},403);
@@ -32,7 +32,8 @@ export async function DELETE(request:Request){
  if(!sameOrigin(request))return respond({error:'This request must come from the site.'},403);
  try{
   const parsed=removeSchema.safeParse(await request.json());if(!parsed.success)return respond({error:'Invalid history entry.'},400);
-  await database().prepare('DELETE FROM page_visits WHERE id=? AND owner_key=?').bind(parsed.data.id,actor.historyKey).run();
+  if('pageId' in parsed.data)await database().prepare('DELETE FROM page_visits WHERE owner_key=? AND (page_id=? OR page_id IN (SELECT id FROM page_aliases WHERE page_id=?))').bind(actor.historyKey,parsed.data.pageId,parsed.data.pageId).run();
+  else await database().prepare('DELETE FROM page_visits WHERE id=? AND owner_key=?').bind(parsed.data.id,actor.historyKey).run();
   return respond({removed:true});
  }catch{return respond({error:'Could not remove this history item.'},503);}
 }
