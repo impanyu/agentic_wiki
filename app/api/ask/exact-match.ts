@@ -13,7 +13,15 @@ export async function exactSavedQuestion(question:string,userId:string){
  if(/\b(latest|current|currently|today|tonight|now|recent|price|weather|news)\b|最新|目前|今天|现在|当前|实时/i.test(question))return null;
  await repairKnownMappings(database(),userId);
  const rows=await database().prepare(`SELECT q.page_id,q.parameters FROM questions q JOIN pages p ON p.id=q.page_id WHERE NOT EXISTS(SELECT 1 FROM root_routes r WHERE r.owner_id=p.owner_id AND r.normalized=q.normalized AND r.language=p.language AND json_extract(r.intent,'$.fresh')=1) AND q.normalized=? AND q.match_version=? AND (p.owner_id=? OR p.visibility='public') AND (q.routing_scope<>'session' OR p.owner_id=? OR EXISTS(SELECT 1 FROM session_routes sr WHERE sr.owner_id=? AND sr.page_id=p.id)) AND NOT EXISTS(SELECT 1 FROM page_aliases a WHERE a.id=p.id) AND NOT EXISTS(SELECT 1 FROM page_replacements pr WHERE pr.user_id=? AND pr.source_id=p.id) ORDER BY q.created_at DESC LIMIT 8`).bind(normalize(question),MATCH_VERSION,userId,userId,userId,userId).all<{page_id:string;parameters:string}>();
- if(!rows.results.length||new Set(rows.results.map(r=>r.page_id)).size!==1)return null;
+ if(!rows.results.length){
+  // A question that is exactly the title of one of the reader's own wiki pages
+  // opens that page instead of generating a duplicate article.
+  const titled=await database().prepare("SELECT id FROM pages WHERE owner_id=? AND kind='static' AND lower(trim(title))=? AND NOT EXISTS(SELECT 1 FROM questions q WHERE q.page_id=pages.id AND q.normalized=?) AND NOT EXISTS(SELECT 1 FROM root_routes r WHERE r.owner_id=pages.owner_id AND r.normalized=? AND json_extract(r.intent,'$.fresh')=1) AND NOT EXISTS(SELECT 1 FROM page_aliases a WHERE a.id=pages.id) AND NOT EXISTS(SELECT 1 FROM page_forks f WHERE f.page_id=pages.id AND f.parent_id IS NOT NULL) LIMIT 2").bind(userId,normalize(question),normalize(question),normalize(question)).all<{id:string}>();
+  if(titled.results.length!==1)return null;
+  const page=await getPage(titled.results[0].id,userId);
+  return page&&page.labels.templateId!=='disambiguation-v1'&&!storagePageMismatch(question,page)?page:null;
+ }
+ if(new Set(rows.results.map(r=>r.page_id)).size!==1)return null;
  const row=rows.results[0],page=await getPage(row.page_id,userId);
  if(!page||page.labels.routingFresh===true||storagePageMismatch(question,page))return null;
  if(page.kind==='static'&&needsReview(page,false))return null;
