@@ -12,7 +12,6 @@ import {startJob,finishJob} from '@/app/context-index/jobs';
 import {routeInputs,programNavigationInput} from '@/app/page-programs/inputs';
 import {answerStream} from '@/app/answer-stream';
 import {generateContext} from '@/app/page-programs/generate-context';
-import {matchQuestion} from './question-search';
 import {refreshMatchedPage} from './refresh-matched-page';
 import {resolveRootRoute} from '@/app/routing/root-table';
 import {spawnAgent,recordAction} from '@/app/agents/runtime';
@@ -96,9 +95,13 @@ async function routeAnswer(request:Request,actor:Awaited<ReturnType<typeof getAc
    if(page.dynamic?.template==='agent-chat-v1'){const session=await ensurePageSession(pageId,uid);await rememberSessionRoutes(pageId,uid,session.id);}
    page.forks=(await getPage(page.id,uid))?.forks;
   }
+  // Runs after generation, under the publish lock, only to catch a page that an
+  // equivalent parallel request saved meanwhile. The semantic match already ran
+  // before generation; repeating its model calls here would only slow every save.
   async function findMatch(signal?:AbortSignal){
    if(sourceDocument){const exact=await matchSourceUrl(question,uid);if(exact)return exact.id;}
-   const id=await matchQuestion(destination,vector,language,uid,rootRouter,signal);
+   signal?.throwIfAborted();
+   const id=(await exactSavedQuestion(destination,uid))?.id||null;
    if(!id)return null;
    const stored=await getPage(id,uid),page=stored?registeredContextIndexPage(stored):stored;if(page?.labels.templateId==='disambiguation-v1')await requireValidIndex(uid,page.id,destination);
    if(!page)return null;

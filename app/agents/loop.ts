@@ -6,12 +6,14 @@ export async function runToolLoop(options:{
  payload:Record<string,any>;request:(payload:Record<string,any>)=>Promise<any>;
  execute:(name:string,args:any)=>Promise<ToolResult>;event?:(event:LoopEvent)=>Promise<void>;
  validateFinal?:(response:any,trace:{webSearched:boolean})=>Promise<string|void>;
- signal?:AbortSignal;maxRounds?:number;maxCalls?:number;maxInputChars?:number;
+ signal?:AbortSignal;maxRounds?:number;maxCalls?:number;maxInputChars?:number;maxValidationRetries?:number;
 }){
  const {payload,request,execute,event}=options;
  const timeout=AbortSignal.timeout(600000),signal=options.signal?AbortSignal.any([options.signal,timeout]):timeout;
  const maxRounds=options.maxRounds??24,maxCalls=options.maxCalls??48,maxInputChars=options.maxInputChars??180000;
- let callsUsed=0,webSearched=false,limited=false,waiting=false;
+ // A final answer that keeps failing validation gets two corrections, not the whole round budget.
+ const maxValidationRetries=options.maxValidationRetries??2;
+ let callsUsed=0,webSearched=false,limited=false,waiting=false,validationFailures=0;
  const seen=new Map<string,{signature:string;result:ToolResult}>();
  payload.input=typeof payload.input==='string'?[{role:'user',content:payload.input}]:[...(payload.input||[])];
  await event?.({kind:'started',data:{maxRounds,maxCalls,maxInputChars}});
@@ -31,7 +33,7 @@ export async function runToolLoop(options:{
    if(response.status==='incomplete'||response.status==='failed')throw Error('AGENT_RESPONSE_INCOMPLETE');
    webSearched ||= !!response.output?.some((item:any)=>item.type==='web_search_call'&&item.status==='completed');
    const calls=(response.output||[]).filter((item:any)=>item.type==='function_call');
-   if(!calls.length&&options.validateFinal){const error=await options.validateFinal(response,{webSearched});if(error){await event?.({kind:'validation_failed',data:{error}});if(limited||round===maxRounds)throw Error('AGENT_INVALID_FINAL');payload.input.push(...(response.output||[]),{role:'user',content:'Draft validation failed: '+error+'. Correct the draft or use tools as needed. Return only a valid complete result.'});continue;}}
+   if(!calls.length&&options.validateFinal){const error=await options.validateFinal(response,{webSearched});if(error){validationFailures++;await event?.({kind:'validation_failed',data:{error}});if(limited||round===maxRounds||validationFailures>maxValidationRetries)throw Error('AGENT_INVALID_FINAL');payload.input.push(...(response.output||[]),{role:'user',content:'Draft validation failed: '+error+'. Correct the draft or use tools as needed. Return only a valid complete result.'});continue;}}
    if(!calls.length){await event?.({kind:'completed',data:{rounds:round+1,calls:callsUsed,status:waiting?'waiting_for_approval':limited?'limited':'completed'}});return {response,webSearched,limited,waiting};}
    if(round===maxRounds)throw Error('AGENT_TOOL_BUDGET');
    payload.input.push(...response.output);

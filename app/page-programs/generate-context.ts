@@ -19,16 +19,22 @@ export async function generateContext(brief:GenerationBrief,context:AgentContext
  let draft:GenerationDraft|undefined,searched=false,dataConsulted=false,lastPreview=0;
  const checkedDrafts=new Map<string,GenerationDraft>();
  emit?.({type:'status',message:context.language.startsWith('zh')?'生成器正在处理请求…':'The generator is working on your request…'});
- const preview=(text:string)=>{
+ // The page is streamed to the reader once: from the validate_page_draft call
+ // when the generator validates, otherwise from its final answer. A final answer
+ // that merely repeats an already validated draft must not redraw the page.
+ let streamedBody='',streamedTitle='',validatedPreview=false;
+ const preview=(text:string,source:'validate'|'final')=>{
    if(!emit||Date.now()-lastPreview<100)return;
+   if(source==='final'&&validatedPreview)return;
    const json=partialJsonString(text,'draftJson');if(!json||json.startsWith('draft:'))return;
+   if(source==='validate')validatedPreview=true;
    const title=partialJsonString(json,'title'),body=partialJsonString(json,'body');
-   if(title!==undefined){lastPreview=Date.now();emit({type:'metadata',title,summary:partialJsonString(json,'summary')||'',category:partialJsonString(json,'category')||'',labels:{overview:'',contents:'',sources:''}});}
-   if(body!==undefined){lastPreview=Date.now();emit({type:'replace',text:body});}
+   if(title!==undefined){lastPreview=Date.now();streamedTitle=title;emit({type:'metadata',title,summary:partialJsonString(json,'summary')||'',category:partialJsonString(json,'category')||'',labels:{overview:'',contents:'',sources:''}});}
+   if(body!==undefined){lastPreview=Date.now();streamedBody=body;emit({type:'replace',text:body});}
   };
  await askAgent(generator,generationInstructions,{question:brief.question,language:context.language,sourceDocument:context.sourceDocument,visibility:context.visibility,indexLeafRequired:context.indexLeafRequired,asOf:new Date().toISOString()},{type:'object',additionalProperties:false,properties:{draftJson:{type:'string'}},required:['draftJson']},signal,undefined,[],{
   context:ctx,extraTools:tools,
-  onOutputText:preview,onToolArguments:(name,text)=>{if(name==='validate_page_draft')preview(text);},
+  onOutputText:text=>preview(text,'final'),onToolArguments:(name,text)=>{if(name==='validate_page_draft')preview(text,'validate');},
   executeExtra:async(name,args)=>{
    if(name==='read_generation_contract')return {data:generationContract(args.kind)};
    if(name==='test_page_program')return {data:await runProgram(codeSchema.parse(JSON.parse(args.programJson)),JSON.parse(args.inputJson),ctx)};
@@ -44,7 +50,7 @@ export async function generateContext(brief:GenerationBrief,context:AgentContext
  if(!draft)throw Error('INCOMPLETE_ANSWER');
  const result=await materializeGenerationDraft(draft,ctx);
  emit?.({type:'metadata',title:result.answer.title,summary:result.answer.summary,category:result.answer.category,labels:{overview:draft.labels.overview,contents:draft.labels.contents||'',sources:draft.labels.sources||''}});
- if(result.answer.body)emit?.({type:'replace',text:result.answer.body});
+ if(result.answer.body&&(result.answer.body!==streamedBody||result.answer.title!==streamedTitle))emit?.({type:'replace',text:result.answer.body});
  await recordAction(generator,'Completed page draft',{kind:draft.kind,title:draft.title});
  return {...result,generatorId:generator.id,generationIntent:draft.intent};
 }
