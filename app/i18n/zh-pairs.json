@@ -548,5 +548,10 @@
   "Choose from my ADMA files…": "从我的 ADMA 文件中选择…",
   "Google Drive & all sources…": "Google Drive 及全部来源…",
   "Upload from computer": "从本机上传",
-  "Use selected file": "使用所选文件"
+  "Use selected file": "使用所选文件",
+  "Choose a file from any source…": "从任意来源选择文件…",
+  "Page files (copied to ADMA on select)": "页面文件（选择后复制到 ADMA）",
+  "Other sources": "其他来源",
+  "Browse Google Drive, Dropbox, OneDrive & more…": "浏览 Google Drive、Dropbox、OneDrive 等…",
+  "Upload from my computer…": "从本机上传…"
 }

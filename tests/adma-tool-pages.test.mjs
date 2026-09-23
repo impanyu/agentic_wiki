@@ -18,8 +18,8 @@ async function render(state,slug){
 }
 const account={id:'c1',name:'ADMA',allowed:['list_files','list_folders','run_si_tool','processing_status']};
 const files=[{id:'11111111-1111-4111-8111-111111111111',name:'sectors.shp',is_public:false},{id:'22222222-2222-4222-8222-222222222222',name:'plots.csv',is_public:false},{id:'33333333-3333-4333-8333-333333333333',name:'nir.tif',is_public:false}];
-// State order in ToolWorkbench: accounts, account, values, files, folders, custom, picker, busy, error, task, result.
-const seed=values=>[[account],'c1',values,files,[{id:'44444444-4444-4444-8444-444444444444',name:'outputs',is_public:false}],{},'',false,'','',null];
+// State order in ToolWorkbench: accounts, account, values, files, folders, pageFiles, custom, picker, busy, error, task, result.
+const seed=values=>[[account],'c1',values,files,[{id:'44444444-4444-4444-8444-444444444444',name:'outputs',is_public:false}],[{id:'55555555-5555-4555-8555-555555555555',name:'upload.csv'}],{},'',false,'','',null];
 test('each catalog tool renders its own dedicated page with banner, steps and file selectors',async()=>{
  for(const spec of catalog.processingCatalog){
   const html=await render(seed({}),spec.slug);
@@ -27,7 +27,7 @@ test('each catalog tool renders its own dedicated page with banner, steps and fi
   assert.ok(html.includes(spec.name));assert.ok(html.includes(meta.subtitle));assert.ok(html.includes(meta.runLabel));
   for(const [term] of meta.outputs)assert.ok(html.includes(term),spec.slug+' lists output '+term);
   assert.ok(html.includes('step-badge'),spec.slug+' shows numbered steps');
-  assert.ok(html.includes('Google Drive')&&html.includes('all sources…')&&html.includes('Upload from computer'),spec.slug+' offers cross-repository selection');
+  assert.ok(html.includes('Browse Google Drive, Dropbox, OneDrive')&&html.includes('Upload from my computer…')&&html.includes('Other sources'),spec.slug+' offers cross-repository selection in the file menu');
  }
 });
 test('the tool directory shows one card per tool instead of a shared form',async()=>{
@@ -40,7 +40,8 @@ test('file selectors list only matching private ADMA files and folders default t
  // Buffer sector select offers .shp files only; the CSV select offers the CSV.
  assert.ok(html.includes('sectors.shp'));assert.ok(html.includes('plots.csv'));
  assert.ok(html.includes('Auto-create output folder (default)'));
- assert.ok(html.includes('Choose from my ADMA files…'));
+ assert.ok(html.includes('Choose a file from any source…'));
+ assert.ok(html.includes('My ADMA files')&&html.includes('upload.csv'),'menu lists ADMA and page files');
 });
 test('SI workflows show and require only their own inputs',async()=>{
  const uav=await render(seed({workflow:'standard_uav'}),'si-tool');

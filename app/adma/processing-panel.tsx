@@ -1,6 +1,6 @@
 'use client';
 import {useEffect,useState,useRef,type CSSProperties} from 'react';
-import {ArrowLeft,ExternalLink,FolderSearch,HardDriveUpload} from 'lucide-react';
+import {ArrowLeft,ExternalLink} from 'lucide-react';
 import {processingCatalog,processingRunName,type ProcessingField} from './processing-catalog';
 import {toolInfo,siFieldState} from './tool-info';
 import {ResourcePicker} from '@/app/resources/picker';
@@ -23,7 +23,7 @@ function ToolsHub(){
  </section>;
 }
 function ToolWorkbench({pageId,writable,slug}:{pageId:string;writable:boolean;slug:string}){
- const {t,locale}=useUi(),[accounts,setAccounts]=useState<Account[]>([]),[account,setAccount]=useState(''),[values,setValues]=useState<Record<string,string>>({}),[files,setFiles]=useState<Item[]>([]),[folders,setFolders]=useState<Item[]>([]),[custom,setCustom]=useState<Record<string,boolean>>({}),[picker,setPicker]=useState(''),[busy,setBusy]=useState(false),[error,setError]=useState(''),[task,setTask]=useState(''),[result,setResult]=useState<any>(null);
+ const {t,locale}=useUi(),[accounts,setAccounts]=useState<Account[]>([]),[account,setAccount]=useState(''),[values,setValues]=useState<Record<string,string>>({}),[files,setFiles]=useState<Item[]>([]),[folders,setFolders]=useState<Item[]>([]),[pageFiles,setPageFiles]=useState<Item[]>([]),[custom,setCustom]=useState<Record<string,boolean>>({}),[picker,setPicker]=useState(''),[busy,setBusy]=useState(false),[error,setError]=useState(''),[task,setTask]=useState(''),[result,setResult]=useState<any>(null);
  const operation=useRef<{key:string;id:string}|null>(null),uploadInput=useRef<HTMLInputElement>(null),uploadField=useRef('');
  const spec=processingCatalog.find(s=>s.slug===slug)!,info=toolInfo[slug],connection=accounts.find(a=>a.id===account),can=(name:string)=>!!connection?.allowed.includes(name),endpoint='/api/pages/'+encodeURIComponent(pageId)+'/adma',historyKey='adma-processing:'+pageId+':'+account+':'+slug;
  const workflow=values.workflow||'standard_uav',state=(name:string)=>slug==='si-tool'?siFieldState(workflow,name):'default';
@@ -31,6 +31,7 @@ function ToolWorkbench({pageId,writable,slug}:{pageId:string;writable:boolean;sl
  async function call(tool:string,args:Record<string,unknown>,confirm=false){const r=await fetch(endpoint,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({connectorId:account,tool,args,confirm})}),d:any=await r.json();if(!r.ok)throw Error(d.error||'ADMA request failed.');if(d.result?.confirmationRequired)throw Error('Enable this tool in Connectors.');return d.result;}
  useEffect(()=>{let live=true;fetch(endpoint).then(r=>r.json()).then((d:any)=>{if(!live)return;if(d.error)throw Error(d.error);setAccounts(d.accounts||[]);setAccount(d.accounts?.[0]?.id||'');}).catch(e=>live&&setError(String(e)));return()=>{live=false;};},[endpoint]);
  useEffect(()=>{setValues(Object.fromEntries(spec.fields.filter(f=>f.value!==undefined).map(f=>[f.name,String(f.value)])));},[slug]);
+ useEffect(()=>{let live=true;fetch('/api/pages/'+encodeURIComponent(pageId)+'/files').then(r=>r.json()).then((d:any)=>{if(live)setPageFiles((d.files||[]).map((x:any)=>({id:x.id,name:x.name})));}).catch(()=>{});return()=>{live=false;};},[pageId]);
  useEffect(()=>{setFiles([]);setFolders([]);setResult(null);setTask('');if(!account)return;try{setTask(localStorage.getItem(historyKey)||'');}catch{}let live=true;Promise.all([can('list_files')?call('list_files',{}):{files:[]},can('list_folders')?call('list_folders',{}):{folders:[]}]).then(([a,b])=>{if(live){setFiles((a.files||[]).filter((f:Item)=>f.is_public===false));setFolders((b.folders||[]).filter((f:Item)=>f.is_public===false));}}).catch(e=>live&&setError(String(e)));return()=>{live=false;};},[account]);
  async function run(){setBusy(true);setError('');setResult(null);try{const args=Object.fromEntries(activeFields.filter(f=>values[f.name]?.trim()).map(f=>[f.name,f.type==='number'?Number(values[f.name]):values[f.name].trim()]));const key=JSON.stringify([account,slug,args]);if(operation.current?.key!==key)operation.current={key,id:crypto.randomUUID()};const r=await call(processingRunName(slug),{...args,operation_id:operation.current.id},true);setTask(r.task_id);setResult(r);try{localStorage.setItem(historyKey,r.task_id);}catch{}}catch(e){setError(String(e));}finally{setBusy(false);}}
  async function check(){setBusy(true);setError('');try{setResult(await call('processing_status',{task_id:task}));}catch(e){setError(String(e));}finally{setBusy(false);}}
@@ -60,15 +61,26 @@ function ToolWorkbench({pageId,writable,slug}:{pageId:string;writable:boolean;sl
    const manual=custom[f.name]||(!!values[f.name]&&!chosen);
    return <label key={f.name}>{t(f.label)}{required?' *':''}
     {manual?<><input list={f.type==='file'?(info?.accept[f.name]?'processing-files-'+f.name:'processing-files'):'processing-folders'} required={required} type="text" value={values[f.name]||''} onChange={e=>setValues({...values,[f.name]:e.target.value})}/><small>{t('Paste an ADMA resource ID, or')} <button type="button" className="field-link" onClick={()=>{setCustom({...custom,[f.name]:false});setValues({...values,[f.name]:''});}}>{t('choose from your files')}</button></small></>
-    :<><select required={required} value={chosen?values[f.name]:''} onChange={e=>{if(e.target.value==='__custom'){setCustom({...custom,[f.name]:true});setValues({...values,[f.name]:''});}else setValues({...values,[f.name]:e.target.value});}}>
-     <option value="">{f.type==='folder'?t('Auto-create output folder (default)'):t('Choose from my ADMA files…')}</option>
-     {matches.map(x=><option key={x.id} value={x.id}>{x.name}</option>)}
-     <option value="__custom">{t('Enter an ID manually…')}</option>
+    :<><select required={required} value={chosen?values[f.name]:''} onChange={e=>{const value=e.target.value;
+      if(value==='__custom'){setCustom({...custom,[f.name]:true});setValues({...values,[f.name]:''});}
+      else if(value==='__browse')setPicker(f.name);
+      else if(value==='__upload'){uploadField.current=f.name;uploadInput.current?.click();}
+      else if(value.startsWith('page:')){const attachment=pageFiles.find(x=>'page:'+x.id===value);if(attachment)void guard(()=>adopt(f.name,{space:'page',id:attachment.id,kind:'file',name:attachment.name}));}
+      else setValues({...values,[f.name]:value});}}>
+     <option value="">{f.type==='folder'?t('Auto-create output folder (default)'):t('Choose a file from any source…')}</option>
+     {f.type==='folder'?folders.map(x=><option key={x.id} value={x.id}>{x.name}</option>):<>
+      <optgroup label={t('My ADMA files')}>{matches.map(x=><option key={x.id} value={x.id}>{x.name}</option>)}</optgroup>
+      {pageFiles.length>0&&<optgroup label={t('Page files (copied to ADMA on select)')}>{pageFiles.map(x=><option key={x.id} value={'page:'+x.id}>{x.name}</option>)}</optgroup>}
+      <optgroup label={t('Other sources')}>
+       <option value="__browse">{t('Browse Google Drive, Dropbox, OneDrive & more…')}</option>
+       <option value="__upload">{t('Upload from my computer…')}</option>
+       <option value="__custom">{t('Enter an ID manually…')}</option>
+      </optgroup>
+     </>}
     </select>
     {f.type==='file'&&!matches.length&&<small>{t('No matching private files found in your ADMA account.')}</small>}
     {chosen&&<small className="field-selected">✓ {t('Selected:')} {chosen.name}</small>}
     {help&&<small>{t(help)}</small>}</>}
-    {f.type==='file'&&<span className="field-sources"><button type="button" disabled={busy} onClick={()=>setPicker(f.name)}><FolderSearch size={14}/>{t('Google Drive & all sources…')}</button><button type="button" disabled={busy} onClick={()=>{uploadField.current=f.name;uploadInput.current?.click();}}><HardDriveUpload size={14}/>{t('Upload from computer')}</button></span>}
    </label>;
   }
   return <label key={f.name}>{t(f.label)}{required?' *':''}{f.type==='select'?<select required={required} value={values[f.name]||''} onChange={e=>setValues({...values,[f.name]:e.target.value})}>{f.options?.map(x=><option key={x}>{x}</option>)}</select>:<><input required={required} type={f.type==='number'?'number':'text'} step="any" value={values[f.name]||''} onChange={e=>setValues({...values,[f.name]:e.target.value})}/>{help&&<small>{t(help)}</small>}</>}</label>;}

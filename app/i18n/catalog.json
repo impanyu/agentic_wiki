@@ -812,5 +812,10 @@
   "Choose from my ADMA files…": "Choose from my ADMA files…",
   "Google Drive & all sources…": "Google Drive & all sources…",
   "Upload from computer": "Upload from computer",
-  "Use selected file": "Use selected file"
+  "Use selected file": "Use selected file",
+  "Choose a file from any source…": "Choose a file from any source…",
+  "Page files (copied to ADMA on select)": "Page files (copied to ADMA on select)",
+  "Other sources": "Other sources",
+  "Browse Google Drive, Dropbox, OneDrive & more…": "Browse Google Drive, Dropbox, OneDrive & more…",
+  "Upload from my computer…": "Upload from my computer…"
 }
