@@ -561,5 +561,12 @@
   "Connection interrupted. Waiting for the page to finish generating…": "连接已中断，正在等待页面生成完成…",
   "Print report": "打印报告",
   "Report": "报告",
-  "Print this page as a PDF report": "将本页打印为 PDF 报告"
+  "Print this page as a PDF report": "将本页打印为 PDF 报告",
+  "Home": "主页",
+  "Recently visited": "最近访问",
+  "Recently published": "最近发布",
+  "No public pages yet.": "还没有公开页面。",
+  "Type above and press Enter, or reopen a page below.": "在上方输入问题并回车，或从下方重新打开页面。",
+  "Web app": "Web 应用",
+  "Wiki page": "Wiki 页面"
 }

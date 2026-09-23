@@ -335,3 +335,14 @@ a{color:inherit;text-decoration:none}button,a,input{touch-action:manipulation}bu
  html[data-print=report] .sources a[href^=http]::after{content:""}
  @page{margin:16mm 14mm}
 }
+
+/* Home page */
+.browser-brand{text-decoration:none}.browser-brand:hover{color:#2b3a55}
+.home-page{max-width:1080px;margin:0 auto;padding-top:clamp(40px,8vh,90px)}.home-intro{text-align:center;margin-bottom:44px}.home-intro p{font-size:22px;font-weight:500;letter-spacing:-.5px;color:#65728a;margin:0 0 10px}.home-intro span{color:#8a94a5;font-size:14px}
+.home-section{margin-bottom:40px}.home-section h2{display:flex;align-items:center;gap:8px;font-size:14px;font-weight:600;letter-spacing:.2px;text-transform:uppercase;color:#6b778c;margin:0 0 14px}.home-empty{display:flex;align-items:center;gap:8px;color:#8a94a5;font-size:14px;margin:0}
+.home-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:16px}
+.home-card{display:flex;flex-direction:column;align-items:stretch;text-align:left;padding:0;border:1px solid #dfe4ec;border-radius:12px;background:#fff;overflow:hidden;cursor:pointer;color:inherit;font:inherit;transition:box-shadow .15s,transform .15s}.home-card:hover{box-shadow:0 6px 18px rgba(40,56,90,.12);transform:translateY(-1px)}.home-card:focus-visible{outline:2px solid #245de8;outline-offset:2px}
+.home-thumb{display:flex;align-items:center;justify-content:center;height:110px;background:#eef2f7 center/cover no-repeat;color:#7b8aa6}.home-thumb-blank{background:linear-gradient(135deg,#eef2f7,#e3e9f3)}
+.home-card-body{display:grid;gap:6px;padding:12px 14px 14px;min-width:0}.home-card-body strong{font-size:15px;line-height:1.3;color:#22304a;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}.home-card-body small{font-size:12.5px;line-height:1.45;color:#66738a;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+.home-card-meta{display:flex;flex-wrap:wrap;gap:8px;font-size:11.5px;color:#8a94a5;margin-top:2px}.home-card-meta em{font-style:normal;color:#395e9d;background:#eaf0fb;border-radius:4px;padding:1px 6px}
+@media(max-width:650px){.home-page{padding-top:24px}.home-grid{grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:12px}.home-thumb{height:84px}}

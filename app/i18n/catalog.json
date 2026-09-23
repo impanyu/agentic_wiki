@@ -825,5 +825,12 @@
   "Connection interrupted. Waiting for the page to finish generating…": "Connection interrupted. Waiting for the page to finish generating…",
   "Print report": "Print report",
   "Report": "Report",
-  "Print this page as a PDF report": "Print this page as a PDF report"
+  "Print this page as a PDF report": "Print this page as a PDF report",
+  "Home": "Home",
+  "Recently visited": "Recently visited",
+  "Recently published": "Recently published",
+  "No public pages yet.": "No public pages yet.",
+  "Type above and press Enter, or reopen a page below.": "Type above and press Enter, or reopen a page below.",
+  "Web app": "Web app",
+  "Wiki page": "Wiki page"
 }

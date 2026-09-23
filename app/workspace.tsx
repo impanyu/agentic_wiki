@@ -31,6 +31,7 @@ import {UnitConverter} from './dynamic/unit-converter';
 import {pageAddress,inputQuery,type ConversionInput} from './dynamic/units';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { HomePage } from './home';
 import { ArrowLeft, ArrowRight, Highlighter, Check, Globe2, Layers, LoaderCircle, LockKeyhole, GitFork, Trash2, Printer } from 'lucide-react';
 import {ContextIndex} from './context-index/view';
 import {ContextFiles} from './context-files/panel';
@@ -380,7 +381,7 @@ export default function Workspace({ user, signIn, signOut }: {
   const articleView=visiblePage?<AnswerText concepts={!draft?concepts:[]} sources={visiblePage.sources} labels={visiblePage.labels} title={visiblePage.title} summary={visiblePage.summary} body={visiblePage.labels.templateId==='disambiguation-v1'&&!visiblePage.labels.richContent?'':visiblePage.body} highlights={highlights[visiblePage.id]||[]} links={visiblePage.links||[]} onOpen={link=>void openInternal(link)} onJump={highlight=>{window.getSelection()?.removeAllRanges();void navigate(highlight.quote,{pageId:visiblePage.id,highlight})}}>{visiblePage.labels.templateId==='disambiguation-v1'&&!visiblePage.labels.richContent&&visiblePage.labels.indexEntries&&<DisambiguationIndex entries={visiblePage.labels.indexEntries} onOpen={text=>void navigate(text,{pageId:visiblePage.id,kind:'index'})} disabled={busy}/>} {visiblePage.contextIndex&&<ContextIndex page={visiblePage} onResult={setSelected} onOpen={(id,title)=>void openInternal({id,targetId:id,targetTitle:title,quote:title,segments:[],parameters:{}})}/>} {(visiblePage.view||visiblePage.runtimePending||visiblePage.dynamic?.template==='page-program-v1')&&<ProgramView page={visiblePage} onResult={setSelected}/>} {visiblePage.dynamic?.chart&&visiblePage.dynamic.dataset&&<Dashboard tableFirst={visiblePage.labels.templateId==='table-v1'} key={'chart:'+visiblePage.id} chart={visiblePage.dynamic.chart} dataset={visiblePage.dynamic.dataset}/>}{visiblePage.dynamic?.sandbox&&<SandboxView key={'sandbox:'+visiblePage.id} title={visiblePage.title} app={visiblePage.dynamic.sandbox}/>}</AnswerText>:null;
   return <UiContext.Provider value={ui}><div className="browser-shell" lang={locale}>
     <header className="browser-toolbar">
-      <span className="browser-brand" aria-label="AgenticWiKi"><Layers size={22} aria-hidden="true"/><span>AgenticWiKi</span></span>
+      <a className="browser-brand" href="/" title={t("Home")} aria-label="AgenticWiKi"><Layers size={22} aria-hidden="true"/><span>AgenticWiKi</span></a>
       <div className="history-controls">
         <button type="button" aria-label={t("Back")} title={t("Back")} disabled={(historyPosition===0&&!busy&&!draft)||saving} onClick={()=>{if(busy||draft)void restore();else history.back();}}><ArrowLeft size={19}/></button>
         <button type="button" aria-label={t("Forward")} title={t("Forward")} disabled={historyPosition>=historyLength-1||saving} onClick={()=>history.forward()}><ArrowRight size={19}/></button>
@@ -445,7 +446,7 @@ export default function Workspace({ user, signIn, signOut }: {
 
         <div className="saved-note">{draft ? t(busy?'Draft · Not saved yet':'Incomplete draft · Not saved') : t('Saved {date} · {count} questions linked',{date:new Date(visiblePage.createdAt).toLocaleDateString(locale),count:visiblePage.questionCount})}</div>
         </div>
-      </article></MapPreference.Provider> : !busy && <div className="blank-page"><p>{t("A question is an address.")}</p><span>{t("Type above and press Enter.")}</span></div>}
+      </article></MapPreference.Provider> : !busy && <HomePage onOpen={card=>void openInternal({id:'home:'+card.id,targetId:card.id,targetTitle:card.title,quote:card.title,segments:[]})}/>}
     </main>
   </div></UiContext.Provider>;
 }
