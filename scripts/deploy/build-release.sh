@@ -6,7 +6,7 @@ set -eu
 cd "$(dirname "$0")/../.."
 NODE=${NODE:-$(command -v node || echo /Users/yp/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin/node)}
 sha=$(git rev-parse --short HEAD)
-if [ -n "$(git status --porcelain)" ]; then echo "Commit and push your changes first: the VM checks out $sha." >&2; exit 1; fi
+if [ -n "$(git status --porcelain --untracked-files=no)" ]; then echo "Commit and push your changes first: the VM checks out $sha." >&2; exit 1; fi
 "$NODE" node_modules/next/dist/bin/next build --webpack
 "$NODE" scripts/prepare-standalone.mjs
 asset="${TMPDIR:-/tmp}/agenticwiki-$sha.tgz"
