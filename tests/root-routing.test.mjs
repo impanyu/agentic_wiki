@@ -15,5 +15,5 @@ test('one root routes matched wiki/apps, hands misses to the generator, and bypa
  assert.ok(calls.every(a=>a[4]===root&&a.length===6),'same root and no domain filter');delete globalThis.rootTest;
 });
 test('navigation spawns no branch router and sends the root to parameter extraction and generation',()=>{
- const s=readFileSync('app/api/ask/route.ts','utf8');assert.match(s,/spawnAgent\('root-routing'/);assert.doesNotMatch(s,/spawnAgent\(domain|rememberRootRoute|importWikiRoutes/);assert.match(s,/parameterRouter=rootRouter/);assert.match(s,/context,rootRouter,emit,signal/);
+ const s=readFileSync('app/api/ask/route.ts','utf8');assert.match(s,/spawnAgent\('root-routing'/);assert.doesNotMatch(s,/spawnAgent\(domain|rememberRootRoute|importWikiRoutes/);assert.match(s,/parameterRouter=rootRouter/);assert.match(s,/context,plannedPageId:id,pendingFiles\},rootRouter,emit,signal/);
 });

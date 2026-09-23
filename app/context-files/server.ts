@@ -11,8 +11,8 @@ export async function contextFiles(pageId:string,userId:string){
  return rows.results.map(r=>({row:r,data:JSON.parse(r.payload)}));
 }
 export async function listContextFiles(pageId:string,userId:string):Promise<ContextFile[]>{const page=await getPage(pageId,userId);return (await contextFiles(pageId,userId)).map(({row,data})=>({id:row.id,name:row.display_name||data.fileName,folderPath:row.folder_path||'',mimeType:data.mimeType||'application/octet-stream',size:data.size,createdAt:row.created_at,url:'/api/pages/'+encodeURIComponent(pageId)+'/files/'+encodeURIComponent(row.id),owned:row.owner_id===userId,removable:row.scope!==''?row.owner_id===userId:canWritePage(page)}));}
-export async function attachContextFile(pageId:string,componentId:string,userId:string,path=''){
- const folder=folderPath(path),id=crypto.randomUUID();
+export async function attachContextFile(pageId:string,componentId:string,userId:string,path='',fileId?:string){
+ const folder=folderPath(path),id=fileId||crypto.randomUUID();
  const page=await getPage(pageId,userId);if(!page)throw Error('Page is unavailable.');
  // Read-only chat attachments stay personal; shared wiki attachments require write access.
  await database().prepare("INSERT INTO page_files(id,page_id,component_id,owner_id,scope,created_at,folder_path) SELECT ?,p.id,c.id,?,CASE WHEN (p.owner_id=? OR (p.visibility='public' AND p.public_write=1)) THEN '' ELSE ? END,?,? FROM pages p,components c WHERE p.id=? AND (p.visibility='public' OR p.owner_id=?) AND c.id=? AND c.owner_id=? AND c.type='data'").bind(id,userId,userId,userId,new Date().toISOString(),folder,pageId,userId,componentId,userId).run();

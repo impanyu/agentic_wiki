@@ -4,6 +4,7 @@ import {deferPageExecution} from '@/app/page-programs/deferred';
 import {requireValidIndex,indexGenerationPolicy} from '@/app/disambiguation/graph';
 import {storagePageMismatch} from '@/app/storage/page-scope';
 import {inheritGenerationSession} from '@/app/agents/session';
+import {attachContextFile} from '@/app/context-files/server';
 import {prepareNavigationInput} from '@/app/url-content';
 import {matchSourceUrl} from '@/app/url-content/matching';
 import {generationProgress} from '@/app/generation-progress';
@@ -126,8 +127,10 @@ async function routeAnswer(request:Request,actor:Awaited<ReturnType<typeof getAc
   async function generate(emit?:(event:ResearchUpdate)=>void,signal?:AbortSignal){
    signal=signal?AbortSignal.any([signal,deadline]):deadline;
    signal.throwIfAborted();
-   const generated=await generateContext({question:destination},context,rootRouter,emit,signal);
-   const {answer,definition}=generated,dependencies=definition?.components||[],id=fork?.requestId||crypto.randomUUID(),now=new Date().toISOString();
+   // Images the generator draws are stored against the page ID it will receive and attached after saving.
+   const id=fork?.requestId||crypto.randomUUID(),pendingFiles:NonNullable<AgentContext['pendingFiles']>=[];
+   const generated=await generateContext({question:destination},{...context,plannedPageId:id,pendingFiles},rootRouter,emit,signal);
+   const {answer,definition}=generated,dependencies=definition?.components||[],now=new Date().toISOString();
    const finalIntent=generated.generationIntent;
    const staticPage=!definition||['static-frontend-v1','chart-view-v1'].includes(definition.config.executor);
    const generationDomain=staticPage?'wiki':finalIntent.outputKind==='conversation'?'session':'app';
@@ -160,6 +163,7 @@ async function routeAnswer(request:Request,actor:Awaited<ReturnType<typeof getAc
    ...(fork?[]:entries).map(([key,text])=>database().prepare('INSERT INTO questions(id,page_id,normalized,question,embedding,created_at,match_version,capability,parameters,routing_scope) VALUES(?,?,?,?,?,?,?,?,?,?)').bind(crypto.randomUUID(),id,key,text,JSON.stringify(vector),now,MATCH_VERSION,(definition&&'capability'in definition.config?definition.config.capability:null)||(definition?'application':generated.templateId==='disambiguation-v1'?'disambiguation':'article'),JSON.stringify(definition?.parameters||{}),generationDomain))
   ]);
   await inheritGenerationSession(generated.generatorId,id,uid,staticPage);
+  for(const file of pendingFiles)await attachContextFile(id,file.componentId,uid,file.folder,file.fileId);
   if(dependencies.length)await attachComponents(id,dependencies,context);
   const page=await resolvePage(id);if(!page)throw new Error('Could not load the saved page.');
   if(definition&&page.parameters)await database().prepare('UPDATE questions SET parameters=? WHERE page_id=?').bind(JSON.stringify(page.parameters),page.id).run();
