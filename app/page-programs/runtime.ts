@@ -22,7 +22,7 @@ async function executePageProgram(page:AnswerPage,input:unknown,userId:string){
   const c=step.call;if(Object.hasOwn(results,c.id))throw Error('PAGE_PROGRAM_REPEATED_STEP');let result:unknown;
   try{
    if(c.tool==='connectors.list')result=await enabledConnectors(userId);
-   else if(c.tool==='connectors.call'){if(/^run_(seeding_tool|shape_to_json|si_tool|yield_summary|valid_yield_extractor)$/.test(String(c.args.tool))&&(!input||typeof input!=='object'||!('submitted' in input&&input.submitted===true)&&!('message' in input&&input.message)))throw Error('Starting ADMA processing requires an explicit submitted task, not navigation or refresh.');result=await callConnector(userId,String(c.args.connectorId),String(c.args.tool),c.args.arguments,page.id);}
+   else if(c.tool==='connectors.call'){if(/^run_(seeding_tool|shape_to_json|si_tool|yield_summary|valid_yield_extractor)$/.test(String(c.args.tool))&&(!input||typeof input!=='object'||!('submitted' in input&&input.submitted===true)&&!('message' in input&&input.message)))throw Error('Starting ADMA processing requires an explicit submitted task, not navigation or refresh.');result=String(c.args.tool)==='read_text_file'?await readWholeText(userId,String(c.args.connectorId),c.args.arguments,page.id):await callConnector(userId,String(c.args.connectorId),String(c.args.tool),c.args.arguments,page.id);}
    else if(c.tool==='contexts.search')result=await queryContexts(userId,c.args);
    else if(c.tool==='jobs.list')result=await listRunningJobs(userId);
    else if(c.tool==='storage.connections')result=await storageStatus(userId);
@@ -39,4 +39,18 @@ async function executePageProgram(page:AnswerPage,input:unknown,userId:string){
   results[c.id]=result;if(JSON.stringify(results).length>48000)throw Error('PAGE_PROGRAM_DATA_LIMIT');
  }
  throw Error('PAGE_PROGRAM_STEP_LIMIT');
+}
+
+// Programs parse whole files (JSON, CSV), so a read from the start returns the
+// complete text, paging through the connector's bounded chunks (up to 2 MB).
+async function readWholeText(userId:string,connectorId:string,rawArgs:unknown,pageId:string){
+ const args={...(rawArgs&&typeof rawArgs==='object'?rawArgs as Record<string,unknown>:{})};
+ const first=await callConnector(userId,connectorId,'read_text_file',args,pageId) as Record<string,any>;
+ if(Number(args.offset||0)>0||!first||typeof first!=='object')return first;
+ let content=String(first.content??first.result?.content??''),next=first.nextOffset??first.next_offset;
+ for(let pages=0;next!==null&&next!==undefined&&content.length<2_000_000&&pages<200;pages++){
+  const part=await callConnector(userId,connectorId,'read_text_file',{...args,offset:next},pageId) as Record<string,any>;
+  const text=String(part?.content??part?.result?.content??'');if(!text)break;content+=text;next=part.nextOffset??part.next_offset;
+ }
+ return {...first,content,offset:0,nextOffset:next??null,complete:next===null||next===undefined};
 }
