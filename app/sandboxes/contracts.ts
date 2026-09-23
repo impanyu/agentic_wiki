@@ -11,7 +11,7 @@ export const desktopActionSchema=z.discriminatedUnion('type',[
 ]);
 export type DesktopAction=z.infer<typeof desktopActionSchema>;
 export function executionFiles(program:CodeProgram,input:unknown,root='/home/user'){
- const serialized=JSON.stringify(input);if(serialized.length>64000)throw new Error('SANDBOX_INPUT_TOO_LARGE');
+ const serialized=JSON.stringify(input);if(serialized.length>4_000_000)throw new Error('SANDBOX_INPUT_TOO_LARGE');
  const files=[{path:root+'/input.json',data:serialized}];
  if(program.language==='javascript')files.push({path:root+'/program.mjs',data:program.code},{path:root+'/run.mjs',data:`import {readFileSync,writeFileSync} from 'node:fs';\nimport {main} from './program.mjs';\nconst result=await main(JSON.parse(readFileSync('${root}/input.json','utf8')));\nwriteFileSync('${root}/result.json',JSON.stringify(result));`});
  else files.push({path:root+'/program.py',data:program.code},{path:root+'/run.py',data:`import json, asyncio, inspect\nfrom program import main\nwith open('${root}/input.json') as f: result=main(json.load(f))\nif inspect.isawaitable(result): result=asyncio.run(result)\nwith open('${root}/result.json','w') as f: json.dump(result,f,allow_nan=False)`});

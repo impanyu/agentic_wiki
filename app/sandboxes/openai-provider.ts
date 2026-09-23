@@ -52,7 +52,7 @@ export async function runOpenAIProgram(program:CodeProgram,input:unknown,uploads
   }
   // Artifacts are listed a little after the turn completes; poll briefly before giving up.
   let artifact:{id:string;size_bytes:number}|undefined;
-  for(let attempt=0;!artifact&&attempt<20;attempt++){
+  for(let attempt=0;!artifact&&attempt<45;attempt++){
    if(attempt)await pause(1000);
    let after='';
    do{
