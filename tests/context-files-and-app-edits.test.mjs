@@ -47,5 +47,8 @@ test('registered apps accept real renderer settings and reject instruction-only 
  await assert.rejects(m.stageAppRevision({...page,owned:false},{kind:'code',code},{id:'other',ownerId:'bob'}),/PAGE_READ_ONLY/);
  await assert.rejects(m.stageAppRevision(page,{kind:'code',code:{...code,placement:'bogus'}},{id:'map-session',ownerId:'alice'}));
  await assert.rejects(m.stageAppRevision(page,{kind:'code',code:{...code,frontend:{...code.frontend,javascript:'function {'}}},{id:'map-session',ownerId:'alice'}),/syntax error/);
+ const removal=await m.stageAppRevision({...page,dynamic:{...page.dynamic,pageCode:code,customized:true}},{kind:'code',code:null},{id:'map-session',ownerId:'alice'},'Remove the custom panel');
+ assert.equal(removal.editDraft.pageCode,undefined);assert.equal('pageCode' in JSON.parse(objects.get('app-edit-drafts/map-session.json')).config,false);
+ await assert.rejects(m.stageAppRevision(page,{kind:'code',code:null},{id:'map-session',ownerId:'alice'}),/no saved custom code panel/);
  assert.deepEqual(m.appEditCapabilities(page).configurable.mapBasemap,['osm','streets-vector','satellite','hybrid','topo-vector','terrain','gray-vector','dark-gray-vector']);delete globalThis.nativeEdit;
 });

@@ -28,7 +28,7 @@ export async function stageAppRevision(page:AnswerPage,raw:unknown,agent:Agent,r
  const change=z.discriminatedUnion('kind',[
   z.object({kind:z.literal('appearance'),visualTheme:z.enum(visualThemes),visualDesign:customStyleSchema.nullable().optional(),description:z.string().max(10000)}).strict(),
   z.object({kind:z.literal('session'),instructions:z.string().min(1).max(10000)}).strict(),
-  z.object({kind:z.literal('code'),code:pageCodeSchema}).strict(),
+  z.object({kind:z.literal('code'),code:pageCodeSchema.nullable()}).strict(),
   z.object({kind:z.literal('configuration'),mapBasemap:z.enum(basemaps)}).strict(),
   z.object({kind:z.literal('replacement'),draft:z.unknown()}).strict()
  ]).parse(raw);
@@ -38,7 +38,13 @@ export async function stageAppRevision(page:AnswerPage,raw:unknown,agent:Agent,r
   if(renderedUiRequest(request))throw Error('Agent instructions cannot change rendered controls or layout. Use a supported configuration edit or a concrete application revision.');
   config={...config,sessionInstructions:change.instructions};body=change.instructions;
  }
- else if(change.kind==='code'){try{new Script(change.code.frontend.javascript);}catch(e){throw Error('Frontend JavaScript syntax error: '+(e instanceof Error?e.message:'Invalid JavaScript'));}config={...config,pageCode:change.code,customized:true};body='Frontend code ('+change.code.placement+')';}
+ else if(change.kind==='code'){
+  if(!change.code){
+   if(!config.pageCode)throw Error('This page has no saved custom code panel to remove.');
+   const {pageCode:_removed,...rest}=config;config=rest as typeof config;body='Remove the custom frontend code panel and restore the native workspace';
+  }
+  else{try{new Script(change.code.frontend.javascript);}catch(e){throw Error('Frontend JavaScript syntax error: '+(e instanceof Error?e.message:'Invalid JavaScript'));}config={...config,pageCode:change.code,customized:true};body='Frontend code ('+change.code.placement+')';}
+ }
  else if(change.kind==='configuration'){
   config={...config,ui:{...config.ui,mapBasemap:change.mapBasemap}};body='Map basemap: '+change.mapBasemap;
  }
