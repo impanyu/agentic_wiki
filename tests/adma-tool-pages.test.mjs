@@ -12,9 +12,9 @@ Object.assign(globalThis.toolPageDeps,info);
 const holder={state:[]};
 globalThis.toolPageDeps.useState=initial=>{const value=holder.state.shift();return [value===undefined?initial:value,()=>{}];};
 const panel=await load('const {React,useEffect,useState,useRef,ArrowLeft,ExternalLink,FolderSearch,HardDriveUpload,processingCatalog,processingRunName,toolInfo,siFieldState,ResourcePicker,useUi,toolHref}=globalThis.toolPageDeps;\n'+strip('app/adma/processing-panel.tsx'));
-async function render(state,slug){
+async function render(state,slug,writable=true){
  holder.state=[...state];
- return renderToStaticMarkup(React.createElement(panel.ProcessingPanel,{pageId:'page',writable:true,initialTool:slug}));
+ return renderToStaticMarkup(React.createElement(panel.ProcessingPanel,{pageId:'page',writable,initialTool:slug}));
 }
 const account={id:'c1',name:'ADMA',allowed:['list_files','list_folders','run_si_tool','processing_status']};
 const files=[{id:'11111111-1111-4111-8111-111111111111',name:'sectors.shp',is_public:false},{id:'22222222-2222-4222-8222-222222222222',name:'plots.csv',is_public:false},{id:'33333333-3333-4333-8333-333333333333',name:'nir.tif',is_public:false}];
@@ -42,6 +42,12 @@ test('file selectors list only matching private ADMA files and folders default t
  assert.ok(html.includes('Auto-create output folder (default)'));
  assert.ok(html.includes('Choose a file from any source…'));
  assert.ok(html.includes('My ADMA files')&&html.includes('upload.csv'),'menu lists ADMA and page files');
+});
+test('read-only catalog pages keep the file menus usable and disable only Run',async()=>{
+ const html=await render(seed({}),'yield-summary',false);
+ assert.ok(!html.includes('<fieldset disabled'),'form stays enabled on shared pages');
+ assert.ok(/class="tool-run" disabled/.test(html),'Run requires a private fork');
+ assert.ok(html.includes('Choose a file from any source…')&&html.includes('Other sources'));
 });
 test('SI workflows show and require only their own inputs',async()=>{
  const uav=await render(seed({workflow:'standard_uav'}),'si-tool');

@@ -553,5 +553,6 @@
   "Page files (copied to ADMA on select)": "页面文件（选择后复制到 ADMA）",
   "Other sources": "其他来源",
   "Browse Google Drive, Dropbox, OneDrive & more…": "浏览 Google Drive、Dropbox、OneDrive 等…",
-  "Upload from my computer…": "从本机上传…"
+  "Upload from my computer…": "从本机上传…",
+  "Fork this page first: transferring files from other sources needs your private copy.": "请先 Fork 此页面：从其他来源传输文件需要你的私有副本。"
 }
