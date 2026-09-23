@@ -23,10 +23,11 @@ test('deferred reads return the saved app without executing its backend',async()
 });
 test('a streamed tool draft is previewed and finalized by reference without a second body',async()=>{
  let finalized=false;const events=[],draft={kind:'article',title:'Topic',summary:'Summary',body:'Visible before finalization',labels:{overview:'Overview'},intent:{}};
- globalThis.draftSpeed={partialJsonString,indexGenerationPolicy:async()=>({leafRequired:false,validate:()=>{}}),spawnAgent:async()=>({id:'g'}),generationInstructions:'',output:r=>r.text,recordAction:async()=>{},validateGenerationDraft:d=>{if(!d)throw Error('Missing');return d;},materializeGenerationDraft:async d=>{assert.ok(finalized);return {answer:d,templateId:'wiki-v1'};},askAgent:async(a,i,t,s,signal,onReply,files,options)=>{
+ globalThis.draftSpeed={imageLinePattern:/^!\[([^\]]*)\]\(((?:https:\/\/|\/api\/)[^\s)]+)\)$/,partialJsonString,indexGenerationPolicy:async()=>({leafRequired:false,validate:()=>{}}),spawnAgent:async()=>({id:'g'}),generationInstructions:'',output:r=>r.text,recordAction:async()=>{},validateGenerationDraft:d=>{if(!d)throw Error('Missing');return d;},materializeGenerationDraft:async d=>{assert.ok(finalized);return {answer:d,templateId:'wiki-v1'};},askAgent:async(a,i,t,s,signal,onReply,files,options)=>{
   options.onToolArguments('validate_page_draft',JSON.stringify({draftJson:JSON.stringify(draft)}));
   assert.ok(events.some(e=>e.type==='replace'&&e.text===draft.body));
   assert.match(await options.validateFinal({text:'{"draftJson":"draft:foreign"}'},{webSearched:true}),/Unknown draft/);
+  options.onEvent({kind:'tool_finished',data:{tool:'find_images',result:[]}});
   const validation=await options.executeExtra('validate_page_draft',{draftJson:JSON.stringify(draft)});
   assert.ok(validation.data.draftRef.startsWith('draft:'));
   assert.equal(await options.validateFinal({text:JSON.stringify({draftJson:validation.data.draftRef})},{webSearched:true}),undefined);finalized=true;
