@@ -1,4 +1,5 @@
 import {Script} from 'node:vm';
+import {unreachableImages} from '@/app/chat/image-check';
 import {pageCodeSchema,pageCodeContract} from './page-code';
 import {codeSchema} from '@/app/sandboxes/contracts';
 import {inputFieldsSchema} from './inputs';
@@ -53,7 +54,7 @@ export async function stageAppRevision(page:AnswerPage,raw:unknown,agent:Agent,r
  }
  else if(change.kind==='content'){
   if(change.title===undefined&&change.summary===undefined&&change.body===undefined)throw Error('A content edit needs a title, summary or body.');
-  title=change.title??title;summary=change.summary??summary;pageBody=change.body??pageBody;body=[change.title!==undefined?'title':'',change.summary!==undefined?'summary':'',change.body!==undefined?'body':''].filter(Boolean).join(', ')+' updated';
+  title=change.title??title;summary=change.summary??summary;pageBody=change.body??pageBody;if(change.body!==undefined){const broken=await unreachableImages(change.body);if(broken.length)throw Error('These image URLs do not serve an image and would render as gaps: '+broken.join(', ')+'. Use find_images or a page file, one image per line as ![caption](url).');}body=[change.title!==undefined?'title':'',change.summary!==undefined?'summary':'',change.body!==undefined?'body':''].filter(Boolean).join(', ')+' updated';
  }
  else if(change.kind==='program'){
   if(config.template!=='page-program-v1')throw Error('This page has no backend program to edit. Propose a replacement draft with kind=program to give it one.');

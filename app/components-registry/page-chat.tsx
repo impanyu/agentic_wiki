@@ -42,9 +42,20 @@ export function PageAgentChat({page,onResult,onOpenQuestion}:{page:AnswerPage;on
      if(event.type==='error')throw Error(String(event.message));
      if(event.type==='done'){complete(text,event as unknown as Parameters<typeof complete>[1]);done=true;break;}
     }
-    if(!done&&!controller.signal.aborted)throw Error("Reply interrupted. Your message was not confirmed saved. Please retry.");
+    if(!done&&!controller.signal.aborted){const recovered=await recover(text,controller.signal);if(!recovered)throw Error("Reply interrupted. Your message was not confirmed saved. Please retry.");}
    }else complete(text,await r.json());
-  }catch(e){if(!controller.signal.aborted){setMessage(text);setReferences(sentReferences);setError(e instanceof Error?e.message:'Please try again.');}}finally{if(!controller.signal.aborted){setBusy(false);setPending(null);}}
+  }catch(e){if(!controller.signal.aborted){if(e instanceof TypeError){const recovered=await recover(text,controller.signal);if(recovered)return;}setMessage(text);setReferences(sentReferences);setError(e instanceof Error?e.message:'Please try again.');}}finally{if(!controller.signal.aborted){setBusy(false);setPending(null);}}
+ }
+ // The server keeps answering after the connection drops (a backgrounded tab, a
+ // phone lock); poll the saved history until this message's reply appears.
+ async function recover(text:string,signal:AbortSignal){
+  setPending(p=>p?{...p,reply:p.reply||t('Connection interrupted. Waiting for the reply…')}:p);
+  const deadline=Date.now()+300000;
+  while(!signal.aborted&&Date.now()<deadline){
+   await new Promise(resolve=>setTimeout(resolve,3000));
+   try{const r=await fetch('/api/pages/'+page.id+'/chat',{cache:'no-store',signal});if(!r.ok)continue;const d=await r.json() as ChatResponse;const turn=[...(d.messages||[])].reverse().find(m=>m.user===text);if(turn){setMessages(d.messages||[]);setPending(null);setEditDraft(d.editDraft||null);setBefore(d.before||null);onResult((await (await fetch('/api/pages/'+encodeURIComponent(page.id)+'?defer=1',{cache:'no-store',signal})).json() as {page:AnswerPage}).page);return true;}}catch(e){if(signal.aborted)return false;}
+  }
+  return false;
  }
  async function save(){if(!editDraft||busy)return;setBusy(true);setError('');try{const r=await fetch('/api/pages/'+page.id+'/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({saveDraftId:editDraft.id,parameters:page.parameters||{}})}),d=await r.json() as ChatResponse;if(!r.ok)throw Error(d.error||'Could not save changes.');setEditDraft(null);if(!d.alreadySaved)setMessages(m=>[...m,{user:t("Save changes"),reply:d.reply,authorName:d.authorName||userName,createdAt:d.createdAt||new Date().toISOString()}]);onResult(d.page);}catch(e){setError(e instanceof Error?e.message:'Could not save changes.');}finally{setBusy(false);}}
  async function older(){if(!before)return;try{const r=await fetch('/api/pages/'+page.id+'/chat?before='+before);if(!r.ok)throw Error('Could not load earlier messages.');const d=await r.json() as ChatResponse;setMessages(m=>[...(d.messages||[]),...m]);setBefore(d.before||null);}catch(e){setError(String(e));}}

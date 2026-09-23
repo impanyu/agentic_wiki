@@ -55,9 +55,12 @@ export async function postWikiComment(request:Request,page:AnswerPage,viewer:Vie
   return {...result,authorName:viewer.userName,createdAt};
  };
  if(!request.headers.get('accept')?.includes('text/event-stream')||data.saveDraftId){try{return finish(reply(await run()),viewer);}catch(error){console.error('Wiki chat failed',error instanceof Error?error.name:'UnknownError');jobState='failed';return finish(reply({error:'The agent could not finish. Please try again.'},503),viewer);}finally{await release().catch(()=>{});}}
- const lifetime=new AbortController(),signal=AbortSignal.any([request.signal,lifetime.signal,AbortSignal.timeout(600000)]),encoder=new TextEncoder();
- const stream=new ReadableStream<Uint8Array>({start(controller){let closed=false;const send=(event:unknown)=>{if(!closed&&!signal.aborted)controller.enqueue(encoder.encode('data: '+JSON.stringify(event)+'\n\n'));};send({type:'start',authorName:viewer.userName,createdAt:new Date().toISOString()});const heartbeat=setInterval(()=>send({type:'ping'}),10000);
+ // A dropped connection (background tab, phone lock) must not cancel the reply:
+ // the run finishes and saves the turn, and the client recovers it from history.
+ const lifetime=new AbortController(),signal=AbortSignal.any([lifetime.signal,AbortSignal.timeout(600000)]),encoder=new TextEncoder();
+ let detached=request.signal.aborted;request.signal.addEventListener('abort',()=>{detached=true;},{once:true});
+ const stream=new ReadableStream<Uint8Array>({start(controller){let closed=false;const send=(event:unknown)=>{if(!closed&&!detached&&!signal.aborted){try{controller.enqueue(encoder.encode('data: '+JSON.stringify(event)+'\n\n'));}catch{detached=true;}}};send({type:'start',authorName:viewer.userName,createdAt:new Date().toISOString()});const heartbeat=setInterval(()=>send({type:'ping'}),10000);
  void(async()=>{try{const result=await run(text=>send({type:'reply',text}),signal);await release();send({type:'done',...result});}catch(error){console.error('Wiki chat failed',error instanceof Error?error.name:'UnknownError',error instanceof Error&&/^(AI_|INCOMPLETE_)/.test(error.message)?error.message.slice(0,80):'generation-or-save');jobState='failed';await release().catch(()=>{});if(!signal.aborted)send({type:'error',message:'The reply did not finish. This message was not saved. Please try again.'});}finally{clearInterval(heartbeat);if(signal.aborted&&!released)jobState='cancelled';await release().catch(()=>{});closed=true;try{controller.close();}catch{}}})();
- },cancel(){lifetime.abort();}});
+ },cancel(){detached=true;}});
  return finish(new Response(stream,{headers:{'Content-Type':'text/event-stream; charset=utf-8','Cache-Control':'no-store, private','Vary':'Cookie','X-Accel-Buffering':'no'}}),viewer);
 }

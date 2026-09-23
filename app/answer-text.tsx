@@ -9,7 +9,7 @@ import {pageAddress} from './dynamic/units';
 import {CornerUpLeft} from 'lucide-react';
 import {Dashboard} from './templates/dashboard';
 import {chartSchema,validateChartData} from './components-registry/chart-contracts';
-import {inlineParts,linkPattern,isSourceLabel,linkLevels,type Highlight,type InternalLink} from './internal-links';
+import {inlineParts,linkPattern,isSourceLabel,linkLevels,articleImage,articleCredit,type Highlight,type InternalLink} from './internal-links';
 export type {Highlight} from './internal-links';
 export function AnswerText({body,title,summary,labels,sources,highlights,links=[],concepts=[],onJump,onOpen,children}:{children?:React.ReactNode;body:string;title:string;summary:string;labels:import('./page-types').AnswerPage['labels'];sources:{title:string;url:string}[];highlights:Highlight[];links?:InternalLink[];concepts?:Highlight[];onJump:(highlight:Highlight)=>void;onOpen:(link:InternalLink)=>void}){
  const {t,locale}=useUi();
@@ -59,7 +59,7 @@ export function AnswerText({body,title,summary,labels,sources,highlights,links=[
  const headings=richDocument?richHeadings(richDocument):lines.flatMap((line,i)=>{const match=line.match(/^(#{1,3}) (.+)$/);return match?[{id:'section-'+i,title:match[2].replace(/\*\*/g,''),level:match[1].length}]:[]});
  const media=new Map<number,{url:string;caption:string;credit:string}>();
  const skipped=new Set<number>();
- lines.forEach((line,i)=>{const match=line.match(/^!\[([^\]]*)\]\((https:\/\/(?:upload|thumb)\.wikimedia\.org\/[^\s)]+)\)$/);if(match){const credit=/^\[[^\]]+\]\(https:\/\/commons\.wikimedia\.org\/[^\s]+\)$/.test(lines[i+1]||'')?lines[i+1]:'';media.set(i,{url:match[2],caption:match[1],credit});skipped.add(i);if(credit)skipped.add(i+1);}});
+ lines.forEach((line,i)=>{const match=articleImage(line);if(match){const credit=articleCredit(lines[i+1]||'',line)?lines[i+1]:'';media.set(i,{url:match[2],caption:match[1],credit});skipped.add(i);if(credit)skipped.add(i+1);}});
  const blocks:ReactNode[]=[];
  for(let i=0;i<lines.length&&!richDocument;i++){
   if(i===redundantSourcesAt)break;
@@ -105,6 +105,7 @@ function ArticleFigure({url,alt,children}:{url:string;alt:string;children:ReactN
  const {t,locale}=useUi();
 
  const [failed,setFailed]=useState(false);
- if(failed)return null;
+ // A broken image stays visible as a labelled gap, so readers and the in-page agent can see it failed.
+ if(failed)return <figure className="wiki-figure wiki-figure-missing"><div className="wiki-figure-missing-box" role="img" aria-label={t("Image unavailable")}>{t("Image unavailable")}</div><figcaption>{children}</figcaption></figure>;
  return <figure className="wiki-figure"><img src={url} alt={alt} loading="lazy" decoding="async" referrerPolicy="no-referrer" onError={()=>setFailed(true)}/><figcaption>{children}</figcaption></figure>;
 }

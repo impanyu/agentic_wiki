@@ -1,6 +1,12 @@
 export type Highlight={quote:string;segments:{node:string;start:number;end:number}[]};
 export type InternalLink=Highlight&{parameters?:import('./components-registry/contracts').Parameters;id:string;targetId:string;targetTitle:string};
 export const inlinePattern=/(\[[^\]]+\]\(https?:\/\/(?:[^\s()]|\([^()]*\))+\)|\*\*[^*]+\*\*|\*[^*\n]+\*)/g;
+// A standalone image line: any https image, or a file served by this site. An
+// optional next line [credit](url) attributes it. Both renderer and node map use these.
+export const imageLinePattern=/^!\[([^\]]*)\]\(((?:https:\/\/|\/api\/)[^\s)]+)\)$/;
+export const creditLinePattern=/^\[[^\]]+\]\(https?:\/\/[^\s]+\)$/;
+export const articleImage=(line:string)=>line.match(imageLinePattern);
+export const articleCredit=(line:string,previous:string|undefined)=>!!previous&&imageLinePattern.test(previous)&&creditLinePattern.test(line);
 export const linkPattern=/^\[([^\]]+)\]\((https?:\/\/(?:[^\s()]|\([^()]*\))+)\)$/;
 export const isSourceLabel=(label:string)=>/^(?:https?:\/\/)?(?:www\.)?[a-z0-9.-]+\.[a-z]{2,}(?:\/.*)?$/i.test(label)||/^\d+$/.test(label);
 // Replace citation wrapper parentheses with spaces to preserve saved text offsets.
@@ -22,9 +28,9 @@ export function articleNodes(page:{title:string;summary:string;body:string}){
  inline(page.summary,'summary');
  const lines=page.body.split('\n');
  lines.forEach((line,i)=>{
-  const image=line.match(/^!\[([^\]]*)\]\((https:\/\/(?:upload|thumb)\.wikimedia\.org\/[^\s)]+)\)$/);
+  const image=articleImage(line);
   if(image){inline(image[1],'figure'+i);return;}
-  const credit=i>0&&/^!\[.*\]\(https:\/\/(?:upload|thumb)\.wikimedia\.org\//.test(lines[i-1])&&/^\[[^\]]+\]\(https:\/\/commons\.wikimedia\.org\/[^\s]+\)$/.test(line);
+  const credit=articleCredit(line,i>0?lines[i-1]:undefined);
   inline(line.replace(/^(?:#{1,3} |[-*] |\d+\. )/,''),credit?'credit'+(i-1):'line'+i);
  });return nodes;
 }

@@ -17,8 +17,8 @@ test('durable page conversation survives FIFO limits, paginates and isolates pri
 });
 test('wiki discussion stages a proposal instead of silently modifying the article',async()=>{
  const page={id:'p',owned:true,kind:'static',title:'Title',summary:'Summary',body:'Old',language:'en',sources:[],visibility:'private'};let staged=0;
- globalThis.editTest={z,getPage:async()=>page,askAgent:async()=>({apply:true,discard:false,reply:'Review the proposal.',title:'Title',summary:'Summary',edits:[{operation:'replace',oldText:'Old',newText:'Revised'}]}),readEditDraft:async()=>null,discardEditDraft:async()=>{},stageEdit:async(_a,p,d)=>{staged++;assert.equal(p.body,'Old');return {id:'draft',...d};}};
- const e=await load('const readAppDraft=async()=>null,appEditCapabilities=()=>({});const confirmsEditOffer=()=>false;const {z,getPage,askAgent,readEditDraft,discardEditDraft,stageEdit}=globalThis.editTest;\n'+'const {wikiEditSchema,wikiEditFormat,applyWikiPatches}=globalThis.testWikiPatches;\n'+stripped('app/chat/edit-page.ts'));
+ globalThis.editTest={z,unreachableImages:async()=>[],getPage:async()=>page,askAgent:async()=>({apply:true,discard:false,reply:'Review the proposal.',title:'Title',summary:'Summary',edits:[{operation:'replace',oldText:'Old',newText:'Revised'}]}),readEditDraft:async()=>null,discardEditDraft:async()=>{},stageEdit:async(_a,p,d)=>{staged++;assert.equal(p.body,'Old');return {id:'draft',...d};}};
+ const e=await load('const readAppDraft=async()=>null,appEditCapabilities=()=>({});const confirmsEditOffer=()=>false;const {z,unreachableImages,getPage,askAgent,readEditDraft,discardEditDraft,stageEdit}=globalThis.editTest;\n'+'const {wikiEditSchema,wikiEditFormat,applyWikiPatches}=globalThis.testWikiPatches;\n'+stripped('app/chat/edit-page.ts'));
  const result=await e.editWiki(page,'change',{},'owner',{});assert.equal(result.page.body,'Old');assert.equal(result.editDraft.body,'Revised');assert.equal(staged,1);
  page.owned=false;const discussion=await e.editWiki(page,'change',{},'other',{});assert.equal(discussion.editDraft,null);assert.equal(staged,1);delete globalThis.editTest;
 });
