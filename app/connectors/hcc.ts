@@ -1,6 +1,7 @@
 import {mkdtemp,writeFile,readFile,rm,access} from 'node:fs/promises';
 import {spawn} from 'node:child_process';
 import {tmpdir} from 'node:os';
+import {mkdirSync} from 'node:fs';
 import {join} from 'node:path';
 import {z} from 'zod';
 
@@ -9,7 +10,11 @@ const safePath=z.string().min(1).max(1000).refine(value=>!/[\0\r\n]/.test(value)
 const jobId=z.string().regex(/^\d+(?:_[\d-]+)?$/);
 const knownHost='swan.unl.edu ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFH3i+E4EKT20y+tXmnizsXN2c6Lg2SlaGjsbERegll6\n';
 const quote=(value:string)=>"'"+value.replaceAll("'","'\\''")+"'";
-const socketFor=(id:string)=>join(tmpdir(),'agenticwiki-hcc-'+id+'.sock');
+// Session sockets live in the data directory, not the service's private /tmp,
+// so a deploy restart (KillMode=process keeps the detached ssh masters alive)
+// does not force everyone to redo password and Duo.
+const sessionDir=()=>{const dir=process.env.DATA_DIR?join(process.env.DATA_DIR,'hcc-sessions'):join(tmpdir(),'agenticwiki-hcc');mkdirSync(dir,{recursive:true,mode:0o700});return dir;};
+const socketFor=(id:string)=>join(sessionDir(),'hcc-'+id+'.sock');
 const touchedFor=(id:string)=>socketFor(id)+'.last-used';
 const idleLimitMs=2*60*60*1000;
 const duoMethods={phone:'Phone call',push:'Duo Push',sms:'SMS'} as const;
