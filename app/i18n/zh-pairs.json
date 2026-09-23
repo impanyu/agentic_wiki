@@ -571,5 +571,8 @@
   "Wiki page": "Wiki 页面",
   "Unpublish": "取消发布",
   "Unpublish (make private)": "取消发布（改为私有）",
-  "Image unavailable": "图片无法显示"
+  "Image unavailable": "图片无法显示",
+  "Queued · sends when the current reply finishes": "排队中 · 当前回复完成后发送",
+  "Remove queued message": "移除排队消息",
+  "Queue this message": "加入发送队列"
 }
