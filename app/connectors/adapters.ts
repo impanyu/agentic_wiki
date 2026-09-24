@@ -7,7 +7,7 @@ const str={type:'string'},tool=(name:string,description:string,properties:Record
 export const apiTools:Record<string,RemoteTool[]>={
  'unl-hcc':[
   tool('account_status','Check the connected Swan account, cluster login and storage quota.',{}),
-  tool('list_files','List files and folders in an HCC path. Tilde paths resolve in the connected user home directory.',{path:str,limit:{type:'integer',minimum:1,maximum:500}}),
+  tool('list_files','List files and folders in an HCC path. Paths may start with ~ or $HOME (personal 20 GiB, backed up), $WORK (group scratch, purged after 6 months unused) or $NRDSTOR (Nebraska research data storage), e.g. $WORK/project.',{path:str,limit:{type:'integer',minimum:1,maximum:500}}),
   tool('read_text_file','Read a bounded section of a text job script, configuration or log file on HCC.',{path:str,offset:{type:'integer',minimum:0},limit:{type:'integer',minimum:1,maximum:50000}},['path']),
   tool('write_text_file','Create or replace a UTF-8 text file on HCC.',{path:str,content:str},['path','content'],false),
   tool('create_folder','Create a folder on HCC, including missing parents.',{path:str},['path'],false),

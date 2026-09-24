@@ -10,6 +10,7 @@ const schema=copySchema.extend({confirmRemoval:z.literal(true)});
 const removalTool=(r:Resource)=>r.space==='adma'?'delete_'+r.kind:'trash';
 async function permission(pageId:string,userId:string,r:Resource){
  if(!canWritePage(await getPage(pageId,userId)))throw Error('This page is read only.');
+ if(r.space==='hcc')throw Error('Files on HCC can be copied but not moved from here; copy them, then delete the originals on HCC if needed.');
  if(!r.id||r.id==='root'||r.space==='adma'&&['repositories','third-party'].includes(r.id))throw Error('Repository roots cannot be moved. Select files or folders inside them.');
  if(r.space==='page'){
   if(r.kind==='file'&&!(await listContextFiles(pageId,userId)).some(f=>f.id===r.id&&f.removable))throw Error('Source file cannot be removed.');

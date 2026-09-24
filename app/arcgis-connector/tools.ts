@@ -1,5 +1,5 @@
 import type {RemoteTool} from '@/app/connectors/contracts';
-const str={type:'string'},int={type:'integer'},item={itemId:str},resource={type:'object',properties:{space:{type:'string',enum:['page','adma','google','dropbox','onedrive']},id:str,name:str,kind:{type:'string',enum:['file']},connectorId:str},required:['space','id','name','kind'],additionalProperties:false};
+const str={type:'string'},int={type:'integer'},item={itemId:str},resource={type:'object',properties:{space:{type:'string',enum:['page','adma','google','dropbox','onedrive','hcc']},id:str,name:str,kind:{type:'string',enum:['file']},connectorId:str},required:['space','id','name','kind'],additionalProperties:false};
 function tool(name:string,description:string,properties:Record<string,unknown>,required:string[]=[],read=true):RemoteTool{return {name,description,inputSchema:{type:'object',properties,required,additionalProperties:false},annotations:{readOnlyHint:read}};}
 export const arcgisTools:RemoteTool[]=[
  tool('get_account','Read the CURRENT user’s connected ArcGIS identity and privileges.',{}),
