@@ -839,5 +839,16 @@
   "Queued · sends when the current reply finishes": "Queued · sends when the current reply finishes",
   "Remove queued message": "Remove queued message",
   "Queue this message": "Queue this message",
-  "Running the report… this can take a minute.": "Running the report… this can take a minute."
+  "Running the report… this can take a minute.": "Running the report… this can take a minute.",
+  "Voice input": "Voice input",
+  "Stop recording": "Stop recording",
+  "Transcribing…": "Transcribing…",
+  "No speech was recognized.": "No speech was recognized.",
+  "This browser does not support voice input.": "This browser does not support voice input.",
+  "Microphone access was blocked.": "Microphone access was blocked.",
+  "Could not transcribe the recording.": "Could not transcribe the recording.",
+  "Sign in to use voice input.": "Sign in to use voice input.",
+  "Voice input is not configured.": "Voice input is not configured.",
+  "The recording is too long.": "The recording is too long.",
+  "No audio was received.": "No audio was received."
 }

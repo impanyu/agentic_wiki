@@ -27,6 +27,7 @@ import {Dashboard} from './templates/dashboard';
 import {HistoryMenu,type HistoryEntry} from './history-menu';
 import {ComponentForm} from './components-registry/form';
 import {PageAgentChat} from './components-registry/page-chat';
+import {VoiceInput} from './voice-input';
 import {UnitConverter} from './dynamic/unit-converter';
 import {pageAddress,inputQuery,type ConversionInput} from './dynamic/units';
 
@@ -396,6 +397,7 @@ export default function Workspace({ user, signIn, signOut }: {
         <input ref={input} id="address" type="text" value={question} onChange={event => setQuestion(event.target.value)}
           placeholder={t("Enter a question or context")} maxLength={4000} autoComplete="off" autoFocus
           enterKeyHint="go" spellCheck={false} aria-describedby="address-help"/>
+        <VoiceInput disabled={busy} onText={text=>{setQuestion(old=>old.trim()?old.replace(/\s+$/,'')+' '+text:text);input.current?.focus();}}/>
         <button type="submit" className="go-button" disabled={busy || !question.trim()}
           aria-label={busy ? t("Opening answer") : t("Open answer")} title={t("Open answer · Enter")}>
           {busy ? <LoaderCircle className="spinner" size={18}/> : <ArrowRight size={18}/>}
