@@ -6,9 +6,11 @@ set -eu
 sha=${1:?usage: install-release.sh <short-sha>}
 cd "$(dirname "$0")/../.."
 export PATH="$HOME/.local/agenticwiki-node/bin:$PATH"
-previous=$(git rev-parse --short HEAD)
 git fetch -q origin && git checkout -q "$sha"
-if git diff --quiet "$previous" "$sha" -- package-lock.json; then :; else npm ci --omit=dev; fi
+# Reinstall dependencies whenever the lockfile differs from the one last installed
+# (comparing commits misses changes already pulled before this script runs).
+lock=$(sha256sum package-lock.json | cut -d" " -f1)
+if [ "$(cat node_modules/.installed-lock 2>/dev/null)" != "$lock" ]; then npm ci --omit=dev --no-audit --no-fund && echo "$lock" > node_modules/.installed-lock; fi
 asset="/tmp/agenticwiki-$sha.tgz"
 curl -fsSL -o "$asset" "https://github.com/impanyu/agentic_wiki/releases/download/deploy-$sha/agenticwiki-$sha.tgz"
 rm -rf .next/standalone.new && mkdir -p .next/standalone.new
