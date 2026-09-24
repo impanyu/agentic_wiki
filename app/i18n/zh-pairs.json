@@ -586,5 +586,6 @@
   "Sign in to use voice input.": "请登录后使用语音输入。",
   "Voice input is not configured.": "语音输入尚未配置。",
   "The recording is too long.": "录音太长。",
-  "No audio was received.": "没有收到音频。"
+  "No audio was received.": "没有收到音频。",
+  "Stop recording and send": "停止录音并发送"
 }

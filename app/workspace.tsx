@@ -27,7 +27,7 @@ import {Dashboard} from './templates/dashboard';
 import {HistoryMenu,type HistoryEntry} from './history-menu';
 import {ComponentForm} from './components-registry/form';
 import {PageAgentChat} from './components-registry/page-chat';
-import {VoiceInput} from './voice-input';
+import {VoiceInput,type VoiceHandle} from './voice-input';
 import {UnitConverter} from './dynamic/unit-converter';
 import {pageAddress,inputQuery,type ConversionInput} from './dynamic/units';
 
@@ -59,6 +59,7 @@ export default function Workspace({ user, signIn, signOut }: {
 
 
   const [question, setQuestion] = useState('');
+  const voice = useRef<VoiceHandle|null>(null), [voiceRecording, setVoiceRecording] = useState(false), [voiceSending, setVoiceSending] = useState(false);
   const actorReady=useRef<Promise<void>|null>(null);
   function ensureActor(){return actorReady.current??=navigationRequest('/api/session').then(async response=>{if(!response.ok)throw new Error('Could not initialize the session.');await response.json();}).catch(error=>{actorReady.current=null;throw error;});}
   const [filesRevision,setFilesRevision]=useState(0);
@@ -392,15 +393,15 @@ export default function Workspace({ user, signIn, signOut }: {
         <button type="button" aria-label={t("Forward")} title={t("Forward")} disabled={historyPosition>=historyLength-1||saving} onClick={()=>history.forward()}><ArrowRight size={19}/></button>
         <HistoryMenu disabled={busy||saving} saveError={historySaveError} beforeLoad={()=>{for(const visit of [...failedVisits.current.values()])saveVisit(visit.pageId,visit.text,visit.parameters,visit.id,visit.legacy);return visitWrites.current;}} onOpen={(entry:HistoryEntry)=>void openInternal({id:entry.id,targetId:entry.pageId,targetTitle:entry.title,quote:entry.question||entry.title,segments:[],parameters:entry.parameters})}/>
       </div>
-      <form className="address-bar" onSubmit={event => { event.preventDefault(); void navigate(); }} aria-label={t("Open an answer")}>
+      <form className="address-bar" onSubmit={event => { event.preventDefault(); if(voiceRecording&&voice.current){ if(voiceSending)return; setVoiceSending(true); void voice.current.finish().then(spoken=>{ const text=[question.trim(),spoken.trim()].filter(Boolean).join(' '); if(text){ setQuestion(text); void navigate(text); } }).finally(()=>setVoiceSending(false)); return; } void navigate(); }} aria-label={t("Open an answer")}>
         <label htmlFor="address" className="sr-only">{t("Question or context")}</label>
         <input ref={input} id="address" type="text" value={question} onChange={event => setQuestion(event.target.value)}
           placeholder={t("Enter a question or context")} maxLength={4000} autoComplete="off" autoFocus
           enterKeyHint="go" spellCheck={false} aria-describedby="address-help"/>
-        <VoiceInput disabled={busy} onText={text=>{setQuestion(old=>old.trim()?old.replace(/\s+$/,'')+' '+text:text);input.current?.focus();}}/>
-        <button type="submit" className="go-button" disabled={busy || !question.trim()}
-          aria-label={busy ? t("Opening answer") : t("Open answer")} title={t("Open answer · Enter")}>
-          {busy ? <LoaderCircle className="spinner" size={18}/> : <ArrowRight size={18}/>}
+        <VoiceInput handle={voice} onRecordingChange={setVoiceRecording} disabled={busy} onText={text=>{setQuestion(old=>old.trim()?old.replace(/\s+$/,'')+' '+text:text);input.current?.focus();}}/>
+        <button type="submit" className="go-button" disabled={busy || voiceSending || (!question.trim() && !voiceRecording)}
+          aria-label={busy ? t("Opening answer") : t("Open answer")} title={voiceRecording ? t("Stop recording and send") : t("Open answer · Enter")}>
+          {busy || voiceSending ? <LoaderCircle className="spinner" size={18}/> : <ArrowRight size={18}/>}
         </button>
       </form>
       <input type="file" ref={uploadInput} hidden onChange={e=>{const file=e.target.files?.[0];if(file)void uploadFile(file);}}/>
