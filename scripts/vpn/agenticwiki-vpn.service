@@ -1,0 +1,14 @@
+[Unit]
+Description=AgenticWiKi UNL VPN broker (root helper behind a group-only socket)
+After=network-online.target
+
+[Service]
+Type=simple
+User=root
+Environment=AW_OWNER=impanyu
+ExecStart=/home/impanyu/.local/agenticwiki-node/bin/node /usr/local/lib/agenticwiki/aw-vpn-daemon.cjs
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target

@@ -1,4 +1,3 @@
-import {spawn} from 'node:child_process';
 import {mkdirSync,existsSync} from 'node:fs';
 import {readFile,writeFile} from 'node:fs/promises';
 import {join} from 'node:path';
@@ -13,7 +12,6 @@ import {lock,unlock} from '@/db/store';
 // openconnect then runs in the user's own network namespace (scripts/vpn/aw-vpn),
 // so the tunnel carries only that user's campus traffic, e.g. the ADAPT file share.
 const PORTAL='https://nu-vpn.nebraska.edu';
-export const HELPER='/usr/local/lib/agenticwiki/aw-vpn';
 const credentials=z.object({username:z.string().regex(/^[A-Za-z0-9._@+-]{1,120}$/)}).passthrough();
 const chromiumPath=()=>[process.env.CHROMIUM_PATH,'/usr/bin/chromium','/usr/bin/chromium-browser'].find(p=>p&&existsSync(p));
 const dataDir=()=>process.env.DATA_DIR||join(process.cwd(),'data');
@@ -25,13 +23,17 @@ async function slotFor(connectorId:string){
  try{const slots:Record<string,number>=JSON.parse(await readFile(file,'utf8').catch(()=>'{}'));if(slots[connectorId])return slots[connectorId];const used=new Set(Object.values(slots));let n=1;while(used.has(n))n++;if(n>250)throw Error('No VPN session slots are free.');slots[connectorId]=n;await writeFile(file,JSON.stringify(slots),{mode:0o600});return n;}
  finally{await unlock(lease);}
 }
+// Requests go to the root broker (scripts/vpn/aw-vpn-daemon.cjs) over its group-only socket.
+const SOCKET='/run/agenticwiki-vpn.sock';
 export async function helper(args:string[],input?:string,timeout=60000){
+ const net=await import('node:net');
  return await new Promise<{code:number|null;stdout:string;stderr:string}>((resolve)=>{
-  const child=spawn('sudo',['-n',HELPER,...args],{stdio:[input===undefined?'ignore':'pipe','pipe','pipe']});let stdout='',stderr='';
-  child.stdout!.on('data',(c:Buffer)=>{stdout=(stdout+c).slice(-20000);});child.stderr!.on('data',(c:Buffer)=>{stderr=(stderr+c).slice(-20000);});
-  if(input!==undefined){child.stdin!.on('error',()=>{});child.stdin!.end(input);}
-  const timer=setTimeout(()=>child.kill('SIGKILL'),timeout);
-  child.on('close',code=>{clearTimeout(timer);resolve({code,stdout,stderr});});child.on('error',e=>{clearTimeout(timer);resolve({code:-1,stdout,stderr:e.message});});
+  if(!existsSync(SOCKET)){resolve({code:-1,stdout:'',stderr:'The UNL VPN service is not installed on this server.'});return;}
+  const conn=net.createConnection(SOCKET);let raw='';const timer=setTimeout(()=>{conn.destroy();resolve({code:-1,stdout:'',stderr:'The UNL VPN service did not respond in time.'});},timeout+5000);
+  conn.on('connect',()=>conn.write(JSON.stringify({args,input,timeout})+'\n'));
+  conn.on('data',c=>{raw+=c;});
+  conn.on('end',()=>{clearTimeout(timer);try{resolve(JSON.parse(raw.trim()));}catch{resolve({code:-1,stdout:'',stderr:'Invalid response from the UNL VPN service.'});}});
+  conn.on('error',e=>{clearTimeout(timer);resolve({code:-1,stdout:'',stderr:e.message});});
  });
 }
 export async function vpnSlot(connectorId:string){return slotFor(connectorId);}

@@ -1,5 +1,5 @@
 import {mkdtemp,writeFile,readFile,rm,stat} from 'node:fs/promises';
-import {tmpdir} from 'node:os';
+import {mkdirSync} from 'node:fs';
 import {join} from 'node:path';
 import {z} from 'zod';
 import {helper,vpnSlot,vpnIsUp} from './unl-vpn';
@@ -15,6 +15,7 @@ const safeName=z.string().min(1).max(200).refine(n=>!/["\x00-\x1f;/\\]/.test(n)&
 const norm=(p:string)=>('/'+p).replace(/\\/g,'/').replace(/\/+/g,'/').replace(/\/$/,'')||'/';
 const smbPath=(p:string)=>norm(p).replace(/\//g,'\\');
 const hostCache=new Map<number,string>();
+const scratch=()=>{const dir=join(process.env.DATA_DIR||join(process.cwd(),'data'),'adapt-tmp');mkdirSync(dir,{recursive:true,mode:0o700});return dir;};
 
 export type AdaptContext={secret:string;vpnConnectorId:string|null};
 async function host(slot:number){
@@ -25,7 +26,7 @@ async function host(slot:number){
 async function smb(ctx:AdaptContext,command:string,files?:{dir:string}){
  if(!ctx.vpnConnectorId||!await vpnIsUp(ctx.vpnConnectorId))throw Error('Connect UNL VPN in Connectors first; the ADAPT share is reachable only through the UNL VPN.');
  const auth=credentials.parse(JSON.parse(ctx.secret)),slot=await vpnSlot(ctx.vpnConnectorId),ip=await host(slot);
- const dir=files?.dir||await mkdtemp(join(tmpdir(),'aw-adapt-')),authFile=join(dir,'.auth');
+ const dir=files?.dir||await mkdtemp(join(scratch(),'op-')),authFile=join(dir,'.auth');
  await writeFile(authFile,`username=${auth.username}\npassword=${auth.password}\ndomain=${DOMAIN}\n`,{mode:0o600});
  try{
   const r=await helper(['smb',String(slot),`//${ip}/${SHARE}`,'-A',authFile,'-m','SMB3','-c',command],undefined,120000);
@@ -42,14 +43,14 @@ export async function adaptList(ctx:AdaptContext,path='/'){
  return {path:norm(path),items:items.sort((a,b)=>a.kind===b.kind?a.name.localeCompare(b.name):a.kind==='folder'?-1:1)};
 }
 export async function adaptDownload(ctx:AdaptContext,path:string,maxBytes:number){
- safePath.parse(path);const dir=await mkdtemp(join(tmpdir(),'aw-adapt-')),local=join(dir,'file');
+ safePath.parse(path);const dir=await mkdtemp(join(scratch(),'op-')),local=join(dir,'file');
  try{await smb(ctx,`get "${smbPath(path)}" "${local}"`,{dir});const size=(await stat(local)).size;if(size>maxBytes)throw Error('File exceeds the transfer limit.');return new Uint8Array(await readFile(local));}
  finally{await rm(dir,{recursive:true,force:true});}
 }
 export async function adaptUpload(ctx:AdaptContext,dir:string,name:string,bytes:Uint8Array,replace=false){
  safePath.parse(dir);safeName.parse(name);
  if(!replace&&(await adaptList(ctx,dir)).items.some(i=>i.name.toLowerCase()===name.toLowerCase()))throw Error('A file with this name already exists on ADAPT; nothing was overwritten.');
- const tmp=await mkdtemp(join(tmpdir(),'aw-adapt-')),local=join(tmp,'upload');
+ const tmp=await mkdtemp(join(scratch(),'op-')),local=join(tmp,'upload');
  try{await writeFile(local,bytes,{mode:0o600});await smb(ctx,`cd "${smbPath(dir)}"; put "${local}" "${name}"`,{dir:tmp});return {path:norm(dir+'/'+name),name,size:bytes.length};}
  finally{await rm(tmp,{recursive:true,force:true});}
 }
