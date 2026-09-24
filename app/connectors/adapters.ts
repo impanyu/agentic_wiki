@@ -5,6 +5,15 @@ import {remoteRequest} from './http';
 import {publicThirdPartyCatalog} from '@/app/adma/catalog';
 const str={type:'string'},tool=(name:string,description:string,properties:Record<string,unknown>,required:string[]=[],read=true):RemoteTool=>({name,description,inputSchema:{type:'object',properties,required,additionalProperties:false},annotations:{readOnlyHint:read}});
 export const apiTools:Record<string,RemoteTool[]>={
+ 'unl-vpn':[
+  tool('vpn_status','Check whether your UNL VPN session is connected. Campus-only services (such as the ADAPT share) need it.',{}),
+ ],
+ 'unl-adapt':[
+  tool('list_files','List files and folders on the ADAPT project share (CALMIT server). path is a share path such as / or /Data Management/Workspace.',{path:str}),
+  tool('read_text_file','Read a text file (CSV, TXT, JSON, logs) from the ADAPT share; up to 5 MB, returned in character ranges.',{path:str,offset:{type:'integer',minimum:0},limit:{type:'integer',minimum:1,maximum:200000}},['path']),
+  tool('write_text_file','Create or replace a UTF-8 text file on the ADAPT share.',{path:str,content:str},['path','content'],false),
+  tool('create_folder','Create a folder on the ADAPT share.',{path:str},['path'],false),
+ ],
  'unl-hcc':[
   tool('account_status','Check the connected Swan account, cluster login and storage quota.',{}),
   tool('list_files','List files and folders in an HCC path. Paths may start with ~ or $HOME (personal 20 GiB, backed up), $WORK (group scratch, purged after 6 months unused) or $NRDSTOR (Nebraska research data storage), e.g. $WORK/project.',{path:str,limit:{type:'integer',minimum:1,maximum:500}}),

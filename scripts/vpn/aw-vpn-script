@@ -1,0 +1,23 @@
+#!/bin/sh
+# openconnect connect script used inside a per-user network namespace (see aw-vpn).
+# Unlike the stock vpnc-script it never touches the host: it configures the tunnel,
+# keeps the VPN gateway reachable through the namespace uplink, sends everything else
+# through the tunnel and writes the namespace's resolv.conf (bind-mounted by ip netns).
+case "$reason" in
+  pre-init) exit 0 ;;
+  connect|reconnect)
+    ip link set dev "$TUNDEV" up mtu "${INTERNAL_IP4_MTU:-1400}"
+    ip addr replace "$INTERNAL_IP4_ADDRESS/32" dev "$TUNDEV"
+    uplink=$(ip route show default | awk '/via/ {print $3; exit}')
+    [ -n "$uplink" ] && ip route replace "$VPNGATEWAY/32" via "$uplink"
+    ip route replace default dev "$TUNDEV"
+    {
+      [ -n "$CISCO_DEF_DOMAIN" ] && echo "search $CISCO_DEF_DOMAIN"
+      for dns in $INTERNAL_IP4_DNS; do echo "nameserver $dns"; done
+    } > /etc/resolv.conf
+    exit 0 ;;
+  disconnect)
+    echo "nameserver 8.8.8.8" > /etc/resolv.conf
+    exit 0 ;;
+  *) exit 0 ;;
+esac

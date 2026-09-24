@@ -11,6 +11,12 @@ git fetch -q origin && git checkout -q "$sha"
 # (comparing commits misses changes already pulled before this script runs).
 lock=$(sha256sum package-lock.json | cut -d" " -f1)
 if [ "$(cat node_modules/.installed-lock 2>/dev/null)" != "$lock" ]; then npm ci --omit=dev --no-audit --no-fund && echo "$lock" > node_modules/.installed-lock; fi
+# UNL VPN sessions: root-owned helper plus openconnect and smbclient (see scripts/vpn).
+if [ -f scripts/vpn/aw-vpn ]; then
+  command -v openconnect >/dev/null && command -v smbclient >/dev/null || sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -q openconnect smbclient >/dev/null
+  sudo install -d -m 755 /usr/local/lib/agenticwiki
+  sudo install -m 755 -o root -g root scripts/vpn/aw-vpn scripts/vpn/aw-vpn-script /usr/local/lib/agenticwiki/
+fi
 asset="/tmp/agenticwiki-$sha.tgz"
 curl -fsSL -o "$asset" "https://github.com/impanyu/agentic_wiki/releases/download/deploy-$sha/agenticwiki-$sha.tgz"
 rm -rf .next/standalone.new && mkdir -p .next/standalone.new
