@@ -32,7 +32,7 @@ export function ConnectorPanel(){
  // The setup form opens above the catalog; bring it into view (and focus its first field) so a
  // Connect click far down the list visibly does something.
  const setupRef=useRef<HTMLElement>(null);
- useEffect(()=>{if(!chosen)return;const frame=requestAnimationFrame(()=>{const el=setupRef.current;if(!el)return;el.scrollIntoView({block:'start',behavior:window.matchMedia('(prefers-reduced-motion: reduce)').matches?'auto':'smooth'});el.querySelector<HTMLElement>('input,select,textarea')?.focus({preventScroll:true});});return()=>cancelAnimationFrame(frame);},[chosen?.id]);
+ useEffect(()=>{if(!chosen)return;const frame=requestAnimationFrame(()=>{const el=setupRef.current;if(!el)return;el.scrollIntoView({block:'start'});el.querySelector<HTMLElement>('input,select,textarea')?.focus({preventScroll:true});});return()=>cancelAnimationFrame(frame);},[chosen?.id]);
  function choose(p:ConnectorPreset){if(p.auth==='oauth'){void connectStorage(p.id);return;}setChosen(p);setPresetToken('');setSshUsername('');setError('');}
  const pending=actions.filter(a=>a.state==='pending').length;
  return <><button className="connector-open" onClick={()=>setOpen(true)} title={t('Connectors')}><Plug size={18}/><span>{t('Connectors')}</span>{pending>0&&<b>{pending}</b>}</button><dialog ref={dialog} className="connector-dialog" onCancel={()=>setOpen(false)} onClose={()=>{setOpen(false);setToken('');setPresetToken('');setChosen(null);}} aria-labelledby="connector-heading"><header><div><h2 id="connector-heading">{t('Connectors')}</h2><p>{t('Enabled tools are available to the page generator and in-page agent.')}</p></div><button onClick={()=>setOpen(false)} aria-label={t('Close')}><X size={20}/></button></header>
