@@ -379,3 +379,6 @@ html[data-print=report] .voice-input{display:none!important}
 .page-agent .chat-composer-actions .chat-upload-menu button:hover,.dynamic-answer:not(.connector-page)[data-app-theme] .page-agent .chat-composer-actions .chat-upload-control .chat-upload-menu button:hover{background:#eef2f7}
 .page-agent .chat-composer-actions>span:not(.voice-input){min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 @media(max-width:540px){.page-agent .chat-composer-actions>span:not(.voice-input):not([role=status]){visibility:hidden}.chat-upload-menu{min-width:150px}}
+/* Sources on phones: arrows and title flow as one line of text, so a long title wraps under
+   the number instead of dropping below the arrows as a separately indented block. */
+@media(max-width:640px){.sources ol{padding-left:24px}.sources li{padding-block:6px;line-height:1.55}.source-entry{display:block}.source-returns{display:inline-flex;vertical-align:-3px;max-width:100%;margin-inline-end:6px;overflow:visible;flex-wrap:wrap;gap:4px}.source-return-icon{margin:0 1px;width:13px;height:13px}.answer .source-return{min-width:20px;height:20px;padding:0 4px;font-size:11px}.source-title{display:inline;overflow-wrap:anywhere;word-break:break-word}}
