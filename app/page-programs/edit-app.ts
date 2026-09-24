@@ -1,6 +1,9 @@
 import {Script} from 'node:vm';
 import {unreachableImages} from '@/app/chat/image-check';
 import {pageCodeSchema,pageCodeContract} from './page-code';
+import {verifyApp,verificationText,type VerifyTests} from './verify';
+import {runProgramLoop} from './runtime';
+import {sandboxContextFiles} from '@/app/context-files/server';
 import {codeSchema} from '@/app/sandboxes/contracts';
 import {inputFieldsSchema} from './inputs';
 import {registeredAdmaPage} from './deferred';
@@ -24,9 +27,31 @@ export function appEditCapabilities(page:AnswerPage){
 }
 async function stored(agent:Agent,pageId:string){const object=await bucket().get(path(agent));if(!object)return null;const draft=await object.json<Draft>();return draft.ownerId===agent.ownerId&&draft.pageId===pageId?draft:null;}
 const preview=(draft:Draft):EditDraft=>({id:draft.id,title:draft.title,summary:draft.summary,body:draft.body,pageCode:draft.config?.pageCode});
+// Lets an unsaved proposal's custom UI call the proposed backend in the chat preview.
+// Runs in verification mode: writes and approval-gated calls are skipped, nothing is saved.
+export async function previewRun(page:AnswerPage,agent:Agent,draftId:string,input:{query?:string;values?:Record<string,unknown>}){
+ const draft=await stored(agent,page.id);if(!draft||draft.saved||draft.id!==draftId)throw Error('This preview is no longer available.');
+ const ref=draft.config?.template==='page-program-v1'?draft.config.components?.backend:undefined;if(!ref)throw Error('This proposal has no backend program.');
+ const program=JSON.parse((await getComponent(ref,{userId:agent.ownerId},'backend_code')).payload),files=await sandboxContextFiles(page.id,agent.ownerId);
+ try{const r=await runProgramLoop(program,{query:input.query||'',values:input.values||{},files:files.metadata},agent.ownerId,page.id,files.uploads,{verification:true});return {view:r.view,runtimeError:null,proposals:[],preview:true};}
+ catch(e){return {view:null,runtimeError:'The proposed program could not finish: '+(e instanceof Error?e.message.slice(0,300):'error'),proposals:[],preview:true};}
+}
 export async function readAppDraft(agent:Agent,pageId:string){const draft=await stored(agent,pageId);return draft&&!draft.saved?preview(draft):null;}
 export async function discardAppDraft(agent:Agent){await bucket().delete(path(agent));}
-export async function stageAppRevision(page:AnswerPage,raw:unknown,agent:Agent,request=''){
+// Runs the saved or proposed app configuration the way readers will: backend program plus custom frontend.
+async function verifyConfig(page:AnswerPage,config:NonNullable<AnswerPage['dynamic']>|null,agent:Agent,request:string,tests:VerifyTests){
+ const backendRef=config?.template==='page-program-v1'?config.components?.backend:undefined;
+ if(!backendRef&&!config?.pageCode)return null;
+ const program=backendRef?JSON.parse((await getComponent(backendRef,{userId:agent.ownerId},'backend_code')).payload):null;
+ return verifyApp({request:request||page.question||page.title,title:page.title,program,templateId:page.labels.templateId,frontend:config?.pageCode||null,tests,pageId:page.id},{userId:agent.ownerId,agent});
+}
+// verify_app for the in-page agent: the unsaved proposal when there is one, otherwise the live page.
+export async function verifyCurrentApp(page:AnswerPage,agent:Agent,request:string,tests:VerifyTests){
+ const pending=await stored(agent,page.id),config=pending&&!pending.saved?pending.config:page.dynamic||null;
+ const report=await verifyConfig(page,config,agent,request,tests);
+ return report?{target:pending&&!pending.saved?'unsaved proposal':'saved page',...JSON.parse(verificationText(report))}:{skipped:'This page has no backend program or custom frontend to run.'};
+}
+export async function stageAppRevision(page:AnswerPage,raw:unknown,agent:Agent,request='',tests:VerifyTests=[]){
  if(!canWritePage(page))throw Error('PAGE_READ_ONLY');
  page=registeredAdmaPage(page);
  // Consecutive proposals in one conversation build on the unsaved draft instead of
@@ -86,8 +111,15 @@ export async function stageAppRevision(page:AnswerPage,raw:unknown,agent:Agent,r
  }
  const savedConfig=nextConfig===undefined?config:nextConfig;
  if(JSON.stringify([pageKind,title,summary,pageBody,savedConfig,templateId,sources,category])===JSON.stringify([page.kind==='static'?'static':'dynamic',page.title,page.summary,page.body,page.dynamic,page.labels.templateId,page.sources,page.category]))throw Error('This proposal does not change any saved, renderable page property.');
+ // Code changes are proposed only after they run: the backend loop and the rendered frontend must pass.
+ let verification:unknown;
+ if(['code','program','replacement'].includes(change.kind)&&savedConfig&&(change.kind!=='code'||change.code)){
+  const report=await verifyConfig({...page,labels:{...page.labels,templateId}},savedConfig,agent,request,tests);
+  if(report&&!report.passed)throw Error('This revision failed verification and was not proposed. Fix every blocking item and propose again (verify_app lets you iterate without proposing). Report: '+verificationText(report));
+  if(report)verification=JSON.parse(verificationText(report));
+ }
  const draft:Draft={id:crypto.randomUUID(),ownerId:agent.ownerId,pageId:page.id,base:revision(saved),title,summary,body,pageBody,config:savedConfig,kind:pageKind,sources,category,labels:extraLabels,templateId};
- await bucket().put(path(agent),JSON.stringify(draft));return {editDraft:preview(draft),saved:false};
+ await bucket().put(path(agent),JSON.stringify(draft));return {editDraft:preview(draft),saved:false,...(verification?{verification}:{})};
 }
 export async function saveAppDraft(agent:Agent,pageId:string,draftId:string){
  const lease=await lock('refresh:'+pageId,90000);if(!lease)throw Error('This page is being updated. Try again.');

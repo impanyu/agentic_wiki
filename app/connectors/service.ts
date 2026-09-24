@@ -53,6 +53,10 @@ async function execute(c:Connection,userId:string,tool:string,args:unknown,signa
  if(c.kind==='storage')return providerOperation(storageRequest.parse({provider:c.id,operation:tool,args}),await storageToken(c.id as StorageProvider,userId));
  const secret=await vaultRead(await vaultPath(userId,'connector-'+c.id));if(!secret)throw Error('Reconnect this connector.');const result=c.provider==='unl-hcc'?await (await import('./hcc')).executeHccConnector(secret.token,tool,args,signal):c.provider==='adma'&&(tool==='list_processing_tools'||tool==='processing_status'||tool.startsWith('run_'))?await (await import('@/app/adma/processing-server')).executeProcessing(userId,c.id,secret.token,tool,args,signal):c.kind==='api'?await executeApiConnector(c.provider!,secret.token,tool,args,signal):await callMcp(c.url!,secret.token,tool,args,signal);const json=JSON.stringify(result);return JSON.parse(secret.token?json.split(secret.token).join('[redacted]'):json);
 }
+// Verification runs (checking a generated app before it is saved or proposed) may only
+// execute calls the user already approved as automatic; anything else would queue an
+// approval request in the user's Connectors panel.
+export async function connectorCallIsAutomatic(userId:string,id:string,tool:string){try{const c=(await connections(userId)).find(c=>c.id===id);return !!c&&c.enabled&&c.connected&&c.allowed.includes(tool)&&c.automatic.includes(tool);}catch{return false;}}
 export async function callConnector(userId:string,id:string,tool:string,args:unknown,pageId?:string,signal?:AbortSignal){
  if(!args||typeof args!=='object'||Array.isArray(args)||JSON.stringify(args).length>64000)throw Error('Invalid connector arguments.');
  const c=await authorized(userId,id,tool,pageId);

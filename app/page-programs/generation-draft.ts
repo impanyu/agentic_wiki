@@ -1,4 +1,5 @@
 import {sandboxSchema} from '@/app/components-registry/sandbox-contracts';
+import {pageCodeSchema} from './page-code';
 import {z} from 'zod';
 import {env} from '@/server/runtime';
 import {generationIntentSchema} from './generation-intent';
@@ -14,7 +15,7 @@ import {createComponent,type AgentContext,type Component} from '@/app/components
 import type {DynamicConfig,ConverterLabels} from '@/app/dynamic/units';
 import type {TemplateId} from '@/app/templates/catalog';
 const source=z.object({title:z.string().min(1).max(500),url:z.string().url().refine(u=>/^https?:\/\//.test(u))});
-const draftSchema=z.object({kind:z.enum(['article','disambiguation','chat','files','index','program','chart','form','converter','native']),title:z.string().min(1).max(200),summary:z.string().min(1).max(1200),body:z.string().max(40000).default(''),category:z.string().max(100).default(''),sources:z.array(source).max(40).default([]),labels:z.record(z.string().max(500)),intent:generationIntentSchema,entries:indexSchema.shape.entries.optional(),templateId:z.enum(['files-v1','dashboard-v1','table-v1','form-v1','chat-v1','geo-v1','data-tools-v1','paper-v1']).optional(),nativeApp:z.enum(['arcgis-publisher','adma-tools','unl-hcc','map','table','json','text','image','pdf','archive','hub']).optional(),interactive:sandboxSchema.optional(),program:codeSchema.optional(),inputFields:inputFieldsSchema.optional(),chart:z.unknown().optional(),dataset:z.unknown().optional(),form:formSchema.optional(),expression:z.unknown().optional(),examples:z.array(z.object({input:parametersSchema,output:parametersSchema})).max(4).optional(),parameters:parametersSchema.default({})}).strict();
+const draftSchema=z.object({kind:z.enum(['article','disambiguation','chat','files','index','program','chart','form','converter','native']),title:z.string().min(1).max(200),summary:z.string().min(1).max(1200),body:z.string().max(40000).default(''),category:z.string().max(100).default(''),sources:z.array(source).max(40).default([]),labels:z.record(z.string().max(500)),intent:generationIntentSchema,entries:indexSchema.shape.entries.optional(),templateId:z.enum(['files-v1','dashboard-v1','table-v1','form-v1','chat-v1','geo-v1','data-tools-v1','paper-v1']).optional(),nativeApp:z.enum(['arcgis-publisher','adma-tools','unl-hcc','map','table','json','text','image','pdf','archive','hub']).optional(),interactive:sandboxSchema.optional(),frontend:pageCodeSchema.optional(),program:codeSchema.optional(),inputFields:inputFieldsSchema.optional(),chart:z.unknown().optional(),dataset:z.unknown().optional(),form:formSchema.optional(),expression:z.unknown().optional(),examples:z.array(z.object({input:parametersSchema,output:parametersSchema})).max(4).optional(),parameters:parametersSchema.default({})}).strict();
 export type GenerationDraft=z.infer<typeof draftSchema>;
 function datePart(value:string){const match=value.match(/^(\d{4})-(\d{2})-(\d{2})/);return match?match.slice(1).map(Number):null;}
 function requestedSinceDate(question:string){const match=question.match(/\b(?:since|starting(?:\s+from)?|from)\s+(\d{4}-\d{1,2}-\d{1,2}|\d{1,2}\/\d{1,2}\/\d{2,4})/i);if(!match)return null;const raw=match[1],parts=raw.includes('-')?raw.split('-').map(Number):raw.split('/').map(Number),[year,month,day]=raw.includes('-')?parts:[parts[2]<100?2000+parts[2]:parts[2],parts[0],parts[1]];return [year,month,day] as const;}
@@ -22,6 +23,7 @@ export function validateChartTemporalScope(question:string,dataset:ChartDataset)
 export function validateGenerationDraft(raw:unknown,question:string,context:AgentContext,webSearched:boolean,dataConsulted=false){
  const d=draftSchema.parse(raw);
  if(d.interactive&&d.kind!=='article')throw Error('The interactive illustration field belongs to static articles.');
+ if(d.frontend&&d.kind!=='program')throw Error('A custom frontend belongs to kind=program apps; it talks to the program through window.pageTools.run(values).');
  if(d.intent.visualTheme==='custom')d.intent.visualDesign=normalizeCustomStyle(d.intent.visualDesign);
  const ambiguous=d.intent.needsDisambiguation||!d.intent.singleMeaningCertain||new Set(d.intent.interpretations.map(x=>x.trim().toLowerCase())).size>1;
  if(ambiguous&&d.kind!=='disambiguation'&&!context.sourceDocument&&!context.indexLeafRequired)throw Error('Multiple plausible interpretations require a disambiguation page.');
@@ -80,7 +82,7 @@ export async function materializeGenerationDraft(d:GenerationDraft,context:Agent
  if(d.kind==='program'){
   const backend=await save('backend',d.title+' — page view program','backend_code',d.program);
   const frontend=await save('frontend','Pre-coded page view '+templateId,'frontend_template',{kind:'registered',implementation:'page-view-v1',templateId});
-  config={...config,template:'page-program-v1',executor:'isolated-page-program-v1',inputFields:d.inputFields,components:{frontend,backend}};
+  config={...config,template:'page-program-v1',executor:'isolated-page-program-v1',inputFields:d.inputFields,components:{frontend,backend},...(d.frontend?{pageCode:d.frontend,customized:true}:{})};
  }
  if(d.kind==='chart'){
   templateId=d.templateId==='table-v1'?'table-v1':'dashboard-v1';
