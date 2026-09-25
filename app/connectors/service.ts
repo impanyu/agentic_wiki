@@ -37,7 +37,7 @@ export async function createConnection(userId:string,raw:unknown){signedIn(userI
 }
 
 export async function hccSession(userId:string,id:string,password?:string,duoResponse?:string){signedIn(userId);const c=(await connections(userId)).find(c=>c.id===id&&(c.provider==='unl-hcc'||c.provider==='unl-vpn'));if(!c)throw Error('Session connector not found.');const path=await vaultPath(userId,'connector-'+id),saved=await vaultRead(path);if(!saved?.token)throw Error('Reconnect this connector.');
- if(c.provider==='unl-vpn'){const vpn=await import('./unl-vpn');return password===undefined?vpn.vpnSessionReport(saved.token,id):vpn.startVpnSession(saved.token,id,password,duoResponse==='phone'?'phone':'push');}const hcc=await import('./hcc');if(password===undefined)return hcc.hccSessionReport(saved.token);return hcc.startHccSession(saved.token,password,duoResponse||'phone');}
+ if(c.provider==='unl-vpn'){const vpn=await import('./unl-vpn');return password===undefined?vpn.vpnSessionReport(saved.token,id):vpn.startVpnSession(saved.token,id,password,'push');}const hcc=await import('./hcc');if(password===undefined)return hcc.hccSessionReport(saved.token);return hcc.startHccSession(saved.token,password,duoResponse||'phone');}
 
 export async function updateConnection(userId:string,id:string,raw:unknown){signedIn(userId);const d=z.object({enabled:z.boolean().optional(),allowed:z.array(z.string()).max(200).optional(),refresh:z.boolean().optional()}).strict().parse(raw);
  const c=(await connections(userId)).find(c=>c.id===id);if(!c)throw Error('Connector not found.');let tools=c.tools;
