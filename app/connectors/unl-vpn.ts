@@ -76,6 +76,16 @@ async function samlLogin(connectorId:string,username:string,password:string,duo:
    const url=page.url(),text=(await page.locator('body').innerText({timeout:3000}).catch(()=>'')as string).replace(/\s+/g,' ').trim();
    if(text&&text!==lastText){lastText=text;note('page '+url.replace(/[?#].*$/,'')+' :: '+text.slice(0,160));}
    if(/fed\.nebraska\.edu/.test(url)&&/incorrect|invalid|could not be verified|unknown user|not recognized/i.test(text)&&await page.locator('input[name="j_password"]').count().catch(()=>0))throw Error('The University of Nebraska sign-in rejected the username or password.');
+   // After Duo, the university sign-in site may show an interstitial (for example a required-
+   // training reminder) that waits for a click before returning to the VPN portal.
+   if(/fed\.nebraska\.edu/.test(url)&&chose&&!await page.locator('input[name="j_password"]').count().catch(()=>0)){
+    const buttons=await page.locator('button,input[type=submit],a.button,a[role=button]').evaluateAll((els:Element[])=>els.map(e=>((e as HTMLElement).innerText||(e as HTMLInputElement).value||'').trim()).filter(Boolean).slice(0,8)).catch(()=>[] as string[]);
+    note('interstitial buttons: '+buttons.join(' / '));
+    attempt.stage='Continuing past a university notice…';
+    // Prefer postponing; never follow a link into the training itself.
+    const pick=async(names:RegExp)=>{const t=page.getByRole('button',{name:names}).or(page.getByRole('link',{name:names})).or(page.locator('input[type=submit]').filter({hasText:names})).filter({hasNotText:/training|course|start now|take now/i});if(await t.count().catch(()=>0)){await t.first().click({timeout:5000}).catch(()=>{});return true;}return false;};
+    if(await pick(/remind me later|not now|later|skip/i)||await click(/__never__/,'button[name="_eventId_proceed"]')||await pick(/^\s*(continue|proceed|ok|acknowledge|accept|next)\s*$/i))continue;
+   }
    if(/duosecurity\.com/.test(url)){
     attempt.stage=duo==='phone'?'Duo is calling your phone; answer and approve…':'Duo sent a push; approve it on your phone…';
     // "Is this your device?" comes after approval: never remember this server's browser.
