@@ -45,7 +45,7 @@
   "results": "项",
   "Refresh": "刷新",
   "No tasks are running right now.": "目前没有运行中的任务。",
-  "No matching pages found.": "没有匹配的已创建页面。",
+  "No matching pages found.": "没有匹配的页面。",
   "Wiki": "百科",
   "Next page": "下一页",
   "Cloud storage": "云存储连接",
@@ -587,5 +587,6 @@
   "Voice input is not configured.": "语音输入尚未配置。",
   "The recording is too long.": "录音太长。",
   "No audio was received.": "没有收到音频。",
-  "Stop recording and send": "停止录音并发送"
+  "Stop recording and send": "停止录音并发送",
+  "Visited": "访问于"
 }

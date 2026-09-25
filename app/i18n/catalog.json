@@ -851,5 +851,6 @@
   "Voice input is not configured.": "Voice input is not configured.",
   "The recording is too long.": "The recording is too long.",
   "No audio was received.": "No audio was received.",
-  "Stop recording and send": "Stop recording and send"
+  "Stop recording and send": "Stop recording and send",
+  "Visited": "Visited"
 }
