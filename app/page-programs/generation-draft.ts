@@ -15,6 +15,9 @@ import {createComponent,type AgentContext,type Component} from '@/app/components
 import type {DynamicConfig,ConverterLabels} from '@/app/dynamic/units';
 import type {TemplateId} from '@/app/templates/catalog';
 const source=z.object({title:z.string().min(1).max(500),url:z.string().url().refine(u=>/^https?:\/\//.test(u))});
+// "pages I visited about history", "history pages I have viewed", "my recently opened apps",
+// "我看过的历史页面": requests for the user's own pages on this wiki.
+export function ownPagesRequest(question:string){const q=question.toLowerCase();return /\b(pages?|articles?|apps?|web ?apps?|dashboards?|contexts?)\b[^.?!]{0,40}\b(i|i've|i have|i had)\s+(?:have\s+|recently\s+|just\s+|already\s+)*(visited|viewed|opened|seen|browsed|read|created|made|generated|wrote|saved)\b/.test(q)||/\bmy\s+(?:recent(?:ly)?\s+)?(?:visited|viewed|opened|created|saved)\s+(pages?|articles?|apps?)\b/.test(q)||/我(?:最近)?(?:看过|访问过|浏览过|打开过|创建|写|生成)的.{0,12}(?:页面|文章|应用|网页)/.test(question);}
 const draftSchema=z.object({kind:z.enum(['article','disambiguation','chat','files','index','program','chart','form','converter','native']),title:z.string().min(1).max(200),summary:z.string().min(1).max(1200),body:z.string().max(40000).default(''),category:z.string().max(100).default(''),sources:z.array(source).max(40).default([]),labels:z.record(z.string().max(500)),intent:generationIntentSchema,entries:indexSchema.shape.entries.optional(),templateId:z.enum(['files-v1','dashboard-v1','table-v1','form-v1','chat-v1','geo-v1','data-tools-v1','paper-v1']).optional(),nativeApp:z.enum(['arcgis-publisher','adma-tools','unl-hcc','map','table','json','text','image','pdf','archive','hub']).optional(),interactive:sandboxSchema.optional(),frontend:pageCodeSchema.optional(),program:codeSchema.optional(),inputFields:inputFieldsSchema.optional(),chart:z.unknown().optional(),dataset:z.unknown().optional(),form:formSchema.optional(),expression:z.unknown().optional(),examples:z.array(z.object({input:parametersSchema,output:parametersSchema})).max(4).optional(),parameters:parametersSchema.default({})}).strict();
 export type GenerationDraft=z.infer<typeof draftSchema>;
 function datePart(value:string){const match=value.match(/^(\d{4})-(\d{2})-(\d{2})/);return match?match.slice(1).map(Number):null;}
@@ -36,6 +39,12 @@ export function validateGenerationDraft(raw:unknown,question:string,context:Agen
  if(d.interactive&&d.kind!=='article')throw Error('The interactive illustration field belongs to static articles.');
  if(d.frontend&&d.kind!=='program')throw Error('A custom frontend belongs to kind=program apps; it talks to the program through window.pageTools.run(values).');
  if(d.intent.visualTheme==='custom')d.intent.visualDesign=normalizeCustomStyle(d.intent.visualDesign);
+ // Lists of the user's own pages or tasks are never ambiguous: "pages I visited/created" means this
+ // wiki's pages (web-browser history is not accessible), so they go straight to the live index.
+ if(ownPagesRequest(question)&&!['context_pages','user_jobs'].includes(d.intent.service))throw Error('This question asks for the user\u2019s own wiki pages (pages they visited, viewed, opened or created). Set intent.service="context_pages" and kind="index": a live, linked list of their pages, optionally filtered by topic, never a disambiguation or an article listing pages.');
+ const ownIndex=d.intent.service==='context_pages'||d.intent.service==='user_jobs';
+ if(ownIndex&&d.kind==='disambiguation')throw Error('This request lists the user\u2019s own wiki pages or running tasks, which is not ambiguous: use kind="index" (a live, linked list), not a disambiguation page.');
+ if(ownIndex){d.intent.needsDisambiguation=false;d.intent.singleMeaningCertain=true;d.intent.interpretations=[];}
  const ambiguous=d.intent.needsDisambiguation||!d.intent.singleMeaningCertain||new Set(d.intent.interpretations.map(x=>x.trim().toLowerCase())).size>1;
  if(ambiguous&&d.kind!=='disambiguation'&&!context.sourceDocument&&!context.indexLeafRequired)throw Error('Multiple plausible interpretations require a disambiguation page.');
  if(d.kind==='disambiguation'){

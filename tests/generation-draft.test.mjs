@@ -78,3 +78,7 @@ test('articles must cite their sources inline, not only list them',()=>{
  // An image credit link does not count as a citation.
  assert.throws(()=>m.validateGenerationDraft({...base,sources:two,body:'![x](https://example.org/i.png)\n[credit](https://example.org/a)\n\n'+body+'[2]'},'Topic',ctx,true),/Currently 1 cited/);
 });
+test('requests for the user own pages are recognised and must become a live index',()=>{
+ for(const q of ['my recent visited pages about history','pages I visited about history','history pages I have viewed recently','我最近看过的历史页面','articles I wrote in 2025'])assert.equal(m.ownPagesRequest(q),true,q);
+ for(const q of ['history of Rome','pages about history','file transfer dashboard','how to read pages quickly'])assert.equal(m.ownPagesRequest(q),false,q);
+});
