@@ -40,7 +40,7 @@ export async function vpnSlot(connectorId:string){return slotFor(connectorId);}
 export async function vpnIsUp(connectorId:string){const slot=await slotFor(connectorId);return (await helper(['status',String(slot)],undefined,15000)).stdout.trim()==='up';}
 export async function vpnDisconnect(connectorId:string){const slot=await slotFor(connectorId);await helper(['down',String(slot)],undefined,30000);}
 
-type Attempt={done:boolean;startedAt:number;stage:string;error?:string};
+type Attempt={done:boolean;startedAt:number;finishedAt?:number;stage:string;error?:string};
 const attempts=new Map<string,Attempt>();
 const report=(a:Attempt)=>a.done?(a.error?{connected:false,pending:false,error:a.error}:{connected:true,pending:false,message:'UNL VPN connected. Campus-only services such as the ADAPT share are now reachable for your connectors.'}):{connected:false,pending:true,message:a.stage};
 
@@ -108,7 +108,9 @@ async function samlLogin(connectorId:string,username:string,password:string,duo:
  }finally{await browser.close().catch(()=>{});}
 }
 
-export function vpnLoginReport(connectorId:string){const a=attempts.get(connectorId);if(!a)return null;if(a.done)attempts.delete(connectorId);return report(a);}
+// A finished attempt's result stays readable for five minutes, so background status checks
+// from the panel cannot swallow it before the waiting form reads it.
+export function vpnLoginReport(connectorId:string){const a=attempts.get(connectorId);if(!a)return null;if(a.done&&Date.now()-(a.finishedAt||0)>300000){attempts.delete(connectorId);return null;}return report(a);}
 export async function vpnSessionReport(secret:string,connectorId:string){credentials.parse(JSON.parse(secret));return vpnLoginReport(connectorId)||{connected:await vpnIsUp(connectorId),pending:false};}
 export async function startVpnSession(secret:string,connectorId:string,password:string,duo='push'){
  const auth=credentials.parse(JSON.parse(secret));if(!password||password.length>500)throw Error('Enter your TrueYou password.');if(!/^(push|phone)$/.test(duo))throw Error('Choose Duo Push or phone call.');
@@ -120,7 +122,7 @@ export async function startVpnSession(secret:string,connectorId:string,password:
   const slot=await slotFor(connectorId),r=await helper(['up',String(slot),user],cookie,90000);
   if(r.code!==0||!/connected/.test(r.stdout)){console.error('UNL VPN tunnel failed',{slot,code:r.code,stderr:r.stderr.slice(-800)});throw Error('Signed in, but the VPN tunnel did not start: '+(r.stderr.trim().split('\n').slice(-2).join(' ')||'unknown error').slice(0,300));}
   console.log('UNL VPN connected',{slot,user});
- })().then(()=>{attempt.done=true;},e=>{attempt.error=e instanceof Error?e.message:'VPN login failed.';attempt.done=true;console.error('UNL VPN login failed',attempt.error);});
+ })().then(()=>{attempt.done=true;attempt.finishedAt=Date.now();},e=>{attempt.error=e instanceof Error?e.message:'VPN login failed.';attempt.done=true;attempt.finishedAt=Date.now();console.error('UNL VPN login failed',attempt.error);});
  await Promise.race([work,new Promise(r=>setTimeout(r,15000))]);
  return vpnLoginReport(connectorId)||report(attempt);
 }
