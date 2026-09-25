@@ -40,7 +40,7 @@ export async function generateContext(brief:GenerationBrief,context:AgentContext
    if(body!==undefined){lastPreview=Date.now();streamedBody=body;emit({type:'replace',text:body});}
   };
  await askAgent(generator,generationInstructions,{question:brief.question,language:context.language,sourceDocument:context.sourceDocument,visibility:context.visibility,indexLeafRequired:context.indexLeafRequired,asOf:new Date().toISOString()},{type:'object',additionalProperties:false,properties:{draftJson:{type:'string'}},required:['draftJson']},signal,undefined,[],{
-  context:ctx,extraTools:tools,maxValidationRetries:4,
+  context:ctx,extraTools:tools,maxValidationRetries:7,
   onOutputText:text=>preview(text,'final'),onToolArguments:(name,text)=>{if(name==='validate_page_draft')preview(text,'validate');},
   executeExtra:async(name,args)=>{
    if(name==='read_generation_contract')return {data:generationContract(args.kind)};
