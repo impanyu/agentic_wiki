@@ -26,7 +26,7 @@ export type VerifyTests=z.infer<typeof verifyTestsSchema>;
 export type VerifyTarget={request:string;title:string;program?:CodeProgram|null;templateId?:string;frontend?:PageCode|null;tests?:VerifyTests;pageId?:string};
 type BackendRun={test:string;ok:boolean;rounds?:number;view?:Record<string,unknown>;error?:string;toolErrors:string[];skipped:number};
 type ViewportCheck={viewport:string;ok:boolean;errors:string[];bridgeErrors:string[];textChars:number;horizontalOverflow:boolean;contentHeight:number;brokenImages:number;unlabeledControls:number;tinyText:number;test?:string;missingText?:string[]};
-export type VerifyReport={passed:boolean;blocking:string[];warnings:string[];backend:BackendRun[];frontend:ViewportCheck[];review?:{verdict:string;summary:string;issues:{severity:string;area?:string;problem:string;fix?:string}[]};durationMs:number};
+export type VerifyReport={passed:boolean;blocking:string[];warnings:string[];backend:BackendRun[];frontend:ViewportCheck[];review?:{verdict:string;summary:string;issues:{severity:string;area?:string;problem:string;fix?:string}[]};logic?:{verdict:string;summary:string;issues:{severity:string;problem:string;fix?:string}[]};durationMs:number};
 
 const chromiumPath=()=>[process.env.CHROMIUM_PATH,'/usr/bin/chromium','/usr/bin/chromium-browser','/usr/bin/google-chrome'].find(p=>p&&existsSync(p));
 export const frontendVerificationAvailable=()=>!!chromiumPath();
@@ -42,18 +42,35 @@ export async function verifyApp(target:VerifyTarget,ctx:{userId:string;agent?:Ag
  const started=Date.now(),report:VerifyReport={passed:false,blocking:[],warnings:[],backend:[],frontend:[],durationMs:0};
  const tests=target.tests?.length?target.tests:[{name:'first load',input:{query:target.request,values:{}}}];
  const uploads=target.pageId?await sandboxContextFiles(target.pageId,ctx.userId).catch(()=>({metadata:[],uploads:[]})):{metadata:[],uploads:[]};
+ const logicRuns:{test:string;input:unknown;trace:LoopTrace;view:PageView}[]=[];
  const runBackend=async(query:string,values:Record<string,unknown>)=>runProgramLoop(target.program,{query,values,files:uploads.metadata},ctx.userId,target.pageId||'',uploads.uploads,{verification:true,signal:ctx.signal});
  // 1. Backend
  if(target.program){
   for(const test of tests.filter(t=>t.input||!t.steps).slice(0,4)){
    const name=test.name||'test';
    try{const r=await runBackend(test.input?.query??target.request,test.input?.values||{}),issues=traceIssues(r.trace);
-    report.backend.push({test:name,ok:true,rounds:r.rounds,view:summarizeView(r.view),...issues});
+    report.backend.push({test:name,ok:true,rounds:r.rounds,view:summarizeView(r.view),...issues});logicRuns.push({test:name,input:test.input||{},trace:r.trace,view:r.view});
     if(target.templateId&&r.view.templateId!==target.templateId)report.warnings.push(`Backend (${name}) returned templateId ${r.view.templateId} but the app declares ${target.templateId}.`);
     if(emptyView(r.view))report.warnings.push(`Backend (${name}) returned a view with no body, reply, results, files, data, form or map; readers would see an empty page.`);
     if(issues.toolErrors.length)report.warnings.push(`Backend (${name}) tool calls failed: ${issues.toolErrors.join(' | ')}. Handle these results in the program and show a clear message.`);
    }catch(e){const message=e instanceof Error?e.message:String(e);report.backend.push({test:name,ok:false,error:message.slice(0,1500),toolErrors:[],skipped:0});report.blocking.push(`Backend (${name}) failed: ${message.slice(0,1200)}`);}
   }
+ }
+ // 1b. Logic review. Crash, empty-view and tool-error checks cannot tell whether the program
+ // used the tool results correctly: a program that misreads a result's shape and then shows a
+ // tidy "not connected" message passes them. A reviewer compares the code, the real tool
+ // results and the final view with the request. It runs for every backend, including apps on
+ // pre-coded renderers, which get no screenshot review.
+ if(target.program&&logicRuns.length&&!ctx.signal?.aborted){
+  try{
+   const code=String((target.program as {code?:unknown}).code||'').slice(0,14000);
+   const evidence=logicRuns.map(r=>({test:r.test,input:r.input,toolCalls:r.trace.slice(0,30).map(t=>({id:t.id,tool:t.tool,args:t.args,result:t.result,error:t.error,skipped:t.skipped})),finalView:JSON.stringify(r.view).slice(0,3000)}));
+   const response=await api('responses',{model:model('coding'),store:false,instructions:'You are a senior engineer reviewing a backend program that an AI wrote for a small web app. You get the user request, the program source, and for each test run the real tool calls with their actual arguments and results, and the final view the program returned. Decide whether the program works for the user. Report as blocking: the code reads a tool result with the wrong shape or field names (compare the code with the actual results); the final view contradicts the data the tools returned (for example it says a service is not connected or empty while the results show it connected or containing items); it ignores data needed for the request; it shows invented, placeholder or hardcoded data; a requested feature cannot work with the code as written. A setup or error view is correct only when the results actually show that condition. Tool calls marked skipped were intentionally not executed during verification; do not report those. Report as major: missing error handling for errors that occurred, confusing or misleading text. Return only JSON {"verdict":"works"|"wrong"|"broken","summary":"one or two sentences","issues":[{"severity":"blocking"|"major"|"minor","problem":"what is wrong, citing the code and the result","fix":"concrete code change"}]}.',input:[{role:'user',content:[{type:'input_text',text:JSON.stringify({request:target.request,title:target.title,templateId:target.templateId,program:code,runs:evidence})}]}]});
+   const text=output(response),json=text.slice(text.indexOf('{'),text.lastIndexOf('}')+1),review=JSON.parse(json);
+   report.logic={verdict:String(review.verdict||'wrong'),summary:String(review.summary||'').slice(0,800),issues:(Array.isArray(review.issues)?review.issues:[]).slice(0,8).map((i:any)=>({severity:String(i.severity||'minor'),problem:String(i.problem||'').slice(0,600),fix:i.fix?String(i.fix).slice(0,600):undefined}))};
+   for(const i of report.logic.issues){if(i.severity==='blocking')report.blocking.push(`Logic review: ${i.problem}${i.fix?' Fix: '+i.fix:''}`);else if(i.severity==='major')report.warnings.push(`Logic review: ${i.problem}${i.fix?' Fix: '+i.fix:''}`);}
+   if(report.logic.verdict!=='works'&&!report.logic.issues.some(i=>i.severity==='blocking'))report.blocking.push('Logic review judged the program '+report.logic.verdict+': '+report.logic.summary);
+  }catch(e){report.warnings.push('The logic review could not run: '+(e instanceof Error?e.message.slice(0,200):'error'));}
  }
  // 2. Frontend
  const shots:{label:string;data:string}[]=[];
@@ -151,5 +168,5 @@ export async function verifyApp(target:VerifyTarget,ctx:{userId:string;agent?:Ag
 
 // Compact text for the agent: what failed, what to polish, and what the app showed.
 export function verificationText(r:VerifyReport){
- return JSON.stringify({passed:r.passed,blocking:r.blocking,shouldFix:[...(r.review?.issues||[]).filter(i=>i.severity==='major').map(i=>i.problem+(i.fix?' Fix: '+i.fix:'')),...r.warnings],polish:(r.review?.issues||[]).filter(i=>i.severity==='minor').map(i=>i.problem+(i.fix?' Fix: '+i.fix:'')),visualSummary:r.review?.summary,verdict:r.review?.verdict,backend:r.backend,frontend:r.frontend.map(f=>({viewport:f.viewport,test:f.test,ok:f.ok,textChars:f.textChars,contentHeight:f.contentHeight})),seconds:Math.round(r.durationMs/1000)});
+ return JSON.stringify({passed:r.passed,blocking:r.blocking,shouldFix:[...(r.review?.issues||[]).filter(i=>i.severity==='major').map(i=>i.problem+(i.fix?' Fix: '+i.fix:'')),...r.warnings],polish:[...(r.review?.issues||[]),...(r.logic?.issues||[])].filter(i=>i.severity==='minor').map(i=>i.problem+(i.fix?' Fix: '+i.fix:'')),logicVerdict:r.logic?.verdict,logicSummary:r.logic?.summary,visualSummary:r.review?.summary,verdict:r.review?.verdict,backend:r.backend,frontend:r.frontend.map(f=>({viewport:f.viewport,test:f.test,ok:f.ok,textChars:f.textChars,contentHeight:f.contentHeight})),seconds:Math.round(r.durationMs/1000)});
 }
