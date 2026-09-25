@@ -35,7 +35,9 @@ case "$cmd" in
     case "$user" in ''|-*|*[[:cntrl:]]*) echo "invalid user (${#user} chars)" >&2; exit 64;; esac
     [ ${#user} -le 200 ] || { echo "invalid user (too long)" >&2; exit 64; }
     kind=${4:-prelogin-cookie}
-    case "$kind" in prelogin-cookie) os=linux-64;; portal-userauthcookie) os=mac-intel;; *) echo "invalid cookie kind" >&2; exit 64;; esac
+    case "$kind" in prelogin-cookie) os=linux-64;; portal-userauthcookie|gateway-cookie) os=mac-intel;; *) echo "invalid cookie kind" >&2; exit 64;; esac
+    # gateway-cookie: the service already logged in to the gateway; openconnect only builds the tunnel.
+    if [ "$kind" = gateway-cookie ]; then auth=(--cookie-on-stdin); else auth=(--user="$user" --usergroup="gateway:$kind" --passwd-on-stdin); fi
     cookie=$(head -c 4096); [[ -n "$cookie" && "$cookie" != *$'\n'* ]] || { echo "missing cookie" >&2; exit 64; }
     teardown
     ip netns add "$ns"
@@ -52,8 +54,8 @@ case "$cmd" in
     mkdir -p "/etc/netns/$ns"; echo "nameserver 8.8.8.8" > "/etc/netns/$ns/resolv.conf"
     : > "$log"; chmod 600 "$log"
     # Our own connect script: routes and DNS only inside the namespace.
-    printf '%s' "$cookie" | ip netns exec "$ns" openconnect --protocol=gp --user="$user" --usergroup="gateway:$kind" \
-      --passwd-on-stdin --non-inter --background --pid-file="$pidfile" --script="/usr/local/lib/agenticwiki/aw-vpn-script" \
+    printf '%s' "$cookie" | ip netns exec "$ns" openconnect --protocol=gp "${auth[@]}" \
+      --non-inter --background --pid-file="$pidfile" --script="/usr/local/lib/agenticwiki/aw-vpn-script" \
       --csd-wrapper=/usr/libexec/openconnect/hipreport.sh --os="$os" "$GATEWAY" >>"$log" 2>&1 || { tail -n 20 "$log" >&2; teardown; exit 1; }
     for _ in $(seq 1 40); do
       if ip netns exec "$ns" ip -o link show 2>/dev/null | grep -q 'tun'; then echo "connected"; exit 0; fi

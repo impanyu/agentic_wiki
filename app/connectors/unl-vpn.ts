@@ -55,45 +55,44 @@ const report=(a:Attempt)=>a.done?(a.error?{connected:false,pending:false,error:a
 
 // GlobalProtect prelogin: the portal (or a gateway) returns the single sign-on request to open.
 // Sent the way the official client does, so the SAML request is recorded against a real client.
-async function preloginStart(host:string,path:string){
- const body=new URLSearchParams({tmp:'tmp','kerberos-support':'yes','ipv6-support':'yes',clientVer:'4100',clientos:'Mac','os-version':GP_OS,clientgpversion:GP_VERSION,'default-browser':'0','cas-support':'yes'});
+async function preloginStart(host:string,path:string,hostId:string){
+ // Field order and values as the macOS client sends them (strings in PanGPS); data = {"cas_embedded_browser":"yes"}.
+ const body=`tmp=tmp&clientVer=4100&host-id=${hostId}&clientos=Mac&os-version=${encodeURIComponent(GP_OS)}&ipv6-support=yes&default-browser=0&cas-support=yes&data=eyJjYXNfZW1iZWRkZWRfYnJvd3NlciI6InllcyJ9`;
  const text=await (await fetch('https://'+host+path+'/prelogin.esp',{method:'POST',headers:{'User-Agent':GP_UA,'Content-Type':'application/x-www-form-urlencoded'},body,signal:AbortSignal.timeout(20000)})).text();
  const request=text.match(/<saml-request>([^<]+)/)?.[1];if(!request)throw Error(host+' did not offer single sign-on: '+(text.match(/<msg>([^<]+)/)?.[1]||text.slice(0,120)));
  const url=Buffer.from(request,'base64').toString();if(!/^https:\/\/fed\.nebraska\.edu\//.test(url))throw Error('Unexpected sign-in page for the UNL VPN.');
  return url;
 }
+// A stable GlobalProtect host id for this server and connection (never another device's).
+async function hostIdFor(connectorId:string){
+ const {createHash}=await import('node:crypto');
+ const h=createHash('sha256').update('agenticwiki-vpn:'+connectorId).digest('hex');
+ return `${h.slice(0,8)}-${h.slice(8,12)}-${h.slice(12,16)}-${h.slice(16,20)}-${h.slice(20,32)}`.toUpperCase();
+}
+const form=(fields:[string,string][])=>fields.map(([k,v])=>k+'='+encodeURIComponent(v)).join('&');
+const tag=(xml:string,name:string)=>(xml.match(new RegExp('<'+name+'[^>]*>([^<]*)<'))?.[1]||'').trim();
 // After the portal sign-in the official client asks the portal for its configuration, which
 // carries the portal-userauthcookie; the gateway accepts that cookie directly (no second
 // single sign-on). Returns an empty cookie when the portal withholds it.
-// Each variant differs in how this client identifies itself; the first one that yields the
-// cookie wins. The server's own stable host id per connection is sent, never another device's.
-type ConfigVariant={name:string;user:string;os:string;osVersion:string;extra:Record<string,string>};
-async function portalConfig(connectorId:string,samlUser:string,preloginCookie:string){
- const {createHash}=await import('node:crypto');
- const h=createHash('sha256').update('agenticwiki-vpn:'+connectorId).digest('hex');
- const hostId=`${h.slice(0,8)}-${h.slice(8,12)}-${h.slice(12,16)}-${h.slice(16,20)}-${h.slice(20,32)}`;
- const bare=samlUser.replace(/^.*\\/,'');
- const variants:ConfigVariant[]=[
-  {name:'mac',user:samlUser,os:'Mac',osVersion:GP_OS,extra:{}},
-  {name:'mac+host-id',user:samlUser,os:'Mac',osVersion:GP_OS,extra:{'host-id':hostId,'default-browser':'1'}},
-  {name:'mac+host-id+bare-user',user:bare,os:'Mac',osVersion:GP_OS,extra:{'host-id':hostId,'default-browser':'1'}},
-  {name:'windows+host-id',user:samlUser,os:'Windows',osVersion:'Microsoft Windows 11 Enterprise , 64-bit',extra:{'host-id':hostId}},
- ];
+// Portal configuration request, in the macOS client's field order (PanGPS). The same host id
+// as the prelogin; the portal answers with the portal-userauthcookie for the gateway.
+async function portalConfig(hostId:string,user:string,preloginCookie:string){
+ const body=form([['user',user],['passwd',''],['inputStr',''],['ok','Login'],['clientVer','4100'],['portal-userauthcookie',''],['portal-prelogonuserauthcookie',''],['clientos','Mac'],['clientgpversion',GP_VERSION],['computer','agenticwiki'],['os-version',GP_OS],['host-id',hostId],['prelogin-cookie',preloginCookie],['ipv6-support','yes'],['serialno',''],['csc-digest',''],['config-digest',''],['csc-support','yes'],['token',''],['host',''],['swg-auth-token',''],['swg-nonce','0']]);
+ const res=await fetch(PORTAL+'/global-protect/getconfig.esp',{method:'POST',headers:{'User-Agent':GP_UA,'Content-Type':'application/x-www-form-urlencoded'},body,signal:AbortSignal.timeout(30000)});
+ const text=await res.text(),cookie=tag(text,'portal-userauthcookie'),prelogon=tag(text,'portal-prelogonuserauthcookie');
  const debugDir=join(dataDir(),'vpn-debug');mkdirSync(debugDir,{recursive:true,mode:0o700});
- const tried:string[]=[];
- for(const v of variants){
-  const body=new URLSearchParams({user:v.user,passwd:'','prelogin-cookie':preloginCookie,clientVer:'4100',clientos:v.os,'os-version':v.osVersion,clientgpversion:GP_VERSION,server:PORTAL.replace('https://',''),computer:'agenticwiki','ipv6-support':'yes',inputStr:'',jnlpReady:'jnlpReady',ok:'Login',direct:'yes','portal-userauthcookie':'','portal-prelogonuserauthcookie':'','enc-algo':'aes-256-gcm,aes-128-gcm,aes-128-cbc,','hmac-algo':'sha1,md5,sha256,',...v.extra});
-  try{
-   const res=await fetch(PORTAL+'/global-protect/getconfig.esp',{method:'POST',headers:{'User-Agent':`PAN GlobalProtect/${GP_VERSION} (${v.osVersion})`,'Content-Type':'application/x-www-form-urlencoded'},body,signal:AbortSignal.timeout(30000)});
-   const text=await res.text(),cookie=(text.match(/<portal-userauthcookie[^>]*>([^<]*)</)?.[1]||'').trim();
-   const tags=[...new Set([...text.matchAll(/<([a-z][a-z0-9-]*cookie[a-z0-9-]*)[^>]*>([^<]{0,20})/gi)].map(m=>m[1]+'='+(m[2].trim()?m[2].trim().slice(0,8)+'…':'(blank)')))].join(', ');
-   tried.push(`${v.name}: HTTP ${res.status}, ${text.length} bytes, cookie tags [${tags||'none'}]`);
-   await writeFile(join(debugDir,`getconfig-${v.name}.xml`),text.replace(/(<portal-(?:prelogon)?userauthcookie[^>]*>)[^<]*/g,'$1REDACTED'),{mode:0o600}).catch(()=>{});
-   if(cookie&&cookie!=='empty'){console.log('UNL VPN portal auth cookie via',v.name);return {cookie,user:v.user,summary:tried.join(' | ')};}
-   if(res.status!==200)break;
-  }catch(e){tried.push(`${v.name}: ${e instanceof Error?e.message:'failed'}`);}
- }
- return {cookie:'',user:samlUser,summary:tried.join(' | ')};
+ await writeFile(join(debugDir,'getconfig.xml'),text.replace(/(<portal-(?:prelogon)?userauthcookie[^>]*>)[^<]*/g,'$1REDACTED'),{mode:0o600}).catch(()=>{});
+ const ok=(v:string)=>v&&v!=='empty'?v:'';
+ return {cookie:ok(cookie),prelogon:ok(prelogon),summary:`HTTP ${res.status}, ${text.length} bytes, portal-userauthcookie=${cookie?(cookie==='empty'?'empty':'set'):'absent'}`};
+}
+// Gateway login with the portal cookie, as the macOS client does; returns openconnect's gateway
+// cookie (authcookie, portal, user, domain, computer) for --cookie-on-stdin.
+async function gatewayLogin(hostId:string,user:string,portalCookie:string,prelogonCookie:string){
+ const body=form([['prot','https:'],['server',GATEWAY],['inputStr',''],['jnlpReady','jnlpReady'],['user',user],['passwd',''],['computer','agenticwiki'],['ok','Login'],['direct','yes'],['clientVer','4100'],['os-version',GP_OS],['preferred-ip',''],['preferred-ipv6',''],['clientos','Mac'],['clientgpversion',GP_VERSION],['portal-userauthcookie',portalCookie],['portal-prelogonuserauthcookie',prelogonCookie],['host-id',hostId],['prelogin-cookie',''],['ipv6-support','yes'],['client-ip',''],['client-ipv6',''],['internal','no'],['serialno',''],['connect-method','on-demand'],['selection-type','auto'],['token',''],['host',''],['gw',''],['gateway-name','']]);
+ const res=await fetch('https://'+GATEWAY+'/ssl-vpn/login.esp',{method:'POST',headers:{'User-Agent':GP_UA,'Content-Type':'application/x-www-form-urlencoded'},body,signal:AbortSignal.timeout(30000)});
+ const text=await res.text(),args=[...text.matchAll(/<argument>([^<]*)<\/argument>/g)].map(m=>m[1].replace(/&amp;/g,'&').trim());
+ if(res.status!==200||args.length<8||!args[1]){console.error('UNL VPN gateway login failed',res.status,text.replace(/<[^>]+>/g,' ').replace(/\s+/g,' ').slice(0,400));throw Error('The VPN gateway did not accept the portal sign-in (HTTP '+res.status+(tag(text,'error')?': '+tag(text,'error'):'')+').');}
+ return form([['authcookie',args[1]],['portal',args[3]],['user',args[4]],['domain',args[7]],['computer','agenticwiki']]);
 }
 // The University of Nebraska VPN is Prisma Access: the portal (nu-vpn.nebraska.edu) and each
 // gateway require their own single sign-on, and the portal issues no reusable cookie. Like the
@@ -101,7 +100,8 @@ async function portalConfig(connectorId:string,samlUser:string,preloginCookie:st
 // the same browser session, where the university sign-in page recognizes the session and needs
 // nothing more from the user. The gateway's prelogin cookie starts the tunnel.
 async function samlLogin(connectorId:string,username:string,password:string,duo:string,attempt:Attempt){
- const portalStart=await preloginStart(PORTAL.replace('https://',''),'/global-protect');
+ const hostId=await hostIdFor(connectorId);
+ const portalStart=await preloginStart(PORTAL.replace('https://',''),'/global-protect',hostId);
  const executablePath=chromiumPath();if(!executablePath)throw Error('The server cannot run the sign-in browser.');
  const {chromium}=await import('playwright-core');
  // One saved browser profile per connection and Duo method: Duo's prompt starts the method last
@@ -165,20 +165,16 @@ async function samlLogin(connectorId:string,username:string,password:string,duo:
   if(!captured.portal){console.error('UNL VPN sign-in trail',trail.join(' | ').slice(-3000));const reachedDuo=trail.some(t=>/duosecurity\.com/.test(t));throw Error(!reachedDuo?'Sign-in did not reach Duo. Check the TrueYou username (NUID@nebraska.edu) and password.':!chose?'Duo did not offer the phone-call option. Choose Duo Push and try again.':'Duo approval did not complete the sign-in. Try again; if it keeps failing, the server log shows where it stopped.');}
   note('portal signed in');
   // Like the official client: exchange the portal sign-in for the portal auth cookie and log in
-  // to the gateway with it. The gateway's own single sign-on (broken at UNL, ACS error -1) is only
-  // a fallback when the portal withholds the cookie.
+  // to the gateway with it. The gateway's own single sign-on is never used: at UNL its SAML
+  // endpoint rejects every sign-in (ACS error -1), and the official client does not use it.
   attempt.stage='Getting the VPN configuration…';
-  const portal=captured.portal,config=await portalConfig(connectorId,portal.user,portal.cookie).catch(e=>({cookie:'',user:portal.user,summary:e instanceof Error?e.message:'failed'}));
-  if(config.cookie){note('portal auth cookie received');return {user:config.user,cookie:config.cookie,kind:'portal-userauthcookie' as const};}
+  const portal=captured.portal,config=await portalConfig(hostId,portal.user,portal.cookie);
+  if(config.cookie){
+   note('portal auth cookie received');attempt.stage='Signing in at the VPN gateway…';
+   return {user:portal.user,cookie:await gatewayLogin(hostId,portal.user,config.cookie,config.prelogon),kind:'gateway-cookie' as const};
+  }
   console.error('UNL VPN portal issued no auth cookie',config.summary);
-  if(process.env.UNL_VPN_GATEWAY_SAML==='0')return {...captured.portal,kind:'prelogin-cookie' as const};
-  // Stage 2: the gateway, in the same browser session, so the university page needs nothing more.
-  attempt.stage='Signing in at the VPN gateway…';
-  const gatewayStart=await preloginStart(GATEWAY,'/ssl-vpn');
-  await page.goto(gatewayStart,{waitUntil:'domcontentloaded',timeout:30000});
-  await run(Date.now()+60000,()=>!!captured.gateway,'gateway');
-  if(!captured.gateway){console.error('UNL VPN gateway sign-in failed',{trail:trail.join(' | ').slice(-2000),acsFailure});throw Error(acsFailure?'The VPN gateway rejected the university sign-in ('+acsFailure.slice(0,160)+'). This is a gateway configuration problem; the server log has the details.':'The VPN gateway did not complete the sign-in in time.');}
-  return {...captured.gateway,kind:'prelogin-cookie' as const};
+  throw Error('The UNL VPN portal signed you in but did not issue the gateway cookie ('+config.summary+'). The server kept the portal reply for diagnosis.');
  }finally{await browser.close().catch(()=>{});}
 }
 
