@@ -8,6 +8,8 @@ User=root
 Environment=AW_OWNER=impanyu
 ExecStart=/home/impanyu/.local/agenticwiki-node/bin/node /usr/local/lib/agenticwiki/aw-vpn-daemon.cjs
 Restart=always
+# Restarting the broker (e.g. on deploy) must not end users' openconnect tunnels it started.
+KillMode=process
 RestartSec=3
 
 [Install]
