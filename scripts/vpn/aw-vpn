@@ -28,9 +28,9 @@ case "$cmd" in
   up)
     # stdin: the portal prelogin cookie; $3: the SAML username the portal returned.
     # The portal's SAML username (an email, NUID or display form). It is always passed quoted;
-    # refuse only control characters, shell metacharacters and anything that looks like an option.
+    # it is never evaluated, so refuse only control characters and anything that looks like an option.
     user=${3:-}
-    case "$user" in ''|-*|*[[:cntrl:]]*|*[\"\'\`\$\\\;\|\&\<\>]*) echo "invalid user (${#user} chars)" >&2; exit 64;; esac
+    case "$user" in ''|-*|*[[:cntrl:]]*) echo "invalid user (${#user} chars)" >&2; exit 64;; esac
     [ ${#user} -le 200 ] || { echo "invalid user (too long)" >&2; exit 64; }
     cookie=$(head -c 4096); [[ -n "$cookie" && "$cookie" != *$'\n'* ]] || { echo "missing cookie" >&2; exit 64; }
     teardown
