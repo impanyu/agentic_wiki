@@ -54,34 +54,36 @@ async function samlLogin(username:string,password:string,duo:string,attempt:Atte
  try{
   const page=await browser.newPage({userAgent:'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0 Safari/537.36'});
   let result:{cookie:string;user:string}|null=null;
-  // The portal answers the SAML post with headers carrying the prelogin cookie.
-  page.on('response',async(r:any)=>{try{const h=await r.allHeaders();const cookie=h['prelogin-cookie'],user=h['saml-username'];if(cookie&&user)result={cookie,user};}catch{}});
+  const trail:string[]=[];const note=(m:string)=>{trail.push(m);if(trail.length>30)trail.shift();};
+  // The portal answers the SAML post with the prelogin cookie, in headers or in an HTML comment.
+  page.on('response',async(r:any)=>{try{const h=await r.allHeaders();let cookie=h['prelogin-cookie'],user=h['saml-username'];if((!cookie||!user)&&/nu-vpn\.nebraska\.edu/.test(r.url())){const body=await r.text().catch(()=>'');cookie=cookie||body.match(/<prelogin-cookie>([^<]+)</)?.[1];user=user||body.match(/<saml-username>([^<]+)</)?.[1];}if(cookie&&user)result={cookie,user};}catch{}});
+  page.on('framenavigated',(f:any)=>{if(f===page.mainFrame())note('nav '+String(f.url()).replace(/[?#].*$/,''));});
   attempt.stage='Opening the University of Nebraska sign-in page…';
   await page.goto(start,{waitUntil:'domcontentloaded',timeout:30000});
   await page.locator('input[name="j_username"]').fill(username,{timeout:15000});
   await page.locator('input[name="j_password"]').fill(password);
   attempt.stage='Signing in with your TrueYou credentials…';
   await Promise.all([page.waitForLoadState('domcontentloaded').catch(()=>{}),page.locator('button[name="_eventId_proceed"]').click()]);
-  const deadline=Date.now()+150000;let asked=false;
+  const deadline=Date.now()+150000;let chose=false,lastText='';
+  const click=async(names:RegExp,css='')=>{const target=(css?page.locator(css):page.locator('__none__')).or(page.getByRole('button',{name:names})).or(page.getByRole('link',{name:names}));if(await target.count().catch(()=>0)){await target.first().click({timeout:5000}).catch(()=>{});return true;}return false;};
   while(Date.now()<deadline&&!result){
    await page.waitForTimeout(1500);
-   const text=await page.locator('body').innerText({timeout:3000}).catch(()=>'')as string;
-   if(/incorrect|invalid (?:username|password)|could not be verified|unknown user/i.test(text)&&/j_password/.test(await page.content().catch(()=>'')))throw Error('The University of Nebraska sign-in rejected the username or password.');
-   // Duo Universal Prompt: choose the method once, then wait for the user's approval.
-   if(!asked&&/duosecurity\.com/.test(page.url())){
-    attempt.stage='Duo is waiting for your approval…';
-    const pick=duo==='phone'?/call|phone call/i:/push|duo mobile/i;
-    const other=page.getByRole('link',{name:/other options/i}).or(page.getByRole('button',{name:/other options/i}));
-    if(await other.count().catch(()=>0)){await other.first().click().catch(()=>{});await page.waitForTimeout(1200);}
-    const option=page.getByRole('link',{name:pick}).or(page.getByRole('button',{name:pick}));
-    if(await option.count().catch(()=>0))await option.first().click().catch(()=>{});
-    asked=true;
+   const url=page.url(),text=(await page.locator('body').innerText({timeout:3000}).catch(()=>'')as string).replace(/\s+/g,' ').trim();
+   if(text&&text!==lastText){lastText=text;note('page '+url.replace(/[?#].*$/,'')+' :: '+text.slice(0,160));}
+   if(/fed\.nebraska\.edu/.test(url)&&/incorrect|invalid|could not be verified|unknown user|not recognized/i.test(text)&&await page.locator('input[name="j_password"]').count().catch(()=>0))throw Error('The University of Nebraska sign-in rejected the username or password.');
+   if(/duosecurity\.com/.test(url)){
+    attempt.stage=duo==='phone'?'Duo is calling your phone; answer and approve…':'Duo sent a push; approve it on your phone…';
+    // "Is this your device?" comes after approval: never remember this server's browser.
+    if(/is this your device|trust this browser/i.test(text)){await click(/no, other people use this device|don.?t trust/i,'#dont-trust-browser-button');continue;}
+    // The prompt starts the user's default method automatically; switch only when a phone call was chosen.
+    if(!chose&&duo==='phone'&&/push|duo mobile|other options/i.test(text)){
+     if(await click(/other options/i)){await page.waitForTimeout(1500);}
+     if(await click(/^\s*phone call\s*$|call me|phone call/i)){chose=true;note('chose phone call');}
+    }
+    if(!chose&&duo==='push')chose=true;
    }
-   // "Is this your device?" after approval: do not remember this server's browser.
-   const trust=page.getByRole('button',{name:/no, other people use this device|don.t trust/i});
-   if(await trust.count().catch(()=>0))await trust.first().click().catch(()=>{});
   }
-  if(!result)throw Error(asked?'Duo was not approved in time. Try again and approve the request on your phone.':'Sign-in did not reach Duo. Check the TrueYou username (NUID@nebraska.edu) and password.');
+  if(!result){console.error('UNL VPN sign-in trail',trail.join(' | ').slice(-3000));throw Error(chose?'Duo approval did not complete the sign-in. Try again; if it keeps failing, the server log shows where it stopped.':'Sign-in did not reach Duo. Check the TrueYou username (NUID@nebraska.edu) and password.');}
   return result as {cookie:string;user:string};
  }finally{await browser.close().catch(()=>{});}
 }
