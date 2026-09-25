@@ -15,7 +15,8 @@ const PORTAL='https://nu-vpn.nebraska.edu';
 // The portal hands out Prisma Access gateways that each require their own single sign-on, so
 // the sign-in is done directly at the gateway nearest the server (us-central1) and the tunnel
 // connects to that gateway; one Duo approval covers it.
-export const GATEWAY=process.env.UNL_VPN_GATEWAY||'us-central-g-universi.gpo2ojjg5cnn.gw.gpcloudservice.com';
+// US Central's SAML endpoint rejected valid sign-ins (error -1); US East is tried instead.
+export const GATEWAY=process.env.UNL_VPN_GATEWAY||'us-east-g-universi.gpo2ojjg5cnn.gw.gpcloudservice.com';
 const credentials=z.object({username:z.string().regex(/^[A-Za-z0-9._@+-]{1,120}$/)}).passthrough();
 const chromiumPath=()=>[process.env.CHROMIUM_PATH,'/usr/bin/chromium','/usr/bin/chromium-browser'].find(p=>p&&existsSync(p));
 const dataDir=()=>process.env.DATA_DIR||join(process.cwd(),'data');
@@ -130,7 +131,7 @@ async function samlLogin(connectorId:string,username:string,password:string,duo:
   // prelogin cookie is presented to the gateway (as other GlobalProtect clients do). The gateway's
   // own single sign-on is only attempted when UNL_VPN_GATEWAY_SAML=1; its SAML endpoint rejects
   // otherwise valid sign-ins.
-  if(process.env.UNL_VPN_GATEWAY_SAML!=='1')return captured.portal;
+  if(process.env.UNL_VPN_GATEWAY_SAML==='0')return captured.portal;
   // Stage 2: the gateway, in the same browser session, so the university page needs nothing more.
   attempt.stage='Signing in at the VPN gateway…';
   const gatewayStart=await preloginStart(GATEWAY,'/ssl-vpn');
