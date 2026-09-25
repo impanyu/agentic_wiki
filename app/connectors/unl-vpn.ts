@@ -78,7 +78,7 @@ async function samlLogin(connectorId:string,username:string,password:string,duo:
   let acsFailure='';
   const trail:string[]=[];const note=(m:string)=>{trail.push(m);if(trail.length>40)trail.shift();};
   // The portal or gateway answers the SAML post with the prelogin cookie, in headers or in an HTML comment.
-  page.on('response',async(r:any)=>{try{const url=String(r.url());const which=/nu-vpn\.nebraska\.edu/.test(url)?'portal':/gpcloudservice\.com/.test(url)?'gateway':null;if(!which)return;const h=await r.allHeaders();let cookie=h['prelogin-cookie'],user=h['saml-username'];const body=await r.text().catch(()=>'');cookie=cookie||body.match(/<prelogin-cookie>([^<]+)</)?.[1];user=user||body.match(/<saml-username>([^<]+)</)?.[1];if(cookie&&user)captured[which]={cookie,user};else if(/Authentication Failed|Error code/i.test(body)&&which==='gateway')acsFailure=body.replace(/<[^>]+>/g,' ').replace(/\s+/g,' ').slice(0,600);}catch{}});
+  page.on('response',async(r:any)=>{try{const url=String(r.url());const which=/nu-vpn\.nebraska\.edu/.test(url)?'portal':/gpcloudservice\.com/.test(url)?'gateway':null;if(!which)return;const h=await r.allHeaders();let cookie=h['prelogin-cookie'],user=h['saml-username'];const body=await r.text().catch(()=>'');cookie=cookie||body.match(/<prelogin-cookie>([^<]+)</)?.[1];user=user||body.match(/<saml-username>([^<]+)</)?.[1];if(cookie&&user)captured[which]={cookie,user};else if(/Authentication Failed|Error code/i.test(body)&&which==='gateway')acsFailure=body.replace(/<style[\s\S]*?<\/style>|<script[\s\S]*?<\/script>/gi,' ').replace(/<[^>]+>/g,' ').replace(/\s+/g,' ').slice(0,600);}catch{}});
   page.on('framenavigated',(f:any)=>{if(f===page.mainFrame())note('nav '+String(f.url()).replace(/[?#].*$/,''));});
   const click=async(names:RegExp,css='')=>{const target=(css?page.locator(css):page.locator('__none__')).or(page.getByRole('button',{name:names})).or(page.getByRole('link',{name:names}));if(await target.count().catch(()=>0)){await target.first().click({timeout:5000}).catch(()=>{});return true;}return false;};
   let chose=false,lastText='';
@@ -126,6 +126,11 @@ async function samlLogin(connectorId:string,username:string,password:string,duo:
   await run(Date.now()+150000,()=>!!captured.portal,'portal');
   if(!captured.portal){console.error('UNL VPN sign-in trail',trail.join(' | ').slice(-3000));const reachedDuo=trail.some(t=>/duosecurity\.com/.test(t));throw Error(!reachedDuo?'Sign-in did not reach Duo. Check the TrueYou username (NUID@nebraska.edu) and password.':!chose?'Duo did not offer the phone-call option. Choose Duo Push and try again.':'Duo approval did not complete the sign-in. Try again; if it keeps failing, the server log shows where it stopped.');}
   note('portal signed in');
+  // Prisma Access shares one sign-in service between the portal and its gateways, so the portal's
+  // prelogin cookie is presented to the gateway (as other GlobalProtect clients do). The gateway's
+  // own single sign-on is only attempted when UNL_VPN_GATEWAY_SAML=1; its SAML endpoint rejects
+  // otherwise valid sign-ins.
+  if(process.env.UNL_VPN_GATEWAY_SAML!=='1')return captured.portal;
   // Stage 2: the gateway, in the same browser session, so the university page needs nothing more.
   attempt.stage='Signing in at the VPN gateway…';
   const gatewayStart=await preloginStart(GATEWAY,'/ssl-vpn');
