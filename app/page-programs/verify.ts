@@ -43,7 +43,7 @@ export async function verifyApp(target:VerifyTarget,ctx:{userId:string;agent?:Ag
  const tests=target.tests?.length?target.tests:[{name:'first load',input:{query:target.request,values:{}}}];
  const uploads=target.pageId?await sandboxContextFiles(target.pageId,ctx.userId).catch(()=>({metadata:[],uploads:[]})):{metadata:[],uploads:[]};
  const logicRuns:{test:string;input:unknown;trace:LoopTrace;view:PageView}[]=[];
- const runBackend=async(query:string,values:Record<string,unknown>)=>runProgramLoop(target.program,{query,values,files:uploads.metadata},ctx.userId,target.pageId||'',uploads.uploads,{verification:true,signal:ctx.signal});
+ const runBackend=async(query:string,values:Record<string,unknown>,extra:Record<string,unknown>={})=>runProgramLoop(target.program,{query,values,...extra,files:uploads.metadata},ctx.userId,target.pageId||'',uploads.uploads,{verification:true,signal:ctx.signal});
  // 1. Backend
  if(target.program){
   for(const test of tests.filter(t=>t.input||!t.steps).slice(0,4)){
@@ -87,7 +87,7 @@ export async function verifyApp(target:VerifyTarget,ctx:{userId:string;agent?:Ag
     const bridge=async(name:string,args:Record<string,unknown>)=>{
      if(name==='run_page'){
       if(!target.program)return {error:'This page has no backend program; pageTools.run is unavailable.'};
-      try{const r=await runBackend(typeof args.query==='string'?args.query:'',args.values&&typeof args.values==='object'?args.values as Record<string,unknown>:{});return {result:{view:r.view,runtimeError:null,proposals:[]}};}catch(e){return {result:{view:null,runtimeError:'The page program could not finish: '+(e instanceof Error?e.message.slice(0,300):'error'),proposals:[]}};}
+      try{const extra=Object.fromEntries(Object.entries({submitted:args.submitted===true?true:undefined,message:typeof args.message==='string'&&args.message?args.message:undefined,parent:typeof args.parent==='string'?args.parent:undefined,cursor:typeof args.cursor==='string'?args.cursor:undefined}).filter(([,v])=>v!==undefined));const r=await runBackend(typeof args.query==='string'?args.query:'',args.values&&typeof args.values==='object'?args.values as Record<string,unknown>:{},extra);return {result:{view:r.view,runtimeError:null,proposals:[]}};}catch(e){return {result:{view:null,runtimeError:'The page program could not finish: '+(e instanceof Error?e.message.slice(0,300):'error'),proposals:[]}};}
      }
      if(!ctx.agent)return {result:{skipped:true,verification:'Workspace tools are not available while verifying a new draft.'}};
      if(name==='call_connector'){const id=String(args.connectorId||''),tool=String(args.tool||'');if(!await connectorCallIsAutomatic(ctx.userId,id,tool))return {result:{skipped:true,verification:'This connector call needs the user’s approval and was not executed during verification.'}};}

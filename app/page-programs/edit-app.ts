@@ -29,11 +29,11 @@ async function stored(agent:Agent,pageId:string){const object=await bucket().get
 const preview=(draft:Draft):EditDraft=>({id:draft.id,title:draft.title,summary:draft.summary,body:draft.body,pageCode:draft.config?.pageCode});
 // Lets an unsaved proposal's custom UI call the proposed backend in the chat preview.
 // Runs in verification mode: writes and approval-gated calls are skipped, nothing is saved.
-export async function previewRun(page:AnswerPage,agent:Agent,draftId:string,input:{query?:string;values?:Record<string,unknown>}){
+export async function previewRun(page:AnswerPage,agent:Agent,draftId:string,input:{query?:string;values?:Record<string,unknown>;submitted?:true;message?:string;parent?:string;cursor?:string}){
  const draft=await stored(agent,page.id);if(!draft||draft.saved||draft.id!==draftId)throw Error('This preview is no longer available.');
  const ref=draft.config?.template==='page-program-v1'?draft.config.components?.backend:undefined;if(!ref)throw Error('This proposal has no backend program.');
  const program=JSON.parse((await getComponent(ref,{userId:agent.ownerId},'backend_code')).payload),files=await sandboxContextFiles(page.id,agent.ownerId);
- try{const r=await runProgramLoop(program,{query:input.query||'',values:input.values||{},files:files.metadata},agent.ownerId,page.id,files.uploads,{verification:true});return {view:r.view,runtimeError:null,proposals:[],preview:true};}
+ try{const r=await runProgramLoop(program,{query:input.query||'',values:input.values||{},...(input.submitted?{submitted:true}:{}),...(input.message?{message:input.message}:{}),...(input.parent!==undefined?{parent:input.parent}:{}),...(input.cursor!==undefined?{cursor:input.cursor}:{}),files:files.metadata},agent.ownerId,page.id,files.uploads,{verification:true});return {view:r.view,runtimeError:null,proposals:[],preview:true};}
  catch(e){return {view:null,runtimeError:'The proposed program could not finish: '+(e instanceof Error?e.message.slice(0,300):'error'),proposals:[],preview:true};}
 }
 export async function readAppDraft(agent:Agent,pageId:string){const draft=await stored(agent,pageId);return draft&&!draft.saved?preview(draft):null;}
