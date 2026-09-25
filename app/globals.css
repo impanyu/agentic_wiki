@@ -382,3 +382,28 @@ html[data-print=report] .voice-input{display:none!important}
 /* Sources on phones: arrows and title flow as one line of text, so a long title wraps under
    the number instead of dropping below the arrows as a separately indented block. */
 @media(max-width:640px){.sources ol{padding-left:24px}.sources li{padding-block:6px;line-height:1.55}.source-entry{display:block}.source-returns{display:inline-flex;vertical-align:-3px;max-width:100%;margin-inline-end:6px;overflow:visible;flex-wrap:wrap;gap:4px}.source-return-icon{margin:0 1px;width:13px;height:13px}.answer .source-return{min-width:20px;height:20px;padding:0 4px;font-size:11px}.source-title{display:inline;overflow-wrap:anywhere;word-break:break-word}}
+
+/* Live agent: switch, frequency and status in the page toolbar */
+.live-agent{flex-basis:100%;display:flex;flex-direction:column;gap:8px;border:1px solid #e3e7ec;border-radius:12px;padding:8px 12px;background:#fbfcfd}
+.live-agent.on{border-color:#b9d8c4;background:#f4fbf6}.live-agent.running{border-color:#9cc3e8;background:#f2f8fe}
+.live-agent-row{display:flex;align-items:center;flex-wrap:wrap;gap:10px}
+.context-actions .live-agent-switch{gap:8px;padding:6px 10px}
+.live-agent-switch i{position:relative;width:32px;height:18px;border-radius:9px;background:#cbd2d9;transition:background .15s}
+.live-agent-switch i::after{content:'';position:absolute;top:2px;left:2px;width:14px;height:14px;border-radius:50%;background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.25);transition:left .15s}
+.live-agent-switch[aria-checked=true] i{background:#2f8f55}.live-agent-switch[aria-checked=true] i::after{left:16px}
+.live-agent-badge{display:inline-flex;align-items:center;gap:6px;font-weight:600;color:#2f6f45}
+.context-actions .live-agent span.live-agent-badge{font-size:13px;color:#2f6f45}
+.live-agent select{border:1px solid #d8dde3;border-radius:8px;padding:6px 8px;background:#fff;font-size:13px}
+.context-actions .live-agent .live-agent-status{font-size:13px;color:#4b5563;flex:1 1 220px}
+.live-agent.running .live-agent-status::before{content:'';display:inline-block;width:8px;height:8px;margin-right:6px;border-radius:50%;background:#2b7bd0;animation:live-pulse 1.2s ease-in-out infinite}
+@keyframes live-pulse{50%{opacity:.25}}
+.context-actions .live-agent-more{padding:5px 10px;font-size:13px}
+.live-agent-details{display:flex;flex-direction:column;gap:10px;font-size:14px}
+.live-agent-actions{display:flex;gap:8px;flex-wrap:wrap}
+.live-agent-details label{display:flex;flex-direction:column;gap:4px;font-size:13px;color:#4b5563}
+.live-agent-details textarea{border:1px solid #d8dde3;border-radius:8px;padding:8px;font:inherit;resize:vertical}
+.live-agent-summary p{white-space:pre-wrap;margin:4px 0 0;font-size:13px;line-height:1.5;max-height:220px;overflow:auto}
+.live-agent-details small{color:#6b7280;font-size:12px}
+.live-agent-note{margin:0;font-size:13px}.live-agent-note button{display:inline;border:0;background:none;padding:0;color:#1d5fb4;text-decoration:underline;cursor:pointer}
+.live-agent-error{margin:0;color:#b42318;font-size:13px}
+@media(max-width:640px){.live-agent-row{gap:8px}.context-actions .live-agent .live-agent-status{flex-basis:100%}}
