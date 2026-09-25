@@ -66,7 +66,41 @@ case "$cmd" in
   status) if running && ip netns exec "$ns" ip -o link show 2>/dev/null | grep -q tun; then echo "up"; else echo "down"; fi ;;
   resolve)
     name=${3:-}; [[ "$name" =~ ^[A-Za-z0-9.-]{1,200}$ ]] || { echo "invalid host" >&2; exit 64; }
-    ip netns exec "$ns" getent hosts "$name" | head -1 ;;
+    # Ask the campus DNS servers the tunnel announced (the namespace resolv.conf) directly: the
+    # host resolver (systemd-resolved via nss) ignores that file and would ask public DNS,
+    # which does not know campus-only names such as snr18.unl.edu.
+    ip netns exec "$ns" python3 - "$name" <<'PY'
+import random,socket,struct,sys
+name=sys.argv[1];servers=[];search=[]
+for line in open('/etc/resolv.conf'):
+    f=line.split()
+    if len(f)>1 and f[0]=='nameserver':servers.append(f[1])
+    if len(f)>1 and f[0]=='search':search=f[1:]
+def query(host,server):
+    tid=random.randint(0,65535)
+    pkt=struct.pack('>HHHHHH',tid,0x0100,1,0,0,0)+b''.join(bytes([len(p)])+p.encode() for p in host.split('.'))+b'\0'+struct.pack('>HH',1,1)
+    s=socket.socket(socket.AF_INET,socket.SOCK_DGRAM);s.settimeout(3);s.sendto(pkt,(server,53));d=s.recv(4096)
+    if struct.unpack('>H',d[:2])[0]!=tid:return None
+    an=struct.unpack('>H',d[6:8])[0];i=12
+    while d[i]:i+=d[i]+1
+    i+=5
+    for _ in range(an):
+        if d[i]&0xc0==0xc0:i+=2
+        else:
+            while d[i]:i+=d[i]+1
+            i+=1
+        t,c,ttl,l=struct.unpack('>HHIH',d[i:i+10]);i+=10
+        if t==1 and l==4:return socket.inet_ntoa(d[i:i+4])
+        i+=l
+    return None
+for host in ([name] if '.' in name else [])+[name+'.'+d for d in search]+([name] if '.' not in name else []):
+    for server in servers:
+        try:ip=query(host,server)
+        except Exception:ip=None
+        if ip:print(ip,host);sys.exit(0)
+sys.exit(2)
+PY
+    ;;
   smb)
     # smbclient inside the namespace, run as the service user. $3 is an auth file the
     # service created (owned by that user, mode 600); the remaining args are passed as is.
