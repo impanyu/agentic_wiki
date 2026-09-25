@@ -117,7 +117,10 @@ export async function startVpnSession(secret:string,connectorId:string,password:
  const running=attempts.get(connectorId);if(running&&!running.done)return report(running);
  const attempt:Attempt={done:false,startedAt:Date.now(),stage:'Starting…'};attempts.set(connectorId,attempt);
  const work=(async()=>{
-  const {cookie,user}=await samlLogin(connectorId,auth.username,password,duo,attempt);
+  const signedIn=await samlLogin(connectorId,auth.username,password,duo,attempt);
+  // Header values can carry stray whitespace or line breaks; the portal expects the plain name.
+  const user=signedIn.user.replace(/[\x00-\x1f\x7f]/g,'').trim(),cookie=signedIn.cookie.replace(/[\x00-\x1f\x7f]/g,'').trim();
+  console.log('UNL VPN portal username',JSON.stringify(user));
   attempt.stage='Starting the VPN tunnel…';
   const slot=await slotFor(connectorId),r=await helper(['up',String(slot),user],cookie,90000);
   if(r.code!==0||!/connected/.test(r.stdout)){console.error('UNL VPN tunnel failed',{slot,code:r.code,stderr:r.stderr.slice(-800)});throw Error('Signed in, but the VPN tunnel did not start: '+(r.stderr.trim().split('\n').slice(-2).join(' ')||'unknown error').slice(0,300));}
