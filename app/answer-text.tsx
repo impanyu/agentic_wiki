@@ -23,6 +23,13 @@ export function AnswerText({body,title,summary,labels,sources,highlights,links=[
   const index=sourceFor(url,label),id='citation-'+key;references[index].occurrences.push(id);
   return <sup className="citation" key={key}><a id={id} href={'#source-'+(index+1)} aria-label={t("Source ")+(index+1)} onClick={e=>{e.preventDefault();jumpTo('source-'+(index+1));}}>[{index+1}]</a></sup>;
  }
+ // Articles may cite by number alone ("…[2]"), meaning entry 2 of the page's source list.
+ // Such markers become the same linked superscripts as [2](url) citations; the text itself
+ // is not re-split, so saved highlight and link offsets stay valid.
+ function numberedCitations(content:string,key:string):ReactNode[]{
+  const parts=content.split(/\[(\d{1,3})\](?!\()/);if(parts.length===1)return [content];
+  return parts.map((part,i)=>{if(i%2===0)return part;const source=sources[Number(part)-1];return source&&/^https?:\/\//.test(source.url)?citation(source.url,source.title,key+'.n'+i):'['+part+']';});
+ }
  const suggestions=availableConcepts(concepts,links,highlights);
  const levels=linkLevels(links),tabStops=new Set<string>();
  function text(value:string,id:string){
@@ -40,7 +47,7 @@ export function AnswerText({body,title,summary,labels,sources,highlights,links=[
     const chunks=content.match(/[\p{Script=Latin}\p{Number}]+|[^]/gu)||[];
     pieces.push(...chunks.map((chunk,j)=><span className="internal-fragment" key={start+'.'+j} style={{paddingBottom:(Math.max(...active.map(s=>levels.get(s.link.id)!))+1)*5+'px'}}><span className={mark?'pending-highlight':undefined} onClick={()=>{if(!window.getSelection()?.toString()){if(mark)onJump(mark.highlight);else onOpen(active[0].link);}}}>{chunk}</span>{active.map(({link})=>{const first=!tabStops.has(link.id);tabStops.add(link.id);return <a className="internal-track" key={link.id} href={pageAddress(link.targetId,link.parameters)} style={{bottom:(Math.max(...active.map(s=>levels.get(s.link.id)!))-levels.get(link.id)!)*5+'px'}} tabIndex={first?0:-1} aria-label={t("Open ")+link.quote+': '+link.targetTitle} title={link.quote+' → '+link.targetTitle} onClick={e=>{e.preventDefault();e.stopPropagation();if(!window.getSelection()?.toString())onOpen(link);}}/>;})}</span>));
    }else if(mark)pieces.push(<mark key={start} role="link" tabIndex={0} title={t("Open: ")+mark.highlight.quote} onClick={()=>{if(!window.getSelection()?.toString())onJump(mark.highlight);}} onKeyDown={e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();onJump(mark.highlight);}}}>{content}</mark>);
-   else {const concept=suggested.find(s=>s.start<=start&&s.end>=end);if(concept)pieces.push(<span key={start} className="concept-link" role="link" tabIndex={0} title={t("Open: ")+concept.highlight.quote} onClick={()=>{if(!window.getSelection()?.toString())onJump(concept.highlight);}} onKeyDown={e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();onJump(concept.highlight);}}}>{content}</span>);else pieces.push(content);}
+   else {const concept=suggested.find(s=>s.start<=start&&s.end>=end);if(concept)pieces.push(<span key={start} className="concept-link" role="link" tabIndex={0} title={t("Open: ")+concept.highlight.quote} onClick={()=>{if(!window.getSelection()?.toString())onJump(concept.highlight);}} onKeyDown={e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();onJump(concept.highlight);}}}>{content}</span>);else pieces.push(...numberedCitations(content,id+'.'+start));}
   }
   return <span data-text-id={id} key={id}>{pieces}</span>;
  }

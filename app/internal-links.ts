@@ -3,8 +3,9 @@ export type InternalLink=Highlight&{parameters?:import('./components-registry/co
 export const inlinePattern=/(\[[^\]]+\]\(https?:\/\/(?:[^\s()]|\([^()]*\))+\)|\*\*[^*]+\*\*|\*[^*\n]+\*)/g;
 // A standalone image line: any https image, or a file served by this site. An
 // optional next line [credit](url) attributes it. Both renderer and node map use these.
-export const imageLinePattern=/^!\[([^\]]*)\]\(\s*((?:https:\/\/|\/api\/)[^\s)]+)\s*\)\s*$/;
-export const creditLinePattern=/^\[[^\]]+\]\(\s*https?:\/\/[^\s)]+\s*\)\s*$/;
+// URLs may contain balanced parentheses, as in Wikimedia's File:Name_(cropped).jpg.
+export const imageLinePattern=/^!\[([^\]]*)\]\(\s*((?:https:\/\/|\/api\/)(?:[^\s()]|\([^()\s]*\))+)\s*\)\s*$/;
+export const creditLinePattern=/^\[[^\]]+\]\(\s*https?:\/\/(?:[^\s()]|\([^()\s]*\))+\s*\)\s*$/;
 export const articleImage=(line:string)=>line.match(imageLinePattern);
 export const articleCredit=(line:string,previous:string|undefined)=>!!previous&&imageLinePattern.test(previous)&&creditLinePattern.test(line);
 export const linkPattern=/^\[([^\]]+)\]\((https?:\/\/(?:[^\s()]|\([^()]*\))+)\)$/;
