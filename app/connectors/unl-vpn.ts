@@ -78,12 +78,15 @@ async function samlLogin(username:string,password:string,duo:string,attempt:Atte
     // The prompt starts the user's default method automatically; switch only when a phone call was chosen.
     if(!chose&&duo==='phone'&&/push|duo mobile|other options/i.test(text)){
      if(await click(/other options/i)){await page.waitForTimeout(1500);}
-     if(await click(/^\s*phone call\s*$|call me|phone call/i)){chose=true;note('chose phone call');}
+     // In the options list the call entry reads "Send to phone number ending in NNNN" (SMS entries say "Text message").
+     const call=page.getByText(/phone number ending in/i).filter({hasNotText:/text message|sms/i});
+     if(await call.count().catch(()=>0)){await call.first().click({timeout:5000}).catch(()=>{});chose=true;note('chose phone call');}
+     else if(await click(/phone call|call me/i)){chose=true;note('chose phone call');}
     }
     if(!chose&&duo==='push')chose=true;
    }
   }
-  if(!result){console.error('UNL VPN sign-in trail',trail.join(' | ').slice(-3000));throw Error(chose?'Duo approval did not complete the sign-in. Try again; if it keeps failing, the server log shows where it stopped.':'Sign-in did not reach Duo. Check the TrueYou username (NUID@nebraska.edu) and password.');}
+  if(!result){console.error('UNL VPN sign-in trail',trail.join(' | ').slice(-3000));const reachedDuo=trail.some(t=>/duosecurity\.com/.test(t));throw Error(!reachedDuo?'Sign-in did not reach Duo. Check the TrueYou username (NUID@nebraska.edu) and password.':!chose?'Duo did not offer the phone-call option. Choose Duo Push and try again.':'Duo approval did not complete the sign-in. Try again; if it keeps failing, the server log shows where it stopped.');}
   return result as {cookie:string;user:string};
  }finally{await browser.close().catch(()=>{});}
 }
