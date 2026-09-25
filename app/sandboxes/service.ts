@@ -19,6 +19,8 @@ async function state(id:string,status:string,providerId?:string){await database(
 export async function runProgram(raw:unknown,input:unknown,context:Pick<AgentContext,'userId'|'agent'>,uploads:{path:string;data:ArrayBuffer}[]=[]){
  if(uploads.some(f=>!/^\/home\/user\/context\/[a-zA-Z0-9._-]+$/.test(f.path))||uploads.reduce((n,f)=>n+f.data.byteLength,0)>40*1024*1024)throw Error('INVALID_CONTEXT_FILES');
  const apiKey=access(context),program=codeSchema.parse(raw);
+ // A located syntax error is far more useful to a coding agent than the runtime's bare message.
+ if(program.language==='javascript'){const check=await import('./syntax-check').catch(()=>null);const problem=check?.javascriptSyntaxDiagnosis(program.code);if(problem)return {ok:false as const,stdout:'',stderr:problem,result:null};}
  if(program.language==='javascript'&&process.env.SANDBOX_LOCAL_JS!=='false'){const local=await import('./local-js');if(local.localJsAvailable())return local.runLocalJs(program,input,uploads);}
  const id=await reserve(context.userId,'code');let cleanupPending=false;
  // A hosted run occasionally completes without publishing its result file; one retry recovers it.

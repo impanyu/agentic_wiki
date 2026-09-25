@@ -79,7 +79,7 @@ export async function stageAppRevision(page:AnswerPage,raw:unknown,agent:Agent,r
    if(!config.pageCode)throw Error('This page has no saved custom code panel to remove.');
    const {pageCode:_removed,...rest}=config;config=rest as typeof config;body='Remove the custom frontend code panel and restore the native workspace';
   }
-  else{try{new Script(change.code.frontend.javascript);}catch(e){throw Error('Frontend JavaScript syntax error: '+(e instanceof Error?e.message:'Invalid JavaScript'));}config={...config,pageCode:change.code,customized:true};body='Frontend code ('+change.code.placement+')';}
+  else{const check=await import('@/app/sandboxes/syntax-check').catch(()=>null);try{new Script(change.code.frontend.javascript);}catch(e){throw Error('Frontend JavaScript syntax error: '+(check?.javascriptSyntaxDiagnosis(change.code.frontend.javascript)||(e instanceof Error?e.message:'Invalid JavaScript')));}config={...config,pageCode:change.code,customized:true};body='Frontend code ('+change.code.placement+')';}
  }
  else if(change.kind==='content'){
   if(change.title===undefined&&change.summary===undefined&&change.body===undefined&&change.sources===undefined&&change.category===undefined)throw Error('A content edit needs a title, summary, body, sources or category.');
@@ -89,7 +89,7 @@ export async function stageAppRevision(page:AnswerPage,raw:unknown,agent:Agent,r
  else if(change.kind==='program'){
   if(config.template!=='page-program-v1')throw Error('This page has no backend program to edit. Propose a replacement draft with kind=program to give it one.');
   // Backend programs are ES modules; strip export keywords so the classic-script syntax check applies.
-  if(change.program.language==='javascript'){try{new Script(change.program.code.replace(/^\s*export\s+(?:default\s+)?/gm,''));}catch(e){throw Error('Backend JavaScript syntax error: '+(e instanceof Error?e.message:'Invalid JavaScript'));}}
+  if(change.program.language==='javascript'){const check=await import('@/app/sandboxes/syntax-check').catch(()=>null);try{new Script(change.program.code.replace(/^\s*export\s+(?:default\s+)?/gm,''));}catch(e){throw Error('Backend JavaScript syntax error: '+(check?.javascriptSyntaxDiagnosis(change.program.code)||(e instanceof Error?e.message:'Invalid JavaScript')));}}
   const backend=await createComponent(page.title+' — page view program','backend_code',change.program,{pageId:page.id,userId:agent.ownerId,ownerId:agent.ownerId,language:page.language,visibility:'private',agent});
   config={...config,components:{...config.components,frontend:config.components?.frontend as NonNullable<NonNullable<typeof config.components>['frontend']>,backend:{id:backend.id,version:backend.version}},...(change.inputFields?{inputFields:change.inputFields}:{}),customized:true};body=change.program.code;
  }
