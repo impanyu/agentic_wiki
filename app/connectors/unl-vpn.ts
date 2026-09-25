@@ -12,6 +12,10 @@ import {lock,unlock} from '@/db/store';
 // openconnect then runs in the user's own network namespace (scripts/vpn/aw-vpn),
 // so the tunnel carries only that user's campus traffic, e.g. the ADAPT file share.
 const PORTAL='https://nu-vpn.nebraska.edu';
+// The portal hands out Prisma Access gateways that each require their own single sign-on, so
+// the sign-in is done directly at the gateway nearest the server (us-central1) and the tunnel
+// connects to that gateway; one Duo approval covers it.
+export const GATEWAY=process.env.UNL_VPN_GATEWAY||'us-central-g-universi.gpo2ojjg5cnn.gw.gpcloudservice.com';
 const credentials=z.object({username:z.string().regex(/^[A-Za-z0-9._@+-]{1,120}$/)}).passthrough();
 const chromiumPath=()=>[process.env.CHROMIUM_PATH,'/usr/bin/chromium','/usr/bin/chromium-browser'].find(p=>p&&existsSync(p));
 const dataDir=()=>process.env.DATA_DIR||join(process.cwd(),'data');
@@ -45,7 +49,7 @@ const attempts=new Map<string,Attempt>();
 const report=(a:Attempt)=>a.done?(a.error?{connected:false,pending:false,error:a.error}:{connected:true,pending:false,message:'UNL VPN connected. Campus-only services such as the ADAPT share are now reachable for your connectors.'}):{connected:false,pending:true,message:a.stage};
 
 async function samlLogin(connectorId:string,username:string,password:string,duo:string,attempt:Attempt){
- const prelogin=await (await fetch(PORTAL+'/global-protect/prelogin.esp?tmp=tmp&clientVer=4100&clientos=Linux',{headers:{'User-Agent':'PAN GlobalProtect'},signal:AbortSignal.timeout(20000)})).text();
+ const prelogin=await (await fetch('https://'+GATEWAY+'/ssl-vpn/prelogin.esp?tmp=tmp&clientVer=4100&clientos=Linux',{headers:{'User-Agent':'PAN GlobalProtect'},signal:AbortSignal.timeout(20000)})).text();
  const request=prelogin.match(/<saml-request>([^<]+)/)?.[1];if(!request)throw Error('The UNL VPN portal did not offer single sign-on.');
  const start=Buffer.from(request,'base64').toString();if(!/^https:\/\/fed\.nebraska\.edu\//.test(start))throw Error('Unexpected sign-in page for the UNL VPN.');
  const executablePath=chromiumPath();if(!executablePath)throw Error('The server cannot run the sign-in browser.');
@@ -61,7 +65,7 @@ async function samlLogin(connectorId:string,username:string,password:string,duo:
   let result:{cookie:string;user:string}|null=null;
   const trail:string[]=[];const note=(m:string)=>{trail.push(m);if(trail.length>30)trail.shift();};
   // The portal answers the SAML post with the prelogin cookie, in headers or in an HTML comment.
-  page.on('response',async(r:any)=>{try{const h=await r.allHeaders();let cookie=h['prelogin-cookie'],user=h['saml-username'];if((!cookie||!user)&&/nu-vpn\.nebraska\.edu/.test(r.url())){const body=await r.text().catch(()=>'');cookie=cookie||body.match(/<prelogin-cookie>([^<]+)</)?.[1];user=user||body.match(/<saml-username>([^<]+)</)?.[1];}if(cookie&&user)result={cookie,user};}catch{}});
+  page.on('response',async(r:any)=>{try{const h=await r.allHeaders();let cookie=h['prelogin-cookie'],user=h['saml-username'];if((!cookie||!user)&&/nu-vpn\.nebraska\.edu|gpcloudservice\.com/.test(r.url())){const body=await r.text().catch(()=>'');cookie=cookie||body.match(/<prelogin-cookie>([^<]+)</)?.[1];user=user||body.match(/<saml-username>([^<]+)</)?.[1];}if(cookie&&user)result={cookie,user};}catch{}});
   page.on('framenavigated',(f:any)=>{if(f===page.mainFrame())note('nav '+String(f.url()).replace(/[?#].*$/,''));});
   attempt.stage='Opening the University of Nebraska sign-in page…';
   await page.goto(start,{waitUntil:'domcontentloaded',timeout:30000});
