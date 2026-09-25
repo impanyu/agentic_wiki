@@ -48,10 +48,22 @@ type Attempt={done:boolean;startedAt:number;finishedAt?:number;stage:string;erro
 const attempts=new Map<string,Attempt>();
 const report=(a:Attempt)=>a.done?(a.error?{connected:false,pending:false,error:a.error}:{connected:true,pending:false,message:'UNL VPN connected. Campus-only services such as the ADAPT share are now reachable for your connectors.'}):{connected:false,pending:true,message:a.stage};
 
+// GlobalProtect prelogin: the portal (or a gateway) returns the single sign-on request to open.
+// Sent the way the official client does, so the SAML request is recorded against a real client.
+async function preloginStart(host:string,path:string){
+ const body=new URLSearchParams({tmp:'tmp','kerberos-support':'yes','ipv6-support':'yes',clientVer:'4100',clientos:'Linux','os-version':'Linux',clientgpversion:'6.3.3-1016','default-browser':'0','cas-support':'yes'});
+ const text=await (await fetch('https://'+host+path+'/prelogin.esp',{method:'POST',headers:{'User-Agent':'PAN GlobalProtect','Content-Type':'application/x-www-form-urlencoded'},body,signal:AbortSignal.timeout(20000)})).text();
+ const request=text.match(/<saml-request>([^<]+)/)?.[1];if(!request)throw Error(host+' did not offer single sign-on: '+(text.match(/<msg>([^<]+)/)?.[1]||text.slice(0,120)));
+ const url=Buffer.from(request,'base64').toString();if(!/^https:\/\/fed\.nebraska\.edu\//.test(url))throw Error('Unexpected sign-in page for the UNL VPN.');
+ return url;
+}
+// The University of Nebraska VPN is Prisma Access: the portal (nu-vpn.nebraska.edu) and each
+// gateway require their own single sign-on, and the portal issues no reusable cookie. Like the
+// official client, sign in at the portal (password + Duo), then immediately at the gateway in
+// the same browser session, where the university sign-in page recognizes the session and needs
+// nothing more from the user. The gateway's prelogin cookie starts the tunnel.
 async function samlLogin(connectorId:string,username:string,password:string,duo:string,attempt:Attempt){
- const prelogin=await (await fetch('https://'+GATEWAY+'/ssl-vpn/prelogin.esp?tmp=tmp&clientVer=4100&clientos=Linux',{headers:{'User-Agent':'PAN GlobalProtect'},signal:AbortSignal.timeout(20000)})).text();
- const request=prelogin.match(/<saml-request>([^<]+)/)?.[1];if(!request)throw Error('The UNL VPN portal did not offer single sign-on.');
- const start=Buffer.from(request,'base64').toString();if(!/^https:\/\/fed\.nebraska\.edu\//.test(start))throw Error('Unexpected sign-in page for the UNL VPN.');
+ const portalStart=await preloginStart(PORTAL.replace('https://',''),'/global-protect');
  const executablePath=chromiumPath();if(!executablePath)throw Error('The server cannot run the sign-in browser.');
  const {chromium}=await import('playwright-core');
  // One saved browser profile per connection and Duo method: Duo's prompt starts the method last
@@ -61,54 +73,66 @@ async function samlLogin(connectorId:string,username:string,password:string,duo:
  try{
   const page=browser.pages()[0]||await browser.newPage();
   // Always start from the sign-in page: forget the previous single sign-on session, keep Duo's method memory.
-  await browser.clearCookies({domain:/nebraska\.edu$/}).catch(()=>{});
-  let result:{cookie:string;user:string}|null=null;
-  const trail:string[]=[];const note=(m:string)=>{trail.push(m);if(trail.length>30)trail.shift();};
-  // The portal answers the SAML post with the prelogin cookie, in headers or in an HTML comment.
-  page.on('response',async(r:any)=>{try{const h=await r.allHeaders();let cookie=h['prelogin-cookie'],user=h['saml-username'];if((!cookie||!user)&&/nu-vpn\.nebraska\.edu|gpcloudservice\.com/.test(r.url())){const body=await r.text().catch(()=>'');cookie=cookie||body.match(/<prelogin-cookie>([^<]+)</)?.[1];user=user||body.match(/<saml-username>([^<]+)</)?.[1];}if(cookie&&user)result={cookie,user};}catch{}});
+  await browser.clearCookies({domain:/nebraska\.edu$|gpcloudservice\.com$/}).catch(()=>{});
+  const captured:{portal?:{cookie:string;user:string};gateway?:{cookie:string;user:string}}={};
+  let acsFailure='';
+  const trail:string[]=[];const note=(m:string)=>{trail.push(m);if(trail.length>40)trail.shift();};
+  // The portal or gateway answers the SAML post with the prelogin cookie, in headers or in an HTML comment.
+  page.on('response',async(r:any)=>{try{const url=String(r.url());const which=/nu-vpn\.nebraska\.edu/.test(url)?'portal':/gpcloudservice\.com/.test(url)?'gateway':null;if(!which)return;const h=await r.allHeaders();let cookie=h['prelogin-cookie'],user=h['saml-username'];const body=await r.text().catch(()=>'');cookie=cookie||body.match(/<prelogin-cookie>([^<]+)</)?.[1];user=user||body.match(/<saml-username>([^<]+)</)?.[1];if(cookie&&user)captured[which]={cookie,user};else if(/Authentication Failed|Error code/i.test(body)&&which==='gateway')acsFailure=body.replace(/<[^>]+>/g,' ').replace(/\s+/g,' ').slice(0,600);}catch{}});
   page.on('framenavigated',(f:any)=>{if(f===page.mainFrame())note('nav '+String(f.url()).replace(/[?#].*$/,''));});
+  const click=async(names:RegExp,css='')=>{const target=(css?page.locator(css):page.locator('__none__')).or(page.getByRole('button',{name:names})).or(page.getByRole('link',{name:names}));if(await target.count().catch(()=>0)){await target.first().click({timeout:5000}).catch(()=>{});return true;}return false;};
+  let chose=false,lastText='';
+  // Drives one single sign-on round trip until `done` reports the cookie or the deadline passes.
+  const run=async(deadline:number,done:()=>boolean,label:string)=>{
+   while(Date.now()<deadline&&!done()&&!acsFailure){
+    await page.waitForTimeout(1500);
+    const url=page.url(),text=(await page.locator('body').innerText({timeout:3000}).catch(()=>'')as string).replace(/\s+/g,' ').trim();
+    if(text&&text!==lastText){lastText=text;note(label+' page '+url.replace(/[?#].*$/,'')+' :: '+text.slice(0,160));}
+    if(/fed\.nebraska\.edu/.test(url)&&/incorrect|invalid|could not be verified|unknown user|not recognized/i.test(text)&&await page.locator('input[name="j_password"]').count().catch(()=>0))throw Error('The University of Nebraska sign-in rejected the username or password.');
+    // After Duo, the university sign-in site may show an interstitial (for example a required-
+    // training reminder) that waits for a click before returning to the VPN.
+    if(/fed\.nebraska\.edu/.test(url)&&!await page.locator('input[name="j_password"]').count().catch(()=>0)&&(chose||label==='gateway')){
+     const buttons=await page.locator('button,input[type=submit],a.button,a[role=button]').evaluateAll((els:Element[])=>els.map(e=>((e as HTMLElement).innerText||(e as HTMLInputElement).value||'').trim()).filter(Boolean).slice(0,8)).catch(()=>[] as string[]);
+     if(buttons.length)note(label+' interstitial buttons: '+buttons.join(' / '));
+     attempt.stage='Continuing past a university notice…';
+     // Prefer postponing; never follow a link into the training itself.
+     const pick=async(names:RegExp)=>{const t=page.getByRole('button',{name:names}).or(page.getByRole('link',{name:names})).or(page.locator('input[type=submit]').filter({hasText:names})).filter({hasNotText:/training|course|start now|take now/i});if(await t.count().catch(()=>0)){await t.first().click({timeout:5000}).catch(()=>{});return true;}return false;};
+     if(await pick(/remind me later|not now|later|skip/i)||await click(/__never__/,'button[name="_eventId_proceed"]')||await pick(/^\s*(continue|proceed|ok|acknowledge|accept|next)\s*$/i))continue;
+    }
+    if(/duosecurity\.com/.test(url)){
+     attempt.stage=duo==='phone'?'Duo is calling your phone; answer and approve…':'Duo sent a push; approve it on your phone…';
+     // "Is this your device?" comes after approval: never remember this server's browser.
+     if(/is this your device|trust this browser/i.test(text)){await click(/no, other people use this device|don.?t trust/i,'#dont-trust-browser-button');continue;}
+     // Duo already started the chosen method (it remembers it per saved browser profile): just wait.
+     if(!chose&&duo==='phone'&&/calling|we.?re calling|answer the (?:phone|call)/i.test(text)){chose=true;note('duo is calling');}
+     if(!chose&&duo==='phone'&&/push|duo mobile|other options/i.test(text)){
+      if(await click(/other options/i)){await page.waitForTimeout(1500);}
+      // In the options list the call entry reads "Send to phone number ending in NNNN" (SMS entries say "Text message").
+      const call=page.getByText(/phone number ending in/i).filter({hasNotText:/text message|sms/i});
+      if(await call.count().catch(()=>0)){await call.first().click({timeout:5000}).catch(()=>{});chose=true;note('chose phone call');}
+      else if(await click(/phone call|call me/i)){chose=true;note('chose phone call');}
+     }
+     if(!chose&&duo==='push')chose=true;
+    }
+   }
+  };
+  // Stage 1: the portal, with password and Duo.
   attempt.stage='Opening the University of Nebraska sign-in page…';
-  await page.goto(start,{waitUntil:'domcontentloaded',timeout:30000});
+  await page.goto(portalStart,{waitUntil:'domcontentloaded',timeout:30000});
   await page.locator('input[name="j_username"]').fill(username,{timeout:15000});
   await page.locator('input[name="j_password"]').fill(password);
   attempt.stage='Signing in with your TrueYou credentials…';
   await Promise.all([page.waitForLoadState('domcontentloaded').catch(()=>{}),page.locator('button[name="_eventId_proceed"]').click()]);
-  const deadline=Date.now()+150000;let chose=false,lastText='';
-  const click=async(names:RegExp,css='')=>{const target=(css?page.locator(css):page.locator('__none__')).or(page.getByRole('button',{name:names})).or(page.getByRole('link',{name:names}));if(await target.count().catch(()=>0)){await target.first().click({timeout:5000}).catch(()=>{});return true;}return false;};
-  while(Date.now()<deadline&&!result){
-   await page.waitForTimeout(1500);
-   const url=page.url(),text=(await page.locator('body').innerText({timeout:3000}).catch(()=>'')as string).replace(/\s+/g,' ').trim();
-   if(text&&text!==lastText){lastText=text;note('page '+url.replace(/[?#].*$/,'')+' :: '+text.slice(0,160));}
-   if(/fed\.nebraska\.edu/.test(url)&&/incorrect|invalid|could not be verified|unknown user|not recognized/i.test(text)&&await page.locator('input[name="j_password"]').count().catch(()=>0))throw Error('The University of Nebraska sign-in rejected the username or password.');
-   // After Duo, the university sign-in site may show an interstitial (for example a required-
-   // training reminder) that waits for a click before returning to the VPN portal.
-   if(/fed\.nebraska\.edu/.test(url)&&chose&&!await page.locator('input[name="j_password"]').count().catch(()=>0)){
-    const buttons=await page.locator('button,input[type=submit],a.button,a[role=button]').evaluateAll((els:Element[])=>els.map(e=>((e as HTMLElement).innerText||(e as HTMLInputElement).value||'').trim()).filter(Boolean).slice(0,8)).catch(()=>[] as string[]);
-    note('interstitial buttons: '+buttons.join(' / '));
-    attempt.stage='Continuing past a university notice…';
-    // Prefer postponing; never follow a link into the training itself.
-    const pick=async(names:RegExp)=>{const t=page.getByRole('button',{name:names}).or(page.getByRole('link',{name:names})).or(page.locator('input[type=submit]').filter({hasText:names})).filter({hasNotText:/training|course|start now|take now/i});if(await t.count().catch(()=>0)){await t.first().click({timeout:5000}).catch(()=>{});return true;}return false;};
-    if(await pick(/remind me later|not now|later|skip/i)||await click(/__never__/,'button[name="_eventId_proceed"]')||await pick(/^\s*(continue|proceed|ok|acknowledge|accept|next)\s*$/i))continue;
-   }
-   if(/duosecurity\.com/.test(url)){
-    attempt.stage=duo==='phone'?'Duo is calling your phone; answer and approve…':'Duo sent a push; approve it on your phone…';
-    // "Is this your device?" comes after approval: never remember this server's browser.
-    if(/is this your device|trust this browser/i.test(text)){await click(/no, other people use this device|don.?t trust/i,'#dont-trust-browser-button');continue;}
-    // The prompt starts the user's default method automatically; switch only when a phone call was chosen.
-    // Duo already started the chosen method (it remembers it per saved browser profile): just wait.
-    if(!chose&&duo==='phone'&&/calling|we.?re calling|answer the (?:phone|call)/i.test(text)){chose=true;note('duo is calling');}
-    if(!chose&&duo==='phone'&&/push|duo mobile|other options/i.test(text)){
-     if(await click(/other options/i)){await page.waitForTimeout(1500);}
-     // In the options list the call entry reads "Send to phone number ending in NNNN" (SMS entries say "Text message").
-     const call=page.getByText(/phone number ending in/i).filter({hasNotText:/text message|sms/i});
-     if(await call.count().catch(()=>0)){await call.first().click({timeout:5000}).catch(()=>{});chose=true;note('chose phone call');}
-     else if(await click(/phone call|call me/i)){chose=true;note('chose phone call');}
-    }
-    if(!chose&&duo==='push')chose=true;
-   }
-  }
-  if(!result){console.error('UNL VPN sign-in trail',trail.join(' | ').slice(-3000));const reachedDuo=trail.some(t=>/duosecurity\.com/.test(t));throw Error(!reachedDuo?'Sign-in did not reach Duo. Check the TrueYou username (NUID@nebraska.edu) and password.':!chose?'Duo did not offer the phone-call option. Choose Duo Push and try again.':'Duo approval did not complete the sign-in. Try again; if it keeps failing, the server log shows where it stopped.');}
-  return result as {cookie:string;user:string};
+  await run(Date.now()+150000,()=>!!captured.portal,'portal');
+  if(!captured.portal){console.error('UNL VPN sign-in trail',trail.join(' | ').slice(-3000));const reachedDuo=trail.some(t=>/duosecurity\.com/.test(t));throw Error(!reachedDuo?'Sign-in did not reach Duo. Check the TrueYou username (NUID@nebraska.edu) and password.':!chose?'Duo did not offer the phone-call option. Choose Duo Push and try again.':'Duo approval did not complete the sign-in. Try again; if it keeps failing, the server log shows where it stopped.');}
+  note('portal signed in');
+  // Stage 2: the gateway, in the same browser session, so the university page needs nothing more.
+  attempt.stage='Signing in at the VPN gateway…';
+  const gatewayStart=await preloginStart(GATEWAY,'/ssl-vpn');
+  await page.goto(gatewayStart,{waitUntil:'domcontentloaded',timeout:30000});
+  await run(Date.now()+60000,()=>!!captured.gateway,'gateway');
+  if(!captured.gateway){console.error('UNL VPN gateway sign-in failed',{trail:trail.join(' | ').slice(-2000),acsFailure});throw Error(acsFailure?'The VPN gateway rejected the university sign-in ('+acsFailure.slice(0,160)+'). This is a gateway configuration problem; the server log has the details.':'The VPN gateway did not complete the sign-in in time.');}
+  return captured.gateway;
  }finally{await browser.close().catch(()=>{});}
 }
 
