@@ -20,6 +20,17 @@ export type GenerationDraft=z.infer<typeof draftSchema>;
 function datePart(value:string){const match=value.match(/^(\d{4})-(\d{2})-(\d{2})/);return match?match.slice(1).map(Number):null;}
 function requestedSinceDate(question:string){const match=question.match(/\b(?:since|starting(?:\s+from)?|from)\s+(\d{4}-\d{1,2}-\d{1,2}|\d{1,2}\/\d{1,2}\/\d{2,4})/i);if(!match)return null;const raw=match[1],parts=raw.includes('-')?raw.split('-').map(Number):raw.split('/').map(Number),[year,month,day]=raw.includes('-')?parts:[parts[2]<100?2000+parts[2]:parts[2],parts[0],parts[1]];return [year,month,day] as const;}
 export function validateChartTemporalScope(question:string,dataset:ChartDataset){const start=requestedSinceDate(question);if(!start)return;const dates=dataset.rows.map(r=>datePart(r.x)).filter((d):d is number[]=>!!d),later=dates.some(d=>d[0]>start[0]||d[0]===start[0]&&(d[1]>start[1]||d[1]===start[1]&&d[2]>start[2]));if(!later)throw Error('The requested open-ended time range uses since/from, but the chart contains only the starting date. Enumerate and read every later available observation file before proposing the chart.');}
+// Distinct sources cited inline in an article body: a bare [n] names entry n of sources, and
+// [label](url) names the source with that url. Image lines and their credit lines do not count.
+export function inlineCitations(body:string,sources:{url:string}[]){
+ const lines=body.split('\n'),cited=new Set<number>();
+ lines.forEach((line,i)=>{
+  if(/^\s*!\[/.test(line)||(i>0&&/^\s*!\[/.test(lines[i-1])&&/^\s*\[[^\]]+\]\(\S+\)\s*$/.test(line)))return;
+  for(const m of line.matchAll(/\[(\d{1,3})\](?!\()/g)){const n=Number(m[1]);if(n>=1&&n<=sources.length)cited.add(n-1);}
+  for(const m of line.matchAll(/\[[^\]]+\]\((https?:\/\/(?:[^\s()]|\([^()\s]*\))+)\)/g)){const n=sources.findIndex(s=>s.url===m[1]);if(n>=0)cited.add(n);}
+ });
+ return cited;
+}
 export function validateGenerationDraft(raw:unknown,question:string,context:AgentContext,webSearched:boolean,dataConsulted=false){
  const d=draftSchema.parse(raw);
  if(d.interactive&&d.kind!=='article')throw Error('The interactive illustration field belongs to static articles.');
@@ -34,6 +45,8 @@ export function validateGenerationDraft(raw:unknown,question:string,context:Agen
   d.intent.needsDisambiguation=true;d.intent.singleMeaningCertain=false;d.intent.outputKind='article';
  }else if(d.kind==='article'){
   if(d.body.trim().length<80||!d.sources.length)throw Error('A reference article needs substantive content and cited sources.');
+  // Readers need to see which source supports which statement, not just a list at the end.
+  if(d.templateId!=='paper-v1'){const need=Math.min(d.sources.length,3),cited=inlineCitations(d.body,d.sources);if(cited.size<need)throw Error(`Cite the sources inline in the body: after each sourced claim put [n], where n is that source's 1-based position in sources (for example "…was founded in 1802.[2]"). Cite at least ${need} different sources across the article, spread over the paragraphs they support; image credit lines do not count. Currently ${cited.size} cited.`);}
   if(!webSearched&&!dataConsulted&&!context.sourceDocument)throw Error('Research the reference subject with web search or authorized connector/file tools before finalizing factual content.');
   if(context.sourceDocument&&!d.body.includes(context.sourceDocument.url))throw Error('Identify and cite the supplied document URL in the article.');
   d.intent.outputKind='article';

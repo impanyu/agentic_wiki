@@ -12,7 +12,7 @@ globalThis.draftFrontend=frontend;const pageCode=await load('const z=globalThis.
 globalThis.draftDeps={z,...frontend,...pageCode,requestsDataResult:scope.requestsDataResult,...style,...contracts,...chart,...sandbox,...index,...inputs,namedConnectors:q=>/adma/i.test(q)?['adma']:[],pageStorageProviders:q=>/adma/i.test(q)?[]:['google'],sandboxStatus:()=>({configured:true,allowed:true})};
 const m=await load('const {'+Object.keys(globalThis.draftDeps).join(',')+'}=globalThis.draftDeps;\n'+strip(files[8]));
 const intent={subject:'Topic',subjectType:'concept',goal:'Understand it',explicitConstraints:[],assumptions:[],uncertainties:[],mustCover:['Explain'],sourceRequirements:[],outputKind:'article',service:'none',fresh:false,needsDisambiguation:false,singleMeaningCertain:true,interpretations:['Topic']};
-const base={kind:'article',title:'Topic',summary:'Summary',body:'A substantive article with verified sources explaining the requested subject in enough detail for a useful introduction.',sources:[{title:'Source',url:'https://example.org/topic'}],labels:{overview:'Overview',invalid:'Try again'},intent};
+const base={kind:'article',title:'Topic',summary:'Summary',body:'A substantive article with verified sources explaining the requested subject in enough detail for a useful introduction.[1]',sources:[{title:'Source',url:'https://example.org/topic'}],labels:{overview:'Overview',invalid:'Try again'},intent};
 const ctx={userId:'u',ownerId:'u',language:'en',visibility:'private'};
 test('generation validates evidence, ambiguity and source URL identity before saving',()=>{
  assert.throws(()=>m.validateGenerationDraft(base,'Topic',ctx,false),/web search/);
@@ -66,4 +66,15 @@ test('static articles accept isolated frontend interaction without a backend pro
  const draft=m.validateGenerationDraft({...base,interactive},'Explain with an interactive example',ctx,true);
  assert.equal(draft.kind,'article');assert.equal(draft.interactive.javascript,interactive.javascript);assert.equal(draft.program,undefined);
  assert.throws(()=>m.validateGenerationDraft({...base,interactive,kind:'files'},'ADMA files',ctx,true),/static articles/);
+});
+
+test('articles must cite their sources inline, not only list them',()=>{
+ const two=[{title:'A',url:'https://example.org/a'},{title:'B',url:'https://example.org/b'}];
+ const body='A substantive article with verified sources explaining the requested subject in enough detail for a useful introduction.';
+ assert.throws(()=>m.validateGenerationDraft({...base,sources:two,body},'Topic',ctx,true),/Cite the sources inline/);
+ assert.throws(()=>m.validateGenerationDraft({...base,sources:two,body:body+'[1]'},'Topic',ctx,true),/Currently 1 cited/);
+ assert.equal(m.validateGenerationDraft({...base,sources:two,body:body+'[1] More detail follows here.[2]'},'Topic',ctx,true).kind,'article');
+ assert.equal(m.validateGenerationDraft({...base,sources:two,body:body+' See [the report](https://example.org/b).[1]'},'Topic',ctx,true).kind,'article');
+ // An image credit link does not count as a citation.
+ assert.throws(()=>m.validateGenerationDraft({...base,sources:two,body:'![x](https://example.org/i.png)\n[credit](https://example.org/a)\n\n'+body+'[2]'},'Topic',ctx,true),/Currently 1 cited/);
 });
