@@ -64,15 +64,24 @@ export async function createComponent(question:string,type:Exclude<ComponentType
   context={...context,visibility:'private'};
  }
  for(const d of dependencies){await getComponent(d.component,context);if(context.visibility==='public'&&d.component.visibility!=='public')throw new Error('PRIVATE_DEPENDENCY');}
- const id=crypto.randomUUID(),now=new Date().toISOString(),vector=await embed(question),scope=context.visibility==='public'?'public':context.ownerId;
+ const scope=context.visibility==='public'?'public':context.ownerId;
+ // The typed question key dedupes identical components. When a component with the same key but
+ // different content already exists (a revised program, a regenerated page with the same title,
+ // a fork), register this one under a content-specific key instead of silently returning the
+ // older component: a revision must never be swapped for stale code.
+ const existing=await database().prepare(`SELECT c.payload FROM component_questions q JOIN components c ON c.id=q.component_id WHERE q.scope=? AND q.type=? AND q.language=? AND q.normalized=?`).bind(scope,type,context.language,normalize(question)).first<{payload:string}>();
+ if(existing&&existing.payload!==serialized){const {createHash}=await import('node:crypto');question=question.slice(0,3900)+' · '+createHash('sha256').update(serialized).digest('hex').slice(0,12);}
+ const id=crypto.randomUUID(),now=new Date().toISOString(),vector=await embed(question);
  // First writer wins for the exact typed key; no orphan duplicates on concurrent creation.
  await database().batch([
-  database().prepare(`INSERT INTO components(id,type,version,owner_id,visibility,language,title,description,payload,created_at) SELECT ?,?,1,?,?,?,?,?,?,? WHERE NOT EXISTS(SELECT 1 FROM component_questions WHERE scope=? AND type=? AND language=? AND normalized=?)`).bind(id,type,context.ownerId,context.visibility,context.language,question.slice(0,200),question,JSON.stringify(payload),now,scope,type,context.language,normalize(question)),
+  database().prepare(`INSERT INTO components(id,type,version,owner_id,visibility,language,title,description,payload,created_at) SELECT ?,?,1,?,?,?,?,?,?,? WHERE NOT EXISTS(SELECT 1 FROM component_questions WHERE scope=? AND type=? AND language=? AND normalized=?)`).bind(id,type,context.ownerId,context.visibility,context.language,question.slice(0,200),question,serialized,now,scope,type,context.language,normalize(question)),
   database().prepare(`INSERT OR IGNORE INTO component_questions SELECT ?,id,type,?,language,?,?,?,? FROM components WHERE id=?`).bind(crypto.randomUUID(),scope,question,normalize(question),JSON.stringify(vector),now,id),
   ...dependencies.map(d=>database().prepare('INSERT INTO component_dependencies SELECT id,?,?,? FROM components WHERE id=?').bind(d.role,d.component.id,d.component.version,id)),
  ]);
  const row=await database().prepare(`SELECT c.* FROM component_questions q JOIN components c ON c.id=q.component_id WHERE q.scope=? AND q.type=? AND q.language=? AND q.normalized=?`).bind(scope,type,context.language,normalize(question)).first<Component>();
- if(!row)throw new Error('REGISTRATION_FAILED');return row;
+ if(!row)throw new Error('REGISTRATION_FAILED');
+ if(row.payload!==serialized)throw new Error('COMPONENT_CONTENT_CONFLICT');
+ return row;
 }
 export async function attachComponents(pageId:string,refs:{role:string;component:Component}[],context:AgentContext){
  for(const r of refs){await getComponent(r.component,context);if(context.visibility==='public'&&r.component.visibility!=='public')throw new Error('PRIVATE_DEPENDENCY');}
