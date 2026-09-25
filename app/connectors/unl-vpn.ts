@@ -44,15 +44,20 @@ type Attempt={done:boolean;startedAt:number;stage:string;error?:string};
 const attempts=new Map<string,Attempt>();
 const report=(a:Attempt)=>a.done?(a.error?{connected:false,pending:false,error:a.error}:{connected:true,pending:false,message:'UNL VPN connected. Campus-only services such as the ADAPT share are now reachable for your connectors.'}):{connected:false,pending:true,message:a.stage};
 
-async function samlLogin(username:string,password:string,duo:string,attempt:Attempt){
+async function samlLogin(connectorId:string,username:string,password:string,duo:string,attempt:Attempt){
  const prelogin=await (await fetch(PORTAL+'/global-protect/prelogin.esp?tmp=tmp&clientVer=4100&clientos=Linux',{headers:{'User-Agent':'PAN GlobalProtect'},signal:AbortSignal.timeout(20000)})).text();
  const request=prelogin.match(/<saml-request>([^<]+)/)?.[1];if(!request)throw Error('The UNL VPN portal did not offer single sign-on.');
  const start=Buffer.from(request,'base64').toString();if(!/^https:\/\/fed\.nebraska\.edu\//.test(start))throw Error('Unexpected sign-in page for the UNL VPN.');
  const executablePath=chromiumPath();if(!executablePath)throw Error('The server cannot run the sign-in browser.');
  const {chromium}=await import('playwright-core');
- const browser=await chromium.launch({executablePath,headless:true,args:['--disable-dev-shm-usage']});
+ // One saved browser profile per connection and Duo method: Duo's prompt starts the method last
+ // used in that browser, so after the first sign-in "phone call" only calls and "push" only pushes.
+ const profile=join(dataDir(),'vpn-browser',connectorId.replace(/[^a-z0-9-]/gi,''),duo==='phone'?'phone':'push');mkdirSync(profile,{recursive:true,mode:0o700});
+ const browser=await chromium.launchPersistentContext(profile,{executablePath,headless:true,args:['--disable-dev-shm-usage'],userAgent:'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0 Safari/537.36'});
  try{
-  const page=await browser.newPage({userAgent:'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0 Safari/537.36'});
+  const page=browser.pages()[0]||await browser.newPage();
+  // Always start from the sign-in page: forget the previous single sign-on session, keep Duo's method memory.
+  await browser.clearCookies({domain:/nebraska\.edu$/}).catch(()=>{});
   let result:{cookie:string;user:string}|null=null;
   const trail:string[]=[];const note=(m:string)=>{trail.push(m);if(trail.length>30)trail.shift();};
   // The portal answers the SAML post with the prelogin cookie, in headers or in an HTML comment.
@@ -76,6 +81,8 @@ async function samlLogin(username:string,password:string,duo:string,attempt:Atte
     // "Is this your device?" comes after approval: never remember this server's browser.
     if(/is this your device|trust this browser/i.test(text)){await click(/no, other people use this device|don.?t trust/i,'#dont-trust-browser-button');continue;}
     // The prompt starts the user's default method automatically; switch only when a phone call was chosen.
+    // Duo already started the chosen method (it remembers it per saved browser profile): just wait.
+    if(!chose&&duo==='phone'&&/calling|we.?re calling|answer the (?:phone|call)/i.test(text)){chose=true;note('duo is calling');}
     if(!chose&&duo==='phone'&&/push|duo mobile|other options/i.test(text)){
      if(await click(/other options/i)){await page.waitForTimeout(1500);}
      // In the options list the call entry reads "Send to phone number ending in NNNN" (SMS entries say "Text message").
@@ -98,7 +105,7 @@ export async function startVpnSession(secret:string,connectorId:string,password:
  const running=attempts.get(connectorId);if(running&&!running.done)return report(running);
  const attempt:Attempt={done:false,startedAt:Date.now(),stage:'Starting…'};attempts.set(connectorId,attempt);
  const work=(async()=>{
-  const {cookie,user}=await samlLogin(auth.username,password,duo,attempt);
+  const {cookie,user}=await samlLogin(connectorId,auth.username,password,duo,attempt);
   attempt.stage='Starting the VPN tunnel…';
   const slot=await slotFor(connectorId),r=await helper(['up',String(slot),user],cookie,90000);
   if(r.code!==0||!/connected/.test(r.stdout)){console.error('UNL VPN tunnel failed',{slot,code:r.code,stderr:r.stderr.slice(-800)});throw Error('Signed in, but the VPN tunnel did not start: '+(r.stderr.trim().split('\n').slice(-2).join(' ')||'unknown error').slice(0,300));}
