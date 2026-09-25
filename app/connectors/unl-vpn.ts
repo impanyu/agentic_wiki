@@ -15,8 +15,12 @@ const PORTAL='https://nu-vpn.nebraska.edu';
 // The portal hands out Prisma Access gateways that each require their own single sign-on, so
 // the sign-in is done directly at the gateway nearest the server (us-central1) and the tunnel
 // connects to that gateway; one Duo approval covers it.
-// US Central's SAML endpoint rejected valid sign-ins (error -1); US East is tried instead.
-export const GATEWAY=process.env.UNL_VPN_GATEWAY||'us-east-g-universi.gpo2ojjg5cnn.gw.gpcloudservice.com';
+// The official client picked US Central (nearest to the server in us-central1) and logged in there
+// with the portal's auth cookie.
+export const GATEWAY=process.env.UNL_VPN_GATEWAY||'us-central-g-universi.gpo2ojjg5cnn.gw.gpcloudservice.com';
+// Identify as the official macOS client (GlobalProtect 6.3.3). The portal hands its reusable
+// gateway auth cookie only to the desktop client configuration; Linux clients get none.
+const GP_VERSION='6.3.3-1016',GP_OS='Apple Mac OS X 26.6.2',GP_UA=`PAN GlobalProtect/${GP_VERSION} (${GP_OS})`;
 const credentials=z.object({username:z.string().regex(/^[A-Za-z0-9._@+-]{1,120}$/)}).passthrough();
 const chromiumPath=()=>[process.env.CHROMIUM_PATH,'/usr/bin/chromium','/usr/bin/chromium-browser'].find(p=>p&&existsSync(p));
 const dataDir=()=>process.env.DATA_DIR||join(process.cwd(),'data');
@@ -52,11 +56,20 @@ const report=(a:Attempt)=>a.done?(a.error?{connected:false,pending:false,error:a
 // GlobalProtect prelogin: the portal (or a gateway) returns the single sign-on request to open.
 // Sent the way the official client does, so the SAML request is recorded against a real client.
 async function preloginStart(host:string,path:string){
- const body=new URLSearchParams({tmp:'tmp','kerberos-support':'yes','ipv6-support':'yes',clientVer:'4100',clientos:'Linux','os-version':'Linux',clientgpversion:'6.3.3-1016','default-browser':'0','cas-support':'yes'});
- const text=await (await fetch('https://'+host+path+'/prelogin.esp',{method:'POST',headers:{'User-Agent':'PAN GlobalProtect','Content-Type':'application/x-www-form-urlencoded'},body,signal:AbortSignal.timeout(20000)})).text();
+ const body=new URLSearchParams({tmp:'tmp','kerberos-support':'yes','ipv6-support':'yes',clientVer:'4100',clientos:'Mac','os-version':GP_OS,clientgpversion:GP_VERSION,'default-browser':'0','cas-support':'yes'});
+ const text=await (await fetch('https://'+host+path+'/prelogin.esp',{method:'POST',headers:{'User-Agent':GP_UA,'Content-Type':'application/x-www-form-urlencoded'},body,signal:AbortSignal.timeout(20000)})).text();
  const request=text.match(/<saml-request>([^<]+)/)?.[1];if(!request)throw Error(host+' did not offer single sign-on: '+(text.match(/<msg>([^<]+)/)?.[1]||text.slice(0,120)));
  const url=Buffer.from(request,'base64').toString();if(!/^https:\/\/fed\.nebraska\.edu\//.test(url))throw Error('Unexpected sign-in page for the UNL VPN.');
  return url;
+}
+// After the portal sign-in the official client asks the portal for its configuration, which
+// carries the portal-userauthcookie; the gateway accepts that cookie directly (no second
+// single sign-on). Returns an empty cookie when the portal withholds it.
+async function portalConfig(user:string,preloginCookie:string){
+ const body=new URLSearchParams({user,passwd:'','prelogin-cookie':preloginCookie,clientVer:'4100',clientos:'Mac','os-version':GP_OS,clientgpversion:GP_VERSION,server:PORTAL.replace('https://',''),computer:'agenticwiki','ipv6-support':'yes',inputStr:'',jnlpReady:'jnlpReady',ok:'Login',direct:'yes','portal-userauthcookie':'','portal-prelogonuserauthcookie':'','enc-algo':'aes-256-gcm,aes-128-gcm,aes-128-cbc,','hmac-algo':'sha1,md5,sha256,'});
+ const res=await fetch(PORTAL+'/global-protect/getconfig.esp',{method:'POST',headers:{'User-Agent':GP_UA,'Content-Type':'application/x-www-form-urlencoded'},body,signal:AbortSignal.timeout(30000)});
+ const text=await res.text(),cookie=(text.match(/<portal-userauthcookie>([^<]*)</)?.[1]||'').trim();
+ return {cookie:cookie&&cookie!=='empty'?cookie:'',status:res.status,summary:(text.match(/<(?:error|msg)>([^<]{0,160})/)?.[1]||('HTTP '+res.status+', '+text.length+' bytes'))};
 }
 // The University of Nebraska VPN is Prisma Access: the portal (nu-vpn.nebraska.edu) and each
 // gateway require their own single sign-on, and the portal issues no reusable cookie. Like the
@@ -127,18 +140,21 @@ async function samlLogin(connectorId:string,username:string,password:string,duo:
   await run(Date.now()+150000,()=>!!captured.portal,'portal');
   if(!captured.portal){console.error('UNL VPN sign-in trail',trail.join(' | ').slice(-3000));const reachedDuo=trail.some(t=>/duosecurity\.com/.test(t));throw Error(!reachedDuo?'Sign-in did not reach Duo. Check the TrueYou username (NUID@nebraska.edu) and password.':!chose?'Duo did not offer the phone-call option. Choose Duo Push and try again.':'Duo approval did not complete the sign-in. Try again; if it keeps failing, the server log shows where it stopped.');}
   note('portal signed in');
-  // Prisma Access shares one sign-in service between the portal and its gateways, so the portal's
-  // prelogin cookie is presented to the gateway (as other GlobalProtect clients do). The gateway's
-  // own single sign-on is only attempted when UNL_VPN_GATEWAY_SAML=1; its SAML endpoint rejects
-  // otherwise valid sign-ins.
-  if(process.env.UNL_VPN_GATEWAY_SAML==='0')return captured.portal;
+  // Like the official client: exchange the portal sign-in for the portal auth cookie and log in
+  // to the gateway with it. The gateway's own single sign-on (broken at UNL, ACS error -1) is only
+  // a fallback when the portal withholds the cookie.
+  attempt.stage='Getting the VPN configuration…';
+  const config=await portalConfig(captured.portal.user,captured.portal.cookie).catch(e=>({cookie:'',status:0,summary:e instanceof Error?e.message:'failed'}));
+  if(config.cookie){note('portal auth cookie received');return {user:captured.portal.user,cookie:config.cookie,kind:'portal-userauthcookie' as const};}
+  console.error('UNL VPN portal issued no auth cookie',config.summary);
+  if(process.env.UNL_VPN_GATEWAY_SAML==='0')return {...captured.portal,kind:'prelogin-cookie' as const};
   // Stage 2: the gateway, in the same browser session, so the university page needs nothing more.
   attempt.stage='Signing in at the VPN gateway…';
   const gatewayStart=await preloginStart(GATEWAY,'/ssl-vpn');
   await page.goto(gatewayStart,{waitUntil:'domcontentloaded',timeout:30000});
   await run(Date.now()+60000,()=>!!captured.gateway,'gateway');
   if(!captured.gateway){console.error('UNL VPN gateway sign-in failed',{trail:trail.join(' | ').slice(-2000),acsFailure});throw Error(acsFailure?'The VPN gateway rejected the university sign-in ('+acsFailure.slice(0,160)+'). This is a gateway configuration problem; the server log has the details.':'The VPN gateway did not complete the sign-in in time.');}
-  return captured.gateway;
+  return {...captured.gateway,kind:'prelogin-cookie' as const};
  }finally{await browser.close().catch(()=>{});}
 }
 
@@ -156,9 +172,9 @@ export async function startVpnSession(secret:string,connectorId:string,password:
   const user=signedIn.user.replace(/[\x00-\x1f\x7f]/g,'').trim(),cookie=signedIn.cookie.replace(/[\x00-\x1f\x7f]/g,'').trim();
   console.log('UNL VPN portal username',JSON.stringify(user));
   attempt.stage='Starting the VPN tunnel…';
-  const slot=await slotFor(connectorId),r=await helper(['up',String(slot),user],cookie,90000);
+  const slot=await slotFor(connectorId),r=await helper(['up',String(slot),user,signedIn.kind],cookie,90000);
   if(r.code!==0||!/connected/.test(r.stdout)){console.error('UNL VPN tunnel failed',{slot,code:r.code,stderr:r.stderr.slice(-800)});throw Error('Signed in, but the VPN tunnel did not start: '+(r.stderr.trim().split('\n').slice(-2).join(' ')||'unknown error').slice(0,300));}
-  console.log('UNL VPN connected',{slot,user});
+  console.log('UNL VPN connected',{slot,user,via:signedIn.kind});
  })().then(()=>{attempt.done=true;attempt.finishedAt=Date.now();},e=>{attempt.error=e instanceof Error?e.message:'VPN login failed.';attempt.done=true;attempt.finishedAt=Date.now();console.error('UNL VPN login failed',attempt.error);});
  await Promise.race([work,new Promise(r=>setTimeout(r,15000))]);
  return vpnLoginReport(connectorId)||report(attempt);
