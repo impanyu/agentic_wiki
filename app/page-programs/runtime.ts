@@ -43,6 +43,8 @@ export async function runProgramLoop(program:unknown,input:unknown,userId:string
    else if(options.verification&&c.tool==='resources.copy')result=skip('copying requires an explicit user action');
    else if(c.tool==='connectors.list')result=await enabledConnectors(userId);
    else if(c.tool==='connectors.call'){if(/^run_(seeding_tool|shape_to_json|si_tool|yield_summary|valid_yield_extractor)$/.test(String(c.args.tool))&&(!input||typeof input!=='object'||!('submitted' in input&&input.submitted===true)&&!('message' in input&&input.message)))throw Error('Starting ADMA processing requires an explicit submitted task, not navigation or refresh.');result=String(c.args.tool)==='read_text_file'?await readWholeText(userId,String(c.args.connectorId),c.args.arguments,page.id):await callConnector(userId,String(c.args.connectorId),String(c.args.tool),c.args.arguments,page.id);}
+   else if(c.tool==='maps.search'){const {findPlaces}=await import('@/app/maps/places');result=await findPlaces(c.args,options.signal);}
+   else if(c.tool==='maps.reverse'){const {reverseGeocode}=await import('@/app/maps/places');result=await reverseGeocode(c.args,options.signal);}
    else if(c.tool==='contexts.search')result=await queryContexts(userId,c.args);
    else if(c.tool==='jobs.list')result=await listRunningJobs(userId);
    else if(c.tool==='storage.connections')result=await storageStatus(userId);

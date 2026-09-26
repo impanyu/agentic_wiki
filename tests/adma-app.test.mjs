@@ -4,7 +4,7 @@ import {readFileSync} from 'node:fs';
 import ts from 'typescript';
 import {z} from 'zod';
 globalThis.admaZ=z;
-const source='const googleMapsTools=[],executeGoogleMaps=async()=>({}),verifyGoogleMapsKey=async()=>{};\n'+readFileSync('app/connectors/adapters.ts','utf8').replace(/^import .*;$/gm,'');
+const source=readFileSync('app/connectors/adapters.ts','utf8').replace(/^import .*;$/gm,'');
 const {apiOperation,apiTools}=await import('data:text/javascript;base64,'+Buffer.from(ts.transpile('const z=globalThis.admaZ,processingTools=[];\n'+source,{module:ts.ModuleKind.ESNext,target:ts.ScriptTarget.ES2022})).toString('base64'));
 test('ADMA mutations match server routes, default private, and reject injected identifiers',()=>{
  const create=apiOperation('adma','create_folder',{name:'Research',parent_id:'parent-id'});
