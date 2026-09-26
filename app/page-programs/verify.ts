@@ -117,7 +117,10 @@ export async function verifyApp(target:VerifyTarget,ctx:{userId:string;agent?:Ag
         else if(s.action==='fill')await page.locator(s.selector).first().fill(s.value||'',{timeout:5000});
         else if(s.action==='select')await page.locator(s.selector).first().selectOption(s.value||'',{timeout:5000});
         else await page.locator(s.selector).first().press(s.value||'Enter',{timeout:5000});
-       }catch(e){errors.push(`Step ${s.action} ${s.selector||''} failed: ${(e instanceof Error?e.message:'').split('\n')[0].slice(0,200)}`);break;}
+       }catch(e){
+        // Tell the agent what IS on the page, so it can fix its own test step or the markup.
+        const available=await page.evaluate(()=>{const esc=(v:string)=>(window as any).CSS?.escape?(window as any).CSS.escape(v):v;return Array.from(document.querySelectorAll('button,a[href],input,select,textarea,[role=button],[onclick]')).filter(el=>{const r=(el as HTMLElement).getBoundingClientRect();return r.width>0&&r.height>0;}).slice(0,20).map(el=>{const h=el as HTMLElement,id=h.id?'#'+esc(h.id):'',cls=h.classList.length?'.'+Array.from(h.classList).slice(0,2).map(esc).join('.'):'',name=h.getAttribute('name'),label=(h.innerText||h.getAttribute('aria-label')||h.getAttribute('placeholder')||(h as HTMLInputElement).value||'').trim().replace(/\s+/g,' ').slice(0,40);return h.tagName.toLowerCase()+(id||cls||(name?`[name="${name}"]`:''))+(label?` "${label}"`:'');});}).catch(()=>[] as string[]);
+        errors.push(`Step ${s.action} ${s.selector||''} failed: ${(e instanceof Error?e.message:'').split('\n')[0].slice(0,200)}. Visible interactive elements now: ${available.length?available.join(' | '):'none'}. Use a selector that exists (Playwright also accepts text=Label or button:has-text("Label")).`);break;}
        await settle();
       }
      }
