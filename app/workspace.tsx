@@ -226,8 +226,9 @@ export default function Workspace({ user, signIn, signOut }: {
     const controller = new AbortController();
     request.current = controller;
     let cancelToken:string|undefined;
-    const cancelGeneration=()=>{if(cancelToken)void fetch('/api/ask',{method:'DELETE',headers:{'Content-Type':'application/json'},body:JSON.stringify({cancelToken}),keepalive:true}).catch(()=>{});};
-    controller.signal.addEventListener('abort',cancelGeneration,{once:true});
+    // Leaving the page (another question, back, the home page, closing the tab) only stops
+    // watching: the server keeps generating, and the home page shows it as generating.
+    const cancelGeneration=()=>{void cancelToken;};
     setQuestion(text);setPending(null);setDraft(null);
     setBusy(true); setError(''); setStatus('Finding or creating your answer…');
     const generationId=crypto.randomUUID();let progressTimer:ReturnType<typeof setInterval>|undefined,readingProgress=false,progressFinished=false;
@@ -307,7 +308,21 @@ export default function Workspace({ user, signIn, signOut }: {
     } catch (e) {
       if (!controller.signal.aborted) { setStatus(''); setError(navigationError(e,'Could not answer this question.')); }
     } finally {
-      progressFinished=true;if(progressTimer)clearInterval(progressTimer); controller.signal.removeEventListener('abort',cancelGeneration);if (!controller.signal.aborted) setBusy(false); }
+      progressFinished=true;if(progressTimer)clearInterval(progressTimer); if (!controller.signal.aborted) setBusy(false); }
+  }
+
+  // Reattach to a generation that kept running after the reader left: show its live draft and
+  // open the saved page when it finishes.
+  async function watchGeneration(generationId:string,title:string){
+    request.current?.abort();const controller=new AbortController();request.current=controller;
+    setBusy(true);setError('');setPending(null);setStatus(t('Still generating this page…'));
+    setDraft({id:'draft',title,summary:'',body:'',language:'en',labels:{},category:'',visibility:'private',owned:false,createdAt:'',questionCount:0,sources:[]});
+    let reading=false;
+    const timer=setInterval(()=>{if(reading||controller.signal.aborted)return;reading=true;void fetch('/api/ask?generationId='+generationId,{cache:'no-store',signal:controller.signal}).then(async r=>{if(!r.ok)return;const p=await r.json() as Partial<AnswerPage>&{status?:string;done?:boolean};if(controller.signal.aborted||p.done)return;if(p.status)setStatus(p.status);setDraft(d=>d?{...d,title:p.title||d.title,summary:p.summary||d.summary,body:p.body||d.body,language:p.language||d.language,labels:p.labels||d.labels,category:p.category||d.category}:d);}).catch(()=>{}).finally(()=>{reading=false;});},1000);
+    let pageId='',pageTitle=title;
+    try{const result=await waitForGenerationResult<AnswerPage>(generationId,controller.signal,600000,1500);if(controller.signal.aborted)return;if(!result){setDraft(null);setError(t('This page could not be generated. Please ask again.'));return;}pageId=result.page.id;pageTitle=result.page.title;}
+    finally{clearInterval(timer);if(!controller.signal.aborted){setBusy(false);setDraft(null);}}
+    if(pageId)await openInternal({id:'home:'+pageId,targetId:pageId,targetTitle:pageTitle,quote:pageTitle,segments:[]});
   }
 
   async function openInternal(link:InternalLink){
@@ -454,7 +469,7 @@ export default function Workspace({ user, signIn, signOut }: {
 
         <div className="saved-note">{draft ? t(busy?'Draft · Not saved yet':'Incomplete draft · Not saved') : t('Saved {date} · {count} questions linked',{date:new Date(visiblePage.createdAt).toLocaleDateString(locale),count:visiblePage.questionCount})}</div>
         </div>
-      </article></MapPreference.Provider> : !busy && <HomePage onOpen={card=>void openInternal({id:'home:'+card.id,targetId:card.id,targetTitle:card.title,quote:card.title,segments:[]})}/>}
+      </article></MapPreference.Provider> : !busy && <HomePage onOpen={card=>void (card.generating?watchGeneration(card.id,card.title):openInternal({id:'home:'+card.id,targetId:card.id,targetTitle:card.title,quote:card.title,segments:[]}))}/>}
     </main>
   </div></UiContext.Provider>;
 }

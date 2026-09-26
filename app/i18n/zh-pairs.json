@@ -634,5 +634,10 @@
   "Agent running": "Agent 运行中",
   "Live agent on": "Live agent 已开启",
   "Loading more…": "正在加载更多…",
-  "Could not load more pages.": "无法加载更多页面。"
+  "Could not load more pages.": "无法加载更多页面。",
+  "Still generating this page…": "此页面仍在生成中…",
+  "This page could not be generated. Please ask again.": "此页面未能生成，请重新提问。",
+  "This page is still being generated": "此页面仍在生成中",
+  "Generating…": "生成中…",
+  "Generating": "生成中"
 }

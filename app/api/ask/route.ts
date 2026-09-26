@@ -31,7 +31,7 @@ export async function POST(request:Request){
  // Buffer once so a busy-generation retry can safely read the same input.
  const body=await request.text();
  let progress:ReturnType<typeof generationProgress>|undefined;
- try{const {generationId}=JSON.parse(body);if(typeof generationId==='string'&&/^[0-9a-f-]{36}$/.test(generationId)){await database().prepare('DELETE FROM generation_progress WHERE expires<?').bind(Date.now()).run();progress=generationProgress(generationId,actor.userId);}}catch{}
+ try{const {generationId}=JSON.parse(body);if(typeof generationId==='string'&&/^[0-9a-f-]{36}$/.test(generationId)){await database().prepare('DELETE FROM generation_progress WHERE expires<?').bind(Date.now()).run();progress=generationProgress(generationId,actor.userId,actor.historyKey);}}catch{}
  return actor.finish(answerStream(signal=>routeAnswer(new Request(request.url,{method:'POST',headers:request.headers,body,signal}),actor),request.signal,'Finding the right page…',progress));
 }
 async function routeAnswer(request:Request,actor:Awaited<ReturnType<typeof getActor>>){

@@ -896,5 +896,10 @@
   "Agent running": "Agent running",
   "Live agent on": "Live agent on",
   "Loading more…": "Loading more…",
-  "Could not load more pages.": "Could not load more pages."
+  "Could not load more pages.": "Could not load more pages.",
+  "Still generating this page…": "Still generating this page…",
+  "This page could not be generated. Please ask again.": "This page could not be generated. Please ask again.",
+  "This page is still being generated": "This page is still being generated",
+  "Generating…": "Generating…",
+  "Generating": "Generating"
 }

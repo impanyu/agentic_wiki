@@ -1,7 +1,7 @@
 import {getActor} from '@/app/actor';
 import {database,reply} from '@/db/store';
 
-export type HomeCard={id:string;title:string;summary:string;kind:'static'|'dynamic';category:string;templateId:string;image:string|null;at:number|null;owned:boolean;liveAgent:boolean;agentRunning:boolean};
+export type HomeCard={id:string;title:string;summary:string;kind:'static'|'dynamic';category:string;templateId:string;image:string|null;at:number|null;owned:boolean;liveAgent:boolean;agentRunning:boolean;generating?:boolean;question?:string};
 export type CardStatus={liveAgent:boolean;agentRunning:boolean};
 type PageRow={id:string;title:string;summary:string;kind:'static'|'dynamic';category:string;labels:string;body:string;owner_id:string;at:number|null;created_at:string;updated_at:string|null;live_agent:number;agent_running:number};
 
@@ -27,6 +27,8 @@ export async function GET(request:Request){
   const before=Number(url.searchParams.get('before'))||0;
   const visited=await database().prepare(`SELECT p.id,p.title,p.summary,p.kind,p.category,p.labels,CASE WHEN instr(p.body,'![')>0 THEN substr(p.body,instr(p.body,'!['),1200) ELSE '' END body,p.owner_id,max(v.visited_at) at,p.created_at,p.updated_at,${statusColumns} FROM page_visits v JOIN pages p ON p.id=COALESCE((SELECT page_id FROM page_aliases WHERE id=v.page_id),v.page_id) WHERE v.owner_key=? AND v.visited_at IS NOT NULL AND (p.visibility='public' OR p.owner_id=?) AND p.kind IN ('static','dynamic') GROUP BY p.id HAVING ?=0 OR max(v.visited_at)<? ORDER BY at DESC LIMIT ${PAGE+1}`).bind(actor.userId,now,now,actor.historyKey,actor.userId,before,before).all<PageRow>();
   const rows=visited.results.slice(0,PAGE),more=visited.results.length>PAGE;
-  return actor.finish(reply({visited:rows.map(row=>card(row,actor.userId)),next:more&&rows.length?rows[rows.length-1].at:null}));
+  // Pages still being generated for this reader (they may have left the page): shown first.
+  const generating=before?[]:(await database().prepare('SELECT id,data FROM generation_progress WHERE owner_id=? AND expires>?').bind(actor.userId,now).all<{id:string;data:string}>()).results.flatMap(r=>{try{const d=JSON.parse(r.data) as {started?:boolean;done?:boolean;error?:string;title?:string;question?:string;status?:string;summary?:string;startedAt?:number};return d.started&&!d.done&&!d.error?[{id:r.id,title:d.title||d.question||'',summary:d.summary||d.status||'',kind:'static' as const,category:'',templateId:'',image:null,at:d.startedAt||now,owned:true,liveAgent:false,agentRunning:true,generating:true,question:d.question||d.title||''}]:[];}catch{return [];}}).sort((a,b)=>(b.at||0)-(a.at||0));
+  return actor.finish(reply({visited:[...generating,...rows.map(row=>card(row,actor.userId))],next:more&&rows.length?rows[rows.length-1].at:null}));
  }catch{return actor.finish(reply({error:'Could not load the home page.'},503));}
 }
