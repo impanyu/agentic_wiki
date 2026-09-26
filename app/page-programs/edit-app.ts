@@ -100,7 +100,8 @@ export async function stageAppRevision(page:AnswerPage,raw:unknown,agent:Agent,r
 
   const {validateGenerationDraft,materializeGenerationDraft}=await import('./generation-draft');
   const context={pageId:page.id,userId:agent.ownerId,ownerId:agent.ownerId,language:page.language,visibility:'private' as const,agent};
-  const draft=validateGenerationDraft(change.draft,page.question||page.title,context,true),result=await materializeGenerationDraft(draft,context);
+  const {withPageDefaults}=await import('./draft-defaults');
+  const draft=validateGenerationDraft(withPageDefaults(change.draft,page) as any,page.question||page.title,context,true),result=await materializeGenerationDraft(draft,context);
   title=draft.title;summary=draft.summary;templateId=result.templateId;pageBody=draft.body;body=draft.program?.code||draft.body||draft.summary;sources=draft.sources;category=draft.category;
   if(result.definition){config={...result.definition.config,customized:true,contextDomain:page.dynamic?.contextDomain};pageKind='dynamic';}
   else{
