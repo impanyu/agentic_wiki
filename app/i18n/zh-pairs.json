@@ -629,5 +629,10 @@
   "Maintenance focus (optional)": "维护重点（可选）",
   "For example: keep prices current, check the ADAPT folders still load": "例如：保持价格为最新；检查 ADAPT 文件夹能否正常加载",
   "Last run": "上次运行",
-  "Each run uses this page’s agent with all its tools, appears in the page chat, and saves only changes that pass verification. You can undo the latest change.": "每次运行都使用此页面的 agent 及其全部工具，过程会显示在页面对话中，只保存通过验证的修改；最近一次修改可以撤销。"
+  "Each run uses this page’s agent with all its tools, appears in the page chat, and saves only changes that pass verification. You can undo the latest change.": "每次运行都使用此页面的 agent 及其全部工具，过程会显示在页面对话中，只保存通过验证的修改；最近一次修改可以撤销。",
+  "An agent is working on this page now": "有 agent 正在处理此页面",
+  "Agent running": "Agent 运行中",
+  "Live agent on": "Live agent 已开启",
+  "Loading more…": "正在加载更多…",
+  "Could not load more pages.": "无法加载更多页面。"
 }

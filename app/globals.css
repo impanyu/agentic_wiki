@@ -409,3 +409,11 @@ html[data-print=report] .voice-input{display:none!important}
 .live-agent-details small{color:#6b7280;font-size:12px}
 .live-agent-note{margin:0;font-size:13px}.context-actions .live-agent-note button{display:inline;border:0;background:none;padding:0;color:#1d5fb4;text-decoration:underline;cursor:pointer}
 .live-agent-error{margin:0;color:#b42318;font-size:13px}
+
+/* Home cards: agent status badges and infinite loading */
+.home-card-agents{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
+.home-agent{display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:600;border-radius:999px;padding:2px 8px;line-height:1.5}
+.home-agent.live{color:#2f6f45;background:#e9f7ee;border:1px solid #b9e0c6}
+.home-agent.running{color:#1f5f9e;background:#eaf3fd;border:1px solid #b7d3f2}
+.home-more{display:flex;justify-content:center;align-items:center;gap:8px;padding:18px 0;color:#64748b;font-size:14px}
+.home-more button{border:1px solid #d8dde3;background:#fff;border-radius:9px;padding:8px 16px;cursor:pointer;color:#303740}
