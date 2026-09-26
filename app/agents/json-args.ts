@@ -22,7 +22,12 @@ export function repairJsonStrings(text:string){
 export function parseToolJson(text:unknown,label='argument'):any{
  if(typeof text!=='string')throw Error(`${label} must be a JSON-encoded string.`);
  try{return JSON.parse(text);}catch(first){
-  try{return JSON.parse(repairJsonStrings(text));}catch{}
+  const repaired=repairJsonStrings(text);
+  try{return JSON.parse(repaired);}catch(second){
+   // A complete value followed only by stray closing brackets (a common slip when closing nested JSON).
+   const at=Number(String(second instanceof Error?second.message:'').match(/after JSON at position (\d+)/)?.[1]);
+   if(Number.isFinite(at)&&/^[\s}\]]+$/.test(repaired.slice(at))){try{return JSON.parse(repaired.slice(0,at));}catch{}}
+  }
   const message=first instanceof Error?first.message:'Invalid JSON';
   const at=Number(message.match(/position (\d+)/)?.[1]);
   const context=Number.isFinite(at)?` Text around position ${at}: …${JSON.stringify(text.slice(Math.max(0,at-80),at))} ⟵HERE⟶ ${JSON.stringify(text.slice(at,at+60))}…`:'';

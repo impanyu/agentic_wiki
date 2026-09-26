@@ -5,6 +5,8 @@ test('agent JSON arguments: raw newlines and tabs inside strings are repaired',(
  assert.throws(()=>JSON.parse(raw));
  assert.equal(m.parseToolJson(raw,'changeJson').code.frontend.javascript,'const a=1;\n\tif(a){go();}\n');
  assert.deepEqual(m.parseToolJson('{"a":"x\\"y"}'),{a:'x"y'});
+ assert.deepEqual(m.parseToolJson('{"kind":"program","inputFields":[{"name":"a"}]}}'),{kind:'program',inputFields:[{name:'a'}]});
+ assert.throws(()=>m.parseToolJson('{"a":1} trailing'),/not valid JSON/);
 });
 test('agent JSON arguments: other errors name the spot and the likely cause',()=>{
  assert.throws(()=>m.parseToolJson('{"html":"<div class="x">hi</div>"}','changeJson'),e=>/changeJson is not valid JSON/.test(e.message)&&/⟵HERE⟶/.test(e.message)&&/not escaped/.test(e.message));
