@@ -9,9 +9,10 @@ import {pageAddress} from './dynamic/units';
 import {CornerUpLeft} from 'lucide-react';
 import {Dashboard} from './templates/dashboard';
 import {chartSchema,validateChartData} from './components-registry/chart-contracts';
+import {parseGoogleMapsUrl,embedPath} from './maps/url';
 import {inlineParts,linkPattern,isSourceLabel,linkLevels,articleImage,articleCredit,type Highlight,type InternalLink} from './internal-links';
 export type {Highlight} from './internal-links';
-export function AnswerText({body,title,summary,labels,sources,highlights,links=[],concepts=[],onJump,onOpen,children}:{children?:React.ReactNode;body:string;title:string;summary:string;labels:import('./page-types').AnswerPage['labels'];sources:{title:string;url:string}[];highlights:Highlight[];links?:InternalLink[];concepts?:Highlight[];onJump:(highlight:Highlight)=>void;onOpen:(link:InternalLink)=>void}){
+export function AnswerText({body,title,summary,labels,sources,highlights,links=[],concepts=[],onJump,onOpen,children,pageId}:{pageId?:string;children?:React.ReactNode;body:string;title:string;summary:string;labels:import('./page-types').AnswerPage['labels'];sources:{title:string;url:string}[];highlights:Highlight[];links?:InternalLink[];concepts?:Highlight[];onJump:(highlight:Highlight)=>void;onOpen:(link:InternalLink)=>void}){
  const {t,locale}=useUi();
 
  // One source number per URL; each occurrence gets its own return anchor.
@@ -66,7 +67,9 @@ export function AnswerText({body,title,summary,labels,sources,highlights,links=[
  const headings=richDocument?richHeadings(richDocument):lines.flatMap((line,i)=>{const match=line.match(/^(#{1,3}) (.+)$/);return match?[{id:'section-'+i,title:match[2].replace(/\*\*/g,''),level:match[1].length}]:[]});
  const media=new Map<number,{url:string;caption:string;credit:string}>();
  const skipped=new Set<number>();
- lines.forEach((line,i)=>{const match=articleImage(line);if(match){const credit=articleCredit(lines[i+1]||'',line)?lines[i+1]:'';media.set(i,{url:match[2],caption:match[1],credit});skipped.add(i);if(credit)skipped.add(i+1);}});
+ // A Google Maps link on its own line (bare, [caption](url) or ![caption](url)) becomes an embedded map.
+ const mapLine=(line:string)=>{const m=line.trim().match(/^(?:!?\[([^\]]*)\]\((https?:\/\/[^\s)]+)\)|<?(https?:\/\/[^\s<>]+)>?)$/);if(!m)return null;const url=m[2]||m[3],target=parseGoogleMapsUrl(url);return target?{target,url,caption:m[1]||''}:null;};
+ lines.forEach((line,i)=>{if(mapLine(line))return;const match=articleImage(line);if(match){const credit=articleCredit(lines[i+1]||'',line)?lines[i+1]:'';media.set(i,{url:match[2],caption:match[1],credit});skipped.add(i);if(credit)skipped.add(i+1);}});
  // Lead images fill the illustration column; a figure placed inside a later section stays in place.
  const firstHeading=bodyHeadingLines[0]??Infinity,inFlow=new Set([...media.keys()].filter(i=>i>firstHeading));
  const figureFor=(i:number)=>{const item=media.get(i)!;return <ArticleFigure key={'figure'+i} url={item.url} alt={item.caption}><p>{inline(item.caption,'figure'+i)}</p>{item.credit&&<div className="image-credit">{inline(item.credit,'credit'+i)}</div>}</ArticleFigure>;};
@@ -81,6 +84,8 @@ export function AnswerText({body,title,summary,labels,sources,highlights,links=[
    if(end>i){try{const raw=JSON.parse(lines.slice(i+1,end).join('\n')) as {chart?:unknown;dataset?:unknown},chart=chartSchema.parse(raw.chart),dataset=validateChartData(chart,raw.dataset);blocks.push(<Dashboard key={id} chart={chart} dataset={dataset}/>);i=end;continue;}catch{/* Render malformed chart markup as ordinary text so content is never silently lost. */}}
   }
   if(heading){blocks.push(heading[1].length===3?<h3 id={'section-'+i} key={id}>{inline(heading[2],id)}</h3>:<h2 id={'section-'+i} key={id}>{inline(heading[2],id)}</h2>);continue;}
+  const map=mapLine(line);
+  if(map){blocks.push(<figure className="wiki-figure wiki-map" key={id}><iframe title={map.caption||t('Map')} src={embedPath(map.target,pageId)} loading="lazy" referrerPolicy="strict-origin-when-cross-origin" allowFullScreen/>{map.caption&&<figcaption>{inline(map.caption,id+'.caption')}</figcaption>}<a className="wiki-map-open" href={map.url} target="_blank" rel="noopener noreferrer">{t('Open in Google Maps')}</a></figure>);continue;}
   const iframe=line.match(/<iframe\b[^>]*\bsrc=["']([^"']+)["'][^>]*>\s*<\/iframe>/i);
   if(iframe){
    const embed=videoEmbedUrl(iframe[1]);

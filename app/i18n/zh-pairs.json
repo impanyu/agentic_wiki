@@ -639,5 +639,7 @@
   "This page could not be generated. Please ask again.": "此页面未能生成，请重新提问。",
   "This page is still being generated": "此页面仍在生成中",
   "Generating…": "生成中…",
-  "Generating": "生成中"
+  "Generating": "生成中",
+  "Map": "地图",
+  "Open in Google Maps": "在 Google 地图中打开"
 }

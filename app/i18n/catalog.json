@@ -901,5 +901,7 @@
   "This page could not be generated. Please ask again.": "This page could not be generated. Please ask again.",
   "This page is still being generated": "This page is still being generated",
   "Generating…": "Generating…",
-  "Generating": "Generating"
+  "Generating": "Generating",
+  "Map": "Map",
+  "Open in Google Maps": "Open in Google Maps"
 }

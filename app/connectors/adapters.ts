@@ -3,8 +3,10 @@ import {z} from 'zod';
 import type {RemoteTool} from './contracts';
 import {remoteRequest} from './http';
 import {publicThirdPartyCatalog} from '@/app/adma/catalog';
+import {googleMapsTools,executeGoogleMaps,verifyGoogleMapsKey} from './google-maps';
 const str={type:'string'},tool=(name:string,description:string,properties:Record<string,unknown>,required:string[]=[],read=true):RemoteTool=>({name,description,inputSchema:{type:'object',properties,required,additionalProperties:false},annotations:{readOnlyHint:read}});
 export const apiTools:Record<string,RemoteTool[]>={
+ 'google-maps':googleMapsTools,
  'unl-vpn':[
   tool('vpn_status','Check whether your UNL VPN session is connected. Campus-only services (such as the ADAPT share) need it.',{}),
  ],
@@ -95,6 +97,7 @@ export function apiOperation(provider:string,name:string,raw:unknown){
  const url=new URL(path,origin[provider]);for(const [key,value] of Object.entries(query))if(value!==undefined)url.searchParams.set(key,value);return {url:url.href,method,body,headers:extraHeaders,textResponse};
 }
 export async function executeApiConnector(provider:string,token:string,name:string,args:unknown,signal?:AbortSignal){
+ if(provider==='google-maps')return executeGoogleMaps(token,name,args,signal);
  const op=apiOperation(provider,name,args);if(provider==='youtube'){const url=new URL(op.url);url.searchParams.set('key',token);op.url=url.href;}
  const headers:Record<string,string>={Accept:'application/json',...(provider==='brave'?{'X-Subscription-Token':token}:provider==='youtube'?{}:{Authorization:(provider==='adma'?'Token ':'Bearer ')+token}),...(provider==='notion'?{'Notion-Version':'2025-09-03'}:{}),...op.headers};
  const {data}=await remoteRequest(op.url,headers,op.body,signal,op.method,true,{textResponse:op.textResponse});
@@ -107,6 +110,7 @@ export async function executeApiConnector(provider:string,token:string,name:stri
 export async function verifyApiConnector(provider:string,token:string){
  if(!token)throw Error('An API token is required.');
  if(provider==='slack'){const {data}=await remoteRequest('https://slack.com/api/auth.test',{Authorization:'Bearer '+token},undefined,undefined,'POST');if(!data?.ok)throw Error('Slack token could not be verified.');return;}
+ if(provider==='google-maps')return verifyGoogleMapsKey(token);
  if(provider==='brave'||provider==='youtube')return; // Avoid consuming search quota just to save a key.
  await executeApiConnector(provider,token,provider==='adma'?'list_folders':provider==='notion'?'search':provider==='airtable'?'list_bases':'list_projects',{});
 }
