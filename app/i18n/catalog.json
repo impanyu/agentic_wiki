@@ -903,5 +903,12 @@
   "Generating…": "Generating…",
   "Generating": "Generating",
   "Map": "Map",
-  "Open in Google Maps": "Open in Google Maps"
+  "Open in Google Maps": "Open in Google Maps",
+  "Google Cloud project ID": "Google Cloud project ID",
+  "Run Earth Engine analyses with your own Google account and Cloud project: your private assets, permissions and quota. Without it, agents use the built-in Earth Engine allowance.": "Run Earth Engine analyses with your own Google account and Cloud project: your private assets, permissions and quota. Without it, agents use the built-in Earth Engine allowance.",
+  "Enter the ID of a Google Cloud project registered for Earth Engine (free for noncommercial and research use at code.earthengine.google.com/register), then sign in with Google and allow Earth Engine access.": "Enter the ID of a Google Cloud project registered for Earth Engine (free for noncommercial and research use at code.earthengine.google.com/register), then sign in with Google and allow Earth Engine access.",
+  "Earth Engine authorization was cancelled.": "Earth Engine authorization was cancelled.",
+  "Google did not grant Earth Engine access. Reconnect and allow it.": "Google did not grant Earth Engine access. Reconnect and allow it.",
+  "That Cloud project cannot use Earth Engine with this account. Check the project ID and that it is registered for Earth Engine.": "That Cloud project cannot use Earth Engine with this account. Check the project ID and that it is registered for Earth Engine.",
+  "Earth Engine authorization failed. Please reconnect.": "Earth Engine authorization failed. Please reconnect."
 }

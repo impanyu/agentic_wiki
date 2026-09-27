@@ -641,5 +641,12 @@
   "Generating…": "生成中…",
   "Generating": "生成中",
   "Map": "地图",
-  "Open in Google Maps": "在 Google 地图中打开"
+  "Open in Google Maps": "在 Google 地图中打开",
+  "Google Cloud project ID": "Google Cloud 项目 ID",
+  "Run Earth Engine analyses with your own Google account and Cloud project: your private assets, permissions and quota. Without it, agents use the built-in Earth Engine allowance.": "使用你自己的 Google 账号和 Cloud 项目运行 Earth Engine 分析：使用你的私有资产、权限和配额。未连接时，智能体使用内置的 Earth Engine 额度。",
+  "Enter the ID of a Google Cloud project registered for Earth Engine (free for noncommercial and research use at code.earthengine.google.com/register), then sign in with Google and allow Earth Engine access.": "输入已注册 Earth Engine 的 Google Cloud 项目 ID（非商业和科研用途可在 code.earthengine.google.com/register 免费注册），然后使用 Google 登录并允许 Earth Engine 访问。",
+  "Earth Engine authorization was cancelled.": "Earth Engine 授权已取消。",
+  "Google did not grant Earth Engine access. Reconnect and allow it.": "Google 未授予 Earth Engine 访问权限。请重新连接并允许。",
+  "That Cloud project cannot use Earth Engine with this account. Check the project ID and that it is registered for Earth Engine.": "此账号无法在该 Cloud 项目中使用 Earth Engine。请检查项目 ID，并确认该项目已注册 Earth Engine。",
+  "Earth Engine authorization failed. Please reconnect.": "Earth Engine 授权失败，请重新连接。"
 }
