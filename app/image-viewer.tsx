@@ -1,8 +1,10 @@
 'use client';
 import {useCallback,useEffect,useRef,useState,type ReactNode,type MouseEvent,type KeyboardEvent,type PointerEvent,type WheelEvent} from 'react';
+import {createPortal} from 'react-dom';
 import {X,ZoomIn,ZoomOut,RotateCcw,ChevronLeft,ChevronRight,ExternalLink} from 'lucide-react';
 import {useUi} from '@/app/i18n/client';
 
+// The viewer renders on document.body, clear of article styles and stacking contexts.
 // Click (or Enter on) any image in the wrapped article to open it in a floating viewer: wheel,
 // pinch, buttons or double-click zoom, drag to pan, arrow keys step through the page's images.
 type Shot={src:string;alt:string;caption:string};
@@ -18,7 +20,7 @@ export function ImageZoomArea({className,children}:{className?:string;children:R
  const onClick=(e:MouseEvent)=>{const img=(e.target as Element).closest?.('img');if(zoomable(img)){e.preventDefault();open(img);}};
  const onKeyDown=(e:KeyboardEvent)=>{if((e.key==='Enter'||e.key===' ')&&zoomable(e.target as Element)){e.preventDefault();open(e.target as HTMLImageElement);}};
  const close=useCallback(()=>{setIndex(-1);opener.current?.focus({preventScroll:true});},[]);
- return <div ref={area} className={className} onClick={onClick} onKeyDown={onKeyDown}>{children}{index>=0&&shots[index]&&<ImageViewer shots={shots} index={index} onIndex={setIndex} onClose={close}/>}</div>;
+ return <div ref={area} className={className} onClick={onClick} onKeyDown={onKeyDown}>{children}{index>=0&&shots[index]&&createPortal(<ImageViewer shots={shots} index={index} onIndex={setIndex} onClose={close}/>,document.body)}</div>;
 }
 
 function ImageViewer({shots,index,onIndex,onClose}:{shots:Shot[];index:number;onIndex:(i:number)=>void;onClose:()=>void}){
@@ -55,6 +57,6 @@ function ImageViewer({shots,index,onIndex,onClose}:{shots:Shot[];index:number;on
    <img src={shot.src} alt={shot.alt} draggable={false} referrerPolicy="no-referrer" style={{transform:`translate(${pos.x}px,${pos.y}px) scale(${scale})`}}/>
   </div>
   {shots.length>1&&<button type="button" className="image-viewer-nav next" onClick={e=>{e.stopPropagation();step(1);}} aria-label={t('Next image')}><ChevronRight size={28}/></button>}
-  {shot.caption&&<p className="image-viewer-caption" onClick={e=>e.stopPropagation()}>{shot.caption}</p>}
+  {shot.caption&&<div className="image-viewer-caption" onClick={e=>e.stopPropagation()}>{shot.caption}</div>}
  </div>;
 }
