@@ -10,7 +10,9 @@ import {useUi} from '@/app/i18n/client';
 type Shot={src:string;alt:string;caption:string};
 const MIN=1,MAX=8;
 const zoomable=(el:Element|null):el is HTMLImageElement=>el instanceof HTMLImageElement&&!el.closest('a,button,.image-viewer')&&(el.naturalWidth===0||el.naturalWidth>=48);
-const shotOf=(img:HTMLImageElement):Shot=>({src:img.currentSrc||img.src,alt:img.alt,caption:(img.closest('figure')?.querySelector('figcaption')?.textContent||'').trim()});
+// The caption without its credit line.
+const captionOf=(img:HTMLImageElement)=>{const f=img.closest('figure')?.querySelector('figcaption');if(!f)return '';const copy=f.cloneNode(true) as HTMLElement;copy.querySelectorAll('.image-credit').forEach(n=>n.remove());return (copy.textContent||'').replace(/\s+/g,' ').trim();};
+const shotOf=(img:HTMLImageElement):Shot=>({src:img.currentSrc||img.src,alt:img.alt,caption:captionOf(img)});
 
 export function ImageZoomArea({className,children}:{className?:string;children:ReactNode}){
  const area=useRef<HTMLDivElement>(null),[shots,setShots]=useState<Shot[]>([]),[index,setIndex]=useState(-1),opener=useRef<HTMLElement|null>(null);
@@ -24,7 +26,7 @@ export function ImageZoomArea({className,children}:{className?:string;children:R
 }
 
 function ImageViewer({shots,index,onIndex,onClose}:{shots:Shot[];index:number;onIndex:(i:number)=>void;onClose:()=>void}){
- const {t}=useUi(),shot=shots[index],[scale,setScale]=useState(1),[pos,setPos]=useState({x:0,y:0}),closeRef=useRef<HTMLButtonElement>(null);
+ const {t}=useUi(),shot=shots[index],[scale,setScale]=useState(1),[pos,setPos]=useState({x:0,y:0}),closeRef=useRef<HTMLButtonElement>(null),imgRef=useRef<HTMLImageElement>(null),dragged=useRef(false);
  const pointers=useRef(new Map<number,{x:number;y:number}>()),pinch=useRef<{d:number;s:number}|null>(null),drag=useRef<{x:number;y:number;px:number;py:number;moved:boolean}|null>(null);
  const reset=()=>{setScale(1);setPos({x:0,y:0});};
  const zoomTo=(next:number)=>{const s=Math.min(MAX,Math.max(MIN,next));setScale(s);if(s===1)setPos({x:0,y:0});};
@@ -39,7 +41,7 @@ function ImageViewer({shots,index,onIndex,onClose}:{shots:Shot[];index:number;on
   if(pinch.current&&pointers.current.size===2){const [a,b]=[...pointers.current.values()];zoomTo(pinch.current.s*Math.hypot(a.x-b.x,a.y-b.y)/pinch.current.d);return;}
   const d=drag.current;if(!d)return;const dx=e.clientX-d.x,dy=e.clientY-d.y;if(Math.abs(dx)+Math.abs(dy)>4)d.moved=true;if(scale>1)setPos({x:d.px+dx,y:d.py+dy});};
  const up=(e:PointerEvent)=>{pointers.current.delete(e.pointerId);if(pointers.current.size<2)pinch.current=null;
-  const d=drag.current;drag.current=null;
+  const d=drag.current;drag.current=null;dragged.current=!!d?.moved;
   // A swipe at normal size steps between images.
   if(d&&d.moved&&scale===1&&Math.abs(e.clientX-d.x)>60&&Math.abs(e.clientX-d.x)>Math.abs(e.clientY-d.y))step(e.clientX<d.x?1:-1);};
  return <div className="image-viewer" role="dialog" aria-modal="true" aria-label={shot.alt||shot.caption||t('Image')} onClick={e=>{if(e.target===e.currentTarget)onClose();}}>
@@ -53,8 +55,10 @@ function ImageViewer({shots,index,onIndex,onClose}:{shots:Shot[];index:number;on
    <button ref={closeRef} type="button" onClick={onClose} aria-label={t('Close')} title={t('Close')}><X size={20}/></button>
   </div>
   {shots.length>1&&<button type="button" className="image-viewer-nav prev" onClick={e=>{e.stopPropagation();step(-1);}} aria-label={t('Previous image')}><ChevronLeft size={28}/></button>}
-  <div className={'image-viewer-stage'+(scale>1?' zoomed':'')} onWheel={onWheel} onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={up} onDoubleClick={()=>scale>1?reset():zoomTo(2.5)} onClick={e=>{if(e.target===e.currentTarget)onClose();}}>
-   <img src={shot.src} alt={shot.alt} draggable={false} referrerPolicy="no-referrer" style={{transform:`translate(${pos.x}px,${pos.y}px) scale(${scale})`}}/>
+  <div className={'image-viewer-stage'+(scale>1?' zoomed':'')} onWheel={onWheel} onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={up} onDoubleClick={()=>scale>1?reset():zoomTo(2.5)} onClick={e=>{
+   // Pointer capture retargets clicks to the stage, so "outside the image" is decided by position.
+   if(dragged.current){dragged.current=false;return;}const r=imgRef.current?.getBoundingClientRect();if(r&&(e.clientX<r.left||e.clientX>r.right||e.clientY<r.top||e.clientY>r.bottom))onClose();}}>
+   <img ref={imgRef} src={shot.src} alt={shot.alt} draggable={false} referrerPolicy="no-referrer" style={{transform:`translate(${pos.x}px,${pos.y}px) scale(${scale})`}}/>
   </div>
   {shots.length>1&&<button type="button" className="image-viewer-nav next" onClick={e=>{e.stopPropagation();step(1);}} aria-label={t('Next image')}><ChevronRight size={28}/></button>}
   {shot.caption&&<div className="image-viewer-caption" onClick={e=>e.stopPropagation()}>{shot.caption}</div>}
