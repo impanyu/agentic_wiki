@@ -910,5 +910,12 @@
   "Earth Engine authorization was cancelled.": "Earth Engine authorization was cancelled.",
   "Google did not grant Earth Engine access. Reconnect and allow it.": "Google did not grant Earth Engine access. Reconnect and allow it.",
   "That Cloud project cannot use Earth Engine with this account. Check the project ID and that it is registered for Earth Engine.": "That Cloud project cannot use Earth Engine with this account. Check the project ID and that it is registered for Earth Engine.",
-  "Earth Engine authorization failed. Please reconnect.": "Earth Engine authorization failed. Please reconnect."
+  "Earth Engine authorization failed. Please reconnect.": "Earth Engine authorization failed. Please reconnect.",
+  "Zoom in": "Zoom in",
+  "Zoom out": "Zoom out",
+  "Reset zoom": "Reset zoom",
+  "Open original image": "Open original image",
+  "Previous image": "Previous image",
+  "Next image": "Next image",
+  "Image": "Image"
 }

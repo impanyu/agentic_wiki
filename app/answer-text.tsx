@@ -10,6 +10,7 @@ import {CornerUpLeft} from 'lucide-react';
 import {Dashboard} from './templates/dashboard';
 import {chartSchema,validateChartData} from './components-registry/chart-contracts';
 import {parseGoogleMapsUrl,embedPath} from './maps/url';
+import {ImageZoomArea} from './image-viewer';
 import {inlineParts,linkPattern,isSourceLabel,linkLevels,articleImage,articleCredit,type Highlight,type InternalLink} from './internal-links';
 export type {Highlight} from './internal-links';
 export function AnswerText({body,title,summary,labels,sources,highlights,links=[],concepts=[],onJump,onOpen,children,pageId}:{pageId?:string;children?:React.ReactNode;body:string;title:string;summary:string;labels:import('./page-types').AnswerPage['labels'];sources:{title:string;url:string}[];highlights:Highlight[];links?:InternalLink[];concepts?:Highlight[];onJump:(highlight:Highlight)=>void;onOpen:(link:InternalLink)=>void}){
@@ -112,7 +113,7 @@ export function AnswerText({body,title,summary,labels,sources,highlights,links=[
  return <><header className="wiki-heading"><h1>{text(title,'title')}</h1>{showSummary&&<><p className="wiki-label">{t("Overview")}</p><p className="lead">{summaryContent}</p></>}</header>{children}
   <div className="wiki-layout">
    {headings.length>1&&<nav className="wiki-contents" aria-label={t("Article contents")}><strong>{t("Contents")}</strong><ol>{headings.map(h=><li key={h.id} className={h.level===3?'subsection':''}><a href={'#'+h.id} onClick={e=>{e.preventDefault();document.getElementById(h.id)?.scrollIntoView({block:'start'});}}>{h.title}</a></li>)}</ol></nav>}
-   <div className="wiki-body">{labels.sourceMedia?.length?<SourceMediaView media={labels.sourceMedia}/>:null}{!richDocument&&figures.length>0&&<aside className="wiki-illustrations" aria-label={t("Illustrations")}>{figures}</aside>}{richDocument?<RichContent document={richDocument}/>:blocks}</div>
+   <ImageZoomArea className="wiki-body">{labels.sourceMedia?.length?<SourceMediaView media={labels.sourceMedia}/>:null}{!richDocument&&figures.length>0&&<aside className="wiki-illustrations" aria-label={t("Illustrations")}>{figures}</aside>}{richDocument?<RichContent document={richDocument}/>:blocks}</ImageZoomArea>
   </div>
   {references.length>0&&<section className="sources" aria-label={t("Sources")}><h2>{t("Sources")}</h2><ol>{references.map((source,i)=><li id={'source-'+(i+1)} tabIndex={-1} key={source.url}><div className="source-entry"><span className="source-returns">{source.occurrences.length>1&&<CornerUpLeft size={14} className="source-return-icon" aria-hidden="true"/>}{source.occurrences.map((id,j)=><a key={id} href={'#'+id} className="source-return" title={t("Back to citation ")+(i+1)+(source.occurrences.length>1?t(", occurrence ")+(j+1):'')} aria-label={t("Back to citation ")+(i+1)+(source.occurrences.length>1?t(", occurrence ")+(j+1):'')} onClick={e=>{e.preventDefault();jumpTo(id);}}>{source.occurrences.length>1?j+1:<CornerUpLeft size={14} aria-hidden="true"/>}</a>)}</span><a className="source-title" href={source.url} target="_blank" rel="noopener noreferrer">{source.title}</a></div></li>)}</ol></section>}
   </>;
