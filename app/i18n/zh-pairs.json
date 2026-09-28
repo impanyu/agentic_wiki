@@ -675,5 +675,6 @@
   "This file is not a readable PDF.": "这个文件不是可读取的 PDF。",
   "The PDF could not be opened.": "无法打开这个 PDF。",
   "The note could not be saved.": "笔记保存失败。",
-  "The note could not be deleted.": "笔记删除失败。"
+  "The note could not be deleted.": "笔记删除失败。",
+  "Fit page": "适应页面"
 }

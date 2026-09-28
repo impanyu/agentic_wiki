@@ -1,6 +1,6 @@
 'use client';
 import {useCallback,useEffect,useLayoutEffect,useMemo,useRef,useState} from 'react';
-import {Highlighter,Minus,Plus,MessageSquareText,NotebookPen,Trash2,X,Maximize2} from 'lucide-react';
+import {File as FileIcon,Highlighter,Minus,Plus,MessageSquareText,NotebookPen,Trash2,X,Maximize2} from 'lucide-react';
 import {useUi} from '@/app/i18n/client';
 import type {PDFDocumentProxy,PDFPageProxy} from 'pdfjs-dist';
 
@@ -35,7 +35,7 @@ export function PdfNotesReader({pageId,documentKey,src,title}:{pageId:string;doc
  const {t}=useUi();
  const scroller=useRef<HTMLDivElement>(null),wrap=useRef<HTMLDivElement>(null),pageEls=useRef(new Map<number,HTMLDivElement>());
  const [pdf,setPdf]=useState<PDFDocumentProxy|null>(null),[base,setBase]=useState<{w:number;h:number}|null>(null),[error,setError]=useState(''),[loading,setLoading]=useState(true);
- const [fit,setFit]=useState(true),[zoom,setZoom]=useState(1),[width,setWidth]=useState(800);
+ const [fit,setFit]=useState<'page'|'width'|null>('page'),[zoom,setZoom]=useState(1),[box,setBox]=useState({w:800,h:900});
  const [notes,setNotes]=useState<Note[]>([]),[color,setColor]=useState('yellow'),[pending,setPending]=useState<Pending|null>(null),[active,setActive]=useState<{id:string;x:number;y:number}|null>(null),[panel,setPanel]=useState(false),[saveError,setSaveError]=useState(''),[flash,setFlash]=useState('');
  const api='/api/pages/'+encodeURIComponent(pageId)+'/paper-notes';
 
@@ -48,9 +48,10 @@ export function PdfNotesReader({pageId,documentKey,src,title}:{pageId:string;doc
   return ()=>{cancelled=true;void doc?.destroy();};
  },[src]);
  useEffect(()=>{let live=true;setNotes([]);fetch(api+'?document='+encodeURIComponent(documentKey),{cache:'no-store'}).then(r=>r.ok?r.json() as Promise<{notes?:Note[]}>:{notes:[]}).then(d=>{if(live)setNotes(d.notes||[]);}).catch(()=>{});return ()=>{live=false;};},[api,documentKey]);
- useLayoutEffect(()=>{const el=scroller.current;if(!el)return;const measure=()=>setWidth(el.clientWidth);measure();const ro=new ResizeObserver(measure);ro.observe(el);return ()=>ro.disconnect();},[]);
- const scale=useMemo(()=>base?(fit?Math.max(0.4,Math.min(3,(width-32)/base.w)):zoom):1,[base,fit,width,zoom]);
- const setScale=(next:number)=>{setFit(false);setZoom(Math.max(0.4,Math.min(4,+next.toFixed(2))));};
+ useLayoutEffect(()=>{const el=scroller.current;if(!el)return;const measure=()=>setBox({w:el.clientWidth,h:el.clientHeight});measure();const ro=new ResizeObserver(measure);ro.observe(el);return ()=>ro.disconnect();},[]);
+ // Fit page shows one whole page in the reader; fit width fills its width (scrolling within a page).
+ const scale=useMemo(()=>{if(!base)return 1;const byWidth=(box.w-32)/base.w,byPage=Math.min(byWidth,(box.h-32)/base.h);return fit==='page'?Math.max(0.3,Math.min(3,byPage)):fit==='width'?Math.max(0.4,Math.min(3,byWidth)):zoom;},[base,fit,box,zoom]);
+ const setScale=(next:number)=>{setFit(null);setZoom(Math.max(0.4,Math.min(4,+next.toFixed(2))));};
 
  const send=async(method:'POST'|'PATCH'|'DELETE',body:unknown)=>{setSaveError('');const r=await fetch(api,{method,headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});const d=await r.json().catch(()=>({})) as {result?:unknown;error?:string};if(!r.ok)throw Error(d.error||t('The note could not be saved.'));return d.result;};
  const create=async(p:Pending,c:string,openNote=false)=>{window.getSelection()?.removeAllRanges();setPending(null);
@@ -89,7 +90,7 @@ export function PdfNotesReader({pageId,documentKey,src,title}:{pageId:string;doc
   <div className="pdf-reader-bar">
    <div className="pdf-colors" role="radiogroup" aria-label={t('Highlight color')}>{COLORS.map(([name,hex])=><button key={name} type="button" role="radio" aria-checked={color===name} aria-label={t('Highlight color')+': '+t(name)} title={t(name)} style={{background:hex}} onClick={()=>{setColor(name);if(pending)void create(pending,name);}}/>)}</div>
    <span className="pdf-hint"><Highlighter size={14}/>{t('Select text to highlight it or add a note.')}</span>
-   <div className="pdf-zoom"><button type="button" onClick={()=>setScale(scale/1.2)} aria-label={t('Zoom out')} title={t('Zoom out')}><Minus size={15}/></button><span>{Math.round(scale*100)}%</span><button type="button" onClick={()=>setScale(scale*1.2)} aria-label={t('Zoom in')} title={t('Zoom in')}><Plus size={15}/></button><button type="button" onClick={()=>setFit(true)} aria-pressed={fit} title={t('Fit width')}><Maximize2 size={14}/>{t('Fit width')}</button></div>
+   <div className="pdf-zoom"><button type="button" onClick={()=>setScale(scale/1.2)} aria-label={t('Zoom out')} title={t('Zoom out')}><Minus size={15}/></button><span>{Math.round(scale*100)}%</span><button type="button" onClick={()=>setScale(scale*1.2)} aria-label={t('Zoom in')} title={t('Zoom in')}><Plus size={15}/></button><button type="button" onClick={()=>setFit('page')} aria-pressed={fit==='page'} title={t('Fit page')}><FileIcon size={14}/>{t('Fit page')}</button><button type="button" onClick={()=>setFit('width')} aria-pressed={fit==='width'} title={t('Fit width')}><Maximize2 size={14}/>{t('Fit width')}</button></div>
    <button type="button" className="pdf-notes-toggle" aria-pressed={panel} onClick={()=>setPanel(!panel)}><NotebookPen size={15}/>{t('Notes')}{notes.length?' ('+notes.length+')':''}</button>
   </div>
   <div className="pdf-reader-body">
