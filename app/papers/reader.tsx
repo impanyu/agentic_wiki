@@ -113,36 +113,41 @@ export function PdfNotesReader({pageId,documentKey,src,title}:{pageId:string;doc
 }
 
 function NoteEditor({note,style,onColor,onSave,onDelete,onClose}:{note:Note;style:React.CSSProperties;onColor:(c:string)=>void;onSave:(text:string)=>void;onDelete:()=>void;onClose:()=>void}){
- const {t}=useUi(),[text,setText]=useState(note.note),box=useRef<HTMLTextAreaElement>(null);
+ const {t}=useUi(),[text,setText]=useState(note.note),box=useRef<HTMLTextAreaElement>(null),saved=useRef(note.note),latest=useRef(note.note),save=useRef(onSave);save.current=onSave;
  useEffect(()=>{box.current?.focus();},[]);
- const commit=()=>{if(text!==note.note)onSave(text.slice(0,8000));};
+ const commit=useCallback(()=>{const value=latest.current.slice(0,8000);if(value!==saved.current){saved.current=value;save.current(value);}},[]);
+ // Notes save while typing (after a pause) and whenever the editor closes, however it closes.
+ useEffect(()=>{const timer=setTimeout(commit,800);return ()=>clearTimeout(timer);},[text,commit]);
+ useEffect(()=>commit,[commit]);
  return <div className="pdf-float pdf-note-editor" style={style} role="dialog" aria-label={t('Highlight note')}>
-  <div className="pdf-note-head">{COLORS.map(([name,hex])=><button key={name} type="button" style={{background:hex}} aria-pressed={note.color===name} aria-label={t('Highlight color')+': '+t(name)} title={t(name)} onClick={()=>onColor(name)}/>)}<button type="button" className="pdf-note-delete" onClick={onDelete} aria-label={t('Delete highlight')} title={t('Delete highlight')}><Trash2 size={15}/></button><button type="button" onClick={()=>{commit();onClose();}} aria-label={t('Close')}><X size={15}/></button></div>
+  <div className="pdf-note-head">{COLORS.map(([name,hex])=><button key={name} type="button" style={{background:hex}} aria-pressed={note.color===name} aria-label={t('Highlight color')+': '+t(name)} title={t(name)} onClick={()=>onColor(name)}/>)}<button type="button" className="pdf-note-delete" onClick={()=>{saved.current=latest.current;onDelete();}} aria-label={t('Delete highlight')} title={t('Delete highlight')}><Trash2 size={15}/></button><button type="button" onClick={()=>{commit();onClose();}} aria-label={t('Close')}><X size={15}/></button></div>
   <q>{note.quote}</q>
-  <textarea ref={box} value={text} rows={3} maxLength={8000} placeholder={t('Write a note…')} onChange={e=>setText(e.target.value)} onBlur={commit} onKeyDown={e=>{if(e.key==='Enter'&&(e.metaKey||e.ctrlKey)){commit();onClose();}}}/>
+  <textarea ref={box} value={text} rows={3} maxLength={8000} placeholder={t('Write a note…')} onChange={e=>{latest.current=e.target.value;setText(e.target.value);}} onBlur={commit} onKeyDown={e=>{if(e.key==='Enter'&&(e.metaKey||e.ctrlKey)){commit();onClose();}}}/>
   <small>{t('Saved to your account for this paper.')}</small>
  </div>;
 }
 
 function PdfPage({pdf,number,scale,estimate,notes,flash,activeId,register,root}:{pdf:PDFDocumentProxy;number:number;scale:number;estimate:{w:number;h:number};notes:Note[];flash:string;activeId:string;register:(el:HTMLDivElement|null)=>void;root:React.RefObject<HTMLDivElement|null>}){
- const el=useRef<HTMLDivElement>(null),canvas=useRef<HTMLCanvasElement>(null),text=useRef<HTMLDivElement>(null);
+ const el=useRef<HTMLDivElement>(null),canvas=useRef<HTMLDivElement>(null),text=useRef<HTMLDivElement>(null);
  const [page,setPage]=useState<PDFPageProxy|null>(null),[visible,setVisible]=useState(false),[size,setSize]=useState(estimate);
  useEffect(()=>{const node=el.current;register(node);return ()=>register(null);},[register]);
  useEffect(()=>{const node=el.current;if(!node)return;const io=new IntersectionObserver(([e])=>{if(e.isIntersecting)setVisible(true);},{root:root.current,rootMargin:'800px 0px'});io.observe(node);return ()=>io.disconnect();},[root]);
  useEffect(()=>{if(!visible||page)return;let live=true;pdf.getPage(number).then(p=>{if(!live)return;const v=p.getViewport({scale:1});setSize({w:v.width,h:v.height});setPage(p);}).catch(()=>{});return ()=>{live=false;};},[visible,page,pdf,number]);
- useEffect(()=>{if(!page||!canvas.current||!text.current)return;let cancelled=false;
-  const viewport=page.getViewport({scale}),ratio=Math.min(window.devicePixelRatio||1,2),c=canvas.current,layer=text.current;
-  c.width=Math.floor(viewport.width*ratio);c.height=Math.floor(viewport.height*ratio);
+ // Each draw gets a fresh canvas that replaces the old one when finished: pdf.js refuses to draw
+ // on a canvas a cancelled draw may still hold, and the old image stays visible while zooming.
+ useEffect(()=>{const holder=canvas.current,layer=text.current;if(!page||!holder||!layer)return;let cancelled=false;
+  const viewport=page.getViewport({scale}),ratio=Math.min(window.devicePixelRatio||1,2),c=document.createElement('canvas');
+  c.width=Math.floor(viewport.width*ratio);c.height=Math.floor(viewport.height*ratio);c.setAttribute('aria-hidden','true');
   const task=page.render({canvasContext:c.getContext('2d')!,viewport,transform:ratio!==1?[ratio,0,0,ratio,0,0]:undefined});
-  task.promise.catch(()=>{});
+  task.promise.then(()=>{if(!cancelled)holder.replaceChildren(c);}).catch(e=>{if(!cancelled&&(e as Error)?.name!=='RenderingCancelledException')console.warn('PDF page render failed',number,e);});
   layer.replaceChildren();
   let textLayer:{render:()=>Promise<void>;cancel:()=>void}|null=null;
   import('pdfjs-dist').then(({TextLayer})=>{if(cancelled)return;textLayer=new TextLayer({textContentSource:page.streamTextContent(),container:layer,viewport});return textLayer.render();}).catch(()=>{});
   return ()=>{cancelled=true;task.cancel();textLayer?.cancel();};
- },[page,scale]);
+ },[page,scale,number]);
  const w=size.w*scale,h=size.h*scale;
  return <div ref={el} className="pdf-page" data-page={number} style={{width:w,height:h,['--scale-factor' as string]:scale}}>
-  <canvas ref={canvas} style={{width:w,height:h}} aria-hidden="true"/>
+  <div ref={canvas} className="pdf-canvas"/>
   <div className="pdf-marks" aria-hidden="true">{notes.flatMap(n=>n.rects.map((r,i)=><span key={n.id+i} className={(n.id===flash?'flash ':'')+(n.id===activeId?'active':'')} style={{left:r.x*100+'%',top:r.y*100+'%',width:r.w*100+'%',height:r.h*100+'%',background:colorOf(n.color)}}/>))}{notes.filter(n=>n.note).map(n=><i key={n.id} className="pdf-note-pin" style={{left:Math.min(97,(n.rects[n.rects.length-1].x+n.rects[n.rects.length-1].w)*100)+'%',top:n.rects[n.rects.length-1].y*100+'%'}}/>)}</div>
   <div ref={text} className="textLayer"/>
   {!page&&<span className="pdf-page-number">{number}</span>}

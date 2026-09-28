@@ -17,7 +17,7 @@
 .pdf-scroller{flex:1;overflow:auto;padding:16px;display:flex;flex-direction:column;align-items:center;gap:14px;overscroll-behavior:contain}
 .pdf-status{margin:24px;color:#566171}.pdf-error{color:#a12626}
 .pdf-page{position:relative;flex:none;background:#fff;box-shadow:0 1px 4px rgba(20,30,50,.18)}
-.pdf-page canvas{position:absolute;inset:0;display:block}
+.pdf-canvas{position:absolute;inset:0}.pdf-canvas canvas{display:block;width:100%;height:100%}
 .pdf-page-number{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:#a3adbd;font-size:28px}
 .pdf-marks{position:absolute;inset:0;pointer-events:none;z-index:1;mix-blend-mode:multiply}
 .pdf-marks span{position:absolute;opacity:.55;border-radius:2px}.pdf-marks span.active{outline:2px solid #3157a4;opacity:.7}.pdf-marks span.flash{animation:pdf-flash 1.4s ease-out}
