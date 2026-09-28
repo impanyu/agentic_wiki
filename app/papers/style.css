@@ -1,3 +1,47 @@
 .paper-workspace{--paper-ink:#17233b;--paper-blue:#3157a4;--paper-line:#dce2ed;background:#f5f7fb;border:1px solid var(--paper-line);border-radius:14px;overflow:hidden;margin:18px 0;color:var(--paper-ink)}
 .paper-resources{border:1px solid #dce2ed;border-radius:14px;background:linear-gradient(135deg,#f7f9fd,#fff);padding:18px;margin:24px 0 18px;color:#17233b}.paper-resources>header{display:flex;justify-content:space-between;gap:18px;align-items:flex-start;margin-bottom:14px}.paper-resources>header>div{display:flex;align-items:center;gap:9px}.paper-resources>header span{max-width:580px;color:#68748a;font-size:13px;line-height:1.45}.paper-resource-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:10px}.paper-resource-grid>a{display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:11px;padding:12px;border:1px solid #dfe5ef;border-radius:10px;background:#fff;color:#17233b;text-decoration:none;transition:border-color .15s,box-shadow .15s}.paper-resource-grid>a:hover{border-color:#8aa4d7;box-shadow:0 5px 16px #274c8d14}.paper-resource-grid>a>span:nth-child(2){display:flex;min-width:0;flex-direction:column;gap:3px}.paper-resource-grid small{color:#52647e;font-size:11px;text-transform:uppercase;letter-spacing:.05em}.paper-resource-grid strong{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:14px}.paper-resource-grid em{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#7b8799;font-size:11px;font-style:normal}.paper-resource-icon{display:grid;place-items:center;width:34px;height:34px;border-radius:9px;background:#eaf0fb;color:#3157a4}.paper-resource-icon.resource-dataset{background:#e8f7f0;color:#167653}.paper-resource-icon.resource-model{background:#f6ecff;color:#7843a5}.paper-resource-icon.resource-supplement{background:#fff3df;color:#9a5b08}.paper-resource-empty{margin:0;padding:13px;border:1px dashed #cbd4e4;border-radius:9px;color:#68748a;font-size:13px}
 .paper-toolbar{display:flex;justify-content:space-between;gap:16px;align-items:center;padding:13px 16px;background:#fff;border-bottom:1px solid var(--paper-line)}.paper-toolbar>div{display:flex;align-items:center;gap:9px;flex-wrap:wrap}.paper-toolbar span{font-size:12px;color:#67738a}.paper-toolbar button,.paper-toolbar select,.paper-source-link{border:1px solid #cbd4e4;background:#fff;color:var(--paper-ink);border-radius:7px;padding:8px 10px;font-size:12px}.paper-toolbar button{display:inline-flex;align-items:center;gap:6px;cursor:pointer}.paper-source-link{text-decoration:none}.paper-document{width:100%;height:min(78vh,900px);min-height:620px;background:#e8edf5}.paper-document iframe{display:block;width:100%;height:100%;border:0;background:#fff}.paper-document>[role]{margin:12px;color:#a12626}.paper-empty{height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:36px;color:#66748c}.paper-empty strong{color:var(--paper-ink);margin:12px 0 4px}.paper-empty p{max-width:340px;line-height:1.55;font-size:13px}.template-paper-v1>.page-shell{max-width:1600px}@media(max-width:700px){.paper-resources>header{flex-direction:column}.paper-toolbar{align-items:flex-start;flex-direction:column}.paper-document{height:68vh;min-height:480px}}
+
+/* Paper reader with highlights and notes (pdf.js) */
+.paper-document:has(.pdf-reader){height:auto;min-height:0}
+.pdf-reader{position:relative;display:flex;flex-direction:column;height:min(82vh,960px);min-height:560px;background:#e8edf5}
+.pdf-reader-bar{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:8px 12px;background:#fff;border-bottom:1px solid var(--paper-line)}
+.pdf-colors,.pdf-zoom{display:flex;align-items:center;gap:6px}
+.pdf-colors button,.pdf-pick>button:not(.pdf-add-note),.pdf-note-head>button[style]{width:22px;height:22px;border-radius:50%;border:2px solid #fff;box-shadow:0 0 0 1px #b8c2d3;cursor:pointer;padding:0}
+.pdf-colors button[aria-checked=true],.pdf-note-head>button[aria-pressed=true]{box-shadow:0 0 0 2px #3157a4}
+.pdf-hint{display:inline-flex;align-items:center;gap:5px;font-size:12px;color:#67738a;margin-right:auto}
+.pdf-zoom button,.pdf-notes-toggle{display:inline-flex;align-items:center;gap:5px;border:1px solid #cbd4e4;background:#fff;color:var(--paper-ink);border-radius:7px;padding:6px 8px;font-size:12px;cursor:pointer}
+.pdf-zoom button[aria-pressed=true],.pdf-notes-toggle[aria-pressed=true]{background:#e8f0ff;border-color:#9db5e3}
+.pdf-zoom span{min-width:42px;text-align:center;font-size:12px}
+.pdf-reader-body{flex:1;display:flex;min-height:0}
+.pdf-scroller{flex:1;overflow:auto;padding:16px;display:flex;flex-direction:column;align-items:center;gap:14px;overscroll-behavior:contain}
+.pdf-status{margin:24px;color:#566171}.pdf-error{color:#a12626}
+.pdf-page{position:relative;flex:none;background:#fff;box-shadow:0 1px 4px rgba(20,30,50,.18)}
+.pdf-page canvas{position:absolute;inset:0;display:block}
+.pdf-page-number{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:#a3adbd;font-size:28px}
+.pdf-marks{position:absolute;inset:0;pointer-events:none;z-index:1;mix-blend-mode:multiply}
+.pdf-marks span{position:absolute;opacity:.55;border-radius:2px}.pdf-marks span.active{outline:2px solid #3157a4;opacity:.7}.pdf-marks span.flash{animation:pdf-flash 1.4s ease-out}
+@keyframes pdf-flash{0%,40%{opacity:1;box-shadow:0 0 0 4px rgba(49,87,164,.45)}100%{opacity:.55;box-shadow:none}}
+.pdf-note-pin{position:absolute;width:9px;height:9px;margin:-4px 0 0 2px;border-radius:50%;background:#3157a4;box-shadow:0 0 0 2px #fff;mix-blend-mode:normal}
+.pdf-page .textLayer{position:absolute;text-align:initial;inset:0;overflow:clip;opacity:1;line-height:1;text-size-adjust:none;forced-color-adjust:none;transform-origin:0 0;caret-color:CanvasText;z-index:2}
+.pdf-page .textLayer :is(span,br){color:transparent;position:absolute;white-space:pre;cursor:text;transform-origin:0% 0%}
+.pdf-page .textLayer span.markedContent{top:0;height:0}
+.pdf-page .textLayer ::selection{background:rgba(49,87,164,.3)}.pdf-page .textLayer br::selection{background:transparent}
+.pdf-page .textLayer .endOfContent{display:block;position:absolute;inset:100% 0 0;z-index:0;cursor:default;user-select:none}.pdf-page .textLayer.selecting .endOfContent{top:0}
+.pdf-notes{width:280px;flex:none;border-left:1px solid var(--paper-line);background:#fff;display:flex;flex-direction:column;min-height:0}
+.pdf-notes header{display:flex;justify-content:space-between;align-items:center;padding:10px 12px;border-bottom:1px solid var(--paper-line)}.pdf-notes header button{border:0;background:transparent;cursor:pointer;color:inherit}
+.pdf-notes ol{list-style:none;margin:0;padding:8px;overflow:auto;display:flex;flex-direction:column;gap:6px}
+.pdf-note-item{display:block;width:100%;text-align:left;border:1px solid #e1e6ef;border-left:5px solid;border-radius:6px;background:#fbfcfe;padding:7px 9px;cursor:pointer;color:var(--paper-ink);font:inherit}.pdf-note-item:hover{background:#f1f5fc}
+.pdf-note-item small{display:block;color:#67738a;font-size:11px}.pdf-note-item q{display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;font-size:12.5px;line-height:1.45;quotes:none}.pdf-note-item p{margin:5px 0 0;font-size:12px;color:#3157a4;white-space:pre-wrap}
+.pdf-notes-empty{padding:14px;font-size:13px;color:#67738a;line-height:1.5}
+.pdf-float{position:absolute;z-index:20;background:#fff;border:1px solid #cbd4e4;border-radius:10px;box-shadow:0 8px 24px rgba(20,30,50,.18)}
+.pdf-pick{display:flex;align-items:center;gap:7px;padding:7px 9px}
+.pdf-add-note{display:inline-flex;align-items:center;gap:5px;border:1px solid #cbd4e4;background:#fff;border-radius:7px;padding:5px 8px;font-size:12px;cursor:pointer;color:var(--paper-ink)}
+.pdf-note-editor{width:300px;padding:10px;display:flex;flex-direction:column;gap:8px}
+.pdf-note-head{display:flex;align-items:center;gap:6px}.pdf-note-head>button:not([style]){border:0;background:transparent;cursor:pointer;color:#566171;padding:3px;margin-left:auto}.pdf-note-head>button:not([style])+button:not([style]){margin-left:0}
+.pdf-note-editor q{font-size:12px;line-height:1.45;color:#566171;max-height:60px;overflow:auto;quotes:none}
+.pdf-note-editor textarea{width:100%;border:1px solid #cbd4e4;border-radius:6px;padding:7px;font:13px/1.45 inherit;resize:vertical;color:var(--paper-ink)}
+.pdf-note-editor small{font-size:11px;color:#8a94a5}
+.pdf-save-error{position:absolute;left:12px;bottom:10px;margin:0;padding:6px 10px;border-radius:6px;background:#fff1f1;color:#a12626;font-size:12px;z-index:21}
+@media(max-width:700px){.pdf-reader{height:78vh}.pdf-notes{position:absolute;right:0;top:46px;bottom:0;box-shadow:-6px 0 18px rgba(20,30,50,.18)}.pdf-hint{display:none}}
+@media print{.pdf-reader-bar,.pdf-notes,.pdf-float{display:none}}
