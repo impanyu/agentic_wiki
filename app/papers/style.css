@@ -4,7 +4,7 @@
 
 /* Paper reader with highlights and notes (pdf.js) */
 .paper-document:has(.pdf-reader){height:auto;min-height:0}
-.pdf-reader{position:relative;display:flex;flex-direction:column;height:calc(100vh - 88px);height:calc(100dvh - 88px);min-height:620px;background:#e8edf5}
+.pdf-reader{position:relative;display:flex;flex-direction:column;background:#e8edf5}
 .pdf-reader-bar{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:8px 12px;background:#fff;border-bottom:1px solid var(--paper-line)}
 .pdf-colors,.pdf-zoom{display:flex;align-items:center;gap:6px}
 .pdf-colors button,.pdf-pick>button:not(.pdf-add-note),.pdf-note-head>button[style]{width:22px;height:22px;border-radius:50%;border:2px solid #fff;box-shadow:0 0 0 1px #b8c2d3;cursor:pointer;padding:0}
@@ -13,8 +13,8 @@
 .pdf-zoom button,.pdf-notes-toggle{display:inline-flex;align-items:center;gap:5px;border:1px solid #cbd4e4;background:#fff;color:var(--paper-ink);border-radius:7px;padding:6px 8px;font-size:12px;cursor:pointer}
 .pdf-zoom button[aria-pressed=true],.pdf-notes-toggle[aria-pressed=true]{background:#e8f0ff;border-color:#9db5e3}
 .pdf-zoom span{min-width:42px;text-align:center;font-size:12px}
-.pdf-reader-body{flex:1;display:flex;min-height:0}
-.pdf-scroller{flex:1;overflow:auto;padding:16px;display:flex;flex-direction:column;align-items:center;gap:14px;overscroll-behavior:contain}
+.pdf-reader-body{display:flex;min-height:0}
+.pdf-scroller{flex:1;height:min(82vh,960px);min-height:480px;overflow:auto;padding:16px;display:flex;flex-direction:column;align-items:center;gap:14px;overscroll-behavior:contain}
 .pdf-status{margin:24px;color:#566171}.pdf-error{color:#a12626}
 .pdf-page{position:relative;flex:none;background:#fff;box-shadow:0 1px 4px rgba(20,30,50,.18)}
 .pdf-canvas{position:absolute;inset:0}.pdf-canvas canvas{display:block;width:100%;height:100%}
@@ -43,5 +43,5 @@
 .pdf-note-editor textarea{width:100%;border:1px solid #cbd4e4;border-radius:6px;padding:7px;font:13px/1.45 inherit;resize:vertical;color:var(--paper-ink)}
 .pdf-note-editor small{font-size:11px;color:#8a94a5}
 .pdf-save-error{position:absolute;left:12px;bottom:10px;margin:0;padding:6px 10px;border-radius:6px;background:#fff1f1;color:#a12626;font-size:12px;z-index:21}
-@media(max-width:700px){.pdf-reader{height:calc(100dvh - 72px);min-height:480px}.pdf-notes{position:absolute;right:0;top:46px;bottom:0;box-shadow:-6px 0 18px rgba(20,30,50,.18)}.pdf-hint{display:none}}
+@media(max-width:700px){.pdf-notes{position:absolute;right:0;top:46px;bottom:0;box-shadow:-6px 0 18px rgba(20,30,50,.18)}.pdf-hint{display:none}}
 @media print{.pdf-reader-bar,.pdf-notes,.pdf-float{display:none}}

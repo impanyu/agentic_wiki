@@ -25,11 +25,11 @@ export function AnswerText({body,title,summary,labels,sources,highlights,links=[
   const index=sourceFor(url,label),id='citation-'+key;references[index].occurrences.push(id);
   return <sup className="citation" key={key}><a id={id} href={'#source-'+(index+1)} aria-label={t("Source ")+(index+1)} onClick={e=>{e.preventDefault();jumpTo('source-'+(index+1));}}>[{index+1}]</a></sup>;
  }
- // Articles may cite by number alone ("…[2]"), meaning entry 2 of the page's source list.
+ // Articles may cite by number alone ("…[2]", or "\[2\]" as the page editor escapes it), meaning entry 2 of the page's source list.
  // Such markers become the same linked superscripts as [2](url) citations; the text itself
  // is not re-split, so saved highlight and link offsets stay valid.
  function numberedCitations(content:string,key:string):ReactNode[]{
-  const parts=content.split(/\[(\d{1,3})\](?!\()/);if(parts.length===1)return [content];
+  const parts=content.split(/\\?\[(\d{1,3})\\?\](?!\()/);if(parts.length===1)return [content];
   return parts.map((part,i)=>{if(i%2===0)return part;const source=sources[Number(part)-1];return source&&/^https?:\/\//.test(source.url)?citation(source.url,source.title,key+'.n'+i):'['+part+']';});
  }
  const suggestions=availableConcepts(concepts,links,highlights);
@@ -113,7 +113,7 @@ export function AnswerText({body,title,summary,labels,sources,highlights,links=[
  return <><header className="wiki-heading"><h1>{text(title,'title')}</h1>{showSummary&&<><p className="wiki-label">{t("Overview")}</p><p className="lead">{summaryContent}</p></>}</header>{children}
   <div className="wiki-layout">
    {headings.length>1&&<nav className="wiki-contents" aria-label={t("Article contents")}><strong>{t("Contents")}</strong><ol>{headings.map(h=><li key={h.id} className={h.level===3?'subsection':''}><a href={'#'+h.id} onClick={e=>{e.preventDefault();document.getElementById(h.id)?.scrollIntoView({block:'start'});}}>{h.title}</a></li>)}</ol></nav>}
-   <ImageZoomArea className="wiki-body">{labels.sourceMedia?.length?<SourceMediaView media={labels.sourceMedia}/>:null}{!richDocument&&figures.length>0&&<aside className="wiki-illustrations" aria-label={t("Illustrations")}>{figures}</aside>}{richDocument?<RichContent document={richDocument}/>:blocks}</ImageZoomArea>
+   <ImageZoomArea className="wiki-body">{labels.sourceMedia?.length?<SourceMediaView media={labels.sourceMedia}/>:null}{!richDocument&&figures.length>0&&<aside className="wiki-illustrations" aria-label={t("Illustrations")}>{figures}</aside>}{richDocument?<RichContent document={richDocument} cite={{numbered:numberedCitations,link:(href,label,key)=>citation(href,label,'rich'+key)}}/>:blocks}</ImageZoomArea>
   </div>
   {references.length>0&&<section className="sources" aria-label={t("Sources")}><h2>{t("Sources")}</h2><ol>{references.map((source,i)=><li id={'source-'+(i+1)} tabIndex={-1} key={source.url}><div className="source-entry"><span className="source-returns">{source.occurrences.length>1&&<CornerUpLeft size={14} className="source-return-icon" aria-hidden="true"/>}{source.occurrences.map((id,j)=><a key={id} href={'#'+id} className="source-return" title={t("Back to citation ")+(i+1)+(source.occurrences.length>1?t(", occurrence ")+(j+1):'')} aria-label={t("Back to citation ")+(i+1)+(source.occurrences.length>1?t(", occurrence ")+(j+1):'')} onClick={e=>{e.preventDefault();jumpTo(id);}}>{source.occurrences.length>1?j+1:<CornerUpLeft size={14} aria-hidden="true"/>}</a>)}</span><a className="source-title" href={source.url} target="_blank" rel="noopener noreferrer">{source.title}</a></div></li>)}</ol></section>}
   </>;
