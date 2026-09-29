@@ -676,5 +676,6 @@
   "The PDF could not be opened.": "无法打开这个 PDF。",
   "The note could not be saved.": "笔记保存失败。",
   "The note could not be deleted.": "笔记删除失败。",
-  "Fit page": "适应页面"
+  "Fit page": "适应页面",
+  "right axis": "右轴"
 }

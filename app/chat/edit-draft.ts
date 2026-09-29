@@ -4,13 +4,14 @@ import {database,getPage,lock,unlock} from '@/db/store';
 import {relocateQuote} from '@/app/api/ask/refresh-matched-page';
 import type {AnswerPage} from '@/app/page-types';
 import type {Agent} from '@/app/agents/runtime';
-export type EditDraft={pageCode?:import('../page-programs/page-code').PageCode;id:string;title:string;summary:string;body:string;indexEntries?:NonNullable<AnswerPage['labels']['indexEntries']>;sources?:AnswerPage['sources'];category?:string};
+export type MainChart={chart:import('@/app/components-registry/chart-contracts').ChartDefinition;dataset:import('@/app/components-registry/chart-contracts').ChartDataset};
+export type EditDraft={pageCode?:import('../page-programs/page-code').PageCode;mainChart?:MainChart;id:string;title:string;summary:string;body:string;indexEntries?:NonNullable<AnswerPage['labels']['indexEntries']>;sources?:AnswerPage['sources'];category?:string};
 type StoredDraft=EditDraft&{ownerId:string;pageId:string;base:string;saved?:boolean};
 const bucket=()=>(env as unknown as {FILES:R2Bucket}).FILES;
 const path=(agent:Agent)=>'page-edit-drafts/'+agent.id+'.json';
 export async function revision(page:Pick<AnswerPage,'title'|'summary'|'body'|'sources'>&{labels?:Pick<AnswerPage['labels'],'indexEntries'>}){const hash=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(JSON.stringify([page.title,page.summary,page.body,page.sources,page.labels?.indexEntries])));return Array.from(new Uint8Array(hash),b=>b.toString(16).padStart(2,'0')).join('');}
 async function stored(agent:Agent,pageId:string){const object=await bucket().get(path(agent));if(!object)return null;const d=await object.json<StoredDraft>();return d.ownerId===agent.ownerId&&d.pageId===pageId?d:null;}
-const publicDraft=(d:StoredDraft):EditDraft=>({id:d.id,title:d.title,summary:d.summary,body:d.body,indexEntries:d.indexEntries,sources:d.sources,category:d.category});
+const publicDraft=(d:StoredDraft):EditDraft=>({id:d.id,title:d.title,summary:d.summary,body:d.body,indexEntries:d.indexEntries,sources:d.sources,category:d.category,...(d.mainChart?{mainChart:d.mainChart}:{})});
 export async function readEditDraft(agent:Agent,pageId:string){const d=await stored(agent,pageId);return d&&!d.saved?publicDraft(d):null;}
 export async function discardEditDraft(agent:Agent){await bucket().delete(path(agent));}
 export async function stageEdit(agent:Agent,page:AnswerPage,content:Omit<EditDraft,'id'>){if(!page||!canWritePage(page)||page.kind!=='static')throw Error('This page is read-only.');const d:StoredDraft={id:crypto.randomUUID(),ownerId:agent.ownerId,pageId:page.id,base:await revision(page),...content};await bucket().put(path(agent),JSON.stringify(d));return publicDraft(d);}
@@ -21,8 +22,22 @@ export async function saveEditDraft(agent:Agent,pageId:string,draftId:string){
  if(await revision(page)!==d.base){if(await revision({...d,sources:page.sources,labels:{indexEntries:d.indexEntries}})===await revision(page)){await bucket().put(path(agent),JSON.stringify({...d,saved:true}));return {page,alreadySaved:false};}throw Error('The article changed after this proposal. Ask the editor to revise it against the current article before saving.');}
  const now=new Date().toISOString(),links=await database().prepare('SELECT id,quote,segments FROM internal_links WHERE source_id=?').bind(pageId).all<{id:string;quote:string;segments:string}>();
  const labels=JSON.stringify(d.indexEntries?{...page.labels,indexEntries:d.indexEntries}:page.labels),sources=JSON.stringify(d.sources??page.sources??[]),category=d.category??page.category??'';
- const update=database().prepare("UPDATE pages SET title=?,summary=?,body=?,labels=?,sources=?,category=?,updated_at=?,checked_at=NULL WHERE id=? AND (owner_id=? OR (visibility='public' AND public_write=1)) AND kind='static' AND EXISTS(SELECT 1 FROM generation_locks WHERE token=? AND expires>?)").bind(d.title,d.summary,d.body,labels,sources,category,now,pageId,agent.ownerId,lease,Date.now());
+ // A revised main chart becomes new chart and data components, created the way the generator creates them.
+ const dynamicConfig=d.mainChart?await chartComponents(page,d.mainChart,agent):null;
+ const update=database().prepare("UPDATE pages SET title=?,summary=?,body=?,labels=?,sources=?,category=?,dynamic_config=COALESCE(?,dynamic_config),updated_at=?,checked_at=NULL WHERE id=? AND (owner_id=? OR (visibility='public' AND public_write=1)) AND kind='static' AND EXISTS(SELECT 1 FROM generation_locks WHERE token=? AND expires>?)").bind(d.title,d.summary,d.body,labels,sources,category,dynamicConfig,now,pageId,agent.ownerId,lease,Date.now());
  await database().batch([update,...links.results.map(l=>database().prepare(`UPDATE internal_links SET segments=? WHERE id=? AND EXISTS(SELECT 1 FROM pages WHERE id=? AND (owner_id=? OR (visibility='public' AND public_write=1)) AND updated_at=?)`).bind(JSON.stringify(relocateQuote(l.quote,JSON.parse(l.segments),d)),l.id,pageId,agent.ownerId,now))]);
  const updated=await getPage(pageId,agent.ownerId);if(updated?.updatedAt!==now)throw Error('The edit was not saved. Please retry.');await bucket().put(path(agent),JSON.stringify({...d,saved:true}));return {page:updated,alreadySaved:false};
  }finally{await unlock(lease);}
+}
+
+async function chartComponents(page:AnswerPage,main:MainChart,agent:Agent){
+ const config=page.dynamic;if(!config||config.template!=='component-chart-v1')throw Error('This page has no main chart to revise.');
+ const [{createComponent},{chartSchema,validateChartData}]=await Promise.all([import('@/app/components-registry/registry'),import('@/app/components-registry/chart-contracts')]);
+ const chart=chartSchema.parse(main.chart),dataset=validateChartData(chart,main.dataset),context={userId:agent.ownerId,ownerId:agent.ownerId,language:page.language,visibility:page.visibility,pageId:page.id,agent};
+ const frontend=await createComponent('Interactive chart '+JSON.stringify(chart),'frontend_template',chart,context);
+ const files=bucket(),key='datasets/'+crypto.randomUUID(),body=JSON.stringify(dataset);await files.put(key,body,{httpMetadata:{contentType:'application/json'}});
+ let data;try{data=await createComponent(page.title+' — dataset '+key.split('/')[1],'data',{kind:'data-reference',location:'r2://FILES/'+key,format:'json',fileName:'chart-data.json',mimeType:'application/json',size:new TextEncoder().encode(body).length,description:page.title},context);}catch(e){await files.delete(key);throw e;}
+ // The stored configuration keeps component references only; chart and dataset are hydrated on read.
+ const {chart:_chart,dataset:_dataset,...stored}=config as typeof config&{chart?:unknown;dataset?:unknown};void _chart;void _dataset;
+ return JSON.stringify({...stored,components:{...config.components,frontend:{id:frontend.id,version:frontend.version},data:{id:data.id,version:data.version}}});
 }

@@ -1,6 +1,8 @@
 import {z} from 'zod';
 const key=z.string().regex(/^[a-z][a-z0-9_]{0,39}$/);
-export const chartSchema=z.object({kind:z.literal('chart'),xLabel:z.string().min(1).max(120),unit:z.string().max(120),series:z.array(z.object({key,label:z.string().min(1).max(120)})).min(1).max(8),labels:z.object({line:z.string(),bar:z.string(),data:z.string(),download:z.string()})}).strict().superRefine((v,c)=>{if(new Set(v.series.map(s=>s.key)).size!==v.series.length)c.addIssue({code:'custom',message:'Duplicate series'});});
+// A series may use a second, right-hand axis (axis:"right") with its own unit (rightUnit), so
+// measures in different units (°C and m/s) can share one chart.
+export const chartSchema=z.object({kind:z.literal('chart'),xLabel:z.string().min(1).max(120),unit:z.string().max(120),rightUnit:z.string().max(120).optional(),series:z.array(z.object({key,label:z.string().min(1).max(120),axis:z.enum(['left','right']).optional()})).min(1).max(8),labels:z.object({line:z.string(),bar:z.string(),data:z.string(),download:z.string()})}).strict().superRefine((v,c)=>{if(v.series.some(s=>s.axis==='right')&&!v.rightUnit?.trim())c.addIssue({code:'custom',message:'A series on the right axis needs chart.rightUnit (the unit of that axis).'});if(v.series.every(s=>s.axis==='right'))c.addIssue({code:'custom',message:'Put at least one series on the left axis.'});if(new Set(v.series.map(s=>s.key)).size!==v.series.length)c.addIssue({code:'custom',message:'Duplicate series'});});
 export const datasetSchema=z.object({rows:z.array(z.object({x:z.string().min(1).max(120),values:z.record(z.number().finite().nullable()),sources:z.array(z.number().int().positive()).min(1)})).min(1).max(200),sources:z.array(z.object({title:z.string().min(1),url:z.string().url().refine(u=>u.startsWith('https://'))})).min(1).max(40),notes:z.string().max(4000)}).strict();
 export type ChartDefinition=z.infer<typeof chartSchema>;
 export type ChartDataset=z.infer<typeof datasetSchema>;
