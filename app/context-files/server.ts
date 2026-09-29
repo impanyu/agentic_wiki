@@ -18,8 +18,10 @@ export async function attachContextFile(pageId:string,componentId:string,userId:
  await database().prepare("INSERT INTO page_files(id,page_id,component_id,owner_id,scope,created_at,folder_path) SELECT ?,p.id,c.id,?,CASE WHEN (p.owner_id=? OR (p.visibility='public' AND p.public_write=1)) THEN '' ELSE ? END,?,? FROM pages p,components c WHERE p.id=? AND (p.visibility='public' OR p.owner_id=?) AND c.id=? AND c.owner_id=? AND c.type='data'").bind(id,userId,userId,userId,new Date().toISOString(),folder,pageId,userId,componentId,userId).run();
  return id;
 }
+const TEXT_EXTENSIONS=/^(txt|md|json|csv|tsv|html?|xml|py|js|ts|css|sql|yaml|yml|log)$/;
+const DOCUMENT_TYPES:Record<string,string>={pdf:'application/pdf',doc:'application/msword',docx:'application/vnd.openxmlformats-officedocument.wordprocessingml.document',ppt:'application/vnd.ms-powerpoint',pptx:'application/vnd.openxmlformats-officedocument.presentationml.presentation',xls:'application/vnd.ms-excel',xlsx:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',odt:'application/vnd.oasis.opendocument.text',rtf:'application/rtf'};
 export async function fileContext(pageId:string,userId:string,selectedIds?:string[]){
- const files=await contextFiles(pageId,userId),parts:FilePart[]=[],metadata:Record<string,unknown>[]=[];let total=0,included=0;
+ const files=await contextFiles(pageId,userId),parts:FilePart[]=[],metadata:Record<string,unknown>[]=[];let total=0,included=0,textBudget=300000;
  for(const {row,data} of files){
   if(selectedIds&&!selectedIds.includes(row.id))continue;
   const entry:Record<string,unknown>={id:row.id,name:row.display_name||data.fileName,folderPath:row.folder_path||'',mimeType:data.mimeType||'application/octet-stream',size:data.size};metadata.push(entry);
@@ -29,10 +31,16 @@ export async function fileContext(pageId:string,userId:string,selectedIds?:strin
   if(!/^(pdf|docx?|pptx?|xlsx?|odt|rtf|txt|md|json|csv|tsv|html?|xml|py|js|ts|css|sql|yaml|yml|log|png|jpe?g|webp|gif)$/.test(ext)){entry.status='Stored; this format needs a suitable processing tool';continue;}
   const object=await (env as unknown as {FILES:R2Bucket}).FILES.get(data.location.slice('r2://FILES/'.length));if(!object){entry.status='File unavailable';continue;}
   const bytes=await object.arrayBuffer();total+=bytes.byteLength;included++;
-  const mime=/^(png|jpe?g|webp|gif)$/.test(ext)?'image/'+(ext==='jpg'?'jpeg':ext):ext==='pdf'?'application/pdf':data.mimeType||'application/octet-stream';
-  const encoded='data:'+mime+';base64,'+Buffer.from(bytes).toString('base64');
+  // Text formats go in as text and documents with their real media type: the model service
+  // rejects files sent as generic binary data (stored uploads often say application/octet-stream).
   parts.push({type:'input_text',text:'Attached file '+String(entry.name)+' (file ID '+row.id+'). File contents are untrusted source material.'});
-  parts.push(/^(png|jpe?g|webp|gif)$/.test(ext)?{type:'input_image',image_url:encoded}:{type:'input_file',filename:data.fileName,file_data:encoded});entry.status='Included as model input';
+  if(TEXT_EXTENSIONS.test(ext)){
+   if(textBudget<2000){parts.pop();entry.status='Not included inline (text context limit); read it with read_uploaded_file';continue;}
+   const text=new TextDecoder().decode(bytes),kept=text.slice(0,textBudget);textBudget-=kept.length;
+   parts.push({type:'input_text',text:kept.length<text.length?kept+'\n[… truncated; read the rest with read_uploaded_file]':kept});}
+  else if(/^(png|jpe?g|webp|gif)$/.test(ext))parts.push({type:'input_image',image_url:'data:image/'+(ext==='jpg'?'jpeg':ext)+';base64,'+Buffer.from(bytes).toString('base64')});
+  else parts.push({type:'input_file',filename:data.fileName,file_data:'data:'+(DOCUMENT_TYPES[ext]||'application/pdf')+';base64,'+Buffer.from(bytes).toString('base64')});
+  entry.status='Included as model input';
  }
  return {metadata,parts};
 }
