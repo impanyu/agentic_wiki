@@ -436,3 +436,5 @@ html[data-print=report] .voice-input{display:none!important}
 .image-viewer-caption{position:absolute;bottom:14px;left:50%;transform:translateX(-50%);max-width:min(900px,calc(100% - 32px));margin:0;color:#e8edf5;font:14px/1.5 Arial,Helvetica,sans-serif;text-align:center;max-height:66px;overflow:auto;padding:4px 10px;border-radius:6px;background:rgba(0,0,0,.35)}
 @media(max-width:600px){.image-viewer-stage{inset:52px 8px 60px}.image-viewer-nav{display:none}}
 @media print{.image-viewer{display:none}}
+
+.chart-invalid{border:1px solid #f0c9a0;background:#fff8f1;border-radius:10px;padding:12px 14px;margin:14px 0;font-size:14px;color:#6b3b0a}.chart-invalid p{margin:6px 0;font-size:13px}.chart-invalid pre{max-height:220px;overflow:auto;white-space:pre-wrap;font-size:12px;background:#fff;border:1px solid #eee;padding:8px}

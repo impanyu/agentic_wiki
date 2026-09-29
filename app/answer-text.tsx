@@ -8,7 +8,7 @@ import {useState, type ReactNode} from 'react';
 import {pageAddress} from './dynamic/units';
 import {CornerUpLeft} from 'lucide-react';
 import {Dashboard} from './templates/dashboard';
-import {chartSchema,validateChartData} from './components-registry/chart-contracts';
+import {chartSchema,validateChartData,chartProblem} from './components-registry/chart-contracts';
 import {parseGoogleMapsUrl,embedPath} from './maps/url';
 import {ImageZoomArea} from './image-viewer';
 import {inlineParts,linkPattern,isSourceLabel,linkLevels,articleImage,articleCredit,type Highlight,type InternalLink} from './internal-links';
@@ -82,7 +82,8 @@ export function AnswerText({body,title,summary,labels,sources,highlights,links=[
   const line=lines[i],id='line'+i,heading=line.match(/^(#{1,3}) (.+)$/);
   if(/^```chart\s*$/.test(line.trim())){
    const end=lines.findIndex((value,at)=>at>i&&/^```\s*$/.test(value.trim()));
-   if(end>i){try{const raw=JSON.parse(lines.slice(i+1,end).join('\n')) as {chart?:unknown;dataset?:unknown},chart=chartSchema.parse(raw.chart),dataset=validateChartData(chart,raw.dataset);blocks.push(<Dashboard key={id} chart={chart} dataset={dataset}/>);i=end;continue;}catch{/* Render malformed chart markup as ordinary text so content is never silently lost. */}}
+   // A broken chart shows why it cannot be drawn, with its data kept in a collapsed block.
+   if(end>i){const code=lines.slice(i+1,end).join('\n');try{const raw=JSON.parse(code) as {chart?:unknown;dataset?:unknown},chart=chartSchema.parse(raw.chart),dataset=validateChartData(chart,raw.dataset);blocks.push(<Dashboard key={id} chart={chart} dataset={dataset}/>);}catch(e){blocks.push(<div className="chart-invalid" role="note" key={id}><strong>{t('This chart could not be displayed.')}</strong><p>{chartProblem(e)}</p><details><summary>{t('Chart data')}</summary><pre>{code}</pre></details></div>);}i=end;continue;}
   }
   if(heading){blocks.push(heading[1].length===3?<h3 id={'section-'+i} key={id}>{inline(heading[2],id)}</h3>:<h2 id={'section-'+i} key={id}>{inline(heading[2],id)}</h2>);continue;}
   const map=mapLine(line);

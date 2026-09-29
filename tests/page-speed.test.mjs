@@ -1,4 +1,5 @@
 import test from 'node:test';import assert from 'node:assert/strict';import {readFileSync,mkdtempSync,rmSync} from 'node:fs';import {tmpdir} from 'node:os';import {join} from 'node:path';import ts from 'typescript';import {z} from 'zod';import {migrate} from '../scripts/migrate.mjs';import {SqliteDatabase} from '../server/sqlite.mjs';
+globalThis.chartBlockErrors=()=>[];
 const strip=p=>readFileSync(p,'utf8').replace(/^import .*;$/gm,'');
 const load=s=>import('data:text/javascript;base64,'+Buffer.from(ts.transpile(s,{module:ts.ModuleKind.ESNext,target:ts.ScriptTarget.ES2022})).toString('base64'));
 const {partialJsonString}=await load(strip('app/chat/partial-json.ts'));

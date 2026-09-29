@@ -13,3 +13,10 @@ test('right axis needs its unit and at least one left series',()=>{
  const data={rows:[{x:'00:00',values:{temp:18.2,wind:3.1},sources:[1]}],sources:[{title:'Station',url:'https://example.org'}],notes:''};
  assert.equal(m.validateChartData(m.chartSchema.parse(chart),data).rows.length,1);
 });
+test('broken chart blocks in an article are reported with the reason',()=>{
+ const chart={kind:'chart',xLabel:'Time (UTC)',unit:'m/s',series:[{key:'wind',label:'Wind'}],labels};
+ const bad='Intro\n\n```chart\n'+JSON.stringify({chart,dataset:{rows:[{x:'05:00',values:{wind:3.2},sources:[]}],sources:[],notes:''}})+'\n```\n\nEnd';
+ const errors=m.chartBlockErrors(bad);assert.equal(errors.length,1);assert.match(errors[0],/Chart block 1 is invalid/);assert.match(errors[0],/sources/);
+ const good='```chart\n'+JSON.stringify({chart,dataset:{rows:[{x:'05:00',values:{wind:3.2},sources:[1]}],sources:[{title:'Station',url:'https://example.org'}],notes:''}})+'\n```';
+ assert.deepEqual(m.chartBlockErrors(good),[]);assert.match(m.chartBlockErrors('```chart\n{')[0],/not closed/);
+});

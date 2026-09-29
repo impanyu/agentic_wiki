@@ -677,5 +677,7 @@
   "The note could not be saved.": "笔记保存失败。",
   "The note could not be deleted.": "笔记删除失败。",
   "Fit page": "适应页面",
-  "right axis": "右轴"
+  "right axis": "右轴",
+  "This chart could not be displayed.": "此图表无法显示。",
+  "Chart data": "图表数据"
 }

@@ -1,4 +1,5 @@
 import test from 'node:test';import assert from 'node:assert/strict';import {readFileSync} from 'node:fs';import ts from 'typescript';import {z} from 'zod';
+globalThis.chartBlockErrors=()=>[];
 const strip=p=>readFileSync(p,'utf8').replace(/^import .*;$/gm,'');
 const load=async s=>import('data:text/javascript;base64,'+Buffer.from(ts.transpile(strip('app/page-permissions.ts')+'\n'+s,{module:ts.ModuleKind.ESNext,target:ts.ScriptTarget.ES2022})).toString('base64'));
 globalThis.patchZod=z;const patches=await load('const z=globalThis.patchZod;\n'+strip('app/chat/wiki-patches.ts'));globalThis.directPatches=patches;

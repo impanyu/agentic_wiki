@@ -1,4 +1,5 @@
 import {Script} from 'node:vm';
+globalThis.chartBlockErrors=()=>[];
 globalThis.editScript=Script;
 import {customDesign} from './fixtures/custom-style.mjs';
 import test from 'node:test';import assert from 'node:assert/strict';import {DatabaseSync} from 'node:sqlite';import {readFileSync,readdirSync} from 'node:fs';import ts from 'typescript';import {z} from 'zod';

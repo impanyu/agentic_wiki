@@ -1,4 +1,5 @@
 import {parseToolJson} from '@/app/agents/json-args';
+import {chartBlockErrors} from '@/app/components-registry/chart-contracts';
 import {partialJsonString} from '@/app/chat/partial-json';
 import {indexGenerationPolicy} from '@/app/disambiguation/graph';
 import {spawnAgent,recordAction,askAgent,type Agent} from '@/app/agents/runtime';
@@ -58,7 +59,7 @@ export async function generateContext(brief:GenerationBrief,context:AgentContext
     if(draft.kind==='article'&&draft.templateId!=='paper-v1'&&!imageSearched&&!draft.body.split('\n').some(line=>imageLinePattern.test(line))){draft=undefined;return 'The article has no image. Search with find_images (try precise and alternative subject queries) or search_public_media and embed at least one verified, relevant image on its own line as ![caption](url) with a [credit](source) line; add a table, chart or video where the subject supports it.';}
     // A web app ships only after its backend ran and its frontend rendered cleanly.
     if(draft.kind==='program'&&!verified.has(appKey(draft))){const report=await verifyDraft(draft,lastTests);if(!report.passed){draft=undefined;return 'The app failed verification. Fix every blocking item, run verify_app again until it passes, then finish. Report: '+verificationText(report);}}
-    if(draft.body){const broken=await unreachableImages(draft.body,signal);if(broken.length){draft=undefined;return 'These image URLs do not serve an image to readers (the host may block direct embedding): '+broken.join(', ')+'. Copy each into Page files with import_image and embed the returned url, or choose another image.';}}}catch(e){return e instanceof Error?e.message:'Invalid page draft';}
+    if(draft.body){const charts=chartBlockErrors(draft.body);if(charts.length){draft=undefined;return charts.join(' ')+' Fix the chart JSON (or remove the block) and submit the draft again.';}const broken=await unreachableImages(draft.body,signal);if(broken.length){draft=undefined;return 'These image URLs do not serve an image to readers (the host may block direct embedding): '+broken.join(', ')+'. Copy each into Page files with import_image and embed the returned url, or choose another image.';}}}catch(e){return e instanceof Error?e.message:'Invalid page draft';}
   }
  });
  if(!draft)throw Error('INCOMPLETE_ANSWER');
