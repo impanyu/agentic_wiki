@@ -679,5 +679,10 @@
   "Fit page": "适应页面",
   "right axis": "右轴",
   "This chart could not be displayed.": "此图表无法显示。",
-  "Chart data": "图表数据"
+  "Chart data": "图表数据",
+  "Pages and web apps": "页面和网页应用",
+  "Your pages and public pages": "你的页面和公开页面",
+  "Mine": "我的",
+  "Public": "公开",
+  "No pages found.": "没有找到页面。"
 }

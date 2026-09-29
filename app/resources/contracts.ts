@@ -4,6 +4,7 @@ export type Resource=z.infer<typeof resourceSchema>;
 export const mentionSchema=z.discriminatedUnion('type',[
  z.object({type:z.literal('resource'),resource:resourceSchema}).strict(),
  z.object({type:z.literal('tool'),connectorId:z.string().max(200),name:z.string().max(200)}).strict(),
+ z.object({type:z.literal('page'),id:z.string().uuid(),name:z.string().max(300),app:z.boolean().optional()}).strict(),
  z.object({type:z.literal('element'),id:z.string().max(300),name:z.string().max(200),text:z.string().max(2000)}).strict(),
 ]);
 export type Mention=z.infer<typeof mentionSchema>;
