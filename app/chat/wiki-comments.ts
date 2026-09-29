@@ -38,7 +38,7 @@ export async function postWikiComment(request:Request,page:AnswerPage,viewer:Vie
  const agent=await commentAgent(page.id,viewer);
  if(data.saveDraftId&&!canWritePage(page))return finish(reply({error:'This page is read-only.'},403),viewer);
  if(!data.message&&!data.saveDraftId)return finish(reply({error:'Enter a message.'},400),viewer);
- const lease=await lock('agent:'+agent.id,660000);if(!lease)return finish(reply({error:'The agent is still replying to your previous message.'},409),viewer);
+ const lease=await lock('agent:'+agent.id,1260000);if(!lease)return finish(reply({error:'The agent is still replying to your previous message.'},409),viewer);
  let jobId:string;try{jobId=await startJob(viewer.userId,'wiki-agent',data.message||'Save wiki revision',page.id);}catch(e){await unlock(lease);throw e;}let jobState='completed';
  let released=false;const release=async()=>{if(released)return;await unlock(lease);released=true;await finishJob(jobId,jobState).catch(()=>{});};
  let activityEmit:((message:string)=>void)|undefined;
@@ -58,7 +58,7 @@ export async function postWikiComment(request:Request,page:AnswerPage,viewer:Vie
  if(!request.headers.get('accept')?.includes('text/event-stream')||data.saveDraftId){try{return finish(reply(await run()),viewer);}catch(error){console.error('Wiki chat failed',error instanceof Error?error.name:'UnknownError');jobState='failed';return finish(reply({error:'The agent could not finish. Please try again.'},503),viewer);}finally{await release().catch(()=>{});}}
  // A dropped connection (background tab, phone lock) must not cancel the reply:
  // the run finishes and saves the turn, and the client recovers it from history.
- const lifetime=new AbortController(),signal=AbortSignal.any([lifetime.signal,AbortSignal.timeout(600000)]),encoder=new TextEncoder();
+ const lifetime=new AbortController(),signal=AbortSignal.any([lifetime.signal,AbortSignal.timeout(1200000)]),encoder=new TextEncoder();
  let detached=request.signal.aborted;request.signal.addEventListener('abort',()=>{detached=true;},{once:true});
  const stream=new ReadableStream<Uint8Array>({start(controller){let closed=false;const send=(event:unknown)=>{if(!closed&&!detached&&!signal.aborted){try{controller.enqueue(encoder.encode('data: '+JSON.stringify(event)+'\n\n'));}catch{detached=true;}}};send({type:'start',authorName:viewer.userName,createdAt:new Date().toISOString()});activityEmit=message=>send({type:'activity',message});const heartbeat=setInterval(()=>send({type:'ping'}),10000);
  void(async()=>{try{const result=await run(text=>send({type:'reply',text}),signal);await release();send({type:'done',...result});}catch(error){console.error('Wiki chat failed',error instanceof Error?error.name:'UnknownError',error instanceof Error&&/^(AI_|INCOMPLETE_)/.test(error.message)?error.message.slice(0,80):'generation-or-save');jobState='failed';await release().catch(()=>{});if(!signal.aborted)send({type:'error',message:'The reply did not finish. This message was not saved. Please try again.'});}finally{clearInterval(heartbeat);if(signal.aborted&&!released)jobState='cancelled';await release().catch(()=>{});closed=true;try{controller.close();}catch{}}})();

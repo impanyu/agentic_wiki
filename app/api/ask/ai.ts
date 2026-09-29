@@ -11,7 +11,7 @@ export async function api(path:string,body:unknown,signal?:AbortSignal):Promise<
  if(path==='responses'&&body&&typeof body==='object'){const request=body as Record<string,any>;body={...reasoningOptions(String(request.model||'')),...request};}
  const key=aiKey();if(!key)throw new Error('AI_SETUP');
  const response=await fetch('https://api.openai.com/v1/'+path,{method:'POST',headers:{Authorization:'Bearer '+key,'Content-Type':'application/json'},body:JSON.stringify(body),signal:signal?AbortSignal.any([signal,AbortSignal.timeout(65000)]):AbortSignal.timeout(65000)});
- if(!response.ok){console.error('AI service failed',response.status);throw new Error(response.status===429?'AI_LIMIT':'AI_UNAVAILABLE');}
+ if(!response.ok){console.error('AI service failed',response.status,(await response.text().catch(()=>'')).slice(0,600));throw new Error(response.status===429?'AI_LIMIT':'AI_UNAVAILABLE');}
  return await response.json() as AIResponse;
 }
 export type ResearchUpdate={type:'replace';text:string}|{type:'delta';text:string}|{type:'status';message:string}|{type:'metadata';title:string;summary:string;category:string;labels:{overview:string;contents:string;sources:string}};
@@ -19,7 +19,8 @@ export async function streamArticle(body:Record<string,unknown>,emit:(event:Rese
  body={...reasoningOptions(String(body.model||'')),...body};
  const key=aiKey();if(!key)throw new Error('AI_SETUP');
  const response=await fetch('https://api.openai.com/v1/responses',{method:'POST',headers:{Authorization:'Bearer '+key,'Content-Type':'application/json'},body:JSON.stringify({...body,stream:true}),signal:signal?AbortSignal.any([signal,AbortSignal.timeout(120000)]):AbortSignal.timeout(120000)});
- if(!response.ok||!response.body)throw new Error(response.status===429?'AI_LIMIT':'AI_UNAVAILABLE');
+ // The service's own reason is logged: a rejected request otherwise looks like an outage.
+ if(!response.ok||!response.body){console.error('AI stream failed',response.status,(await response.text().catch(()=>'')).slice(0,600));throw new Error(response.status===429?'AI_LIMIT':'AI_UNAVAILABLE');}
  let completed:AIResponse|undefined,writing=false;const toolArguments=new Map<string,{name:string;text:string}>();
  for await(const event of readEvents(response.body)){
   if(event.type==='response.output_item.added'){
@@ -33,9 +34,9 @@ export async function streamArticle(body:Record<string,unknown>,emit:(event:Rese
    if(!writing){writing=true;emit({type:'status',message:'Writing your page…'});}
    emit({type:'delta',text:event.delta});
   }else if(['response.completed','response.failed','response.incomplete'].includes(String(event.type))){completed=event.response as AIResponse;}
-  else if(event.type==='error')throw new Error('AI_UNAVAILABLE');
+  else if(event.type==='error'){console.error('AI stream error',JSON.stringify(event).slice(0,600));throw new Error('AI_UNAVAILABLE');}
  }
- if(!completed)throw new Error('AI_UNAVAILABLE');
+ if(!completed){console.error('AI stream ended without a response');throw new Error('AI_UNAVAILABLE');}
  return completed;
 }
 export function output(data:{output?:{type:string;content?:{type:string;text?:string}[]}[]}){const text=data.output?.filter(o=>o.type==='message').flatMap(o=>o.content||[]).filter(c=>c.type==='output_text').map(c=>c.text||'').join('\n');if(!text)throw new Error('AI_UNAVAILABLE');return text;}

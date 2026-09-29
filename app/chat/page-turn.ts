@@ -44,13 +44,13 @@ export async function handlePost(request:Request,{params}:{params:Promise<{id:st
  if(!sameOrigin(request))return reply({error:'This request must come from the site.'},403);
  let lease:string|null=null,jobId:string|null=null,jobState='completed';
  try{
-  const turnSignal=AbortSignal.any([request.signal,AbortSignal.timeout(600000)]);
+  const turnSignal=AbortSignal.any([request.signal,AbortSignal.timeout(1200000)]);
   const data=z.object({mentions:z.array(mentionSchema).max(30).optional(),message:z.string().trim().min(1).max(2000).optional(),saveDraftId:z.string().uuid().optional(),parameters:parametersSchema.optional()}).parse(await request.json()),id=(await params).id;
   const s=await session(request,id,actor),rawPage=await getPage(id,s.userId),page=rawPage?registeredAdmaPage(rawPage):null;
   if(!page)return respond({error:'This page is private or does not exist.'},s.cookie,404);
   if(page.kind==='static')return postWikiComment(request,page,s,data,onStatus);
   if(!page.dynamic&&!canWritePage(page))return respond({error:'Only the owner can edit this page.'},s.cookie,403);
-  lease=await lock('agent:'+s.agent.id,660000);if(!lease)return respond({error:'The page agent is still completing your previous message.'},s.cookie,409);
+  lease=await lock('agent:'+s.agent.id,1260000);if(!lease)return respond({error:'The page agent is still completing your previous message.'},s.cookie,409);
   jobId=await startJob(s.userId,'page-agent',data.message||'Save app revision',page.id);
   if(data.saveDraftId&&!canWritePage(page))return respond({error:'This page is read-only.'},s.cookie,403);
   if(data.saveDraftId){try{const appDraft=await readAppDraft(s.agent,id);const result=appDraft?.id===data.saveDraftId||page.dynamic?await saveAppDraft(s.agent,id,data.saveDraftId):await saveEditDraft(s.agent,id,data.saveDraftId),text=page.language.startsWith('zh')?'更改已保存。':'Changes saved.';if(result.page.dynamic?.template==='page-program-v1')result.page=await executePage(result.page,{values:data.parameters||{}},s.userId);if(!result.alreadySaved)await saveTurn(s.agent,page.language.startsWith('zh')?'保存更改':'Save changes',text);return respond({page:result.page,reply:text,editDraft:null,alreadySaved:result.alreadySaved},s.cookie);}catch(e){return respond({error:e instanceof Error?e.message:'Could not save the proposal.'},s.cookie,409);}}
