@@ -1,4 +1,5 @@
 import test from 'node:test';import assert from 'node:assert/strict';import {readFileSync} from 'node:fs';import ts from 'typescript';
+globalThis.keepOriginal=async()=>{};globalThis.recordVersion=async()=>{};
 const permission=readFileSync('app/page-permissions.ts','utf8').replace(/import [\s\S]*?from ['"][^'"]+['"];?/g,'');
 const source=permission+'\n'+readFileSync('app/chat/edit-draft.ts','utf8').replace(/import [\s\S]*?from ['"][^'"]+['"];?/g,'');
 test('save requires the current owner and exact current proposal; stale drafts cannot overwrite edits',async()=>{

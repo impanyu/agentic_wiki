@@ -1,4 +1,5 @@
 import {z} from 'zod';
+import {keepOriginal,recordVersion} from '@/app/versions/service';
 import {askAgent,type Agent} from '@/app/agents/runtime';
 import {database,getPage,lock,unlock} from '@/db/store';
 import {relocateQuote} from '@/app/api/ask/refresh-matched-page';
@@ -39,7 +40,8 @@ export async function upgradeIndex(page:AnswerPage,index:MeaningIndex,userId:str
  if(!page.owned||page.kind!=='static')return null;
  const lease=await lock('refresh:'+page.id,90000);if(!lease)throw Error('PAGE_UPDATE_BUSY');
  try{const current=await getPage(page.id,userId);if(!current?.owned)return null;if(current.labels.templateId==='disambiguation-v1')return current;
+ await keepOriginal(page.id,userId);
  const answer=indexAnswer(index),now=new Date().toISOString();const links=await database().prepare('SELECT id,quote,segments FROM internal_links WHERE source_id=?').bind(page.id).all<{id:string;quote:string;segments:string}>();
- await database().batch([database().prepare("UPDATE pages SET title=?,summary=?,body=?,category=?,sources=?,labels=?,updated_at=?,checked_at=? WHERE id=? AND owner_id=? AND kind='static' AND EXISTS(SELECT 1 FROM generation_locks WHERE token=? AND expires>?)").bind(answer.title,answer.summary,answer.body,answer.category,'[]',JSON.stringify({...current.labels,...answer.labels}),now,now,page.id,userId,lease,Date.now()),...links.results.map(l=>database().prepare('UPDATE internal_links SET segments=? WHERE id=? AND EXISTS(SELECT 1 FROM pages WHERE id=? AND updated_at=?)').bind(JSON.stringify(relocateQuote(l.quote,JSON.parse(l.segments),answer)),l.id,page.id,now))]);return await getPage(page.id,userId);
+ await database().batch([database().prepare("UPDATE pages SET title=?,summary=?,body=?,category=?,sources=?,labels=?,updated_at=?,checked_at=? WHERE id=? AND owner_id=? AND kind='static' AND EXISTS(SELECT 1 FROM generation_locks WHERE token=? AND expires>?)").bind(answer.title,answer.summary,answer.body,answer.category,'[]',JSON.stringify({...current.labels,...answer.labels}),now,now,page.id,userId,lease,Date.now()),...links.results.map(l=>database().prepare('UPDATE internal_links SET segments=? WHERE id=? AND EXISTS(SELECT 1 FROM pages WHERE id=? AND updated_at=?)').bind(JSON.stringify(relocateQuote(l.quote,JSON.parse(l.segments),answer)),l.id,page.id,now))]);await recordVersion(page.id,userId,'index','Index updated');return await getPage(page.id,userId);
  }finally{await unlock(lease);}
 }

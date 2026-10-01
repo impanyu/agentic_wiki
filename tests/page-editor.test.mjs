@@ -1,4 +1,5 @@
 import test from 'node:test';import assert from 'node:assert/strict';import {readFileSync} from 'node:fs';import ts from 'typescript';import {z} from 'zod';
+globalThis.keepOriginal=async()=>{};globalThis.recordVersion=async()=>{};
 const load=code=>import('data:text/javascript;base64,'+Buffer.from(ts.transpile(code,{module:ts.ModuleKind.ESNext,target:ts.ScriptTarget.ES2022})).toString('base64'));
 const media=await load(readFileSync('app/url-content/media.ts','utf8'));globalThis.richTest={z,...media};
 const {validateDocument,documentMarkdown}=await load('const {z,publicMediaUrl,videoEmbedUrl}=globalThis.richTest;\n'+readFileSync('app/page-editor/document.ts','utf8').replace(/^import .*;$/gm,''));

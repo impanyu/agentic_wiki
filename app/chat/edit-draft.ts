@@ -1,4 +1,5 @@
 import {canWritePage} from '@/app/page-permissions';
+import {keepOriginal,recordVersion} from '@/app/versions/service';
 import {env} from '@/server/runtime';
 import {database,getPage,lock,unlock} from '@/db/store';
 import {relocateQuote} from '@/app/api/ask/refresh-matched-page';
@@ -23,10 +24,11 @@ export async function saveEditDraft(agent:Agent,pageId:string,draftId:string){
  const now=new Date().toISOString(),links=await database().prepare('SELECT id,quote,segments FROM internal_links WHERE source_id=?').bind(pageId).all<{id:string;quote:string;segments:string}>();
  const labels=JSON.stringify(d.indexEntries?{...page.labels,indexEntries:d.indexEntries}:page.labels),sources=JSON.stringify(d.sources??page.sources??[]),category=d.category??page.category??'';
  // A revised main chart becomes new chart and data components, created the way the generator creates them.
+ await keepOriginal(pageId,agent.ownerId);
  const dynamicConfig=d.mainChart?await chartComponents(page,d.mainChart,agent):null;
  const update=database().prepare("UPDATE pages SET title=?,summary=?,body=?,labels=?,sources=?,category=?,dynamic_config=COALESCE(?,dynamic_config),updated_at=?,checked_at=NULL WHERE id=? AND (owner_id=? OR (visibility='public' AND public_write=1)) AND kind='static' AND EXISTS(SELECT 1 FROM generation_locks WHERE token=? AND expires>?)").bind(d.title,d.summary,d.body,labels,sources,category,dynamicConfig,now,pageId,agent.ownerId,lease,Date.now());
  await database().batch([update,...links.results.map(l=>database().prepare(`UPDATE internal_links SET segments=? WHERE id=? AND EXISTS(SELECT 1 FROM pages WHERE id=? AND (owner_id=? OR (visibility='public' AND public_write=1)) AND updated_at=?)`).bind(JSON.stringify(relocateQuote(l.quote,JSON.parse(l.segments),d)),l.id,pageId,agent.ownerId,now))]);
- const updated=await getPage(pageId,agent.ownerId);if(updated?.updatedAt!==now)throw Error('The edit was not saved. Please retry.');await bucket().put(path(agent),JSON.stringify({...d,saved:true}));return {page:updated,alreadySaved:false};
+ const updated=await getPage(pageId,agent.ownerId);if(updated?.updatedAt!==now)throw Error('The edit was not saved. Please retry.');await recordVersion(pageId,agent.ownerId,'agent-edit',d.mainChart?'Agent edit: article and chart':'Agent edit');await bucket().put(path(agent),JSON.stringify({...d,saved:true}));return {page:updated,alreadySaved:false};
  }finally{await unlock(lease);}
 }
 

@@ -1,4 +1,5 @@
 import test from 'node:test';
+globalThis.keepOriginal=async()=>{};globalThis.recordVersion=async()=>{};
 import assert from 'node:assert/strict';
 import {readFileSync,readdirSync} from 'node:fs';
 import {DatabaseSync} from 'node:sqlite';

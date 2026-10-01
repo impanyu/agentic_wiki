@@ -1,4 +1,5 @@
 import {database,getPage,lock,unlock} from '@/db/store';
+import {recordVersion} from '@/app/versions/service';
 import {canWritePage} from '@/app/page-permissions';
 import type {AnswerPage} from '@/app/page-types';
 
@@ -102,5 +103,6 @@ export async function revertLiveAgentChange(pageId:string,userId:string){
    database().prepare("UPDATE page_live_agents SET last_revision_id=NULL,last_status='reverted' WHERE page_id=?").bind(pageId),
   ]);
  }finally{await unlock(lease);}
+ await recordVersion(pageId,userId,'live-agent','Live agent change undone');
  return status(await row(pageId),true);
 }

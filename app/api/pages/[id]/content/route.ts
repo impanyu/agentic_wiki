@@ -1,4 +1,5 @@
 import {getActor} from '@/app/actor';
+import {keepOriginal,recordVersion} from '@/app/versions/service';
 import {canWritePage} from '@/app/page-permissions';
 import {validateDocument,documentMarkdown} from '@/app/page-editor/document';
 import {database,getPage,reply,sameOrigin,lock,unlock} from '@/db/store';
@@ -13,8 +14,10 @@ export async function PUT(request:Request,{params}:{params:Promise<{id:string}>}
   lease=await lock('refresh:'+page.id,90000);if(!lease)return respond({error:'This page is being updated. Please retry.'},409);
   const now=new Date().toISOString(),labels={...page.labels};if(document){labels.richContent=document;labels.richBody=body;delete labels.sourceMedia;}
   // Compare-and-swap prevents a second editor from silently overwriting a newer revision.
+  await keepOriginal(page.id,actor.userId);
   const result=await database().prepare("UPDATE pages SET title=?,summary=?,body=?,labels=?,updated_at=?,checked_at=NULL WHERE id=? AND COALESCE(updated_at,created_at)=? AND (owner_id=? OR (visibility='public' AND public_write=1))").bind(data.title.trim(),data.summary,body,JSON.stringify(labels),now,page.id,data.base,actor.userId).run();
   if(!result.meta.changes)return respond({error:'This page changed while you were editing. Your draft is preserved. Reload the latest page before saving.'},409);
+  await recordVersion(page.id,actor.userId,'editor',document?'Edited in the page editor':'Title or summary edited');
   return respond({page:await getPage(page.id,actor.userId)});
  }catch(error){return respond({error:error instanceof Error?error.message:'Could not save changes.'},400);}finally{if(lease)await unlock(lease);}
 }

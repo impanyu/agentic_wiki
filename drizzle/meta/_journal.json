@@ -204,6 +204,13 @@
       "when": 1790550000000,
       "tag": "0028_paper_notes",
       "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "6",
+      "when": 1790800000000,
+      "tag": "0029_page_versions",
+      "breakpoints": true
     }
   ]
 }

@@ -1,4 +1,5 @@
 import {Script} from 'node:vm';
+import {keepOriginal,recordVersion} from '@/app/versions/service';
 import {chartBlockErrors} from '@/app/components-registry/chart-contracts';
 import {unreachableImages} from '@/app/chat/image-check';
 import {pageCodeSchema,pageCodeContract} from './page-code';
@@ -131,7 +132,8 @@ export async function saveAppDraft(agent:Agent,pageId:string,draftId:string){
    ...(page.visibility==='public'?[database().prepare("UPDATE components SET visibility='public' WHERE id=? AND owner_id=? AND type IN ('frontend_template','backend_code','data','workflow')").bind(ref!.id,agent.ownerId)]:[]),
    database().prepare('INSERT INTO component_dependencies(parent_id,role,component_id,version) VALUES(?,?,?,?) ON CONFLICT(parent_id,role) DO UPDATE SET component_id=excluded.component_id,version=excluded.version').bind(page.id,role,ref!.id,ref!.version),
   ]);
+  await keepOriginal(page.id,agent.ownerId);
   const now=new Date().toISOString();await database().batch([...deps,database().prepare("UPDATE pages SET title=?,summary=?,body=?,dynamic_config=?,labels=?,kind=?,sources=?,category=?,updated_at=? WHERE id=? AND (owner_id=? OR (visibility='public' AND public_write=1)) AND EXISTS(SELECT 1 FROM generation_locks WHERE token=? AND expires>?)").bind(draft.title,draft.summary,draft.pageBody??'',draft.config?JSON.stringify(draft.config):null,JSON.stringify({...page.labels,templateId:draft.templateId,...(draft.labels||{})}),draft.kind||(draft.config?'dynamic':'static'),JSON.stringify(draft.sources||page.sources||[]),draft.category??page.category??'',now,pageId,agent.ownerId,lease,Date.now())]);
-  const updated=await getPage(pageId,agent.ownerId);if(updated?.updatedAt!==now)throw Error('Could not save the app revision.');await bucket().put(path(agent),JSON.stringify({...draft,saved:true}));return {page:updated?registeredAdmaPage(updated):updated,alreadySaved:false};
+  const updated=await getPage(pageId,agent.ownerId);if(updated?.updatedAt!==now)throw Error('Could not save the app revision.');await recordVersion(pageId,agent.ownerId,'app-revision','App revision');await bucket().put(path(agent),JSON.stringify({...draft,saved:true}));return {page:updated?registeredAdmaPage(updated):updated,alreadySaved:false};
  }finally{await unlock(lease);}
 }

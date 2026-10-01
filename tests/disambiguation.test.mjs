@@ -1,4 +1,5 @@
 import test from 'node:test';import assert from 'node:assert/strict';import {readFileSync} from 'node:fs';import ts from 'typescript';import {z} from 'zod';
+globalThis.keepOriginal=async()=>{};globalThis.recordVersion=async()=>{};
 const source=readFileSync('app/disambiguation/index.ts','utf8').replace(/import [\s\S]*?from ['"][^'"]+['"];?/g,'');
 test('disambiguation creates precise destinations and upgrades an owned page in place',async()=>{
  let page={id:'p',owned:true,kind:'static',title:'Party',summary:'old',body:'old',labels:{},visibility:'private'},writes=0;

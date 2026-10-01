@@ -1,4 +1,5 @@
 import test from 'node:test';import assert from 'node:assert/strict';import {DatabaseSync} from 'node:sqlite';import {readFileSync,readdirSync} from 'node:fs';import ts from 'typescript';
+globalThis.keepOriginal=async()=>{};globalThis.recordVersion=async()=>{};
 const load=async source=>import('data:text/javascript;base64,'+Buffer.from(ts.transpile(source,{module:ts.ModuleKind.ESNext,target:ts.ScriptTarget.ES2022})).toString('base64'));
 const routingTables=await load(readFileSync('db/routing-tables.ts','utf8'));
 const nodes=await load(readFileSync('app/internal-links.ts','utf8'));

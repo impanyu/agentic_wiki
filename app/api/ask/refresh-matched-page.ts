@@ -1,4 +1,5 @@
 import type {AnswerPage} from '@/app/page-types';
+import {keepOriginal,recordVersion} from '@/app/versions/service';
 import {articleNodes} from '@/app/internal-links';
 import {database,getPage,lock,unlock} from '@/db/store';
 import {reviewAnswer} from './answer-quality';
@@ -36,12 +37,14 @@ export async function refreshMatchedPage(page:AnswerPage,question:string,fresh:b
   await recordAction(agent,'Hand off content update',{agentId:generator.id,pageId:page.id,question});
   const answer=await research(current.question||question,current.language,undefined,signal,fresh);
   await recordAction(generator,'Research page revision',{pageId:page.id,title:answer.title,sources:answer.sources});
+  await keepOriginal(page.id,userId);
   const now=new Date().toISOString();
   const links=await database().prepare('SELECT id,quote,segments FROM internal_links WHERE source_id=?').bind(page.id).all<{id:string;quote:string;segments:string}>();
   await database().batch([
    database().prepare(`UPDATE pages SET title=?,summary=?,body=?,category=?,sources=?,labels=?,updated_at=?,checked_at=? WHERE id=? AND owner_id=? AND kind='static' AND EXISTS(SELECT 1 FROM generation_locks WHERE token=? AND expires>?)`).bind(answer.title,answer.summary,answer.body,answer.category,JSON.stringify(answer.sources),JSON.stringify({...current.labels,...answer.labels}),now,now,page.id,userId,lease,Date.now()),
    ...links.results.map(l=>database().prepare('UPDATE internal_links SET segments=? WHERE id=? AND EXISTS(SELECT 1 FROM pages WHERE id=? AND owner_id=? AND updated_at=?)').bind(JSON.stringify(relocateQuote(l.quote,JSON.parse(l.segments),answer)),l.id,page.id,userId,now)),
   ]);
+  await recordVersion(page.id,userId,'refresh','Refreshed with new research');
   await recordAction(agent,'Update matched page in place',{pageId:page.id});
   return await getPage(page.id,userId)||current;
  }catch(e){await recordAction(agent,'Keep saved page after refresh failure',{pageId:page.id,error:e instanceof Error?e.message.slice(0,120):'Refresh failed'});return page;}
