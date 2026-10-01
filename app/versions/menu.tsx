@@ -5,10 +5,10 @@ import {useUi} from '@/app/i18n/client';
 import {ChatMarkdown} from '@/app/chat/markdown';
 
 // The page's version history in the toolbar: every saved change is a version that can be
-// previewed and restored. Restoring creates a new version, so it can be undone the same way.
+// previewed and switched to; the list marks the version the page currently shows.
 type Version={id:string;number:number;source:string;summary:string;title:string;createdAt:string;current:boolean};
 type Detail={number:number;title:string;description:string;body:string;createdAt:string;app:{template:string;customFrontend:boolean}|null};
-const SOURCES:Record<string,string>={original:'Original',['agent-edit']:'Page agent',['app-revision']:'App revision',editor:'Page editor',refresh:'Refresh',index:'Index update',['live-agent']:'Live agent',restore:'Restore'};
+const SOURCES:Record<string,string>={original:'Original',['agent-edit']:'Page agent',['app-revision']:'App revision',editor:'Page editor',refresh:'Refresh',index:'Index update',['live-agent']:'Live agent'};
 export function VersionMenu({pageId,disabled}:{pageId:string;disabled?:boolean}){
  const {t,locale}=useUi(),[open,setOpen]=useState(false),[versions,setVersions]=useState<Version[]|null>(null),[error,setError]=useState(''),[busy,setBusy]=useState(false),[confirm,setConfirm]=useState(''),[preview,setPreview]=useState<Detail|null>(null),box=useRef<HTMLDivElement>(null);
  const api='/api/pages/'+encodeURIComponent(pageId)+'/versions';
@@ -29,13 +29,13 @@ export function VersionMenu({pageId,disabled}:{pageId:string;disabled?:boolean})
     <div className="version-line"><span className="version-number">v{v.number}</span><span className="version-when">{when(v.createdAt)}</span>{v.current&&<span className="version-badge">{t('Current')}</span>}</div>
     <div className="version-what">{t(SOURCES[v.source]||v.source)}{v.summary&&v.summary!==SOURCES[v.source]?' · '+t(v.summary):''}</div>
     {v.title&&<div className="version-title">{v.title}</div>}
-    {!v.current&&(confirm===v.id?<div className="version-actions"><span>{t('Restore this version? The current one stays in the history.')}</span><button type="button" disabled={busy} onClick={()=>void restore(v)}>{t('Restore')}</button><button type="button" disabled={busy} onClick={()=>setConfirm('')}>{t('Cancel')}</button></div>:<div className="version-actions"><button type="button" disabled={busy} onClick={()=>void show(v)}><Eye size={13}/>{t('Preview')}</button><button type="button" disabled={busy} onClick={()=>setConfirm(v.id)}><RotateCcw size={13}/>{t('Restore')}</button></div>)}
+    {!v.current&&(confirm===v.id?<div className="version-actions"><span>{t('Switch the page to this version? All versions stay in the list.')}</span><button type="button" disabled={busy} onClick={()=>void restore(v)}>{t('Switch')}</button><button type="button" disabled={busy} onClick={()=>setConfirm('')}>{t('Cancel')}</button></div>:<div className="version-actions"><button type="button" disabled={busy} onClick={()=>void show(v)}><Eye size={13}/>{t('Preview')}</button><button type="button" disabled={busy} onClick={()=>setConfirm(v.id)}><RotateCcw size={13}/>{t('Switch to this version')}</button></div>)}
    </li>)}</ol>}
    <small className="version-note">{t('Versions cover the page text and app definition; Page files are kept as they are.')}</small>
   </div>}
   {preview&&<div className="version-preview-overlay" onMouseDown={e=>{if(e.target===e.currentTarget)setPreview(null);}}><div className="version-preview" role="dialog" aria-modal="true" aria-label={t('Version')+' '+preview.number}>
    <header><strong>v{preview.number} · {when(preview.createdAt)}</strong><button type="button" onClick={()=>setPreview(null)} aria-label={t('Close')}><X size={16}/></button></header>
-   <div className="version-preview-body"><h2>{preview.title}</h2>{preview.description&&<p className="version-preview-summary">{preview.description}</p>}{preview.app&&<p className="version-preview-app">{t('Web app')} · {preview.app.template}{preview.app.customFrontend?' · '+t('custom interface'):''} — {t('restore this version to run it.')}</p>}{preview.body?<ChatMarkdown text={preview.body}/>:!preview.app&&<p>{t('This version has no article text.')}</p>}</div>
+   <div className="version-preview-body"><h2>{preview.title}</h2>{preview.description&&<p className="version-preview-summary">{preview.description}</p>}{preview.app&&<p className="version-preview-app">{t('Web app')} · {preview.app.template}{preview.app.customFrontend?' · '+t('custom interface'):''} — {t('switch to this version to run it.')}</p>}{preview.body?<ChatMarkdown text={preview.body}/>:!preview.app&&<p>{t('This version has no article text.')}</p>}</div>
   </div></div>}
  </div>;
 }

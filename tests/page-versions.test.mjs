@@ -1,7 +1,7 @@
 import test from 'node:test';import assert from 'node:assert/strict';import {readFileSync} from 'node:fs';import {mkdtemp,rm} from 'node:fs/promises';import {tmpdir} from 'node:os';import {join} from 'node:path';import ts from 'typescript';
 import {SqliteDatabase} from '../server/sqlite.mjs';import {migrate} from '../scripts/migrate.mjs';
 // Versions: the original is kept on the first change, each saved state is numbered, unchanged
-// saves add nothing, and restoring an old version is itself a new, undoable version.
+// saves add nothing, and switching to an old version only moves the current mark.
 const deps={};globalThis.__versions={database:()=>deps.db,getPage:async(id,u)=>deps.page(id,u),lock:async()=>'lease',unlock:async()=>{},canWritePage:p=>!!p?.editable};
 const m=await import('data:text/javascript;base64,'+Buffer.from(ts.transpile('const {database,getPage,lock,unlock,canWritePage}=globalThis.__versions;\n'+readFileSync('app/versions/service.ts','utf8').replace(/^import .*;$/gm,''),{module:ts.ModuleKind.ESNext,target:ts.ScriptTarget.ES2022})).toString('base64'));
 test('page versions: original, numbered changes, preview and undoable restore',async()=>{
@@ -20,7 +20,10 @@ test('page versions: original, numbered changes, preview and undoable restore',a
   await assert.rejects(()=>m.listVersions('p1','bob'),/Only people who can edit/);
   list=(await m.restoreVersion('p1','alice',original.id)).versions;
   assert.equal((await db.prepare("SELECT body FROM pages WHERE id='p1'").first()).body,'Body one');
-  assert.deepEqual(list.slice(0,2).map(v=>[v.number,v.source,v.summary,v.current]),[[4,'restore','Restored version 1',true],[3,'app-revision','Second edit',false]]);
+  // Switching adds no entry; the current mark moves to the version shown.
+  assert.deepEqual(list.map(v=>[v.number,v.current]),[[3,false],[2,false],[1,true]]);
+  await m.versioned('p1','alice','editor','Edit after switching',()=>set('Body four'));
+  list=(await m.listVersions('p1','alice')).versions;assert.deepEqual(list.map(v=>[v.number,v.current]),[[4,true],[3,false],[2,false],[1,false]]);
   db.close?.();
  }finally{await rm(dir,{recursive:true,force:true});}
 });

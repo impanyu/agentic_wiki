@@ -969,5 +969,9 @@
   "Title or summary edited": "Title or summary edited",
   "Refreshed with new research": "Refreshed with new research",
   "Index updated": "Index updated",
-  "Live agent change undone": "Live agent change undone"
+  "Live agent change undone": "Live agent change undone",
+  "Switch the page to this version? All versions stay in the list.": "Switch the page to this version? All versions stay in the list.",
+  "Switch": "Switch",
+  "Switch to this version": "Switch to this version",
+  "switch to this version to run it.": "switch to this version to run it."
 }

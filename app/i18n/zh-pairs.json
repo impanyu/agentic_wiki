@@ -708,5 +708,9 @@
   "Title or summary edited": "修改了标题或摘要",
   "Refreshed with new research": "用新的资料刷新",
   "Index updated": "索引已更新",
-  "Live agent change undone": "撤销了 live agent 的修改"
+  "Live agent change undone": "撤销了 live agent 的修改",
+  "Switch the page to this version? All versions stay in the list.": "把页面切换到这个版本？所有版本都会保留在列表中。",
+  "Switch": "切换",
+  "Switch to this version": "切换到这个版本",
+  "switch to this version to run it.": "切换到这个版本后即可运行。"
 }
