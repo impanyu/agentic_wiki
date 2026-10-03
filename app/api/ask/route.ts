@@ -1,4 +1,5 @@
 import {contextualLinkQuestion} from '@/app/routing/link-context';
+import {refreshProfile} from '@/app/routing/profiles';
 import {exactSavedQuestion} from './exact-match';
 import {deferPageExecution} from '@/app/page-programs/deferred';
 import {requireValidIndex,indexGenerationPolicy} from '@/app/disambiguation/graph';
@@ -7,7 +8,6 @@ import {inheritGenerationSession} from '@/app/agents/session';
 import {attachContextFile} from '@/app/context-files/server';
 import {prepareNavigationInput} from '@/app/url-content';
 import {urlIdentity} from '@/app/url-content/fetch';
-import {matchSourceUrl} from '@/app/url-content/matching';
 import {generationProgress} from '@/app/generation-progress';
 import {ensurePageSession,rememberSessionRoutes} from '@/app/chat/session';
 import {startJob,finishJob} from '@/app/context-index/jobs';
@@ -56,7 +56,6 @@ async function routeAnswer(request:Request,actor:Awaited<ReturnType<typeof getAc
    const family=await database().prepare('SELECT group_id FROM page_forks WHERE page_id=?').bind(source.id).first<{group_id:string}>();
    fork={sourceId:source.id,requestId:data.fork.requestId,groupId:family?.group_id||source.id,createdAt:source.createdAt};
   }
-  if(!fork){const page=await matchSourceUrl(question,uid);if(page)return respond({page,reused:true,destination:question});}
   if(!fork){const exact=await exactSavedQuestion(question,uid);if(exact)return respond({page:exact,reused:true,destination:question});}
   jobId=await startJob(uid,'navigation',question);
   if(!aiKey())return respond({error:'The AI connection is not configured yet.'},503);
@@ -103,7 +102,6 @@ async function routeAnswer(request:Request,actor:Awaited<ReturnType<typeof getAc
   // equivalent parallel request saved meanwhile. The semantic match already ran
   // before generation; repeating its model calls here would only slow every save.
   async function findMatch(signal?:AbortSignal){
-   if(sourceDocument){const exact=await matchSourceUrl(question,uid);if(exact)return exact.id;}
    signal?.throwIfAborted();
    const id=(await exactSavedQuestion(destination,uid))?.id||null;
    if(!id)return null;
@@ -113,9 +111,8 @@ async function routeAnswer(request:Request,actor:Awaited<ReturnType<typeof getAc
    return id;
   }
 
-  // A pasted URL asks for a page made from that web page: only a page built from the same URL
-  // is reused, never a page that merely covers the same subject.
-  let matched=fork?null:sourceDocument?(await matchSourceUrl(question,uid))?.id||null:rootRoute.pageId;
+  // Typed questions and pasted URLs alike are matched by meaning: a URL by its fetched content.
+  let matched=fork?null:rootRoute.pageId;
   if(matched&&sourceDocument&&(await getPage(matched,uid))?.kind!=='static')matched=null;
   if(matched){const page=await resolvePage(matched);if(!page)return respond({error:'This page is no longer accessible. Please try again.'},404);await remember(page.id,page);const updated=await refreshMatchedPage(page,destination,requested?.fresh||false,uid,router);return respond({page:updated,reused:true,destination});}
   // One generator owns artifact selection after a routing miss.
@@ -169,6 +166,7 @@ async function routeAnswer(request:Request,actor:Awaited<ReturnType<typeof getAc
   for(const file of pendingFiles)await attachContextFile(id,file.componentId,uid,file.folder,file.fileId);
   if(dependencies.length)await attachComponents(id,dependencies,context);
   const page=await resolvePage(id);if(!page)throw new Error('Could not load the saved page.');
+  await refreshProfile(id);
   if(definition&&page.parameters)await database().prepare('UPDATE questions SET parameters=? WHERE page_id=?').bind(JSON.stringify(page.parameters),page.id).run();
   if(!staticPage)await recordAction(rootRouter,'Route original question to generated app',{pageId:page.id,parameters:page.parameters||page.runtime?.input||{}});
   return {page,reused:false,destination};

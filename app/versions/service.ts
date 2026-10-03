@@ -31,6 +31,8 @@ export async function recordVersion(pageId:string,authorId:string,source:Version
   const state=await current(pageId);if(!state)return;const snapshot=JSON.stringify(state),last=await latest(pageId);
   if(last?.snapshot===snapshot)return;
   await insert(pageId,(last?.number||0)+1,authorId,source,summary,snapshot);
+  // The routing profile follows the page's content.
+  void import('@/app/routing/profiles').then(m=>m.refreshProfile(pageId)).catch(()=>{});
   const old=await database().prepare('SELECT number FROM page_versions WHERE page_id=? ORDER BY number DESC LIMIT 1 OFFSET ?').bind(pageId,KEEP).first<{number:number}>();
   if(old)await database().prepare('DELETE FROM page_versions WHERE page_id=? AND number<=? AND number>1').bind(pageId,old.number).run();
  }catch(e){console.error('recordVersion failed',pageId,e instanceof Error?e.message:e);}

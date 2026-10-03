@@ -211,6 +211,13 @@
       "when": 1790800000000,
       "tag": "0029_page_versions",
       "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "6",
+      "when": 1791100000000,
+      "tag": "0030_page_profiles",
+      "breakpoints": true
     }
   ]
 }

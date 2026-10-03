@@ -3,7 +3,7 @@ const load=s=>import('data:text/javascript;base64,'+Buffer.from(ts.transpile(s,{
 test('one root routes matched wiki/apps, hands misses to the generator, and bypasses matching for explicit forks',async()=>{
  let match='wiki',classified=0,searches=0,mismatch=false;const calls=[];
  const pages={wiki:{id:'wiki',kind:'static',title:'Wiki'},app:{id:'app',kind:'dynamic',title:'App',dynamic:{capability:'application'}},chart:{id:'chart',kind:'dynamic',title:'Chart',dynamic:{capability:'chart'}}};
- globalThis.rootTest={getPage:async id=>pages[id],matchQuestion:async(...args)=>{searches++;calls.push(args);return match;},pageIntent:async()=>{classified++;return {route:'app',kind:'chart',service:'none',fresh:false};},recordAction:async()=>{},storagePageMismatch:()=>mismatch};
+ globalThis.rootTest={getPage:async id=>pages[id],matchByProfile:async(...args)=>{searches++;calls.push(args);return match;},pageIntent:async()=>{classified++;return {route:'app',kind:'chart',service:'none',fresh:false};},recordAction:async()=>{},storagePageMismatch:()=>mismatch};
  const m=await load('const {'+Object.keys(globalThis.rootTest).join(',')+'}=globalThis.rootTest;'+readFileSync('app/routing/root-table.ts','utf8').replace(/^import .*;$/gm,''));
  const root={id:'root',role:'root-routing',ownerId:'u'};
  assert.equal((await m.resolveRootRoute('q',[1],'en','u',root)).intent.route,'wiki');

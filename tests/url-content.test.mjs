@@ -65,11 +65,10 @@ test('saved URL lookup reuses canonical identity with access checks and determin
  assert.equal(await m.matchSourceUrl(wiki,'alice'),null);
  db.close();
 });
-test('URL fast path precedes AI configuration and content reading, and explicit forks bypass it',()=>{
+test('a pasted URL is routed by its content, never by its address',()=>{
  const route=readFileSync('app/api/ask/route.ts','utf8');
- const fast=route.indexOf('if(!fork){const page=await matchSourceUrl(question,uid)');
- assert.ok(fast>0);assert.ok(fast<route.indexOf('if(!aiKey())'));assert.ok(fast<route.indexOf('await prepareNavigationInput('));
- assert.match(route,/if\(sourceDocument\)\{const exact=await matchSourceUrl\(question,uid\);if\(exact\)return exact.id;/);
+ assert.ok(!route.includes('matchSourceUrl'));assert.match(route,/let matched=fork\?null:rootRoute.pageId;/);
+ assert.match(readFileSync('app/url-content/index.ts','utf8'),/routingQuestion:sourceDocument\?urlSemanticQuestion\(sourceDocument\):question/);
 });
 
 test('new URL pages and reused pages store separate URL and summary questions with summary vectors',()=>{
