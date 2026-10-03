@@ -56,8 +56,9 @@ export function validateGenerationDraft(raw:unknown,question:string,context:Agen
   if(d.body.trim().length<80||!d.sources.length)throw Error('A reference article needs substantive content and cited sources.');
   // Readers need to see which source supports which statement, not just a list at the end.
   if(d.templateId!=='paper-v1'){const need=Math.min(d.sources.length,3),cited=inlineCitations(d.body,d.sources);if(cited.size<need)throw Error(`Cite the sources inline in the body: after each sourced claim put [n], where n is that source's 1-based position in sources (for example "…was founded in 1802.[2]"). Cite at least ${need} different sources across the article, spread over the paragraphs they support; image credit lines do not count. Currently ${cited.size} cited.`);}
-  if(!webSearched&&!dataConsulted&&!context.sourceDocument)throw Error('Research the reference subject with web search or authorized connector/file tools before finalizing factual content.');
-  if(context.sourceDocument&&!d.body.includes(context.sourceDocument.url))throw Error('Identify and cite the supplied document URL in the article.');
+  if(!webSearched&&!dataConsulted&&(!context.sourceDocument||context.sourceDocument.kind==='image'))throw Error('Research the reference subject with web search or authorized connector/file tools before finalizing factual content.');
+  if(context.sourceDocument?.kind==='image'){if(context.sourceDocument.imageUrl&&!d.body.includes(context.sourceDocument.imageUrl))throw Error('Show the user\'s image near the top of the article as ![caption]('+context.sourceDocument.imageUrl+').');}
+  else if(context.sourceDocument&&!d.body.includes(context.sourceDocument.url))throw Error('Identify and cite the supplied document URL in the article.');
   d.intent.outputKind='article';
  }else{
   d.intent.outputKind=d.kind==='chart'?'chart':d.kind==='chat'?'conversation':'application';

@@ -33,7 +33,7 @@ import {pageAddress,inputQuery,type ConversionInput} from './dynamic/units';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { HomePage } from './home';
-import { ArrowLeft, ArrowRight, Highlighter, Check, Globe2, Layers, LoaderCircle, LockKeyhole, GitFork, Trash2, Printer } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Highlighter, Check, Globe2, Layers, LoaderCircle, LockKeyhole, GitFork, Trash2, Printer, ImagePlus, X as CloseIcon } from 'lucide-react';
 import {ContextIndex} from './context-index/view';
 import {ContextFiles} from './context-files/panel';
 import type { AnswerPage } from './page-types';
@@ -61,6 +61,21 @@ export default function Workspace({ user, signIn, signOut }: {
 
 
   const [question, setQuestion] = useState('');
+  // An image attached to the address bar (pasted, dropped or chosen) asks about what it shows.
+  const [attached, setAttached] = useState<{dataUrl:string;name:string}|null>(null),[imageError,setImageError]=useState(''),imagePicker=useRef<HTMLInputElement>(null);
+  async function attachImage(file:File|undefined|null){
+    setImageError('');if(!file)return;
+    if(!/^image\/(png|jpeg|webp|gif)$/.test(file.type)){setImageError(t('Use a PNG, JPEG, WebP or GIF image under 8 MB.'));return;}
+    try{
+      // Large photos are scaled to at most 2048 px so the upload stays small.
+      const bitmap=await createImageBitmap(file),scale=Math.min(1,2048/Math.max(bitmap.width,bitmap.height));
+      let dataUrl:string;
+      if(scale===1&&file.size<6_000_000)dataUrl=await new Promise<string>((ok,bad)=>{const r=new FileReader();r.onload=()=>ok(String(r.result));r.onerror=()=>bad(r.error);r.readAsDataURL(file);});
+      else{const c=document.createElement('canvas');c.width=Math.round(bitmap.width*scale);c.height=Math.round(bitmap.height*scale);c.getContext('2d')!.drawImage(bitmap,0,0,c.width,c.height);dataUrl=c.toDataURL('image/jpeg',0.9);}
+      if(dataUrl.length>12_000_000){setImageError(t('Use a PNG, JPEG, WebP or GIF image under 8 MB.'));return;}
+      setAttached({dataUrl,name:file.name||'image'});input.current?.focus();
+    }catch{setImageError(t('This image could not be opened.'));}
+  }
   const voice = useRef<VoiceHandle|null>(null), [voiceRecording, setVoiceRecording] = useState(false), [voiceSending, setVoiceSending] = useState(false);
   const actorReady=useRef<Promise<void>|null>(null);
   function ensureActor(){return actorReady.current??=navigationRequest('/api/session').then(async response=>{if(!response.ok)throw new Error('Could not initialize the session.');await response.json();}).catch(error=>{actorReady.current=null;throw error;});}
@@ -220,9 +235,9 @@ export default function Workspace({ user, signIn, signOut }: {
     catch(error){setError(error instanceof Error?error.message:'Could not upload the file.');}finally{setBusy(false);if(uploadInput.current)uploadInput.current.value='';}
   }
 
-  async function navigate(nextText = question,origin?:NavigationOrigin,fork?:{sourceId:string;requestId:string}) {
+  async function navigate(nextText = question,origin?:NavigationOrigin,fork?:{sourceId:string;requestId:string},image?:string) {
     const text = nextText.trim();
-    if (!text || busy || editing) return;
+    if ((!text && !image) || busy || editing) return;
     request.current?.abort();
     const controller = new AbortController();
     request.current = controller;
@@ -250,7 +265,7 @@ export default function Workspace({ user, signIn, signOut }: {
       while(true){
         response=await fetch('/api/ask', {
           method:'POST',headers:{'Content-Type':'application/json','Accept':'text/event-stream'},
-          body:JSON.stringify({question:text,fork,generationId,origin}),signal:controller.signal,
+          body:JSON.stringify({question:text,fork,generationId,origin,...(image?{image}:{})}),signal:controller.signal,
         });
         if(response.status!==409)break;
         const pending=await response.clone().json() as {retryAfter?:number};
@@ -299,6 +314,7 @@ export default function Workspace({ user, signIn, signOut }: {
       if(controller.signal.aborted)return;
       setError(linkWarning);
       setSelected(result.page);setDraft(null);
+      if(image){setAttached(null);if(!text)setQuestion(result.page.title);}
       if(fork)forkRequest.current=null;
       // A link routed with page context shows the routed question, not the bare link text.
       const shown=result.question?.trim()||text;
@@ -410,13 +426,17 @@ export default function Workspace({ user, signIn, signOut }: {
         <button type="button" aria-label={t("Forward")} title={t("Forward")} disabled={historyPosition>=historyLength-1||saving} onClick={()=>history.forward()}><ArrowRight size={19}/></button>
         <HistoryMenu disabled={busy||saving} saveError={historySaveError} beforeLoad={()=>{for(const visit of [...failedVisits.current.values()])saveVisit(visit.pageId,visit.text,visit.parameters,visit.id,visit.legacy);return visitWrites.current;}} onOpen={(entry:HistoryEntry)=>void openInternal({id:entry.id,targetId:entry.pageId,targetTitle:entry.title,quote:entry.question||entry.title,segments:[],parameters:entry.parameters})}/>
       </div>
-      <form className="address-bar" onSubmit={event => { event.preventDefault(); if(voiceRecording&&voice.current){ if(voiceSending)return; setVoiceSending(true); void voice.current.finish().then(spoken=>{ const text=[question.trim(),spoken.trim()].filter(Boolean).join(' '); if(text){ setQuestion(text); void navigate(text); } }).finally(()=>setVoiceSending(false)); return; } void navigate(); }} aria-label={t("Open an answer")}>
+      <form className="address-bar" onSubmit={event => { event.preventDefault(); if(voiceRecording&&voice.current){ if(voiceSending)return; setVoiceSending(true); void voice.current.finish().then(spoken=>{ const text=[question.trim(),spoken.trim()].filter(Boolean).join(' '); if(text||attached){ setQuestion(text); void navigate(text,undefined,undefined,attached?.dataUrl); } }).finally(()=>setVoiceSending(false)); return; } void navigate(question,undefined,undefined,attached?.dataUrl); }} onDragOver={event=>{if([...event.dataTransfer.items].some(i=>i.kind==='file'))event.preventDefault();}} onDrop={event=>{const file=[...event.dataTransfer.files].find(f=>f.type.startsWith('image/'));if(file){event.preventDefault();void attachImage(file);}}} aria-label={t("Open an answer")}>
         <label htmlFor="address" className="sr-only">{t("Question or context")}</label>
-        <input ref={input} id="address" type="text" value={question} onChange={event => setQuestion(event.target.value)}
-          placeholder={t("Enter a question or context")} maxLength={4000} autoComplete="off" autoFocus
+        {attached&&<span className="address-image"><img src={attached.dataUrl} alt={attached.name}/><button type="button" onClick={()=>{setAttached(null);input.current?.focus();}} aria-label={t('Remove image')} title={t('Remove image')}><CloseIcon size={12}/></button></span>}
+        <input ref={input} id="address" type="text" value={question} onChange={event => setQuestion(event.target.value)} onPaste={event=>{const file=[...event.clipboardData.files].find(f=>f.type.startsWith('image/'));if(file){event.preventDefault();void attachImage(file);}}}
+          placeholder={attached?t('Ask about this image (optional)'):t("Enter a question or context")} maxLength={4000} autoComplete="off" autoFocus
           enterKeyHint="go" spellCheck={false} aria-describedby="address-help"/>
+        {imageError&&<span className="address-image-error" role="alert">{imageError}</span>}
         <VoiceInput handle={voice} onRecordingChange={setVoiceRecording} disabled={busy} onText={text=>{setQuestion(old=>old.trim()?old.replace(/\s+$/,'')+' '+text:text);input.current?.focus();}}/>
-        <button type="submit" className="go-button" disabled={busy || voiceSending || (!question.trim() && !voiceRecording)}
+        <input ref={imagePicker} type="file" accept="image/png,image/jpeg,image/webp,image/gif" hidden onChange={event=>{void attachImage(event.target.files?.[0]);event.target.value='';}}/>
+        <button type="button" className="address-image-button" disabled={busy} onClick={()=>imagePicker.current?.click()} aria-label={t('Search with an image')} title={t('Search with an image (or paste / drop one here)')}><ImagePlus size={18}/></button>
+        <button type="submit" className="go-button" disabled={busy || voiceSending || (!question.trim() && !voiceRecording && !attached)}
           aria-label={busy ? t("Opening answer") : t("Open answer")} title={voiceRecording ? t("Stop recording and send") : t("Open answer · Enter")}>
           {busy || voiceSending ? <LoaderCircle className="spinner" size={18}/> : <ArrowRight size={18}/>}
         </button>

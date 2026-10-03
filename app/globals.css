@@ -454,3 +454,10 @@ html[data-print=report] .voice-input{display:none!important}
 .version-preview-body{padding:16px 20px;overflow:auto}.version-preview-summary{color:#3f4b60}.version-preview-app{font-size:13px;color:#5f6b80;background:#f5f7fb;border-radius:8px;padding:8px 10px}
 @media(max-width:600px){.version-panel{position:fixed;left:16px;right:16px;top:auto;bottom:16px;width:auto}}
 @media print{.version-menu{display:none}}
+
+/* Image search in the address bar */
+.address-image{position:relative;flex:none;display:inline-flex;margin-left:6px}.address-image img{width:30px;height:30px;object-fit:cover;border-radius:6px;border:1px solid #cbd4e4;display:block}
+.address-image button{position:absolute;top:-6px;right:-6px;width:16px;height:16px;border-radius:50%;border:0;background:#334155;color:#fff;display:flex;align-items:center;justify-content:center;padding:0;cursor:pointer}
+.address-image-button{flex:none;border:0;background:transparent;color:#5f6b80;display:inline-flex;align-items:center;justify-content:center;width:34px;height:34px;border-radius:50%;cursor:pointer}.address-image-button:hover:not(:disabled){background:rgba(37,99,235,.08);color:#2563eb}
+.address-image-error{position:absolute;top:calc(100% + 4px);left:12px;font-size:12px;color:#a12626;background:#fff;padding:2px 8px;border-radius:6px;box-shadow:0 2px 8px rgba(0,0,0,.08);z-index:5}
+.address-bar{position:relative}

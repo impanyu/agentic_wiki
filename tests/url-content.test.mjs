@@ -68,7 +68,7 @@ test('saved URL lookup reuses canonical identity with access checks and determin
 test('a pasted URL is routed by its content, never by its address',()=>{
  const route=readFileSync('app/api/ask/route.ts','utf8');
  assert.ok(!route.includes('matchSourceUrl'));assert.match(route,/let matched=fork\?null:rootRoute.pageId;/);
- assert.match(readFileSync('app/url-content/index.ts','utf8'),/routingQuestion:sourceDocument\?urlSemanticQuestion\(sourceDocument\):question/);
+ const nav=readFileSync('app/url-content/index.ts','utf8');assert.match(nav,/urlSemanticQuestion\(sourceDocument\)/);assert.match(nav,/routingQuestion:semantic/);
 });
 
 test('new URL pages and reused pages store separate URL and summary questions with summary vectors',()=>{

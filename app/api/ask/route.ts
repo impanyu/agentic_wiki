@@ -6,7 +6,8 @@ import {requireValidIndex,indexGenerationPolicy} from '@/app/disambiguation/grap
 import {storagePageMismatch} from '@/app/storage/page-scope';
 import {inheritGenerationSession} from '@/app/agents/session';
 import {attachContextFile} from '@/app/context-files/server';
-import {prepareNavigationInput} from '@/app/url-content';
+import {prepareNavigationInput,IMAGE_DATA} from '@/app/url-content';
+import {storePageFile} from '@/app/context-files/store';
 import {urlIdentity} from '@/app/url-content/fetch';
 import {generationProgress} from '@/app/generation-progress';
 import {ensurePageSession,rememberSessionRoutes} from '@/app/chat/session';
@@ -42,8 +43,10 @@ async function routeAnswer(request:Request,actor:Awaited<ReturnType<typeof getAc
  const respond=(data:unknown,status=200)=>actor.finish(reply(rewritten&&data&&typeof data==='object'&&'page' in data?{...data,question:rewritten}:data,status));
  try{
   if(!sameOrigin(request))return respond({error:'This request must come from the site.'},403);
-  const data=await request.json() as {question?:unknown;visibility?:unknown;origin?:unknown;fork?:{sourceId?:unknown;requestId?:unknown}};
-  if(typeof data.question!=='string'||!data.question.trim()||data.question.length>4000)return respond({error:'Enter between 1 and 4,000 characters.'},400);
+  const data=await request.json() as {question?:unknown;visibility?:unknown;origin?:unknown;fork?:{sourceId?:unknown;requestId?:unknown};image?:unknown};
+  const image=typeof data.image==='string'&&data.image?data.image:undefined;
+  if(image&&(!IMAGE_DATA.test(image)||image.length>12_000_000))return respond({error:'Use a PNG, JPEG, WebP or GIF image under 8 MB.'},400);
+  if(typeof data.question!=='string'||!data.question.trim()&&!image||data.question.length>4000)return respond({error:'Enter between 1 and 4,000 characters.'},400);
   const uid=actor.userId;
   let question=data.question.trim();
   if(data.origin){try{const routed=await contextualLinkQuestion(question,data.origin,uid,request.signal);if(routed!==question)rewritten=routed;question=routed;}catch(e){if(e instanceof Error&&/^(INVALID_LINK_CONTEXT|LINK_CONTEXT_CHANGED|LINK_CONTEXT_UNAVAILABLE)$/.test(e.message))return respond({error:'The linked text or source page is no longer available. Refresh the page and try again.'},400);throw e;}}
@@ -56,10 +59,12 @@ async function routeAnswer(request:Request,actor:Awaited<ReturnType<typeof getAc
    const family=await database().prepare('SELECT group_id FROM page_forks WHERE page_id=?').bind(source.id).first<{group_id:string}>();
    fork={sourceId:source.id,requestId:data.fork.requestId,groupId:family?.group_id||source.id,createdAt:source.createdAt};
   }
-  if(!fork){const exact=await exactSavedQuestion(question,uid);if(exact)return respond({page:exact,reused:true,destination:question});}
-  jobId=await startJob(uid,'navigation',question);
+  if(!fork&&!image){const exact=await exactSavedQuestion(question,uid);if(exact)return respond({page:exact,reused:true,destination:question});}
+  jobId=await startJob(uid,'navigation',question||'Image');
   if(!aiKey())return respond({error:'The AI connection is not configured yet.'},503);
-  const {sourceDocument,routingQuestion,vector,language}=await prepareNavigationInput(question,request.signal);
+  const {sourceDocument,routingQuestion,vector,language}=await prepareNavigationInput(question,request.signal,image);
+  // An image request is remembered by what it shows.
+  if(image&&sourceDocument&&!question)question=sourceDocument.title;
   // Classify legacy articles by their actual prose, never by their original query.
   // This repairs language metadata without changing saved content or page IDs.
   while(true){
@@ -74,7 +79,7 @@ async function routeAnswer(request:Request,actor:Awaited<ReturnType<typeof getAc
   const requested=rootRoute.intent;
   const router=rootRouter,parameterRouter=rootRouter;context.agent=rootRouter;
   const destination=routingQuestion;
-  const originalKey=sourceDocument?'url:'+urlIdentity(new URL(sourceDocument.url)):normalize(question);
+  const originalKey=sourceDocument?(sourceDocument.kind==='image'?sourceDocument.url:'url:'+urlIdentity(new URL(sourceDocument.url))):normalize(question);
   const destinationKey=sourceDocument?originalKey:normalize(destination);
   // Queries without an existing URL binding use semantic matching.
   // All page types share this request’s embedding and one question pool.
@@ -129,6 +134,8 @@ async function routeAnswer(request:Request,actor:Awaited<ReturnType<typeof getAc
    signal.throwIfAborted();
    // Images the generator draws are stored against the page ID it will receive and attached after saving.
    const id=fork?.requestId||crypto.randomUUID(),pendingFiles:NonNullable<AgentContext['pendingFiles']>=[];
+   // The user's image is kept in the new page's files and handed to the generator to show.
+   if(image&&sourceDocument){const match=image.match(/^data:image\/(png|jpeg|webp|gif);base64,(.*)$/)!;const stored=await storePageFile(id,uid,'image.'+(match[1]==='jpeg'?'jpg':match[1]),Buffer.from(match[2],'base64'),language,'',pendingFiles);context.sourceDocument={...sourceDocument,imageUrl:(stored as {url:string}).url};}
    const generated=await generateContext({question:destination},{...context,plannedPageId:id,pendingFiles},rootRouter,emit,signal);
    const {answer,definition}=generated,dependencies=definition?.components||[],now=new Date().toISOString();
    const finalIntent=generated.generationIntent;
@@ -200,7 +207,7 @@ async function routeAnswer(request:Request,actor:Awaited<ReturnType<typeof getAc
   });
   return actor.finish(new Response(stream,{headers:{'Content-Type':'text/event-stream; charset=utf-8','Cache-Control':'no-store, private, no-transform','Vary':'Cookie, Accept','X-Accel-Buffering':'no','X-Content-Type-Options':'nosniff'}}));
 
- }catch(e){jobState='failed';const message=e instanceof Error?e.message:'';console.error('Answer navigation failed',message.slice(0,300));if(message.startsWith('INDEX_'))return respond({error:'This index path repeats or exceeds three index pages. Choose a more specific question to open a concrete page.'},422);if(message.startsWith('URL_'))return respond({error:message==='URL_PRIVATE'?'Only public web URLs can be read.':message==='URL_INVALID'?'Enter a valid HTTP or HTTPS URL without a username or password.':message==='URL_TOO_LARGE'?'This document is too large to read. Choose a shorter page or PDF.':message==='URL_UNSUPPORTED'?'This URL is not a supported webpage, text document or PDF.':'Could not read meaningful content from this URL. It may require sign-in, block automated reading, or be unavailable. The URL itself was not embedded.'},422);return respond({error:message==='AI_LIMIT'?'The AI service has reached its usage limit. Please try again later.':message==='AI_SETUP'?'The AI connection is not configured yet.':'Could not complete this answer. Your text is preserved; please try again.'},503);}
+ }catch(e){jobState='failed';const message=e instanceof Error?e.message:'';console.error('Answer navigation failed',message.slice(0,300));if(message.startsWith('INDEX_'))return respond({error:'This index path repeats or exceeds three index pages. Choose a more specific question to open a concrete page.'},422);if(message.startsWith('URL_'))return respond({error:message==='URL_VERIFICATION'?'This site showed a human-verification page instead of the article, so it cannot be read automatically (WeChat articles often do this). Open it in your browser and save it as a PDF, or copy its text, into Page files, then ask the page agent to read it.':message==='IMAGE_INVALID'?'Use a PNG, JPEG, WebP or GIF image under 8 MB.':message==='IMAGE_UNREADABLE'?'Could not make out what this image shows. Try a clearer image or add a short description.':message==='URL_PRIVATE'?'Only public web URLs can be read.':message==='URL_INVALID'?'Enter a valid HTTP or HTTPS URL without a username or password.':message==='URL_TOO_LARGE'?'This document is too large to read. Choose a shorter page or PDF.':message==='URL_UNSUPPORTED'?'This URL is not a supported webpage, text document or PDF.':'Could not read meaningful content from this URL. It may require sign-in, block automated reading, or be unavailable. The URL itself was not embedded.'},422);return respond({error:message==='AI_LIMIT'?'The AI service has reached its usage limit. Please try again later.':message==='AI_SETUP'?'The AI connection is not configured yet.':'Could not complete this answer. Your text is preserved; please try again.'},503);}
  finally{if(jobId)await finishJob(jobId,jobState).catch(()=>{});if(token)await unlock(token).catch(()=>{});}
 }
 

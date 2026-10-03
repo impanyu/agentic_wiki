@@ -14,6 +14,7 @@ async function open(address:string,signal?:AbortSignal):Promise<Fetched>{
  const url=sourceUrl(address);if(!url)throw Error('Give a full web address (https://…).');
  const hit=cache.get(url.href);if(hit&&Date.now()-hit.at<10*60000)return hit.value;
  const source=await fetchSource(url,signal||AbortSignal.timeout(45000),{maxBytes:MAX_BYTES,accept:'text/html,application/xhtml+xml,application/pdf,text/plain;q=0.9,*/*;q=0.5',allowType:t=>/^(text\/(html|plain|markdown|csv|xml)|application\/(xhtml\+xml|pdf|json|xml))$/.test(t)});
+ if(/captcha|verify|challenge/i.test(new URL(source.url).pathname+new URL(source.url).search)&&!/captcha|verify|challenge/i.test(url.pathname+url.search))throw Error('This site answered with a human-verification page, so it cannot be read automatically. Do not try to get around it; use another source or ask the user to add the document to Page files.');
  const value:Fetched={url:source.url,type:source.type,bytes:Buffer.from(source.bytes)};
  if(source.type!=='application/pdf'){
   const decoded=new TextDecoder(source.charset||'utf-8').decode(source.bytes),html=/html/.test(source.type);

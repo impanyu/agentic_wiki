@@ -973,5 +973,13 @@
   "Switch the page to this version? All versions stay in the list.": "Switch the page to this version? All versions stay in the list.",
   "Switch": "Switch",
   "Switch to this version": "Switch to this version",
-  "switch to this version to run it.": "switch to this version to run it."
+  "switch to this version to run it.": "switch to this version to run it.",
+  "This site showed a human-verification page instead of the article, so it cannot be read automatically (WeChat articles often do this). Open it in your browser and save it as a PDF, or copy its text, into Page files, then ask the page agent to read it.": "This site showed a human-verification page instead of the article, so it cannot be read automatically (WeChat articles often do this). Open it in your browser and save it as a PDF, or copy its text, into Page files, then ask the page agent to read it.",
+  "Use a PNG, JPEG, WebP or GIF image under 8 MB.": "Use a PNG, JPEG, WebP or GIF image under 8 MB.",
+  "Could not make out what this image shows. Try a clearer image or add a short description.": "Could not make out what this image shows. Try a clearer image or add a short description.",
+  "Remove image": "Remove image",
+  "Ask about this image (optional)": "Ask about this image (optional)",
+  "Search with an image": "Search with an image",
+  "Search with an image (or paste / drop one here)": "Search with an image (or paste / drop one here)",
+  "This image could not be opened.": "This image could not be opened."
 }

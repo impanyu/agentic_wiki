@@ -712,5 +712,13 @@
   "Switch the page to this version? All versions stay in the list.": "把页面切换到这个版本？所有版本都会保留在列表中。",
   "Switch": "切换",
   "Switch to this version": "切换到这个版本",
-  "switch to this version to run it.": "切换到这个版本后即可运行。"
+  "switch to this version to run it.": "切换到这个版本后即可运行。",
+  "This site showed a human-verification page instead of the article, so it cannot be read automatically (WeChat articles often do this). Open it in your browser and save it as a PDF, or copy its text, into Page files, then ask the page agent to read it.": "这个网站返回的是人机验证页面而不是文章内容，所以无法自动读取（微信公众号文章经常这样）。请在浏览器中打开，把它存成 PDF 或复制文字放到 Page files，然后让页面 agent 读取。",
+  "Use a PNG, JPEG, WebP or GIF image under 8 MB.": "请使用 8 MB 以内的 PNG、JPEG、WebP 或 GIF 图片。",
+  "Could not make out what this image shows. Try a clearer image or add a short description.": "看不出这张图片的内容。请换一张更清晰的图片，或加一句简短说明。",
+  "Remove image": "移除图片",
+  "Ask about this image (optional)": "关于这张图片想问什么（可不填）",
+  "Search with an image": "用图片搜索",
+  "Search with an image (or paste / drop one here)": "用图片搜索（也可以直接粘贴或拖入图片）",
+  "This image could not be opened.": "无法打开这张图片。"
 }
