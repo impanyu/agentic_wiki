@@ -11,16 +11,33 @@ export function publicIPv4(address:string){
 }
 export function sourceUrl(input:string):URL|null{
  const text=input.trim();
- if(!/^(?:https?:\/\/|www\.)\S+$/i.test(text)){
+ // A bare address ("en.wikipedia.org/wiki/X", "example.com") is a URL too when it has a path or a
+ // common top-level domain, so ordinary words with a dot ("node.js") stay questions.
+ const bare=!/^[a-z][a-z\d+.-]*:\/\//i.test(text)&&/^(?:[a-z\d-]+\.)+[a-z]{2,24}(?:[/?#]\S*)?$/i.test(text)&&(/^[^/?#]+[/?#]/.test(text)||/\.(?:com|org|net|edu|gov|mil|int|io|ai|co|dev|app|info|us|uk|ca|au|de|fr|jp|cn|in|eu|nl|ch|se|es|it|kr|br)$/i.test(text.replace(/[/?#].*$/,'')));
+ if(!/^(?:https?:\/\/|www\.)\S+$/i.test(text)&&!bare){
   if(/^[a-z][a-z\d+.-]*:\/\//i.test(text))throw Error('URL_INVALID');
   return null;
  }
- let url:URL;try{url=new URL(/^www\./i.test(text)?'https://'+text:text);}catch{throw Error('URL_INVALID');}
+ let url:URL;try{url=new URL(/^www\./i.test(text)||bare?'https://'+text:text);}catch{throw Error('URL_INVALID');}
  if(!['http:','https:'].includes(url.protocol)||url.username||url.password||url.port&&!['80','443'].includes(url.port))throw Error('URL_INVALID');
  const host=url.hostname.toLowerCase();
  if(host==='localhost'||host.endsWith('.localhost')||host.endsWith('.local')||host.endsWith('.internal')||!host.includes('.')||isIP(host)&&!publicIPv4(host)||host.startsWith('['))throw Error('URL_PRIVATE');
  url.hash='';
  return url;
+}
+// The identity of a web page for matching: http and https, a leading "www.", a trailing slash and
+// tracking parameters do not make a different page.
+const TRACKING=/^(utm_[a-z]+|fbclid|gclid|dclid|msclkid|mc_cid|mc_eid|igshid|ref_src|_hsenc|_hsmi)$/i;
+const cleanQuery=(url:URL)=>{const params=[...url.searchParams].filter(([k])=>!TRACKING.test(k));return params.length?'?'+new URLSearchParams(params).toString():'';};
+export function urlIdentity(url:URL){
+ const host=url.hostname.toLowerCase().replace(/^www\./,''),path=url.pathname.replace(/\/+$/,'')||'/';
+ return host+path+cleanQuery(url);
+}
+// Keys under which a page made from this URL may have been saved (current and earlier formats).
+export function urlKeys(url:URL){
+ const keys=new Set(['url:'+urlIdentity(url)]),host=url.hostname.toLowerCase().replace(/^www\./,''),path=url.pathname.replace(/\/+$/,'');
+ for(const scheme of ['https://','http://'])for(const h of [host,'www.'+host])for(const p of [path||'/',path+'/'])for(const q of new Set([url.search,cleanQuery(url),'']))keys.add('url:'+scheme+h+p+q);
+ return [...keys];
 }
 export type FetchOptions={accept?:string;allowType?:(type:string)=>boolean;maxBytes?:number;referer?:string};
 const documentTypes=['text/html','application/xhtml+xml','text/plain','text/markdown','application/json','application/pdf'];

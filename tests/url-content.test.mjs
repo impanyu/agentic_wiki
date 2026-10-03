@@ -44,8 +44,8 @@ test('saved URL lookup reuses canonical identity with access checks and determin
  const url='https://example.org/Paper?a=1';
  add('public','bob','public',url,'2020');add('own','alice','private',url,'2021');add('later','alice','private',url,'2022');add('hidden','eve','private','https://example.org/secret','2019');
  let lookups=0;
- globalThis.urlMatching={sourceUrl:parsing.sourceUrl,database:()=>({prepare:sql=>({bind:(...args)=>({all:async()=>({results:db.prepare(sql).all(...args)})})})}),getPage:async(id,userId)=>{lookups++;return db.prepare("SELECT id,kind,question FROM pages WHERE id=? AND (visibility='public' OR owner_id=?)").get(id,userId)||null;}};
- const m=await load('const {sourceUrl,database,getPage}=globalThis.urlMatching;\n'+strip('app/url-content/matching.ts'));
+ globalThis.urlMatching={sourceUrl:parsing.sourceUrl,urlIdentity:parsing.urlIdentity,urlKeys:parsing.urlKeys,database:()=>({prepare:sql=>({bind:(...args)=>({all:async()=>({results:db.prepare(sql).all(...args)})})})}),getPage:async(id,userId)=>{lookups++;return db.prepare("SELECT id,kind,question FROM pages WHERE id=? AND (visibility='public' OR owner_id=?)").get(id,userId)||null;}};
+ const m=await load('const {sourceUrl,urlIdentity,urlKeys,database,getPage}=globalThis.urlMatching;\n'+strip('app/url-content/matching.ts'));
  assert.equal((await m.matchSourceUrl('https://EXAMPLE.org:443/Paper?a=1#section','alice')).id,'own');
  assert.equal((await m.matchSourceUrl(url,'alice')).id,'own');
  assert.equal((await m.matchSourceUrl(url,'visitor')).id,'public');
@@ -53,7 +53,10 @@ test('saved URL lookup reuses canonical identity with access checks and determin
  assert.equal(await m.matchSourceUrl('https://example.org/paper?a=1','alice'),null);
  assert.equal(await m.matchSourceUrl('https://example.org/Paper?a=2','alice'),null);
  assert.equal(await m.matchSourceUrl('ordinary question','alice'),null);
- assert.equal(lookups,3);
+ // http/https, www., a trailing slash and tracking parameters are the same page.
+ assert.equal((await m.matchSourceUrl('http://www.example.org/Paper/?a=1&utm_source=x','alice')).id,'own');
+ assert.equal((await m.matchSourceUrl('example.org/Paper?a=1','alice')).id,'own');
+ assert.equal(lookups,5);
  db.prepare("UPDATE pages SET visibility='private' WHERE id='public'").run();assert.equal(await m.matchSourceUrl(url,'visitor'),null);
  // A subject page that merely got the URL as an alias is not a page built from that URL.
  const wiki='https://en.wikipedia.org/wiki/Sandhills_(Nebraska)';

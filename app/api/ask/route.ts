@@ -6,6 +6,7 @@ import {storagePageMismatch} from '@/app/storage/page-scope';
 import {inheritGenerationSession} from '@/app/agents/session';
 import {attachContextFile} from '@/app/context-files/server';
 import {prepareNavigationInput} from '@/app/url-content';
+import {urlIdentity} from '@/app/url-content/fetch';
 import {matchSourceUrl} from '@/app/url-content/matching';
 import {generationProgress} from '@/app/generation-progress';
 import {ensurePageSession,rememberSessionRoutes} from '@/app/chat/session';
@@ -74,7 +75,7 @@ async function routeAnswer(request:Request,actor:Awaited<ReturnType<typeof getAc
   const requested=rootRoute.intent;
   const router=rootRouter,parameterRouter=rootRouter;context.agent=rootRouter;
   const destination=routingQuestion;
-  const originalKey=sourceDocument?'url:'+sourceDocument.url:normalize(question);
+  const originalKey=sourceDocument?'url:'+urlIdentity(new URL(sourceDocument.url)):normalize(question);
   const destinationKey=sourceDocument?originalKey:normalize(destination);
   // Queries without an existing URL binding use semantic matching.
   // All page types share this request’s embedding and one question pool.
