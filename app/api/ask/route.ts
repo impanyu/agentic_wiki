@@ -112,7 +112,9 @@ async function routeAnswer(request:Request,actor:Awaited<ReturnType<typeof getAc
    return id;
   }
 
-  let matched=fork?null:rootRoute.pageId;
+  // A pasted URL asks for a page made from that web page: only a page built from the same URL
+  // is reused, never a page that merely covers the same subject.
+  let matched=fork?null:sourceDocument?(await matchSourceUrl(question,uid))?.id||null:rootRoute.pageId;
   if(matched&&sourceDocument&&(await getPage(matched,uid))?.kind!=='static')matched=null;
   if(matched){const page=await resolvePage(matched);if(!page)return respond({error:'This page is no longer accessible. Please try again.'},404);await remember(page.id,page);const updated=await refreshMatchedPage(page,destination,requested?.fresh||false,uid,router);return respond({page:updated,reused:true,destination});}
   // One generator owns artifact selection after a routing miss.
