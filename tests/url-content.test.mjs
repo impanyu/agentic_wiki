@@ -44,7 +44,7 @@ test('saved URL lookup reuses canonical identity with access checks and determin
  const url='https://example.org/Paper?a=1';
  add('public','bob','public',url,'2020');add('own','alice','private',url,'2021');add('later','alice','private',url,'2022');add('hidden','eve','private','https://example.org/secret','2019');
  let lookups=0;
- globalThis.urlMatching={sourceUrl:parsing.sourceUrl,database:()=>({prepare:sql=>({bind:(...args)=>({all:async()=>({results:db.prepare(sql).all(...args)})})})}),getPage:async(id,userId)=>{lookups++;return db.prepare("SELECT id,kind FROM pages WHERE id=? AND (visibility='public' OR owner_id=?)").get(id,userId)||null;}};
+ globalThis.urlMatching={sourceUrl:parsing.sourceUrl,database:()=>({prepare:sql=>({bind:(...args)=>({all:async()=>({results:db.prepare(sql).all(...args)})})})}),getPage:async(id,userId)=>{lookups++;return db.prepare("SELECT id,kind,question FROM pages WHERE id=? AND (visibility='public' OR owner_id=?)").get(id,userId)||null;}};
  const m=await load('const {sourceUrl,database,getPage}=globalThis.urlMatching;\n'+strip('app/url-content/matching.ts'));
  assert.equal((await m.matchSourceUrl('https://EXAMPLE.org:443/Paper?a=1#section','alice')).id,'own');
  assert.equal((await m.matchSourceUrl(url,'alice')).id,'own');
@@ -55,6 +55,11 @@ test('saved URL lookup reuses canonical identity with access checks and determin
  assert.equal(await m.matchSourceUrl('ordinary question','alice'),null);
  assert.equal(lookups,3);
  db.prepare("UPDATE pages SET visibility='private' WHERE id='public'").run();assert.equal(await m.matchSourceUrl(url,'visitor'),null);
+ // A subject page that merely got the URL as an alias is not a page built from that URL.
+ const wiki='https://en.wikipedia.org/wiki/Sandhills_(Nebraska)';
+ db.prepare("INSERT INTO pages(id,owner_id,question,title,summary,body,category,sources,language,created_at,kind,visibility) VALUES('topic','alice','Nebraska Sandhills','Title','','','Web','[]','en','2023','static','private')").run();
+ db.prepare('INSERT INTO questions(id,page_id,normalized,question,embedding,created_at) VALUES(?,?,?,?,?,?)').run('topic-alias','topic','url:'+wiki,'Content summary','[1]','2023');
+ assert.equal(await m.matchSourceUrl(wiki,'alice'),null);
  db.close();
 });
 test('URL fast path precedes AI configuration and content reading, and explicit forks bypass it',()=>{
