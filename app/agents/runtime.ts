@@ -32,6 +32,7 @@ export async function runAgentResponse(agent:Agent,payload:Record<string,any>,si
  const toolbox=connected?await (await import('./tools')).applicationToolbox(agent,options.context,signal):null;
  if(toolbox){payload.tools=[...(payload.tools||[]),...toolbox.tools];payload.instructions+=' '+toolbox.instructions;}
  if(options.webSearch&&!payload.tools?.some((t:any)=>t.type==='web_search'))payload.tools=[...(payload.tools||[]),{type:'web_search'}];
+ if(payload.tools?.some((t:any)=>t.type==='web_search')&&!payload.include?.includes('web_search_call.action.sources'))payload.include=[...(payload.include||[]),'web_search_call.action.sources'];
  if(payload.tools)payload.tools=payload.tools.filter((t:any,i:number,all:any[])=>all.findIndex(x=>(x.name||x.type)===(t.name||t.type))===i);
  if(options.webSearch)payload.tool_choice=options.webSearch===true?'required':'auto';
  if(connected&&!/^(content|app)-generation$/.test(agent.role)&&/^gpt-(?:5\.4|5\.6)/.test(selected)){

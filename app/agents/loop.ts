@@ -1,6 +1,6 @@
 // Provider-independent Responses loop. Preserve every output item (including
 // reasoning items) and pair every function call with its own result.
-export type LoopEvent={kind:'started'|'tool_started'|'tool_finished'|'completed'|'failed'|'model_finished'|'validation_failed';data:unknown};
+export type LoopEvent={kind:'started'|'tool_started'|'tool_finished'|'completed'|'failed'|'model_finished'|'validation_failed'|'web_search';data:unknown};
 export type ToolResult={data:unknown;parts?:unknown[]};
 export async function runToolLoop(options:{
  payload:Record<string,any>;request:(payload:Record<string,any>)=>Promise<any>;
@@ -32,6 +32,8 @@ export async function runToolLoop(options:{
    signal?.throwIfAborted();
    if(response.status==='incomplete'||response.status==='failed')throw Error('AGENT_RESPONSE_INCOMPLETE');
    webSearched ||= !!response.output?.some((item:any)=>item.type==='web_search_call'&&item.status==='completed');
+   // The built-in search is recorded too (queries, opened pages, sources), so a run shows what it read.
+   for(const item of (response.output||[]).filter((i:any)=>i.type==='web_search_call'))await event?.({kind:'web_search',data:{status:item.status,action:item.action?{type:item.action.type,query:item.action.query,queries:item.action.queries,url:item.action.url,pattern:item.action.pattern,sources:(item.action.sources||[]).slice(0,12).map((x:any)=>x.url||x)}:undefined}});
    const calls=(response.output||[]).filter((item:any)=>item.type==='function_call');
    if(!calls.length&&options.validateFinal){const error=await options.validateFinal(response,{webSearched});if(error){validationFailures++;await event?.({kind:'validation_failed',data:{error}});if(limited||round===maxRounds||validationFailures>maxValidationRetries)throw Error('AGENT_INVALID_FINAL');payload.input.push(...(response.output||[]),{role:'user',content:'Draft validation failed: '+error+'. Correct the draft or use tools as needed. Return only a valid complete result.'});continue;}}
    if(!calls.length){await event?.({kind:'completed',data:{rounds:round+1,calls:callsUsed,status:waiting?'waiting_for_approval':limited?'limited':'completed'}});return {response,webSearched,limited,waiting};}
