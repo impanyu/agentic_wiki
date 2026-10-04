@@ -1,8 +1,8 @@
 import test from 'node:test';import assert from 'node:assert/strict';import {readFileSync} from 'node:fs';import ts from 'typescript';import {z} from 'zod';
 // Routing profiles: what each page covers or does, and the judge that decides reuse from them.
 let reply;const D={database:()=>null,api:async()=>({output:[{type:'message',content:[{type:'output_text',text:JSON.stringify(reply)}]}]}),cosine:()=>0};
-globalThis.__profiles={z,database:(...a)=>D.database(...a),getPage:async()=>null,model:()=>'m',api:(...a)=>D.api(...a),output:r=>r.output[0].content[0].text,cosine:(...a)=>D.cosine(...a),recordAction:async()=>{}};
-const m=await import('data:text/javascript;base64,'+Buffer.from(ts.transpile('const {z,database,getPage,model,api,output,cosine,recordAction}=globalThis.__profiles;\n'+readFileSync('app/routing/profiles.ts','utf8').replace(/^import .*;$/gm,''),{module:ts.ModuleKind.ESNext,target:ts.ScriptTarget.ES2022})).toString('base64'));
+globalThis.__profiles={z,normalize:t=>String(t).trim().toLowerCase(),database:(...a)=>D.database(...a),getPage:async(...a)=>D.getPage?D.getPage(...a):null,model:()=>'m',api:(...a)=>D.api(...a),output:r=>r.output[0].content[0].text,cosine:(...a)=>D.cosine(...a),recordAction:async()=>{}};
+const m=await import('data:text/javascript;base64,'+Buffer.from(ts.transpile('const {z,normalize,database,getPage,model,api,output,cosine,recordAction}=globalThis.__profiles;\n'+readFileSync('app/routing/profiles.ts','utf8').replace(/^import .*;$/gm,''),{module:ts.ModuleKind.ESNext,target:ts.ScriptTarget.ES2022})).toString('base64'));
 test('profiles describe wiki sections and app inputs',()=>{
  const wiki=m.profileText({title:'Nebraska Sandhills',summary:'Grass-stabilized dunes.',body:'## Landscape\ntext\n## Ecology\n### Birds',labels:'{}',dynamic_config:null,kind:'static',category:'Geography'});
  assert.match(wiki,/Nebraska Sandhills\nGrass-stabilized dunes\.\nSections: Landscape; Ecology; Birds\nCategory: Geography/);
@@ -34,4 +34,12 @@ test('profiles are built for accessible pages, refreshed when stale, and ranked 
   near=await m.nearestProfiles(vec('Prairie'),'en','alice');assert.equal(embedded,3);assert.equal(near[0].pageId,'pub');assert.match(near[0].profile,/Prairie birds of the Sandhills/);
   db.close?.();
  }finally{await rm(dir,{recursive:true,force:true});}
+});
+test('an index of meanings is never opened for one of its specific meanings',async()=>{
+ const index={id:'idx',question:'美国反对美国',title:'美国反对美国',labels:{templateId:'disambiguation-v1'}};
+ D.getPage=async()=>index;D.cosine=()=>0.7;D.database=()=>({prepare:sql=>({bind:()=>({all:async()=>({results:sql.includes('LEFT JOIN')?[]:[{id:'idx',title:'美国反对美国',kind:'static',is_index:1,profile:'Index',embedding:'[1]'}]}),first:async()=>null})}),batch:async()=>{}});
+ D.api=async()=>({output:[{type:'message',content:[{type:'output_text',text:JSON.stringify({candidate:'p1',sameSubject:true,coversScope:true,sameKind:true,hasDoubt:false,confidence:'high',reason:'entry'})}]}]});
+ assert.equal(await m.matchByProfile('《美国反对美国》：王沪宁1991年的著作',[1],'zh','u',{}),null);
+ assert.equal(await m.matchByProfile('美国反对美国',[1],'zh','u',{}),'idx');
+ D.getPage=undefined;
 });
