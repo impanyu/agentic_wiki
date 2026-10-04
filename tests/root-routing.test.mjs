@@ -12,7 +12,7 @@ test('one root routes matched wiki/apps, hands misses to the generator, and bypa
  mismatch=true;assert.equal((await m.resolveRootRoute('q',[1],'en','u',root)).pageId,null);assert.equal(classified,0);
  mismatch=false;match=null;assert.equal((await m.resolveRootRoute('q',[1],'en','u',root)).intent,null);assert.equal((await m.resolveRootRoute('q',[1],'en','u',root)).pageId,null);assert.equal(classified,0);
  const before=searches;await m.resolveRootRoute('q',[1],'en','u',root,undefined,true);assert.equal(searches,before);assert.equal(classified,0);
- assert.ok(calls.every(a=>a[4]===root&&a.length===6),'same root and no domain filter');delete globalThis.rootTest;
+ assert.ok(calls.every(a=>a[4]===root&&a.length===7),'same root and no domain filter');delete globalThis.rootTest;
 });
 test('navigation spawns no branch router and sends the root to parameter extraction and generation',()=>{
  const s=readFileSync('app/api/ask/route.ts','utf8');assert.match(s,/spawnAgent\('root-routing'/);assert.doesNotMatch(s,/spawnAgent\(domain|rememberRootRoute|importWikiRoutes/);assert.match(s,/parameterRouter=rootRouter/);assert.match(s,/context,plannedPageId:id,pendingFiles\},rootRouter,emit,signal/);

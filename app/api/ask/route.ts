@@ -49,6 +49,8 @@ async function routeAnswer(request:Request,actor:Awaited<ReturnType<typeof getAc
   if(typeof data.question!=='string'||!data.question.trim()&&!image||data.question.length>4000)return respond({error:'Enter between 1 and 4,000 characters.'},400);
   const uid=actor.userId;
   let question=data.question.trim();
+  // A link followed from a page never routes back to that page (no self-loop).
+  const fromPage=data.origin&&typeof data.origin==='object'&&typeof (data.origin as {pageId?:unknown}).pageId==='string'?(data.origin as {pageId:string}).pageId:undefined;
   if(data.origin){try{const routed=await contextualLinkQuestion(question,data.origin,uid,request.signal);if(routed!==question)rewritten=routed;question=routed;}catch(e){if(e instanceof Error&&/^(INVALID_LINK_CONTEXT|LINK_CONTEXT_CHANGED|LINK_CONTEXT_UNAVAILABLE)$/.test(e.message))return respond({error:'The linked text or source page is no longer available. Refresh the page and try again.'},400);throw e;}}
   let fork: {sourceId:string;requestId:string;groupId:string;createdAt:string}|undefined;
   if(data.fork){
@@ -59,7 +61,7 @@ async function routeAnswer(request:Request,actor:Awaited<ReturnType<typeof getAc
    const family=await database().prepare('SELECT group_id FROM page_forks WHERE page_id=?').bind(source.id).first<{group_id:string}>();
    fork={sourceId:source.id,requestId:data.fork.requestId,groupId:family?.group_id||source.id,createdAt:source.createdAt};
   }
-  if(!fork&&!image){const exact=await exactSavedQuestion(question,uid);if(exact)return respond({page:exact,reused:true,destination:question});}
+  if(!fork&&!image){const exact=await exactSavedQuestion(question,uid);if(exact&&exact.id!==fromPage)return respond({page:exact,reused:true,destination:question});}
   jobId=await startJob(uid,'navigation',question||'Image');
   if(!aiKey())return respond({error:'The AI connection is not configured yet.'},503);
   const {sourceDocument,routingQuestion,vector,language}=await prepareNavigationInput(question,request.signal,image);
@@ -75,7 +77,7 @@ async function routeAnswer(request:Request,actor:Awaited<ReturnType<typeof getAc
   }
   const context:AgentContext={userId:uid,ownerId:uid,language,visibility:'private',sourceDocument:sourceDocument||undefined};
   const rootRouter=await spawnAgent('root-routing',context.ownerId);
-  const rootRoute=await resolveRootRoute(routingQuestion,vector,language,uid,rootRouter,request.signal,!!fork);
+  const rootRoute=await resolveRootRoute(routingQuestion,vector,language,uid,rootRouter,request.signal,!!fork,fromPage);
   const requested=rootRoute.intent;
   const router=rootRouter,parameterRouter=rootRouter;context.agent=rootRouter;
   const destination=routingQuestion;
@@ -109,7 +111,7 @@ async function routeAnswer(request:Request,actor:Awaited<ReturnType<typeof getAc
   async function findMatch(signal?:AbortSignal){
    signal?.throwIfAborted();
    const id=(await exactSavedQuestion(destination,uid))?.id||null;
-   if(!id)return null;
+   if(!id||id===fromPage)return null;
    const stored=await getPage(id,uid),page=stored?registeredContextIndexPage(stored):stored;if(page?.labels.templateId==='disambiguation-v1')await requireValidIndex(uid,page.id,destination);
    if(!page)return null;
    if(storagePageMismatch(destination,page))return null;

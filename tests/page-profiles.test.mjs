@@ -43,3 +43,10 @@ test('an index of meanings is never opened for one of its specific meanings',asy
  assert.equal(await m.matchByProfile('美国反对美国',[1],'zh','u',{}),'idx');
  D.getPage=undefined;
 });
+test('the page a link was followed from is never the next hop',async()=>{
+ const page={id:'here',question:'X',title:'X',labels:{}};D.getPage=async id=>({...page,id});D.cosine=()=>0.9;
+ D.database=()=>({prepare:sql=>({bind:()=>({all:async()=>({results:sql.includes('LEFT JOIN')?[]:[{id:'here',title:'X',kind:'static',is_index:0,profile:'X',embedding:'[1]'},{id:'other',title:'Y',kind:'static',is_index:0,profile:'Y',embedding:'[1]'}]})})})});
+ let seen;D.api=async(_p,body)=>{seen=JSON.parse(body.input).candidates.length;return {output:[{type:'message',content:[{type:'output_text',text:JSON.stringify({candidate:'p1',sameSubject:true,coversScope:true,sameKind:true,hasDoubt:false,confidence:'high',reason:'r'})}]}]};};
+ assert.equal(await m.matchByProfile('X',[1],'en','u',{},undefined,'here'),'other');assert.equal(seen,1);
+ D.getPage=undefined;
+});

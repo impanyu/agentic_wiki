@@ -70,8 +70,9 @@ export async function judgeProfiles(request:string,candidates:ProfileCandidate[]
  return {pageId:confidence==='none'?null:candidates[index].pageId,confidence,reason:d.reason||''};
 }
 
-export async function matchByProfile(request:string,vector:number[],language:string,userId:string,agent:Agent,signal?:AbortSignal){
- const candidates=await nearestProfiles(vector,language,userId);
+export async function matchByProfile(request:string,vector:number[],language:string,userId:string,agent:Agent,signal?:AbortSignal,excludePageId?:string){
+ // The page a link was followed from is never a candidate: the next hop cannot be the current page.
+ const candidates=(await nearestProfiles(vector,language,userId,6)).filter(c=>c.pageId!==excludePageId).slice(0,5);
  const decision=await judgeProfiles(request,candidates,signal);
  await recordAction(agent,'Match nearest page profiles',{request:request.slice(0,600),candidates:candidates.map(c=>({pageId:c.pageId,title:c.title,score:Math.round(c.score*1000)/1000})),...decision});
  if(!decision.pageId)return null;
