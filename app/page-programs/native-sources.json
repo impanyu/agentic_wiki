@@ -1,0 +1,9 @@
+{
+ "arcgis-publisher":["app/arcgis-publisher/app.tsx","app/arcgis-publisher/style.css","app/arcgis-publisher/README.md"],
+ "adma-tools":["app/adma/processing-panel.tsx","app/adma/processing.css","app/adma/PROCESSING.md"],
+ "adma":["app/adma/app.tsx","app/adma/style.css"],
+ "unl-hcc":["app/hcc/app.tsx","app/hcc/style.css"],
+ "map":["app/geo/viewer.tsx","app/geo/style.css"],
+ "studio":["app/tools/workbench.tsx","app/tools/style.css","app/tools/README.md"],
+ "files":["app/storage/panel.tsx","app/context-files/panel.tsx"]
+}

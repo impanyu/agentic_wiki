@@ -16,6 +16,7 @@ import {env} from '@/server/runtime';import {z} from 'zod';
 import {database,getPage,lock,unlock} from '@/db/store';import {askAgent,type Agent} from '@/app/agents/runtime';
 import {getComponent,createComponent} from '@/app/components-registry/registry';import {composePageProgram} from './composer';import {sandboxStatus} from '@/app/sandboxes/service';
 import type {AnswerPage} from '@/app/page-types';import type {EditDraft} from '@/app/chat/edit-draft';import type {FilePart} from '@/app/context-files/server';
+import {reviewDraftCode,assertReviewed,checkFrontendSyntax} from './code-review';
 const bucket=()=>(env as unknown as {FILES:R2Bucket}).FILES;
 const path=(agent:Agent)=>'app-edit-drafts/'+agent.id+'.json';
 // config is null when a replacement turns the page back into a static article.
@@ -81,7 +82,7 @@ export async function stageAppRevision(page:AnswerPage,raw:unknown,agent:Agent,r
    if(!config.pageCode)throw Error('This page has no saved custom code panel to remove.');
    const {pageCode:_removed,...rest}=config;config=rest as typeof config;body='Remove the custom frontend code panel and restore the native workspace';
   }
-  else{const check=await import('@/app/sandboxes/syntax-check').catch(()=>null);try{new Script(change.code.frontend.javascript);}catch(e){throw Error('Frontend JavaScript syntax error: '+(check?.javascriptSyntaxDiagnosis(change.code.frontend.javascript)||(e instanceof Error?e.message:'Invalid JavaScript')));}config={...config,pageCode:change.code,customized:true};body='Frontend code ('+change.code.placement+')';}
+  else{await checkFrontendSyntax(change.code.frontend);await assertReviewed(change.code.frontend);config={...config,pageCode:change.code,customized:true};body='Frontend code ('+change.code.placement+')';}
  }
  else if(change.kind==='content'){
   if(change.title===undefined&&change.summary===undefined&&change.body===undefined&&change.sources===undefined&&change.category===undefined)throw Error('A content edit needs a title, summary, body, sources or category.');
@@ -103,7 +104,7 @@ export async function stageAppRevision(page:AnswerPage,raw:unknown,agent:Agent,r
   const {validateGenerationDraft,materializeGenerationDraft}=await import('./generation-draft');
   const context={pageId:page.id,userId:agent.ownerId,ownerId:agent.ownerId,language:page.language,visibility:'private' as const,agent};
   const {withPageDefaults}=await import('./draft-defaults');
-  const draft=validateGenerationDraft(withPageDefaults(change.draft,page) as any,page.question||page.title,context,true),result=await materializeGenerationDraft(draft,context);
+  const draft=validateGenerationDraft(withPageDefaults(change.draft,page) as any,page.question||page.title,context,true);await reviewDraftCode(draft as any);const result=await materializeGenerationDraft(draft,context);
   title=draft.title;summary=draft.summary;templateId=result.templateId;pageBody=draft.body;body=draft.program?.code||draft.body||draft.summary;sources=draft.sources;category=draft.category;
   if(result.definition){config={...result.definition.config,customized:true,contextDomain:page.dynamic?.contextDomain};pageKind='dynamic';}
   else{

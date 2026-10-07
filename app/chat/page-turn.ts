@@ -31,6 +31,7 @@ import {parametersSchema} from '@/app/components-registry/contracts';
 import {validateGenerationDraft} from '@/app/page-programs/generation-draft';
 import {runProgram} from '@/app/sandboxes/service';
 import {codeSchema} from '@/app/sandboxes/contracts';
+import {reviewDraftCode} from '@/app/page-programs/code-review';
 
 // The page chat turn, shared by the chat route and the page's live maintenance agent.
 export async function session(request:Request,pageId:string,providedActor?:Awaited<ReturnType<typeof getActor>>){
@@ -79,7 +80,7 @@ export async function handlePost(request:Request,{params}:{params:Promise<{id:st
     if(name==='verify_app'){lastTests=verifyTestsSchema.parse(JSON.parse(String(args.testsJson||'[]')));return {data:await verifyCurrentApp(live,s.agent,data.message||'',lastTests)};}
     if(name==='propose_app_revision'){try{const staged=await stageAppRevision(live,parseToolJson(args.changeJson,'changeJson'),s.agent,data.message||'',lastTests);proposalFailed=false;return {data:staged};}catch(e){proposalFailed=true;lastRejection=e instanceof Error?e.message.slice(0,1500):'rejected';throw e;}}
     if(name==='discard_app_revision'){await discardAppDraft(s.agent);return {data:{discarded:true}};}
-    if(name==='validate_page_draft'){try{validateGenerationDraft(withPageDefaults(parseToolJson(args.draftJson,'draftJson'),live),live.question||live.title,{pageId:live.id,userId:s.userId,ownerId:s.userId,language:live.language,visibility:'private',agent:s.agent},true);return {data:{valid:true,note:'Structural validation only; factual claims still require consulted evidence.'}};}catch(e){return {data:{valid:false,error:e instanceof Error?e.message:'Invalid draft'}};}}
+    if(name==='validate_page_draft'){try{const checkedDraft=validateGenerationDraft(withPageDefaults(parseToolJson(args.draftJson,'draftJson'),live),live.question||live.title,{pageId:live.id,userId:s.userId,ownerId:s.userId,language:live.language,visibility:'private',agent:s.agent},true);await reviewDraftCode(checkedDraft as any);return {data:{valid:true,note:'Structural validation only; factual claims still require consulted evidence.'}};}catch(e){return {data:{valid:false,error:e instanceof Error?e.message:'Invalid draft'}};}}
     if(name==='test_page_program')return {data:await runProgram(codeSchema.parse(parseToolJson(args.programJson,'programJson')),parseToolJson(args.inputJson,'inputJson'),{userId:s.userId,agent:s.agent})};
     throw Error('Unknown page action.');
    }

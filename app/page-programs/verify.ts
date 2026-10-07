@@ -83,12 +83,14 @@ export async function verifyApp(target:VerifyTarget,ctx:{userId:string;agent?:Ag
    try{
     const {chromium}=await import('playwright-core');
     browser=await chromium.launch({executablePath,headless:true,args:['--disable-dev-shm-usage','--no-first-run','--disable-gpu']});
-    const html=sandboxDocument(target.frontend.frontend);
+    const html=sandboxDocument(target.frontend.frontend,'https://app.verify.invalid');
     const bridge=async(name:string,args:Record<string,unknown>)=>{
      if(name==='run_page'){
       if(!target.program)return {error:'This page has no backend program; pageTools.run is unavailable.'};
       try{const extra=Object.fromEntries(Object.entries({submitted:args.submitted===true?true:undefined,message:typeof args.message==='string'&&args.message?args.message:undefined,parent:typeof args.parent==='string'?args.parent:undefined,cursor:typeof args.cursor==='string'?args.cursor:undefined}).filter(([,v])=>v!==undefined));const r=await runBackend(typeof args.query==='string'?args.query:'',args.values&&typeof args.values==='object'?args.values as Record<string,unknown>:{},extra);return {result:{view:r.view,runtimeError:null,proposals:[]}};}catch(e){return {result:{view:null,runtimeError:'The page program could not finish: '+(e instanceof Error?e.message.slice(0,300):'error'),proposals:[]}};}
      }
+     if(name==='upload_page_file')return {result:{skipped:true,verification:'Uploads need a file the user chooses; not executed during verification.'}};
+     try{const {checkAppTool}=await import('./app-tool-policy');await checkAppTool(ctx.userId,name,args);}catch(e){return {error:e instanceof Error?e.message:'Tool unavailable.'};}
      if(!ctx.agent)return {result:{skipped:true,verification:'Workspace tools are not available while verifying a new draft.'}};
      if(name==='call_connector'){const id=String(args.connectorId||''),tool=String(args.tool||'');if(!await connectorCallIsAutomatic(ctx.userId,id,tool))return {result:{skipped:true,verification:'This connector call needs the user’s approval and was not executed during verification.'}};}
      else if(!['list_connectors','browse_resources','list_page_files','read_uploaded_file','search_components'].includes(name))return {result:{skipped:true,verification:'Not executed during verification: '+name+' may change data.'}};
@@ -103,7 +105,11 @@ export async function verifyApp(target:VerifyTarget,ctx:{userId:string;agent?:Ag
      // The generated page talks to its parent; here the page is top-level, so parent is itself.
      await page.addInitScript(()=>{window.addEventListener('message',async e=>{const d=e.data;if(!d||d.type!=='page-tool-call')return;const r=await (window as any).__verifyTool(d.name,d.args);window.postMessage({type:'page-tool-result',id:d.id,...r},'*');});});
      // A real navigation (not setContent) so the init script and bridge are installed; nothing leaves the machine.
-     await page.route('**/*',(r:any)=>r.request().url().startsWith('https://app.verify.invalid/')?r.fulfill({status:200,contentType:'text/html; charset=utf-8',body:html}):r.abort());
+     // Libraries and tiles are served in-process from the same proxies the live site uses.
+     await page.route('**/*',async(r:any)=>{const url=new URL(r.request().url());if(url.origin!=='https://app.verify.invalid')return r.abort();
+      try{if(url.pathname.startsWith('/api/app-libs/npm/')){const {libraryFile,libraryHeaders}=await import('@/app/app-libs/proxy');const f=await libraryFile(decodeURIComponent(url.pathname.slice('/api/app-libs/npm/'.length)));return r.fulfill({status:f.status,headers:libraryHeaders(f.type,f.status===200),body:Buffer.from(f.bytes)});}
+       if(url.pathname.startsWith('/api/app-tiles/')){const {tileFile}=await import('@/app/app-libs/tiles');const t=await tileFile(url.pathname.slice('/api/app-tiles/'.length).split('/'));return t?r.fulfill({status:t.status,contentType:t.type,body:Buffer.from(t.bytes)}):r.fulfill({status:404,body:''});}}catch{return r.fulfill({status:502,body:''});}
+      return url.pathname==='/'?r.fulfill({status:200,contentType:'text/html; charset=utf-8',body:html}):r.fulfill({status:404,body:''});});
      await page.goto('https://app.verify.invalid/',{waitUntil:'load',timeout:20000});
      const settle=async()=>{const deadline=Date.now()+75000;while(Date.now()<deadline){await page.waitForTimeout(300);if(inflight===0&&Date.now()-lastActivity>1200)break;}};
      await settle();
