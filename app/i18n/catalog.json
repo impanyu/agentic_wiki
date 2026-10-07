@@ -981,5 +981,13 @@
   "Ask about this image (optional)": "Ask about this image (optional)",
   "Search with an image": "Search with an image",
   "Search with an image (or paste / drop one here)": "Search with an image (or paste / drop one here)",
-  "This image could not be opened.": "This image could not be opened."
+  "This image could not be opened.": "This image could not be opened.",
+  "Several shapefiles were selected. Choose the files of one shapefile (or one folder per shapefile).": "Several shapefiles were selected. Choose the files of one shapefile (or one folder per shapefile).",
+  "The shapefile is incomplete. Also select": "The shapefile is incomplete. Also select",
+  "(select all its files together, or choose its folder).": "(select all its files together, or choose its folder).",
+  "Choose one GIS file, or the files of one shapefile.": "Choose one GIS file, or the files of one shapefile.",
+  "Or upload local files to Page files": "Or upload local files to Page files",
+  "Or choose a local shapefile folder": "Or choose a local shapefile folder",
+  "GeoJSON, coordinate CSV/TSV, or a shapefile: select its .shp with the companion files (.shx, .dbf, .prj…), its folder, or a ZIP — it is packaged automatically. Up to 10 MB.": "GeoJSON, coordinate CSV/TSV, or a shapefile: select its .shp with the companion files (.shx, .dbf, .prj…), its folder, or a ZIP — it is packaged automatically. Up to 10 MB.",
+  "Choose one GIS file, a .shp file, or the folder containing a shapefile.": "Choose one GIS file, a .shp file, or the folder containing a shapefile."
 }

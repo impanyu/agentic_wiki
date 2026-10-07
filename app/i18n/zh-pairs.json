@@ -720,5 +720,14 @@
   "Ask about this image (optional)": "关于这张图片想问什么（可不填）",
   "Search with an image": "用图片搜索",
   "Search with an image (or paste / drop one here)": "用图片搜索（也可以直接粘贴或拖入图片）",
-  "This image could not be opened.": "无法打开这张图片。"
+  "This image could not be opened.": "无法打开这张图片。",
+  "Several shapefiles were selected. Choose the files of one shapefile (or one folder per shapefile).": "选中了多个 shapefile。请只选一个 shapefile 的文件（或只含一个 shapefile 的文件夹）。",
+  "The shapefile is incomplete. Also select": "shapefile 不完整，还需要选上",
+  "(select all its files together, or choose its folder).": "（请一起选中它的所有文件，或直接选择它所在的文件夹）。",
+  "Choose one GIS file, or the files of one shapefile.": "请选择一个 GIS 文件，或一个 shapefile 的全部文件。",
+  "Choose a file up to 10 MB.": "请选择 10 MB 以内的文件。",
+  "Or upload local files to Page files": "或上传本地文件到 Page files",
+  "Or choose a local shapefile folder": "或选择本地的 shapefile 文件夹",
+  "GeoJSON, coordinate CSV/TSV, or a shapefile: select its .shp with the companion files (.shx, .dbf, .prj…), its folder, or a ZIP — it is packaged automatically. Up to 10 MB.": "支持 GeoJSON、带坐标的 CSV/TSV，或 shapefile：选中 .shp 及其配套文件（.shx、.dbf、.prj…）、它所在的文件夹或 ZIP 均可，会自动打包。最大 10 MB。",
+  "Choose one GIS file, a .shp file, or the folder containing a shapefile.": "请选择一个 GIS 文件、一个 .shp 文件，或包含 shapefile 的文件夹。"
 }
