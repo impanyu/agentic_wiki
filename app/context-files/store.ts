@@ -38,3 +38,15 @@ export async function storePageTextFile(pageId:string,userId:string,rawName:stri
  let fileId:string;if(pending){fileId=crypto.randomUUID();pending.push({fileId,componentId:component.id,folder:folderPath(folder)});}else fileId=await attachContextFile(pageId,component.id,userId,folderPath(folder));
  return {fileId,name,mimeType,size:bytes.byteLength,url:'/api/pages/'+pageId+'/files/'+fileId+'?inline=1'};
 }
+// Stores bytes a workflow produced (a zip, a converted file) as an ordinary page file.
+export async function storePageBinaryFile(pageId:string,userId:string,rawName:string,bytes:Uint8Array,language:string,folder='',mimeType='application/octet-stream'){
+ const files=(env as unknown as {FILES?:R2Bucket}).FILES;if(!files)throw Error('File storage is unavailable.');
+ const name=rawName.replace(/[\u0000-\u001f/\\]/g,'_').trim().slice(0,250);if(!name)throw Error('The file needs a name.');
+ if(bytes.byteLength>10*1024*1024)throw Error('Files up to 10 MB.');
+ const key='uploads/'+crypto.randomUUID();await files.put(key,bytes,{httpMetadata:{contentType:mimeType}});
+ const context={userId,ownerId:userId,language,visibility:'private' as const},extension=name.includes('.')?name.split('.').pop()!.toLowerCase():'binary';
+ const component=await createComponent(name+' — '+key.split('/')[1],'data',{kind:'data-reference',location:'r2://FILES/'+key,fileName:name,mimeType,size:bytes.byteLength,format:extension,description:'Workflow output: '+name},context);
+ await rememberComponent(name,component,context);
+ const fileId=await attachContextFile(pageId,component.id,userId,folderPath(folder));
+ return {space:'page' as const,id:fileId,kind:'file' as const,name,size:bytes.byteLength,url:'/api/pages/'+pageId+'/files/'+fileId};
+}

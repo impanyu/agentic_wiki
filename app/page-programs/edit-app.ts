@@ -3,7 +3,7 @@ import {keepOriginal,recordVersion} from '@/app/versions/service';
 import {chartBlockErrors} from '@/app/components-registry/chart-contracts';
 import {unreachableImages} from '@/app/chat/image-check';
 import {pageCodeSchema,pageCodeContract} from './page-code';
-import {verifyApp,verificationText,type VerifyTests} from './verify';
+import {verifyApp,verificationText,verifyTestsSchema} from './verify';
 import {runProgramLoop} from './runtime';
 import {sandboxContextFiles} from '@/app/context-files/server';
 import {codeSchema} from '@/app/sandboxes/contracts';
@@ -17,6 +17,9 @@ import {database,getPage,lock,unlock} from '@/db/store';import {askAgent,type Ag
 import {getComponent,createComponent} from '@/app/components-registry/registry';import {composePageProgram} from './composer';import {sandboxStatus} from '@/app/sandboxes/service';
 import type {AnswerPage} from '@/app/page-types';import type {EditDraft} from '@/app/chat/edit-draft';import type {FilePart} from '@/app/context-files/server';
 import {reviewDraftCode,assertReviewed,checkFrontendSyntax} from './code-review';
+import {assertWorkflow} from '@/app/workflows/validate';
+import {applyPatch} from '@/app/workflows/patch';
+import {verifyWorkflow,workflowReportText,workflowTestsSchema} from '@/app/workflows/verify';
 const bucket=()=>(env as unknown as {FILES:R2Bucket}).FILES;
 const path=(agent:Agent)=>'app-edit-drafts/'+agent.id+'.json';
 // config is null when a replacement turns the page back into a static article.
@@ -29,7 +32,7 @@ export function appEditCapabilities(page:AnswerPage){
  return {appearance:true,agentBehavior:true,configurable,frontendCode:pageCodeContract,content:'{kind:"content",title?,summary?,body?,sources?,category?} edits the page title, summary, Markdown body, source list and category in place',backendProgram:page.dynamic?.template==='page-program-v1'?'{kind:"program",program:{kind:"sandbox-program",language:"javascript"|"python",code},inputFields?} replaces only the saved backend program; the pre-coded renderer and other components stay':'this page has no backend program; use a replacement draft with kind=program to add one',replacement:'supported; preserve unrelated functionality'};
 }
 async function stored(agent:Agent,pageId:string){const object=await bucket().get(path(agent));if(!object)return null;const draft=await object.json<Draft>();return draft.ownerId===agent.ownerId&&draft.pageId===pageId?draft:null;}
-const preview=(draft:Draft):EditDraft=>({id:draft.id,title:draft.title,summary:draft.summary,body:draft.body,pageCode:draft.config?.pageCode});
+const preview=(draft:Draft):EditDraft=>({id:draft.id,title:draft.title,summary:draft.summary,body:draft.body,pageCode:draft.config?.pageCode,workflow:draft.config?.workflow});
 // Lets an unsaved proposal's custom UI call the proposed backend in the chat preview.
 // Runs in verification mode: writes and approval-gated calls are skipped, nothing is saved.
 export async function previewRun(page:AnswerPage,agent:Agent,draftId:string,input:{query?:string;values?:Record<string,unknown>;submitted?:true;message?:string;parent?:string;cursor?:string}){
@@ -39,22 +42,25 @@ export async function previewRun(page:AnswerPage,agent:Agent,draftId:string,inpu
  try{const r=await runProgramLoop(program,{query:input.query||'',values:input.values||{},...(input.submitted?{submitted:true}:{}),...(input.message?{message:input.message}:{}),...(input.parent!==undefined?{parent:input.parent}:{}),...(input.cursor!==undefined?{cursor:input.cursor}:{}),files:files.metadata},agent.ownerId,page.id,files.uploads,{verification:true});return {view:r.view,runtimeError:null,proposals:[],preview:true};}
  catch(e){return {view:null,runtimeError:'The proposed program could not finish: '+(e instanceof Error?e.message.slice(0,300):'error'),proposals:[],preview:true};}
 }
+// The workflow of the caller's own unsaved proposal, for its live preview.
+export async function draftWorkflow(page:AnswerPage,agent:Agent,draftId:string){const draft=await stored(agent,page.id);if(!draft||draft.saved||draft.id!==draftId)throw Error('This preview is no longer available.');return draft.config?.workflow;}
 export async function readAppDraft(agent:Agent,pageId:string){const draft=await stored(agent,pageId);return draft&&!draft.saved?preview(draft):null;}
 export async function discardAppDraft(agent:Agent){await bucket().delete(path(agent));}
 // Runs the saved or proposed app configuration the way readers will: backend program plus custom frontend.
-async function verifyConfig(page:AnswerPage,config:NonNullable<AnswerPage['dynamic']>|null,agent:Agent,request:string,tests:VerifyTests){
+async function verifyConfig(page:AnswerPage,config:NonNullable<AnswerPage['dynamic']>|null,agent:Agent,request:string,tests:unknown):Promise<{passed:boolean;text:string}|null>{
+ if(config?.template==='workflow-app-v1'&&config.workflow){const parsed=workflowTestsSchema.safeParse(tests);const r=await verifyWorkflow(config.workflow,{request:request||page.question||page.title,title:page.title,pageId:page.id,language:page.language},{userId:agent.ownerId},parsed.success?parsed.data:[]);return {passed:r.passed,text:workflowReportText(r)};}
  const backendRef=config?.template==='page-program-v1'?config.components?.backend:undefined;
  if(!backendRef&&!config?.pageCode)return null;
  const program=backendRef?JSON.parse((await getComponent(backendRef,{userId:agent.ownerId},'backend_code')).payload):null;
- return verifyApp({request:request||page.question||page.title,title:page.title,program,templateId:page.labels.templateId,frontend:config?.pageCode||null,tests,pageId:page.id},{userId:agent.ownerId,agent});
+ const legacy=verifyTestsSchema.safeParse(tests);const r=await verifyApp({request:request||page.question||page.title,title:page.title,program,templateId:page.labels.templateId,frontend:config?.pageCode||null,tests:legacy.success?legacy.data:[],pageId:page.id},{userId:agent.ownerId,agent});return {passed:r.passed,text:verificationText(r)};
 }
 // verify_app for the in-page agent: the unsaved proposal when there is one, otherwise the live page.
-export async function verifyCurrentApp(page:AnswerPage,agent:Agent,request:string,tests:VerifyTests){
+export async function verifyCurrentApp(page:AnswerPage,agent:Agent,request:string,tests:unknown){
  const pending=await stored(agent,page.id),config=pending&&!pending.saved?pending.config:page.dynamic||null;
  const report=await verifyConfig(page,config,agent,request,tests);
- return report?{target:pending&&!pending.saved?'unsaved proposal':'saved page',...JSON.parse(verificationText(report))}:{skipped:'This page has no backend program or custom frontend to run.'};
+ return report?{target:pending&&!pending.saved?'unsaved proposal':'saved page',...JSON.parse(report.text)}:{skipped:'This page has no workflow (or legacy program) to run.'};
 }
-export async function stageAppRevision(page:AnswerPage,raw:unknown,agent:Agent,request='',tests:VerifyTests=[]){
+export async function stageAppRevision(page:AnswerPage,raw:unknown,agent:Agent,request='',tests:unknown=[]){
  if(!canWritePage(page))throw Error('PAGE_READ_ONLY');
  page=registeredAdmaPage(page);
  // Consecutive proposals in one conversation build on the unsaved draft instead of
@@ -68,7 +74,9 @@ export async function stageAppRevision(page:AnswerPage,raw:unknown,agent:Agent,r
   z.object({kind:z.literal('configuration'),mapBasemap:z.enum(basemaps)}).strict(),
   z.object({kind:z.literal('content'),title:z.string().trim().min(1).max(200).optional(),summary:z.string().max(1200).optional(),body:z.string().max(40000).optional(),sources:z.array(z.object({title:z.string().trim().min(1).max(300),url:z.string().url().max(2000)}).strict()).max(60).optional(),category:z.string().trim().max(100).optional()}).strict(),
   z.object({kind:z.literal('program'),program:codeSchema,inputFields:inputFieldsSchema.optional()}).strict(),
-  z.object({kind:z.literal('replacement'),draft:z.unknown()}).strict()
+  z.object({kind:z.literal('replacement'),draft:z.unknown()}).strict(),
+  z.object({kind:z.literal('workflow'),workflow:z.unknown()}).strict(),
+  z.object({kind:z.literal('workflow_patch'),patch:z.array(z.object({op:z.enum(['add','replace','remove']),path:z.string().max(300),value:z.unknown().optional()}).strict()).min(1).max(60)}).strict()
  ]).parse(raw);
  let config:NonNullable<AnswerPage['dynamic']>=page.dynamic||{template:'agent-chat-v1',executor:'page-agent-v1',version:1,labels:page.labels as any},title=page.title,summary=page.summary,body='',templateId=page.labels.templateId,pageBody=page.body;
  let pageKind:'static'|'dynamic'=page.kind==='static'?'static':'dynamic',nextConfig:NonNullable<AnswerPage['dynamic']>|null|undefined,sources=page.sources,category=page.category,extraLabels:Record<string,unknown>={};
@@ -82,7 +90,7 @@ export async function stageAppRevision(page:AnswerPage,raw:unknown,agent:Agent,r
    if(!config.pageCode)throw Error('This page has no saved custom code panel to remove.');
    const {pageCode:_removed,...rest}=config;config=rest as typeof config;body='Remove the custom frontend code panel and restore the native workspace';
   }
-  else{await checkFrontendSyntax(change.code.frontend);await assertReviewed(change.code.frontend);config={...config,pageCode:change.code,customized:true};body='Frontend code ('+change.code.placement+')';}
+  else{throw Error('Custom frontend code is no longer accepted. Build the interface as a workflow: propose {kind:"workflow",workflow} (read_generation_contract kind=workflow), or {kind:"code",code:null} to remove an old code panel.');}
  }
  else if(change.kind==='content'){
   if(change.title===undefined&&change.summary===undefined&&change.body===undefined&&change.sources===undefined&&change.category===undefined)throw Error('A content edit needs a title, summary, body, sources or category.');
@@ -90,11 +98,14 @@ export async function stageAppRevision(page:AnswerPage,raw:unknown,agent:Agent,r
   title=change.title??title;summary=change.summary??summary;pageBody=change.body!==undefined?change.body.split('\n').map(line=>line.replace(/^(!\[[^\]]*\]\()\s*([^\s)]+)\s*\)\s*$/,'$1$2)')).join('\n'):pageBody;if(change.body!==undefined){const charts=chartBlockErrors(change.body);if(charts.length)throw Error(charts.join(' ')+' Fix the chart JSON (or remove the block) and propose again.');const broken=await unreachableImages(change.body);if(broken.length)throw Error('These image URLs do not serve an image and would render as gaps: '+broken.join(', ')+'. If the host blocks direct embedding, copy the image into Page files with import_image and embed that url; otherwise use find_images or a page file, one image per line as ![caption](url).');}body=[change.title!==undefined?'title':'',change.summary!==undefined?'summary':'',change.body!==undefined?'body':'',change.sources!==undefined?'sources':'',change.category!==undefined?'category':''].filter(Boolean).join(', ')+' updated';
  }
  else if(change.kind==='program'){
-  if(config.template!=='page-program-v1')throw Error('This page has no backend program to edit. Propose a replacement draft with kind=program to give it one.');
-  // Backend programs are ES modules; strip export keywords so the classic-script syntax check applies.
-  if(change.program.language==='javascript'){const check=await import('@/app/sandboxes/syntax-check').catch(()=>null);try{new Script(change.program.code.replace(/^\s*export\s+(?:default\s+)?/gm,''));}catch(e){throw Error('Backend JavaScript syntax error: '+(check?.javascriptSyntaxDiagnosis(change.program.code)||(e instanceof Error?e.message:'Invalid JavaScript')));}}
-  const backend=await createComponent(page.title+' — page view program','backend_code',change.program,{pageId:page.id,userId:agent.ownerId,ownerId:agent.ownerId,language:page.language,visibility:'private',agent});
-  config={...config,components:{...config.components,frontend:config.components?.frontend as NonNullable<NonNullable<typeof config.components>['frontend']>,backend:{id:backend.id,version:backend.version}},...(change.inputFields?{inputFields:change.inputFields}:{}),customized:true};body=change.program.code;
+  throw Error('Backend programs are no longer accepted. Convert this app to a workflow: propose {kind:"workflow",workflow} built from the platform\u2019s components and tools (read_generation_contract kind=workflow), keeping the features the page has.');
+ }
+ else if(change.kind==='workflow'||change.kind==='workflow_patch'){
+  const next=change.kind==='workflow'?change.workflow:applyPatch(config.workflow,change.patch);
+  if(change.kind==='workflow_patch'&&!config.workflow)throw Error('This page has no workflow yet; propose {kind:"workflow",workflow} with the complete app first.');
+  const {workflow}=assertWorkflow(next);
+  const {pageCode:_code,components:_components,inputFields:_fields,nativeApp:_native,...rest}=config as typeof config&{nativeApp?:unknown};
+  config={...rest,template:'workflow-app-v1',executor:'workflow-v1',workflow,customized:true} as typeof config;pageKind='dynamic';if(page.kind==='static')templateId='chat-v1';body=change.kind==='workflow'?'Workflow app':'Workflow changes: '+change.patch.map(p=>p.op+' '+p.path).join(', ');
  }
  else if(change.kind==='configuration'){
   config={...config,ui:{...config.ui,mapBasemap:change.mapBasemap}};body='Map basemap: '+change.mapBasemap;
@@ -117,10 +128,10 @@ export async function stageAppRevision(page:AnswerPage,raw:unknown,agent:Agent,r
  if(JSON.stringify([pageKind,title,summary,pageBody,savedConfig,templateId,sources,category])===JSON.stringify([page.kind==='static'?'static':'dynamic',page.title,page.summary,page.body,page.dynamic,page.labels.templateId,page.sources,page.category]))throw Error('This proposal does not change any saved, renderable page property.');
  // Code changes are proposed only after they run: the backend loop and the rendered frontend must pass.
  let verification:unknown;
- if(['code','program','replacement'].includes(change.kind)&&savedConfig&&(change.kind!=='code'||change.code)){
+ if(['code','program','replacement','workflow','workflow_patch'].includes(change.kind)&&savedConfig&&(change.kind!=='code'||change.code)){
   const report=await verifyConfig({...page,labels:{...page.labels,templateId}},savedConfig,agent,request,tests);
-  if(report&&!report.passed)throw Error('This revision failed verification and was not proposed. Fix every blocking item and propose again (verify_app lets you iterate without proposing). Report: '+verificationText(report));
-  if(report)verification=JSON.parse(verificationText(report));
+  if(report&&!report.passed)throw Error('This revision failed verification and was not proposed. Fix every blocking item and propose again (verify_app lets you iterate without proposing). Report: '+report.text);
+  if(report)verification=JSON.parse(report.text);
  }
  const draft:Draft={id:crypto.randomUUID(),ownerId:agent.ownerId,pageId:page.id,base:revision(saved),title,summary,body,pageBody,config:savedConfig,kind:pageKind,sources,category,labels:extraLabels,templateId};
  await bucket().put(path(agent),JSON.stringify(draft));return {editDraft:preview(draft),saved:false,...(verification?{verification}:{})};

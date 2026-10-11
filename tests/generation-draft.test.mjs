@@ -9,7 +9,7 @@ const contracts=await load('const z=globalThis.draftZod;\n'+strip(files[4]));con
 const scope=await load(strip('app/storage/page-scope.ts'));
 const frontend=await load('const z=globalThis.draftZod;\n'+strip('app/components-registry/sandbox-contracts.ts'));
 globalThis.draftFrontend=frontend;const pageCode=await load('const z=globalThis.draftZod;const {sandboxSchema,sandboxShape,sandboxSizeCheck}=globalThis.draftFrontend;\n'+strip('app/page-programs/page-code.ts'));
-globalThis.draftDeps={z,...frontend,...pageCode,requestsDataResult:scope.requestsDataResult,...style,...contracts,...chart,...sandbox,...index,...inputs,namedConnectors:q=>/adma/i.test(q)?['adma']:[],pageStorageProviders:q=>/adma/i.test(q)?[]:['google'],sandboxStatus:()=>({configured:true,allowed:true})};
+globalThis.draftDeps={z,...frontend,...pageCode,requestsDataResult:scope.requestsDataResult,...style,...contracts,...chart,...sandbox,...index,...inputs,namedConnectors:q=>/adma/i.test(q)?['adma']:[],pageStorageProviders:q=>/adma/i.test(q)?[]:['google'],sandboxStatus:()=>({configured:true,allowed:true}),assertWorkflow:w=>({workflow:{...w,checked:true}})};
 const m=await load('const {'+Object.keys(globalThis.draftDeps).join(',')+'}=globalThis.draftDeps;\n'+strip(files[8]));
 const intent={subject:'Topic',subjectType:'concept',goal:'Understand it',explicitConstraints:[],assumptions:[],uncertainties:[],mustCover:['Explain'],sourceRequirements:[],outputKind:'article',service:'none',fresh:false,needsDisambiguation:false,singleMeaningCertain:true,interpretations:['Topic']};
 const base={kind:'article',title:'Topic',summary:'Summary',body:'A substantive article with verified sources explaining the requested subject in enough detail for a useful introduction.[1]',sources:[{title:'Source',url:'https://example.org/topic'}],labels:{overview:'Overview',invalid:'Try again'},intent};
@@ -61,11 +61,13 @@ test('paper articles reuse the pre-coded reader while remaining editable static 
  assert.equal(result.templateId,'paper-v1');assert.equal(result.definition,undefined);
 });
 
-test('static articles accept isolated frontend interaction without a backend program',()=>{
+test('free frontend code is no longer accepted; apps are workflows',()=>{
  const interactive={kind:'sandbox-app',html:'<button>Explore</button>',css:'',javascript:'document.querySelector("button").onclick=()=>{}',height:400};
- const draft=m.validateGenerationDraft({...base,interactive},'Explain with an interactive example',ctx,true);
- assert.equal(draft.kind,'article');assert.equal(draft.interactive.javascript,interactive.javascript);assert.equal(draft.program,undefined);
- assert.throws(()=>m.validateGenerationDraft({...base,interactive,kind:'files'},'ADMA files',ctx,true),/static articles/);
+ assert.throws(()=>m.validateGenerationDraft({...base,interactive},'Explain with an interactive example',ctx,true),/no longer accepted/);
+ assert.throws(()=>m.validateGenerationDraft({...base,kind:'program',program:{kind:'sandbox-program',language:'javascript',code:'export function main(){}'}},'An app',ctx,true),/kind="workflow"/);
+ assert.throws(()=>m.validateGenerationDraft({...base,kind:'workflow'},'An app',ctx,true),/needs a workflow object/);
+ const workflow={kind:'workflow-app',ui:[{type:'heading',props:{text:'Hi'}}]};
+ assert.equal(m.validateGenerationDraft({...base,kind:'workflow',workflow},'An app',ctx,true).workflow.checked,true);
 });
 
 test('articles must cite their sources inline, not only list them',()=>{

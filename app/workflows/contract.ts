@@ -1,0 +1,43 @@
+import {componentGuide} from './catalog';
+import {toolGuide} from './tools';
+import {LIMITS} from './schema';
+// The contract agents read before writing a workflow app (read_generation_contract kind=workflow).
+const csvExample={kind:'workflow-app',title:'CSV explorer',state:{rows:[],summary:null},layout:{maxWidth:1200},
+ ui:[
+  {type:'heading',props:{text:'CSV explorer',subtitle:'Upload a CSV to chart and summarize it'}},
+  {type:'row',children:[{id:'upload',type:'file_upload',props:{label:'Choose a CSV file',accept:'.csv'},on:{change:'analyze'}},{type:'status',props:{action:'analyze',idle:'Upload a file to begin.',running:'Reading the file…'}}]},
+  {type:'stats',visible:{$:'$count(state.rows) > 0'},props:{items:{$:"[{'label':'Rows','value':$count(state.rows),'format':'integer'},{'label':'Average','value':state.summary.avg,'format':'number'},{'label':'Max','value':state.summary.max,'format':'number'}]"}}},
+  {type:'tabs',visible:{$:'$count(state.rows) > 0'},children:[
+   {type:'tab',props:{label:'Chart'},children:[{type:'chart',props:{kind:'line',data:{$:'state.rows'},x:{$:'$keys(state.rows[0])[0]'},height:340}}]},
+   {type:'tab',props:{label:'Table',badge:{$:'$count(state.rows)'}},children:[{type:'table',props:{rows:{$:'state.rows'},searchable:true,download:'data.csv'}}]}]},
+  {type:'empty',visible:{$:'$count(state.rows) = 0'},props:{title:'No data yet',text:'Upload a CSV file above.',icon:'file'}}],
+ actions:{analyze:{steps:[
+   {id:'read',tool:'files.read',args:{fileId:{$:'values.upload[-1].id'},options:{mode:'table',count:5000}}},
+   {id:'rows',tool:'compute',args:{value:{$:'steps.read.rows'}}}],
+  set:{rows:{$:'steps.rows'},summary:{$:"(  $nums := steps.rows.*[$type($)='number']; {'avg': $average($nums), 'max': $max($nums)} )"}}}}};
+const publishExample={kind:'workflow-app',title:'Publish a shapefile',state:{zip:null,result:null},
+ ui:[{type:'card',props:{title:'Publish a shapefile to ArcGIS Online',subtitle:'Pick the .shp, .shx, .dbf and .prj files (or their folder)'},children:[
+   {id:'parts',type:'file_upload',props:{label:'Choose shapefile parts',multiple:true,folders:true}},
+   {id:'name',type:'text_input',props:{label:'Layer title',default:'My layer'}},
+   {type:'button',props:{label:'Zip and publish',icon:'upload',disabled:{$:'$count(values.parts) < 3'}},on:{click:'publish'}},
+   {type:'status',props:{action:'publish',running:'Zipping and publishing…'}},
+   {type:'callout',visible:{$:'$exists(state.result)'},props:{tone:'success',title:'Submitted',text:{$:"'Publishing request sent for **' & values.name & '**. Approve it above if asked.'"}}}]}],
+ actions:{publish:{steps:[
+   {id:'zip',tool:'files.zip',args:{files:{$:"values.parts[$contains(name, /\\.(shp|shx|dbf|prj|cpg)$/i)]"},name:{$:"values.name & '.zip'"}}},
+   {id:'connectors',tool:'connectors.list'},
+   {id:'publish',tool:'connectors.call',args:{connectorId:{$:"steps.connectors[name='ArcGIS Online'].id"},tool:'publish_file',arguments:{file:{$:'steps.zip'},title:{$:'values.name'}}}}],
+  set:{zip:{$:'steps.zip'},result:{$:'steps.publish'}}}}};
+export const workflowContract={
+ summary:'A web app is a workflow: JSON that composes the platform’s UI components (ui) and backend tools (actions). It is not code. The platform validates it, runs actions on the server with the user’s permissions, and renders the components with its own code. You cannot write HTML, CSS or JavaScript; everything is expressed with components, bindings and tool steps.',
+ format:'{kind:"workflow-app", title?, description?, state:{initial values}, layout?:{maxWidth:480–2400, density:compact|normal|spacious, accent:"#rrggbb"}, ui:[node], actions:{name:{description?, steps:[step], set?:{stateKey: value}, then?: "next action"}}}. node = {id?, type: component name, props?:{…}, children?:[node], on?:{event: action name}, visible?: binding}. step = {id, tool, args?:{…}, when?: binding, each?: binding to a list (runs the tool once per item; inside args use $item and $index), optional?: true (a failure does not stop the action)}.',
+ bindings:'Any prop, arg, set value, when, each or visible can be {"$": "<JSONata expression>"}. The scope is {state, values, event, page, steps}: state = app state; values.<id> = the current value of a component with that id (inputs, file_upload, resource_picker, table selection, tabs index…); event = {type, source, value} of the event that started the action; steps.<id> = output of an earlier step in the same action (steps run in parallel unless one reads another); page.id. In the UI, running.<action> and errors.<action> are also available. Use JSONata for all data shaping: filter rows[x > 3], map rows.{"name": name, "kb": size/1024}, sort ^(>size), group with $reduce or {key: $sum(v)}, $count, $sum, $average, $max, $min, $distinct, $string, $number, $round, $substring, $contains, $split, $join, $now(), $fromMillis, $toMillis, $lookup, $keys, $merge, $exists, conditionals a ? b : c, and local variables ( $x := …; … ). Literal strings inside expressions use single quotes. Expressions are limited to '+LIMITS.expressionChars+' characters and a short time budget.',
+ actions:'An action named "load" runs when the page opens (it cannot write files; tools that change drives or connectors become approval proposals anyway). Other actions run from component events (button click, form submit, input change, table/list/chart select…). Steps that change data (files.write, files.zip, resources.copy/move, storage.execute writes, connector writes) run only from user events, and drive/connector changes are shown to the user to approve. After the steps, set copies results into state; the UI re-renders from state. Chain actions with then. Keep state small (only what the page shows; under 2 MB).',
+ design:'Build a polished, practical product, not a demo. Choose components for the job: stats/stat for headline numbers (with delta, spark), chart for trends and comparisons (composed with a right axis for a second unit), table for records (columns with formats, searchable, download), map for places, tabs or split to organise, card/grid/section for grouping, timeline/steps/kanban/calendar/heatmap when they fit the data, form or inputs for parameters, file_upload / resource_picker for files, status and log to show progress, empty and callout for empty and error states. Give every input an id. Use visible to show loading, empty and result states. Label units. Set layout.accent for a coherent colour. Make it work on a phone (grids and rows wrap automatically). Never show invented data: everything comes from tools.',
+ limits:`Up to ${LIMITS.nodes} components, ${LIMITS.actions} actions, ${LIMITS.stepsPerAction} steps per action, each ≤ ${LIMITS.eachItems} items, ${LIMITS.callsPerRun} tool calls and ${LIMITS.runMs/1000} s per run.`,
+ security:'Apps reach data only through these tools; there is no tool that contacts an arbitrary web address, so apps cannot send data off the platform. Images, video and PDFs display only from this site (Page files); computed links must point to this site.',
+ missing:'If the request needs a component or tool that does not exist, build the closest honest version with what exists and say exactly which component or tool is missing (in the page summary and your reply) so it can be added to the platform.',
+ testing:'Before finishing, call verify_app with tests: [{name, values:{componentId: value}, actions:["load", …], expect:["$count(state.rows) > 0", …]}]. It runs the actions for real (changes skipped) and reviews screenshots of the rendered app.',
+ components:componentGuide(),
+ tools:toolGuide(),
+ examples:[csvExample,publishExample],
+};
