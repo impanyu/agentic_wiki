@@ -2,8 +2,8 @@ import type {Workflow} from './schema';
 // A component gallery with sample state, rendered at /workflow-preview?demo=1 in
 // development only, to check the component library visually.
 const days=Array.from({length:14},(_,i)=>({date:'2026-09-'+String(i+10).padStart(2,'0'),temp:14+Math.round(8*Math.sin(i/2)),wind:3+(i*7)%9,rain:(i*13)%5}));
-export const demoWorkflow:Workflow={kind:'workflow-app',version:1,title:'Component gallery',actions:{},layout:{maxWidth:1200,accent:'#0f766e'},
- state:{days,files:[{name:'yield_2026.csv',size:182344,modified:'2026-10-01',space:'Page files'},{name:'fields.geojson',size:4829350,modified:'2026-09-23',space:'ADMA'},{name:'soil.tif',size:112429,modified:'2026-09-26',space:'Google Drive'}],
+export const demoWorkflow:Workflow={kind:'workflow-app',version:1,title:'Component gallery',actions:{pickOmaha:{client:true,steps:[],set:{station:'Omaha'}}},layout:{maxWidth:1200,accent:'#0f766e'},
+ state:{station:null,days,files:[{name:'yield_2026.csv',size:182344,modified:'2026-10-01',space:'Page files'},{name:'fields.geojson',size:4829350,modified:'2026-09-23',space:'ADMA'},{name:'soil.tif',size:112429,modified:'2026-09-26',space:'Google Drive'}],
   stations:[{lat:40.82,lng:-96.70,label:'Lincoln'},{lat:41.26,lng:-95.94,label:'Omaha'},{lat:40.92,lng:-98.34,label:'Grand Island'}]},
  ui:[
   {type:'heading',props:{text:'Field station overview',subtitle:'Sample data — every component in one page'}},
@@ -17,7 +17,7 @@ export const demoWorkflow:Workflow={kind:'workflow-app',version:1,title:'Compone
    {type:'tab',props:{label:'Calendar'},children:[{type:'calendar',props:{events:{$:"state.days[rain>2].{'date':date,'title':rain & ' mm','tone':'info'}"}}}]},
    {type:'tab',props:{label:'Heatmap'},children:[{type:'heatmap',props:{data:{$:"state.days.{'day':$substring(date,8),'metric':'wind','v':wind}"},x:'day',y:'metric',value:'v',scheme:'green'}}]}]},
   {type:'split',children:[
-   {type:'form',props:{submitLabel:'Run report'},children:[{id:'station',type:'select',props:{label:'Station',options:['Lincoln','Omaha','Grand Island'],default:'Lincoln'}},{id:'range',type:'date_range',props:{label:'Dates',default:{start:'2026-09-10',end:'2026-09-23'}}},{id:'smooth',type:'slider',props:{label:'Smoothing',min:0,max:10,default:3}},{id:'alerts',type:'checkbox',props:{label:'Email alerts',switch:true}},{id:'mode',type:'segmented',props:{options:['Daily','Weekly'],default:'Daily'}}]},
+   {type:'form',props:{submitLabel:'Run report'},children:[{id:'station',type:'select',props:{label:'Station',options:['Lincoln','Omaha','Grand Island'],default:'Lincoln',value:{$:'state.station'}}},{type:'button',props:{label:'Pick Omaha',tone:'secondary'},on:{click:'pickOmaha'}},{id:'range',type:'date_range',props:{label:'Dates',default:{start:'2026-09-10',end:'2026-09-23'}}},{id:'smooth',type:'slider',props:{label:'Smoothing',min:0,max:10,default:3}},{id:'alerts',type:'checkbox',props:{label:'Email alerts',switch:true}},{id:'mode',type:'segmented',props:{options:['Daily','Weekly'],default:'Daily'}}]},
    {type:'section',props:{title:'Status'},children:[
     {type:'steps',props:{items:[{title:'Fetch observations',status:'done'},{title:'Aggregate',status:'active',text:'Grouping by day'},{title:'Publish',status:'pending'}]}},
     {type:'progress_bar',props:{value:62,label:'Processing'}},

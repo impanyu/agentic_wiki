@@ -199,3 +199,8 @@ test('client actions run pure calculations in the browser and may not call platf
  const bad=wf.validateWorkflow({...loan,actions:{calc:{client:true,steps:[{id:'f',tool:'files.list'}]}}});
  assert.match(bad.errors.join(' '),/runs in the browser and may only use compute, json.parse, json.format \(found files.list\)/);
 });
+test('inputs accept a value binding that an action can drive',()=>{
+ const r=wf.validateWorkflow(base({state:{field:null},ui:[{id:'pick',type:'select',props:{options:['a','b'],value:{$:'state.field'}}},{id:'go',type:'button',on:{click:'auto'}}],actions:{auto:{steps:[],set:{field:'b'}}}}));
+ assert.deepEqual(r.errors,[],JSON.stringify(r.errors));
+ assert.ok(wf.workflowContract.inputs.includes('value'));
+});

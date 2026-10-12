@@ -4,7 +4,7 @@ import {StorageProposal} from '@/app/storage/panel';
 import {useUi} from '@/app/i18n/client';
 import {resolve,bindingsIn} from './expressions';
 import {isBinding,type Workflow,type WorkflowNode,type RunTrace} from './schema';
-import {COMPONENTS} from './catalog';
+import {COMPONENTS,INPUT_TYPES} from './catalog';
 import {runClientAction} from './client-run';
 import {renderComponent,type Ctx} from './components';
 import './style.css';
@@ -21,15 +21,19 @@ export function WorkflowApp({workflow,pageId,title,writable,draftId,snapshot,ren
  const [proposals,setProposals]=useState<{actionId:string;request:unknown}[]>([]);
  // Binding-free pages (such as a plain wiki article) render on the first paint.
  const [resolved,setResolved]=useState<Map<WorkflowNode,Resolved>|null>(()=>staticResolve(workflow.ui)),[bindingErrors,setBindingErrors]=useState<string[]>([]);
+ const synced=useRef<Record<string,string>>({});
  const live=useRef({state,values});live.current={state,values};
  // Input defaults become initial values (bindings in defaults are resolved once).
- useEffect(()=>{let cancelled=false;void (async()=>{const init:Record<string,unknown>={};const scope={state:workflow.state,values:{},page:{id:pageId,title}};const tasks:Promise<void>[]=[];walk(workflow.ui,n=>{const d=(n.props as any)?.default;if(n.id&&d!==undefined)tasks.push(resolve(d,scope).then(v=>{init[n.id!]=v;},()=>{}));if(n.id&&d===undefined&&['file_upload','resource_picker'].includes(n.type))init[n.id]=[];});await Promise.all(tasks);if(!cancelled){setState(snapshot?.state??{...workflow.state,...(preloaded||{})});setValues({...init,...(snapshot?.values||{})});}})();return()=>{cancelled=true;};},[workflow,pageId,title,snapshot]);
+ useEffect(()=>{let cancelled=false;void (async()=>{const init:Record<string,unknown>={};const scope={state:workflow.state,values:{},page:{id:pageId,title}};const tasks:Promise<void>[]=[];walk(workflow.ui,n=>{const d=(n.props as any)?.default;if(n.id&&d!==undefined)tasks.push(resolve(d,scope).then(v=>{init[n.id!]=v;},()=>{}));if(n.id&&d===undefined&&['file_upload','resource_picker'].includes(n.type))init[n.id]=[];});await Promise.all(tasks);if(!cancelled){synced.current={};setState(snapshot?.state??{...workflow.state,...(preloaded||{})});setValues({...init,...(snapshot?.values||{})});}})();return()=>{cancelled=true;};},[workflow,pageId,title,snapshot]);
  useEffect(()=>{let cancelled=false;void (async()=>{
   const map=new Map<WorkflowNode,Resolved>(),problems:string[]=[],scope={state,values,running,errors,page:{id:pageId,title}};
   const safe=async(v:unknown,where:string)=>{try{return await resolve(v,scope);}catch(e){problems.push(where+': '+(e instanceof Error?e.message:'error'));return undefined;}};
   const visit=async(n:WorkflowNode,path:string)=>{const props=(await safe(n.props||{},path) as Record<string,any>)||{};const visible=n.visible===undefined?true:!!(isBinding(n.visible)?await safe(n.visible,path+'.visible'):n.visible);map.set(n,{props,visible});await Promise.all((n.children||[]).map((c,i)=>visit(c,path+'.'+i)));};
   await Promise.all(workflow.ui.map((n,i)=>visit(n,String(i))));
-  if(!cancelled){setResolved(map);setBindingErrors(problems.slice(0,8));}
+  if(cancelled)return;setResolved(map);setBindingErrors(problems.slice(0,8));
+  // Inputs with a value binding follow it: a changed result replaces what the field shows.
+  const updates:Record<string,unknown>={};for(const [n,r] of map){if(!n.id||!INPUT_TYPES.has(n.type)||!n.props||!('value' in n.props)||r.props.value==null)continue;const key=JSON.stringify(r.props.value);if(synced.current[n.id]===key)continue;synced.current[n.id]=key;updates[n.id]=r.props.value;}
+  if(Object.keys(updates).length)setValues(v=>({...v,...updates}));
  })();return()=>{cancelled=true;};},[workflow,state,values,running,errors,pageId,title]);
  const run=useCallback(async(action:string,event:unknown)=>{
   setRunning(r=>({...r,[action]:true}));setErrors(e=>{const {[action]:_gone,...rest}=e;return rest;});

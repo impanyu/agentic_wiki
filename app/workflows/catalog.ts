@@ -4,6 +4,8 @@
 // and whether it takes child nodes. This list is the contract shown to agents.
 export type ComponentSpec={category:string;description:string;props:Record<string,string>;value?:string;events?:string[];children?:boolean;childType?:string};
 const tone='info | success | warning | danger | neutral';
+// A bound value keeps the field in step with data: whenever the binding's result changes the field shows it, and the user can still change it afterwards.
+const VALUE='binding that sets the field whenever its result changes, e.g. {"$":"state.chosenField"} set by an action; default is only the starting value';
 const format='text | number | integer | percent | currency | date | datetime | bytes | duration | link | badge | image | boolean';
 export const COMPONENTS:Record<string,ComponentSpec>={
  // Layout
@@ -48,16 +50,16 @@ export const COMPONENTS:Record<string,ComponentSpec>={
  calendar:{category:'data',description:'Month view with events on days.',props:{events:'[{date: YYYY-MM-DD,title,tone}]',month:'YYYY-MM (default: month of the first event)'},value:'clicked date',events:['select']},
  map:{category:'data',description:'Interactive map of points and GeoJSON layers.',props:{points:'[{lat,lng,label,popup,color}]',geojson:'GeoJSON FeatureCollection',title:'layer title',basemap:'streets-vector | satellite | hybrid | topo-vector | osm',height:'px (default 420)'}},
  // Inputs (each exposes values.<id>; give inputs an id)
- text_input:{category:'input',description:'Single or multi-line text.',props:{label:'string',placeholder:'string',default:'string',multiline:'boolean',required:'boolean'},value:'string',events:['change','submit']},
- number_input:{category:'input',description:'Number field.',props:{label:'string',default:'number',min:'number',max:'number',step:'number',unit:'string'},value:'number',events:['change']},
- slider:{category:'input',description:'Range slider.',props:{label:'string',default:'number',min:'number',max:'number',step:'number',unit:'string'},value:'number',events:['change']},
- select:{category:'input',description:'Dropdown; multiple for several choices.',props:{label:'string',options:'[{value,label}] or [strings]',default:'value or [values]',multiple:'boolean',placeholder:'string'},value:'chosen value(s)',events:['change']},
- radio:{category:'input',description:'One choice among few options.',props:{label:'string',options:'[{value,label}] or [strings]',default:'value',inline:'boolean'},value:'chosen value',events:['change']},
- segmented:{category:'input',description:'Compact toggle between options.',props:{options:'[{value,label}] or [strings]',default:'value'},value:'chosen value',events:['change']},
- checkbox:{category:'input',description:'Checkbox or switch.',props:{label:'string',default:'boolean',switch:'boolean'},value:'boolean',events:['change']},
- date:{category:'input',description:'Date picker.',props:{label:'string',default:'YYYY-MM-DD',min:'YYYY-MM-DD',max:'YYYY-MM-DD'},value:'YYYY-MM-DD',events:['change']},
- date_range:{category:'input',description:'Start and end dates.',props:{label:'string',default:'{start,end}',min:'YYYY-MM-DD',max:'YYYY-MM-DD'},value:'{start,end}',events:['change']},
- search:{category:'input',description:'Search box; submit on Enter.',props:{placeholder:'string',default:'string'},value:'string',events:['change','submit']},
+ text_input:{category:'input',description:'Single or multi-line text.',props:{value:VALUE,label:'string',placeholder:'string',default:'string',multiline:'boolean',required:'boolean'},value:'string',events:['change','submit']},
+ number_input:{category:'input',description:'Number field.',props:{value:VALUE,label:'string',default:'number',min:'number',max:'number',step:'number',unit:'string'},value:'number',events:['change']},
+ slider:{category:'input',description:'Range slider.',props:{value:VALUE,label:'string',default:'number',min:'number',max:'number',step:'number',unit:'string'},value:'number',events:['change']},
+ select:{category:'input',description:'Dropdown; multiple for several choices.',props:{value:VALUE,label:'string',options:'[{value,label}] or [strings]',default:'value or [values]',multiple:'boolean',placeholder:'string'},value:'chosen value(s)',events:['change']},
+ radio:{category:'input',description:'One choice among few options.',props:{value:VALUE,label:'string',options:'[{value,label}] or [strings]',default:'value',inline:'boolean'},value:'chosen value',events:['change']},
+ segmented:{category:'input',description:'Compact toggle between options.',props:{value:VALUE,options:'[{value,label}] or [strings]',default:'value'},value:'chosen value',events:['change']},
+ checkbox:{category:'input',description:'Checkbox or switch.',props:{value:VALUE,label:'string',default:'boolean',switch:'boolean'},value:'boolean',events:['change']},
+ date:{category:'input',description:'Date picker.',props:{value:VALUE,label:'string',default:'YYYY-MM-DD',min:'YYYY-MM-DD',max:'YYYY-MM-DD'},value:'YYYY-MM-DD',events:['change']},
+ date_range:{category:'input',description:'Start and end dates.',props:{value:VALUE,label:'string',default:'{start,end}',min:'YYYY-MM-DD',max:'YYYY-MM-DD'},value:'{start,end}',events:['change']},
+ search:{category:'input',description:'Search box; submit on Enter.',props:{value:VALUE,placeholder:'string',default:'string'},value:'string',events:['change','submit']},
  form:{category:'input',description:'Groups input children with a submit button.',props:{submitLabel:'string',resetLabel:'string (optional)'},value:'object of child input values by id',events:['submit'],children:true},
  button:{category:'input',description:'Runs an action on click.',props:{label:'string',tone:'primary | secondary | danger | ghost',icon:'refresh | play | download | upload | send | plus | trash | search | map | check',disabled:'boolean',confirm:'question asked before running'},events:['click']},
  file_upload:{category:'input',description:'User picks local files or a folder; they are saved to Page files.',props:{label:'string',multiple:'boolean',folders:'boolean (allow choosing a folder)',accept:'e.g. .csv,.zip',folderPath:'Page files folder'},value:'[{space:"page",id,kind:"file",name,url,size}] uploaded files as resources',events:['change']},
