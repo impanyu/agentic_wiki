@@ -37,6 +37,7 @@ export const WORKBENCH_TOOLS=[
  fn('wf_eval','Evaluate a JSONata expression to test a binding. scopeJson is the scope object, or empty to use the scope of the last wf_run ({state, values, steps, event}).',{expression:str,scopeJson:str}),
  fn('wf_run','Run one action of the draft for real (changes skipped) and see the resulting state and every step’s output. valuesJson = component values by id (e.g. an uploaded file resource), stateJson = state to start from (empty: the draft’s initial state, or the state after the previous wf_run when continue is true).',{action:str,valuesJson:str,stateJson:str,continue:{type:'boolean'}}),
  fn('wf_preview','Look at the draft yourself: renders it with the real components in a browser and returns screenshots you can see, plus layout measurements. stateJson/valuesJson set what is shown (empty: the state after your last wf_run, else the initial state); viewport = desktop | phone | both. Use it to check and refine the visual design; wf_verify remains the acceptance check.',{stateJson:str,valuesJson:str,viewport:{type:'string',enum:['desktop','phone','both']}}),
+ fn('wf_fixture','Register a small test file that stands in for a user upload (an uploaded CSV, JSON or text file) so wf_run, wf_try_tool and wf_verify can exercise upload flows. Returns the resource to put in valuesJson for the upload component (e.g. {"csvFile":[<resource>]}); tests can also list files:[{name, content}] themselves.',{name:str,content:str}),
  fn('wf_verify','Verify the draft end to end: runs tests (testsJson, or empty to use the spec’s acceptance tests) through the executor, renders the real components with the resulting state at desktop and phone width, and reviews the screenshots against the request and every spec requirement. An app is accepted only after it passes.',{testsJson:str}),
 ];
 function findNode(nodes:WorkflowNode[],id:string):{list:WorkflowNode[];index:number;node:WorkflowNode}|null{for(let i=0;i<nodes.length;i++){const n=nodes[i];if(n.id===id)return {list:nodes,index:i,node:n};const inner=n.children?findNode(n.children,id):null;if(inner)return inner;}return null;}
@@ -77,9 +78,9 @@ export function createWorkbench(ctx:Ctx,initial?:{workflow?:unknown;spec?:unknow
  let draft:any=initial?.workflow?JSON.parse(JSON.stringify(initial.workflow)):undefined,spec:AppSpec|undefined;
  try{if(initial?.spec)spec=appSpecSchema.parse(initial.spec);}catch{}
  let last:{state:Record<string,unknown>;values:Record<string,unknown>;steps:Record<string,unknown>;event:unknown}|null=null,lastTests:WorkflowTests=[];
- const verified=new Set<string>();
+ const verified=new Set<string>(),fixtures:Record<string,{name:string;content:string}>={};
  const check=()=>{if(!draft)return {errors:['No draft yet: use wf_set or wf_edit.'],warnings:[]};try{const r=validateWorkflow(draft);return {errors:r.errors,warnings:r.warnings};}catch(e){return {errors:[e instanceof Error?e.message:'Invalid workflow'],warnings:[]};}};
- const toolCtx=(explicit:boolean)=>({userId:ctx.userId,pageId:ctx.pageId,language:ctx.language,explicit,verification:true,signal:ctx.signal});
+ const toolCtx=(explicit:boolean)=>({userId:ctx.userId,pageId:ctx.pageId,language:ctx.language,explicit,verification:true,signal:ctx.signal,fixtures});
  const specTests=():WorkflowTests=>(spec?.acceptance||[]).flatMap(a=>a.test?[{...a.test,name:a.test.name||a.requirement.slice(0,100)}]:[]).slice(0,6);
  const execute=async(name:string,a:Record<string,any>)=>{
   if(name==='wf_spec'){spec=appSpecSchema.parse(parse(a.specJson,'specJson'));return {data:{saved:true,spec,acceptanceTests:specTests().length,hint:'Explore data with wf_try_tool, build with wf_set/wf_edit, test with wf_run, finish with wf_verify.'}};}
@@ -100,6 +101,7 @@ export function createWorkbench(ctx:Ctx,initial?:{workflow?:unknown;spec?:unknow
    last={state:r.state,values,steps:r.steps,event};
    return {data:{error:r.error??null,state:clip(r.state,12000),steps:Object.fromEntries(Object.entries(r.steps).map(([k,v])=>[k,(JSON.stringify(v)??'').length>3000?{shape:describeData(v),preview:clip(v,1500)}:v])),trace:r.trace.map(t=>({step:t.step,tool:t.tool,status:t.status,ms:t.ms,error:t.error,items:t.items})),proposals:r.proposals.length}};
   }
+  if(name==='wf_fixture'){const n=String(a.name||'').trim().slice(0,200),content=String(a.content??'');if(!n)throw Error('Give the test file a name with an extension.');if(content.length>200000)throw Error('Test files hold at most 200,000 characters.');fixtures[n]={name:n,content};return {data:{resource:{space:'page',id:'fixture:'+n,kind:'file',name:n,size:content.length},note:'Use this resource as the uploaded file in valuesJson, e.g. {"<upload id>":[resource]}.'}};}
   if(name==='wf_preview'){
    const {workflow,errors}=(()=>{try{return validateWorkflow(draft);}catch(e){return {workflow:null,errors:[e instanceof Error?e.message:'Invalid workflow']};}})();
    if(!workflow||errors.length)return {data:{rendered:false,errors}};
@@ -111,7 +113,7 @@ export function createWorkbench(ctx:Ctx,initial?:{workflow?:unknown;spec?:unknow
   if(name==='wf_verify'){
    const tests=workflowTestsSchema.parse(parse(a.testsJson,'testsJson')||specTests());lastTests=tests;
    const requirements=(spec?.acceptance||[]).map(x=>x.requirement).concat(spec?.outputs||[]).slice(0,16);
-   const report=await verifyWorkflow(draft,{request:ctx.request,title:draft?.title||ctx.title,pageId:ctx.pageId,language:ctx.language,requirements,goal:spec?.goal},{userId:ctx.userId,signal:ctx.signal},tests);
+   const report=await verifyWorkflow(draft,{request:ctx.request,title:draft?.title||ctx.title,pageId:ctx.pageId,language:ctx.language,requirements,goal:spec?.goal},{userId:ctx.userId,signal:ctx.signal,fixtures},tests);
    if(report.passed)verified.add(JSON.stringify(validateWorkflow(draft).workflow));
    return {data:JSON.parse(workflowReportText(report))};
   }

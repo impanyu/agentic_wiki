@@ -47,10 +47,15 @@ export function validateWorkflow(raw:unknown):{workflow:Workflow;errors:string[]
  }
  for(const {path,text} of expressions){
   const problem=checkExpression(text);if(problem){errors.push(path+': '+problem+' in "'+text.slice(0,120)+'".');continue;}
+  const bare=missingDollar(text);if(bare){errors.push(path+': JSONata functions start with $: write $'+bare+'(…) instead of '+bare+'(…) in "'+text.slice(0,120)+'".');continue;}
   for(const m of text.matchAll(/\bvalues\.([A-Za-z][A-Za-z0-9_]*)/g))if(!ids.has(m[1]))errors.push(path+': values.'+m[1]+' refers to no component id.');
   for(const m of text.matchAll(/\bstate\.([A-Za-z][A-Za-z0-9_]*)/g))if(!stateKeys.has(m[1]))errors.push(path+': state.'+m[1]+' is neither in the initial state nor set by any action.');
  }
  if(!Object.keys(w.actions).length&&!expressions.length)warnings.push('The app has no actions and no bindings; it only shows fixed content.');
  return {workflow:w,errors:[...new Set(errors)].slice(0,40),warnings:warnings.slice(0,20)};
 }
+// Built-in functions written without $ parse but fail at run time ("Attempted to invoke a non-function").
+const BUILTINS='not|count|sum|max|min|average|exists|keys|string|number|round|floor|ceil|abs|power|sqrt|substring|substringBefore|substringAfter|contains|split|join|length|lowercase|uppercase|trim|pad|replace|match|distinct|sort|reverse|filter|map|reduce|merge|lookup|append|now|millis|fromMillis|toMillis|boolean|type|spread|each|sift|zip|shuffle|formatNumber|formatInteger|parseInteger|single|eval|base64encode|base64decode|encodeUrl|decodeUrl';
+const BARE=new RegExp('(?<![$\\w.\'"])('+BUILTINS+')\\s*\\(');
+export function missingDollar(text:string){const stripped=text.replace(/'(?:[^'\\]|\\.)*'|"(?:[^"\\]|\\.)*"/g,'""');const m=BARE.exec(stripped);return m?m[1]:null;}
 export function assertWorkflow(raw:unknown){const r=validateWorkflow(raw);if(r.errors.length)throw Error('The workflow has problems: '+r.errors.join(' | '));return r;}

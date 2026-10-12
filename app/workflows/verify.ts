@@ -3,18 +3,18 @@ import {api,output} from '@/app/api/ask/ai';
 import {model} from '@/db/store';
 import {validateWorkflow} from './validate';
 import {runAction} from './executor';
-import {evaluate} from './expressions';
+import {evaluate,resolve} from './expressions';
 import {renderScreens,chromiumPath,type Shot} from './render';
-import type {Workflow,RunTrace} from './schema';
+import type {Workflow,WorkflowNode,RunTrace} from './schema';
 // Verifies a workflow app before it is saved: structure, real runs of its
 // actions (changes skipped), the agent's expectations, and a rendered review
 // of the actual components at desktop and phone width.
-export const workflowTestsSchema=z.array(z.object({name:z.string().max(100).optional(),values:z.record(z.unknown()).optional(),actions:z.array(z.string().max(48)).max(6).optional(),expect:z.array(z.string().max(500)).max(8).optional()}).strict()).max(6);
+export const workflowTestsSchema=z.array(z.object({name:z.string().max(100).optional(),files:z.array(z.object({name:z.string().min(1).max(200),content:z.string().max(200000)}).strict()).max(3).optional(),values:z.record(z.unknown()).optional(),actions:z.array(z.string().max(48)).max(6).optional(),expect:z.array(z.string().max(500)).max(8).optional()}).strict()).max(6);
 export type WorkflowTests=z.infer<typeof workflowTestsSchema>;
 type TestRun={test:string;ok:boolean;actions:{action:string;error?:string;trace:RunTrace[]}[];failed:string[];state:string};
 export type WorkflowReport={passed:boolean;blocking:string[];warnings:string[];tests:TestRun[];review?:{verdict:string;summary:string;issues:{severity:string;area?:string;problem:string;fix?:string}[];coverage?:{requirement:string;status:string;note?:string}[]};screens:{viewport:string;errors:string[];overflow:boolean;textChars:number}[];seconds:number};
 const short=(v:unknown,n=1200)=>{let s:string;try{s=JSON.stringify(v)??'';}catch{s=String(v);}return s.length>n?s.slice(0,n)+'… ('+s.length+' chars)':s;};
-export async function verifyWorkflow(raw:unknown,target:{request:string;title:string;pageId:string;language:string;requirements?:string[];goal?:string},ctx:{userId:string;signal?:AbortSignal},tests:WorkflowTests=[]):Promise<WorkflowReport>{
+export async function verifyWorkflow(raw:unknown,target:{request:string;title:string;pageId:string;language:string;requirements?:string[];goal?:string},ctx:{userId:string;signal?:AbortSignal;fixtures?:Record<string,{name:string;content:string}>},tests:WorkflowTests=[]):Promise<WorkflowReport>{
  const started=Date.now(),report:WorkflowReport={passed:false,blocking:[],warnings:[],tests:[],screens:[],seconds:0};
  let workflow:Workflow;
  try{const v=validateWorkflow(raw);workflow=v.workflow;report.blocking.push(...v.errors);report.warnings.push(...v.warnings);}catch(e){report.blocking.push(e instanceof Error?e.message:'Invalid workflow.');report.seconds=0;return report;}
@@ -23,13 +23,16 @@ export async function verifyWorkflow(raw:unknown,target:{request:string;title:st
  let shown:{state:Record<string,unknown>;values:Record<string,unknown>}|null=null;
  for(const test of plan){
   const run:TestRun={test:test.name||'test',ok:true,actions:[],failed:[],state:''};let state={...workflow.state};const values=test.values||{};
+  const fixtures={...(ctx.fixtures||{}),...Object.fromEntries((test.files||[]).map(f=>[f.name,f]))};
   for(const action of test.actions??(workflow.actions.load?['load']:[])){
    if(!workflow.actions[action]){run.failed.push('Unknown action '+action);continue;}
-   const r=await runAction(workflow,action,{state,values,event:{type:action==='load'?'load':'click',source:'verification'}},{userId:ctx.userId,pageId:target.pageId,language:target.language,explicit:action!=='load',verification:true,signal:ctx.signal});
+   const r=await runAction(workflow,action,{state,values,event:{type:action==='load'?'load':'click',source:'verification'}},{userId:ctx.userId,pageId:target.pageId,language:target.language,explicit:action!=='load',verification:true,signal:ctx.signal,fixtures});
    state=r.state;run.actions.push({action,...(r.error?{error:r.error}:{}),trace:r.trace.map(t=>({...t,preview:t.preview?.slice(0,400)}))});
    if(r.error)run.failed.push(action+': '+r.error);
   }
   for(const e of test.expect||[]){try{if(!await evaluate(e,{state,values}))run.failed.push('Expected '+e+' to be true; state is '+short(state,600));}catch(err){run.failed.push('Expectation '+e+' failed: '+(err instanceof Error?err.message:'error'));}}
+  // Every display binding must evaluate against the state this test produced.
+  for(const problem of await bindingProblems(workflow,{state,values,running:{},errors:{},page:{id:target.pageId,title:target.title}}))run.failed.push('Display binding '+problem);
   run.ok=!run.failed.length;run.state=short(state);report.tests.push(run);
   for(const f of run.failed)report.blocking.push('Test "'+run.test+'": '+f);
   shown??={state,values};
@@ -54,5 +57,10 @@ export async function verifyWorkflow(raw:unknown,target:{request:string;title:st
   }catch(e){report.warnings.push('Visual review could not run: '+(e instanceof Error?e.message.slice(0,200):'error'));}
  }
  report.passed=!report.blocking.length;report.seconds=Math.round((Date.now()-started)/1000);return report;
+}
+async function bindingProblems(workflow:Workflow,scope:Record<string,unknown>){
+ const problems:string[]=[];
+ const visit=async(nodes:WorkflowNode[],path:string)=>{for(let i=0;i<nodes.length;i++){const n=nodes[i],at=path+'['+i+'] ('+n.type+(n.id?' #'+n.id:'')+')';for(const [key,value] of Object.entries(n.props||{}))try{await resolve(value,scope);}catch(e){problems.push(at+'.props.'+key+': '+(e instanceof Error?e.message:'error'));}if(n.visible!==undefined)try{await resolve(n.visible,scope);}catch(e){problems.push(at+'.visible: '+(e instanceof Error?e.message:'error'));}if(n.children)await visit(n.children,at+'.children');}};
+ await visit(workflow.ui,'ui');return problems.slice(0,10);
 }
 export function workflowReportText(r:WorkflowReport){return JSON.stringify({passed:r.passed,blocking:r.blocking,shouldFix:[...(r.review?.issues||[]).filter(i=>i.severity==='major').map(i=>i.problem+(i.fix?' Fix: '+i.fix:'')),...r.warnings],polish:(r.review?.issues||[]).filter(i=>i.severity==='minor').map(i=>i.problem+(i.fix?' Fix: '+i.fix:'')),visualSummary:r.review?.summary,coverage:r.review?.coverage,tests:r.tests,screens:r.screens,seconds:r.seconds});}
