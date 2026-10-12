@@ -1,7 +1,7 @@
 import test from 'node:test';import assert from 'node:assert/strict';import {build} from 'esbuild';import {pathToFileURL} from 'node:url';import {resolve} from 'node:path';
 // Bundles the workflow modules with the platform services stubbed through globalThis.
-const stubs={'@/app/page-programs/runtime':'export const executeCall=(c,ctx)=>globalThis.wfCalls(c,ctx);','@/app/resources/service':'export const readFile=(p,u,r)=>globalThis.wfRead(r);','@/app/context-files/store':'export const storePageTextFile=(...a)=>globalThis.wfStore("text",a);export const storePageBinaryFile=(...a)=>globalThis.wfStore("binary",a);','@/app/resources/contracts':'import {z} from "zod";export const resourceSchema=z.object({space:z.string(),id:z.string(),kind:z.enum(["file","folder"]),name:z.string(),connectorId:z.string().optional()}).strict();'};
-const out=await build({stdin:{contents:"export * from './app/workflows/validate.ts';export * from './app/workflows/executor.ts';export * from './app/workflows/expressions.ts';export {workflowContract} from './app/workflows/contract.ts';export {applyPatch} from './app/workflows/patch.ts';export {TOOLS} from './app/workflows/tools.ts';",resolveDir:process.cwd(),loader:'ts'},bundle:true,format:'esm',platform:'node',write:false,external:['zod','jsonata','jszip','csv-parse','csv-parse/sync'],plugins:[{name:'stubs',setup(b){b.onResolve({filter:/^@\/app\/(page-programs\/runtime|resources\/service|context-files\/store|resources\/contracts)$/},a=>({path:a.path,namespace:'stub'}));b.onLoad({filter:/.*/,namespace:'stub'},a=>({contents:stubs[a.path],loader:'js',resolveDir:process.cwd()}));}}]});
+const stubs={'@/app/page-programs/runtime':'export const executeCall=(c,ctx)=>globalThis.wfCalls(c,ctx);','@/app/resources/service':'export const readFile=(p,u,r)=>globalThis.wfRead(r);','@/app/context-files/store':'export const storePageTextFile=(...a)=>globalThis.wfStore("text",a);export const storePageBinaryFile=(...a)=>globalThis.wfStore("binary",a);','@/app/api/ask/ai':'export const api=async()=>{throw Error("no model in tests")};export const output=()=>"";','@/db/store':'export const model=()=>"test";','@/app/resources/contracts':'import {z} from "zod";export const resourceSchema=z.object({space:z.string(),id:z.string(),kind:z.enum(["file","folder"]),name:z.string(),connectorId:z.string().optional()}).strict();'};
+const out=await build({stdin:{contents:"export * from './app/workflows/validate.ts';export * from './app/workflows/executor.ts';export * from './app/workflows/expressions.ts';export {workflowContract} from './app/workflows/contract.ts';export {applyPatch} from './app/workflows/patch.ts';export {TOOLS} from './app/workflows/tools.ts';export {createWorkbench} from './app/workflows/workbench.ts';",resolveDir:process.cwd(),loader:'ts'},bundle:true,format:'esm',platform:'node',write:false,external:['zod','jsonata','jszip','csv-parse','csv-parse/sync','playwright-core'],plugins:[{name:'stubs',setup(b){b.onResolve({filter:/^@\/(app\/(page-programs\/runtime|resources\/service|context-files\/store|resources\/contracts|api\/ask\/ai)|db\/store)$/},a=>({path:a.path,namespace:'stub'}));b.onLoad({filter:/.*/,namespace:'stub'},a=>({contents:stubs[a.path],loader:'js',resolveDir:process.cwd()}));}}]});
 const file=resolve('node_modules/.cache-workflows-test.mjs');(await import('node:fs')).writeFileSync(file,out.outputFiles[0].text);
 const wf=await import(pathToFileURL(file).href);
 const ctx={userId:'u',pageId:'p',language:'en',explicit:true};
@@ -69,4 +69,29 @@ test('workflow patches edit, insert and remove by path and reject missing paths'
 });
 test('no workflow tool takes a web address',()=>{
  for(const [name,t] of Object.entries(wf.TOOLS))for(const arg of Object.keys(t.args))assert.ok(!/url|href|endpoint|address/i.test(arg),name+'.'+arg);
+});
+
+test('the workbench lets an agent spec, search, build by node id, run and evaluate against real outputs',async()=>{
+ globalThis.wfCalls=async c=>c.tool==='files.list'?[{id:'f1',name:'yield.csv',size:2048},{id:'f2',name:'photo.jpg',size:10}]:{};
+ const bench=wf.createWorkbench({userId:'u',pageId:'p',language:'en',request:'Show my CSV files',title:'Files'});
+ const call=async(name,args)=>(await bench.execute(name,args)).data;
+ const spec=await call('wf_spec',{specJson:JSON.stringify({goal:'List CSV files with sizes',outputs:['table of CSV files'],acceptance:[{requirement:'Shows CSV files',test:{actions:['load'],expect:['$count(state.files) > 0']}}]})});
+ assert.equal(spec.saved,true);assert.equal(spec.acceptanceTests,1);
+ const found=await call('wf_catalog',{query:'table csv download',kind:'component'});assert.equal(found.components[0].name,'table');
+ assert.match(JSON.stringify(await call('wf_catalog',{query:'files.zip',kind:'all'})),/new Page file/);
+ const tried=await call('wf_try_tool',{tool:'files.list',argsJson:'{}'});assert.equal(tried.result.length,2);
+ await call('wf_set',{workflowJson:JSON.stringify({kind:'workflow-app',title:'Files',state:{files:[]},ui:[{id:'main',type:'card',props:{title:'Files'},children:[]}],actions:{}})});
+ const edited=await call('wf_edit',{opsJson:JSON.stringify([
+  {op:'add_node',parent:'main',node:{id:'tbl',type:'table',props:{rows:{$:'state.files'}}}},
+  {op:'update_props',id:'tbl',props:{download:'files',rows:{$:'state.files'}}},
+  {op:'set_action',name:'load',action:{steps:[{id:'list',tool:'files.list'}],set:{files:{$:"steps.list[$contains(name,'.csv')][]"}}}},
+  {op:'add_node',parent:null,index:0,node:{type:'heading',props:{text:'CSV files'}}}])});
+ assert.deepEqual(edited.errors,[]);
+ const ran=await call('wf_run',{action:'load',valuesJson:'',stateJson:'',continue:false});
+ assert.equal(ran.error,null);assert.deepEqual(ran.state.files,[{id:'f1',name:'yield.csv',size:2048}]);
+ assert.deepEqual((await call('wf_eval',{expression:'$sum(steps.list.size)',scopeJson:''})).value,2058);
+ const got=await call('wf_get',{});assert.equal(got.workflow.ui[0].type,'heading');assert.equal(got.workflow.ui[1].children[0].props.download,'files');
+ assert.equal(bench.workflow().title,'Files');assert.equal(bench.tests()[0].expect[0],'$count(state.files) > 0');assert.equal(bench.passed(bench.workflow()),false);
+ await assert.rejects(bench.execute('wf_edit',{opsJson:JSON.stringify([{op:'remove_node',id:'ghost'}])}),/No node with id "ghost"/);
+ assert.match(JSON.stringify(await call('wf_try_tool',{tool:'files.write',argsJson:'{}'})),/runs only inside the app/);
 });

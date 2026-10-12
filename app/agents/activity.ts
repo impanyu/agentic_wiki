@@ -18,6 +18,16 @@ export function describeToolStart(tool:string,rawArgs:unknown){
   case 'copy_resources':return 'Copying files between repositories';
   case 'call_connector':return 'Calling '+clip(a.connector||a.connectorId||'a connector',30)+(a.tool?': '+clip(a.tool,40):'');
   case 'storage_execute':return 'Working with connected storage';
+  case 'wf_spec':return 'Writing down what the app needs to do';
+  case 'wf_catalog':return 'Looking for '+clip(a.query,40)+' in the component and tool library';
+  case 'wf_get':return 'Reading the app being built';
+  case 'wf_set':case 'wf_edit':return 'Building the app';
+  case 'wf_validate':return 'Checking the app structure';
+  case 'wf_try_tool':return 'Looking at real data from '+clip(a.tool,40);
+  case 'wf_eval':return 'Testing a data expression';
+  case 'wf_run':return 'Running the app’s '+clip(a.action,30)+' action';
+  case 'wf_verify':return 'Testing the app and reviewing screenshots';
+  case 'wf_propose':return 'Proposing the app for your review';
   case 'read_generation_contract':return 'Reading the '+clip(a.kind,20)+' format';
   case 'validate_page_draft':return 'Checking the draft';
   case 'test_page_program':return 'Testing the backend program';

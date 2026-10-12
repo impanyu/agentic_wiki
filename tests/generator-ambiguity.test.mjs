@@ -1,4 +1,5 @@
 import test from 'node:test';import assert from 'node:assert/strict';import {readFileSync} from 'node:fs';import ts from 'typescript';
+globalThis.createWorkbench=()=>({tools:[],has:()=>false,execute:async()=>({data:null}),workflow:()=>undefined,spec:()=>undefined,passed:()=>false,tests:()=>[]});
 globalThis.reviewDraftCode=async()=>{};globalThis.assertReviewed=async()=>({approved:true,issues:[],summary:''});globalThis.checkFrontendSyntax=async()=>{};
 const strip=p=>readFileSync(p,'utf8').replace(/^import .*;$/gm,'');
 const load=async s=>import('data:text/javascript;base64,'+Buffer.from(ts.transpile(s,{module:ts.ModuleKind.ESNext,target:ts.ScriptTarget.ES2022})).toString('base64'));

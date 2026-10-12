@@ -8,9 +8,10 @@ export type RunInput={state?:Record<string,unknown>;values?:Record<string,unknow
 const preview=(v:unknown)=>{let s:string;try{s=JSON.stringify(v)??String(v);}catch{s=String(v);}return s.length>600?s.slice(0,600)+'… ('+s.length+' chars)':s;};
 const isProposal=(r:unknown):r is {actionId:string;request:unknown}=>!!r&&typeof r==='object'&&'confirmationRequired' in r&&'actionId' in r&&'request' in r;
 const errorOf=(r:unknown)=>r&&typeof r==='object'&&!Array.isArray(r)&&'error' in r&&Object.keys(r).length<=3?String((r as {error:unknown}).error):null;
-export async function runAction(workflow:Workflow,name:string,input:RunInput,ctx:ToolContext):Promise<RunResult>{
+// keepSteps returns the step outputs of the last action run (for the agents' workbench).
+export async function runAction(workflow:Workflow,name:string,input:RunInput,ctx:ToolContext,options:{keepSteps?:boolean}={}):Promise<RunResult>{
  const started=Date.now(),trace:RunTrace[]=[],proposals:RunResult['proposals']=[];
- let state:Record<string,unknown>={...workflow.state,...(input.state||{})},calls=0,current:string|undefined=name;
+ let state:Record<string,unknown>={...workflow.state,...(input.state||{})},calls=0,current:string|undefined=name,lastOutputs:Record<string,unknown>={};
  const values=input.values||{},page={id:ctx.pageId};
  for(let chain=0;current&&chain<5;chain++){
   const action:Workflow['actions'][string]|undefined=workflow.actions[current];if(!action)return {state,steps:{},proposals,trace,error:'Unknown action "'+current+'".'};
@@ -56,7 +57,8 @@ export async function runAction(workflow:Workflow,name:string,input:RunInput,ctx
   };
   for(const step of action.steps)done.set(step.id,runStep(step));
   await Promise.all(done.values());
-  if(failure)return {state,steps:{},proposals,trace,error:failure};
+  lastOutputs=outputs;
+  if(failure)return {state,steps:options.keepSteps?outputs:{},proposals,trace,error:failure};
   if(action.set){
    const next={...state};
    for(const [key,value] of Object.entries(action.set)){try{next[key]=await resolve(value,scope());}catch(e){return {state,steps:{},proposals,trace,error:'Setting state.'+key+' failed: '+(e instanceof Error?e.message:'error')};}}
@@ -65,5 +67,5 @@ export async function runAction(workflow:Workflow,name:string,input:RunInput,ctx
   }
   current=action.then;
  }
- return {state,steps:{},proposals,trace};
+ return {state,steps:options.keepSteps?lastOutputs:{},proposals,trace};
 }

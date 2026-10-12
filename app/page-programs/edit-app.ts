@@ -19,6 +19,7 @@ import type {AnswerPage} from '@/app/page-types';import type {EditDraft} from '@
 import {reviewDraftCode,assertReviewed,checkFrontendSyntax} from './code-review';
 import {assertWorkflow} from '@/app/workflows/validate';
 import {applyPatch} from '@/app/workflows/patch';
+import {appSpecSchema} from '@/app/workflows/workbench';
 import {verifyWorkflow,workflowReportText,workflowTestsSchema} from '@/app/workflows/verify';
 const bucket=()=>(env as unknown as {FILES:R2Bucket}).FILES;
 const path=(agent:Agent)=>'app-edit-drafts/'+agent.id+'.json';
@@ -48,7 +49,7 @@ export async function readAppDraft(agent:Agent,pageId:string){const draft=await 
 export async function discardAppDraft(agent:Agent){await bucket().delete(path(agent));}
 // Runs the saved or proposed app configuration the way readers will: backend program plus custom frontend.
 async function verifyConfig(page:AnswerPage,config:NonNullable<AnswerPage['dynamic']>|null,agent:Agent,request:string,tests:unknown):Promise<{passed:boolean;text:string}|null>{
- if(config?.template==='workflow-app-v1'&&config.workflow){const parsed=workflowTestsSchema.safeParse(tests);const r=await verifyWorkflow(config.workflow,{request:request||page.question||page.title,title:page.title,pageId:page.id,language:page.language},{userId:agent.ownerId},parsed.success?parsed.data:[]);return {passed:r.passed,text:workflowReportText(r)};}
+ if(config?.template==='workflow-app-v1'&&config.workflow){const parsed=workflowTestsSchema.safeParse(tests);const r=await verifyWorkflow(config.workflow,{request:request||page.question||page.title,title:page.title,pageId:page.id,language:page.language,goal:config.appSpec?.goal,requirements:(config.appSpec?.acceptance||[]).map(a=>a.requirement).concat(config.appSpec?.outputs||[]).slice(0,16)},{userId:agent.ownerId},parsed.success?parsed.data:[]);return {passed:r.passed,text:workflowReportText(r)};}
  const backendRef=config?.template==='page-program-v1'?config.components?.backend:undefined;
  if(!backendRef&&!config?.pageCode)return null;
  const program=backendRef?JSON.parse((await getComponent(backendRef,{userId:agent.ownerId},'backend_code')).payload):null;
@@ -60,7 +61,7 @@ export async function verifyCurrentApp(page:AnswerPage,agent:Agent,request:strin
  const report=await verifyConfig(page,config,agent,request,tests);
  return report?{target:pending&&!pending.saved?'unsaved proposal':'saved page',...JSON.parse(report.text)}:{skipped:'This page has no workflow (or legacy program) to run.'};
 }
-export async function stageAppRevision(page:AnswerPage,raw:unknown,agent:Agent,request='',tests:unknown=[]){
+export async function stageAppRevision(page:AnswerPage,raw:unknown,agent:Agent,request='',tests:unknown=[],options:{verified?:boolean}={}){
  if(!canWritePage(page))throw Error('PAGE_READ_ONLY');
  page=registeredAdmaPage(page);
  // Consecutive proposals in one conversation build on the unsaved draft instead of
@@ -75,7 +76,7 @@ export async function stageAppRevision(page:AnswerPage,raw:unknown,agent:Agent,r
   z.object({kind:z.literal('content'),title:z.string().trim().min(1).max(200).optional(),summary:z.string().max(1200).optional(),body:z.string().max(40000).optional(),sources:z.array(z.object({title:z.string().trim().min(1).max(300),url:z.string().url().max(2000)}).strict()).max(60).optional(),category:z.string().trim().max(100).optional()}).strict(),
   z.object({kind:z.literal('program'),program:codeSchema,inputFields:inputFieldsSchema.optional()}).strict(),
   z.object({kind:z.literal('replacement'),draft:z.unknown()}).strict(),
-  z.object({kind:z.literal('workflow'),workflow:z.unknown()}).strict(),
+  z.object({kind:z.literal('workflow'),workflow:z.unknown(),appSpec:z.unknown().optional()}).strict(),
   z.object({kind:z.literal('workflow_patch'),patch:z.array(z.object({op:z.enum(['add','replace','remove']),path:z.string().max(300),value:z.unknown().optional()}).strict()).min(1).max(60)}).strict()
  ]).parse(raw);
  let config:NonNullable<AnswerPage['dynamic']>=page.dynamic||{template:'agent-chat-v1',executor:'page-agent-v1',version:1,labels:page.labels as any},title=page.title,summary=page.summary,body='',templateId=page.labels.templateId,pageBody=page.body;
@@ -105,7 +106,8 @@ export async function stageAppRevision(page:AnswerPage,raw:unknown,agent:Agent,r
   if(change.kind==='workflow_patch'&&!config.workflow)throw Error('This page has no workflow yet; propose {kind:"workflow",workflow} with the complete app first.');
   const {workflow}=assertWorkflow(next);
   const {pageCode:_code,components:_components,inputFields:_fields,nativeApp:_native,...rest}=config as typeof config&{nativeApp?:unknown};
-  config={...rest,template:'workflow-app-v1',executor:'workflow-v1',workflow,customized:true} as typeof config;pageKind='dynamic';if(page.kind==='static')templateId='chat-v1';body=change.kind==='workflow'?'Workflow app':'Workflow changes: '+change.patch.map(p=>p.op+' '+p.path).join(', ');
+  const spec=change.kind==='workflow'&&change.appSpec!==undefined?appSpecSchema.safeParse(change.appSpec):null;
+  config={...rest,template:'workflow-app-v1',executor:'workflow-v1',workflow,customized:true,...(spec?.success?{appSpec:spec.data}:{})} as typeof config;pageKind='dynamic';if(page.kind==='static')templateId='chat-v1';body=change.kind==='workflow'?'Workflow app':'Workflow changes: '+change.patch.map(p=>p.op+' '+p.path).join(', ');
  }
  else if(change.kind==='configuration'){
   config={...config,ui:{...config.ui,mapBasemap:change.mapBasemap}};body='Map basemap: '+change.mapBasemap;
@@ -128,7 +130,8 @@ export async function stageAppRevision(page:AnswerPage,raw:unknown,agent:Agent,r
  if(JSON.stringify([pageKind,title,summary,pageBody,savedConfig,templateId,sources,category])===JSON.stringify([page.kind==='static'?'static':'dynamic',page.title,page.summary,page.body,page.dynamic,page.labels.templateId,page.sources,page.category]))throw Error('This proposal does not change any saved, renderable page property.');
  // Code changes are proposed only after they run: the backend loop and the rendered frontend must pass.
  let verification:unknown;
- if(['code','program','replacement','workflow','workflow_patch'].includes(change.kind)&&savedConfig&&(change.kind!=='code'||change.code)){
+ // A workflow the agent’s workbench already verified unchanged is not run twice.
+ if(['code','program','replacement','workflow','workflow_patch'].includes(change.kind)&&savedConfig&&(change.kind!=='code'||change.code)&&!(options.verified&&change.kind==='workflow')){
   const report=await verifyConfig({...page,labels:{...page.labels,templateId}},savedConfig,agent,request,tests);
   if(report&&!report.passed)throw Error('This revision failed verification and was not proposed. Fix every blocking item and propose again (verify_app lets you iterate without proposing). Report: '+report.text);
   if(report)verification=JSON.parse(report.text);

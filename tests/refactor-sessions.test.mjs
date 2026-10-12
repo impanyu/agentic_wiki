@@ -1,4 +1,5 @@
 import test from 'node:test';import assert from 'node:assert/strict';import {DatabaseSync} from 'node:sqlite';import {readFileSync,readdirSync} from 'node:fs';import ts from 'typescript';import {z} from 'zod';
+globalThis.createWorkbench=()=>({tools:[],has:()=>false,execute:async()=>({data:null}),workflow:()=>undefined,spec:()=>undefined,passed:()=>false,tests:()=>[]});
 globalThis.chartBlockErrors=()=>[];
 const load=async s=>import('data:text/javascript;base64,'+Buffer.from(ts.transpile(readFileSync('app/page-permissions.ts','utf8').replace(/import [\s\S]*?from ['"][^'"]+['"];?/g,'')+'\n'+s,{module:ts.ModuleKind.ESNext,target:ts.ScriptTarget.ES2022})).toString('base64'));
 const stripped=p=>readFileSync(p,'utf8').replace(/import [\s\S]*?from ['"][^'"]+['"];?/g,'');

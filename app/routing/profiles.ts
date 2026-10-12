@@ -10,10 +10,13 @@ import {recordAction,type Agent} from '@/app/agents/runtime';
 type PageRow={id:string;title:string;summary:string;body:string;labels:string;dynamic_config:string|null;kind:string;category:string;updated_at:string|null;created_at:string};
 
 export function profileText(p:Pick<PageRow,'title'|'summary'|'body'|'labels'|'dynamic_config'|'kind'|'category'>){
- const labels=safe(p.labels) as {templateId?:string;indexEntries?:{question:string}[]},config=safe(p.dynamic_config) as {template?:string;nativeApp?:string;capability?:string;inputFields?:{name:string;description?:string}[];chart?:{series?:{label:string}[]}}|null;
+ const labels=safe(p.labels) as {templateId?:string;indexEntries?:{question:string}[]},config=safe(p.dynamic_config) as {template?:string;nativeApp?:string;capability?:string;inputFields?:{name:string;description?:string}[];chart?:{series?:{label:string}[]};appSpec?:{goal?:string;inputs?:string[];outputs?:string[];interactions?:string[]}}|null;
  const lines=[p.title,p.summary];
  if(config){
   lines.push('Web app'+(config.nativeApp?' ('+config.nativeApp+')':config.template?' ('+config.template+')':'')+'.');
+  // A workflow app’s specification is its function profile.
+  if(config.appSpec?.goal)lines.push('Purpose: '+config.appSpec.goal.slice(0,600));
+  for(const [label,items] of [['Inputs',config.appSpec?.inputs],['Shows',config.appSpec?.outputs],['Actions',config.appSpec?.interactions]] as const)if(items?.length)lines.push(label+': '+items.join('; ').slice(0,500));
   if(config.inputFields?.length)lines.push('Inputs: '+config.inputFields.map(f=>f.name+(f.description?' — '+f.description:'')).join('; ').slice(0,600));
  }else{
   const headings=(p.body.match(/^#{2,3} .+$/gm)||[]).map(h=>h.replace(/^#+ /,'')).slice(0,14);
