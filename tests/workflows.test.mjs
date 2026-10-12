@@ -111,3 +111,16 @@ test('markdown documents: outline, sections, edits, and app writes that keep a v
  globalThis.wfPage={...globalThis.wfPage,owned:false};await assert.rejects(wf.TOOLS['markdown.write'].run({mode:'append',text:'x'},ctx),/PAGE_READ_ONLY/);
  const w=wf.validateWorkflow(base({actions:{load:{steps:[{id:'m',tool:'markdown.write',args:{mode:'append',text:'x'}}]}}}));assert.match(w.errors.join(' '),/cannot write files/);
 });
+
+test('json.parse turns connector text into data a workflow can bind',async()=>{
+ const obs=Array.from({length:96},(_,i)=>({t:'2026-10-10T'+String(Math.floor(i/4)).padStart(2,'0')+':'+String(i%4*15).padStart(2,'0'),temp:10+i/10,wind:3+(i%7)}));
+ globalThis.wfCalls=async c=>c.tool==='connectors.call'?{content:JSON.stringify({station:'R5-01',observations:obs})}:{};
+ const w=wf.validateWorkflow(base({state:{rows:[]},actions:{pick:{steps:[
+  {id:'file',tool:'connectors.call',args:{connectorId:'adma',tool:'read_text_file',arguments:{path:{$:"'realm5/' & values.day & '.json'"}}}},
+  {id:'data',tool:'json.parse',args:{text:{$:'steps.file.content'}}}],
+  set:{rows:{$:'steps.data.observations[]'},maxWind:{$:'$max(steps.data.observations.wind)'}}}}})).workflow;
+ const r=await wf.runAction(w,'pick',{values:{day:'2026-10-10'}},ctx);
+ assert.equal(r.error,undefined);assert.equal(r.state.rows.length,96);assert.equal(r.state.maxWind,9);
+ assert.deepEqual(await wf.TOOLS['json.parse'].run({text:'{"a":1}\n{"a":2}\n',lines:true}),[{a:1},{a:2}]);
+ await assert.rejects(wf.TOOLS['json.parse'].run({text:'{bad'}),/Not valid JSON/);
+});
