@@ -5,7 +5,7 @@ const load=async s=>import('data:text/javascript;base64,'+Buffer.from(ts.transpi
 test('generator chooses its artifact in one agent invocation and validates before materializing',async()=>{
  let kind='disambiguation',calls=0,saved=0;const agent={id:'g',role:'content-generation',ownerId:'u'};
  globalThis.generationLoop={indexGenerationPolicy:async()=>({leafRequired:false,validate:()=>{}}),generationInstructions:'Choose your own tools.',spawnAgent:async()=>agent,recordAction:async()=>{},output:r=>r.text,generationContract:()=>({}),validateGenerationDraft:(d,q,c)=>{assert.equal(q,'china');assert.equal(c.userId,'u');if(!d.valid)throw Error('Correct the draft');return {...d,intent:{outputKind:d.kind==='chat'?'conversation':'article'}};},materializeGenerationDraft:async d=>{saved++;return {answer:{title:'China',summary:'Summary',body:'',category:'Index'},templateId:d.kind==='chat'?'chat-v1':'disambiguation-v1'};},askAgent:async(a,i,t,s,signal,onReply,files,options)=>{
-  calls++;assert.equal(a,agent);assert.equal(t.question,'china');assert.ok(options.extraTools.some(t=>t.name==='test_page_program'));
+  calls++;assert.equal(a,agent);assert.equal(t.question,'china');assert.ok(options.extraTools.some(t=>t.name==='verify_app'));assert.ok(!options.extraTools.some(t=>t.name==='test_page_program'));
   assert.match(await options.validateFinal({text:JSON.stringify({draftJson:'{}'})},{webSearched:false}),/Correct/);assert.equal(saved,calls-1);
   assert.equal(await options.validateFinal({text:JSON.stringify({draftJson:JSON.stringify({kind,valid:true,labels:{overview:'Overview'}})})},{webSearched:true}),undefined);
  }};
