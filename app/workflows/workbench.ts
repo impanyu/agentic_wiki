@@ -107,7 +107,7 @@ export function createWorkbench(ctx:Ctx,initial?:{workflow?:unknown;spec?:unknow
    if(!workflow||errors.length)return {data:{rendered:false,errors}};
    const state=parse(a.stateJson,'stateJson')??last?.state??workflow.state,values=parse(a.valuesJson,'valuesJson')??last?.values??{};
    const viewports=a.viewport==='desktop'?['desktop' as const]:a.viewport==='phone'?['phone' as const]:['desktop' as const,'phone' as const];
-   const shots=await renderScreens(workflow,{state,values,title:workflow.title||ctx.title,pageId:ctx.pageId},viewports,ctx.signal);
+   const shots=await renderScreens(workflow,{state,values,title:workflow.title||ctx.title,pageId:ctx.pageId,language:ctx.language},viewports,ctx.signal);
    return {data:{rendered:true,screens:shots.map(s=>({viewport:s.label,errors:s.errors,horizontalOverflow:s.overflow,textChars:s.textChars})),note:'The screenshots follow as images.'},parts:[{type:'input_text',text:'wf_preview screenshots of the draft app ('+shots.map(s=>s.label).join(', ')+'):'},...shots.map(s=>({type:'input_image',image_url:'data:image/jpeg;base64,'+s.data,detail:'high'}))]};
   }
   if(name==='wf_verify'){

@@ -14,7 +14,7 @@ type Resolved={props:Record<string,any>;visible:boolean};
 function walk(nodes:WorkflowNode[],fn:(n:WorkflowNode)=>void){for(const n of nodes){fn(n);if(n.children)walk(n.children,fn);}}
 function staticResolve(ui:WorkflowNode[]){const map=new Map<WorkflowNode,Resolved>();let dynamic=false;walk(ui,n=>{if(bindingsIn(n.props).length||n.visible!==undefined)dynamic=true;map.set(n,{props:(n.props||{}) as Record<string,any>,visible:true});});return dynamic?null:map;}
 export function WorkflowApp({workflow,pageId,title,writable,draftId,snapshot,renderArticle,preloaded}:{workflow:Workflow;pageId:string;title:string;writable:boolean;draftId?:string;snapshot?:{state:Record<string,unknown>;values:Record<string,unknown>};renderArticle?:()=>ReactNode;preloaded?:Record<string,unknown>}){
- const {locale}=useUi();
+ const {locale,t}=useUi();
  const [state,setState]=useState<Record<string,unknown>>(()=>({...workflow.state,...(preloaded||{})}));
  const [values,setValues]=useState<Record<string,unknown>>({});
  const [running,setRunning]=useState<Record<string,boolean>>({}),[errors,setErrors]=useState<Record<string,string>>({}),[traces,setTraces]=useState<Record<string,RunTrace[]>>({});
@@ -42,16 +42,16 @@ export function WorkflowApp({workflow,pageId,title,writable,draftId,snapshot,ren
    if(workflow.actions[action]?.client){const r=await runClientAction(workflow,action,{state:live.current.state,values:live.current.values,event},{id:pageId,title});setState(r.state);setTraces(t=>({...t,[action]:r.trace}));if(r.error)setErrors(e=>({...e,[action]:r.error!}));return;}
    const response=await fetch('/api/pages/'+encodeURIComponent(pageId)+'/workflow',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action,state:live.current.state,values:live.current.values,event,...(draftId?{draftId}:{})})});
    const data=await response.json() as {state?:Record<string,unknown>;trace?:RunTrace[];proposals?:{actionId:string;request:unknown}[];error?:string};
-   if(!response.ok&&!data.state)throw Error(data.error||'The action could not run.');
+   if(!response.ok&&!data.state)throw Error(data.error||t('The action could not run.'));
    if(data.state)setState(data.state);setTraces(t=>({...t,[action]:data.trace||[]}));
    if(data.proposals?.length)setProposals(p=>[...p,...data.proposals!.filter(x=>!p.some(y=>y.actionId===x.actionId))]);
    if(data.error)setErrors(e=>({...e,[action]:data.error!}));
-  }catch(e){setErrors(x=>({...x,[action]:e instanceof Error?e.message:'The action failed.'}));}
+  }catch(e){setErrors(x=>({...x,[action]:e instanceof Error?e.message:t('The action failed.')}));}
   finally{setRunning(r=>({...r,[action]:false}));}
- },[pageId,draftId,workflow,title]);
+ },[pageId,draftId,workflow,title,t]);
  const loaded=useRef<Workflow|null>(null);
  useEffect(()=>{if(snapshot||preloaded||loaded.current===workflow||!workflow.actions.load)return;loaded.current=workflow;const t=setTimeout(()=>void run('load',{type:'load'}),50);return()=>clearTimeout(t);},[workflow,run,snapshot]);
- const ctx:Ctx={pageId,writable,running,errors,traces,locale,state,renderArticle};
+ const ctx:Ctx={pageId,writable,running,errors,traces,locale,t,state,renderArticle};
  const formValues=(n:WorkflowNode)=>{const out:Record<string,unknown>={};walk(n.children||[],c=>{if(c.id&&COMPONENTS[c.type]?.value)out[c.id]=live.current.values[c.id];});return out;};
  const render=(n:WorkflowNode,key:string):ReactNode=>{
   const r=resolved?.get(n);if(!r||!r.visible)return null;
@@ -64,7 +64,7 @@ export function WorkflowApp({workflow,pageId,title,writable,draftId,snapshot,ren
  const layout=workflow.layout||{};
  return <div className={'wf-app density-'+(layout.density||'normal')+(layout.plain?' plain':'')} style={layout.plain?undefined:{maxWidth:layout.maxWidth||1200,...(layout.accent?{['--wf-accent' as string]:layout.accent}:{})}}>
   {proposals.map(p=><StorageProposal key={p.actionId} {...p}/>)}
-  {resolved?workflow.ui.map((n,i)=>render(n,String(i))):<p role="status" className="wf-muted">Loading…</p>}
+  {resolved?workflow.ui.map((n,i)=>render(n,String(i))):<p role="status" className="wf-muted">{t('Loading…')}</p>}
   {writable&&bindingErrors.length>0&&<details className="wf-binding-errors"><summary>{bindingErrors.length} display binding problem(s)</summary><ul>{bindingErrors.map((e,i)=><li key={i}><code>{e}</code></li>)}</ul></details>}
  </div>;
 }

@@ -45,7 +45,7 @@ export async function verifyWorkflow(raw:unknown,target:{request:string;title:st
  let shots:Shot[]=[];
  if(!chromiumPath())report.warnings.push('Rendering check unavailable on this server.');
  else if(shown&&!ctx.signal?.aborted){
-  try{shots=await renderScreens(workflow,{state:shown.state,values:shown.values,title:target.title,pageId:target.pageId},['desktop','phone'],ctx.signal);
+  try{shots=await renderScreens(workflow,{state:shown.state,values:shown.values,title:target.title,pageId:target.pageId,language:target.language},['desktop','phone'],ctx.signal);
    for(const s of shots){report.screens.push({viewport:s.label,errors:s.errors,overflow:s.overflow,textChars:s.textChars});const uncaught=s.errors.find(e=>e.startsWith('Uncaught'));if(uncaught)report.blocking.push(s.label+': '+uncaught);if(s.overflow)report.warnings.push(s.label+': the page scrolls horizontally.');}}
   catch(e){report.warnings.push('Rendering check failed: '+(e instanceof Error?e.message.split('\n')[0].slice(0,200):'error'));}
  }

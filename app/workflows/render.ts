@@ -6,7 +6,7 @@ import type {Workflow} from './schema';
 export type Shot={label:string;data:string;errors:string[];overflow:boolean;textChars:number};
 const VIEWPORTS={desktop:{label:'desktop 1280px',width:1280,height:900},phone:{label:'phone 390px',width:390,height:844}};
 export const chromiumPath=()=>[process.env.CHROMIUM_PATH,'/usr/bin/chromium','/usr/bin/chromium-browser','/usr/bin/google-chrome'].find(p=>p&&existsSync(p));
-export async function renderScreens(workflow:Workflow,snapshot:{state:Record<string,unknown>;values:Record<string,unknown>;title:string;pageId:string},viewports:('desktop'|'phone')[]=['desktop','phone'],signal?:AbortSignal):Promise<Shot[]>{
+export async function renderScreens(workflow:Workflow,snapshot:{state:Record<string,unknown>;values:Record<string,unknown>;title:string;pageId:string;language?:string},viewports:('desktop'|'phone')[]=['desktop','phone'],signal?:AbortSignal):Promise<Shot[]>{
  const executablePath=chromiumPath();if(!executablePath)throw Error('Rendering is unavailable on this server.');
  const token=putPreview({workflow,...snapshot});let browser:any;const shots:Shot[]=[];
  try{
