@@ -2,7 +2,7 @@
 import {Fragment,useCallback,useEffect,useRef,useState,type ReactNode} from 'react';
 import {StorageProposal} from '@/app/storage/panel';
 import {useUi} from '@/app/i18n/client';
-import {resolve} from './expressions';
+import {resolve,bindingsIn} from './expressions';
 import {isBinding,type Workflow,type WorkflowNode,type RunTrace} from './schema';
 import {COMPONENTS} from './catalog';
 import {renderComponent,type Ctx} from './components';
@@ -11,16 +11,18 @@ import './style.css';
 // server (/api/pages/<id>/workflow); bindings are evaluated here for display.
 type Resolved={props:Record<string,any>;visible:boolean};
 function walk(nodes:WorkflowNode[],fn:(n:WorkflowNode)=>void){for(const n of nodes){fn(n);if(n.children)walk(n.children,fn);}}
-export function WorkflowApp({workflow,pageId,title,writable,draftId,snapshot}:{workflow:Workflow;pageId:string;title:string;writable:boolean;draftId?:string;snapshot?:{state:Record<string,unknown>;values:Record<string,unknown>}}){
+function staticResolve(ui:WorkflowNode[]){const map=new Map<WorkflowNode,Resolved>();let dynamic=false;walk(ui,n=>{if(bindingsIn(n.props).length||n.visible!==undefined)dynamic=true;map.set(n,{props:(n.props||{}) as Record<string,any>,visible:true});});return dynamic?null:map;}
+export function WorkflowApp({workflow,pageId,title,writable,draftId,snapshot,renderArticle,preloaded}:{workflow:Workflow;pageId:string;title:string;writable:boolean;draftId?:string;snapshot?:{state:Record<string,unknown>;values:Record<string,unknown>};renderArticle?:()=>ReactNode;preloaded?:Record<string,unknown>}){
  const {locale}=useUi();
- const [state,setState]=useState<Record<string,unknown>>(workflow.state);
+ const [state,setState]=useState<Record<string,unknown>>(()=>({...workflow.state,...(preloaded||{})}));
  const [values,setValues]=useState<Record<string,unknown>>({});
  const [running,setRunning]=useState<Record<string,boolean>>({}),[errors,setErrors]=useState<Record<string,string>>({}),[traces,setTraces]=useState<Record<string,RunTrace[]>>({});
  const [proposals,setProposals]=useState<{actionId:string;request:unknown}[]>([]);
- const [resolved,setResolved]=useState<Map<WorkflowNode,Resolved>|null>(null),[bindingErrors,setBindingErrors]=useState<string[]>([]);
+ // Binding-free pages (such as a plain wiki article) render on the first paint.
+ const [resolved,setResolved]=useState<Map<WorkflowNode,Resolved>|null>(()=>staticResolve(workflow.ui)),[bindingErrors,setBindingErrors]=useState<string[]>([]);
  const live=useRef({state,values});live.current={state,values};
  // Input defaults become initial values (bindings in defaults are resolved once).
- useEffect(()=>{let cancelled=false;void (async()=>{const init:Record<string,unknown>={};const scope={state:workflow.state,values:{},page:{id:pageId,title}};const tasks:Promise<void>[]=[];walk(workflow.ui,n=>{const d=(n.props as any)?.default;if(n.id&&d!==undefined)tasks.push(resolve(d,scope).then(v=>{init[n.id!]=v;},()=>{}));if(n.id&&d===undefined&&['file_upload','resource_picker'].includes(n.type))init[n.id]=[];});await Promise.all(tasks);if(!cancelled){setState(snapshot?.state??workflow.state);setValues({...init,...(snapshot?.values||{})});}})();return()=>{cancelled=true;};},[workflow,pageId,title,snapshot]);
+ useEffect(()=>{let cancelled=false;void (async()=>{const init:Record<string,unknown>={};const scope={state:workflow.state,values:{},page:{id:pageId,title}};const tasks:Promise<void>[]=[];walk(workflow.ui,n=>{const d=(n.props as any)?.default;if(n.id&&d!==undefined)tasks.push(resolve(d,scope).then(v=>{init[n.id!]=v;},()=>{}));if(n.id&&d===undefined&&['file_upload','resource_picker'].includes(n.type))init[n.id]=[];});await Promise.all(tasks);if(!cancelled){setState(snapshot?.state??{...workflow.state,...(preloaded||{})});setValues({...init,...(snapshot?.values||{})});}})();return()=>{cancelled=true;};},[workflow,pageId,title,snapshot]);
  useEffect(()=>{let cancelled=false;void (async()=>{
   const map=new Map<WorkflowNode,Resolved>(),problems:string[]=[],scope={state,values,running,errors,page:{id:pageId,title}};
   const safe=async(v:unknown,where:string)=>{try{return await resolve(v,scope);}catch(e){problems.push(where+': '+(e instanceof Error?e.message:'error'));return undefined;}};
@@ -41,8 +43,8 @@ export function WorkflowApp({workflow,pageId,title,writable,draftId,snapshot}:{w
   finally{setRunning(r=>({...r,[action]:false}));}
  },[pageId,draftId]);
  const loaded=useRef<Workflow|null>(null);
- useEffect(()=>{if(snapshot||loaded.current===workflow||!workflow.actions.load)return;loaded.current=workflow;const t=setTimeout(()=>void run('load',{type:'load'}),50);return()=>clearTimeout(t);},[workflow,run,snapshot]);
- const ctx:Ctx={pageId,writable,running,errors,traces,locale};
+ useEffect(()=>{if(snapshot||preloaded||loaded.current===workflow||!workflow.actions.load)return;loaded.current=workflow;const t=setTimeout(()=>void run('load',{type:'load'}),50);return()=>clearTimeout(t);},[workflow,run,snapshot]);
+ const ctx:Ctx={pageId,writable,running,errors,traces,locale,state,renderArticle};
  const formValues=(n:WorkflowNode)=>{const out:Record<string,unknown>={};walk(n.children||[],c=>{if(c.id&&COMPONENTS[c.type]?.value)out[c.id]=live.current.values[c.id];});return out;};
  const render=(n:WorkflowNode,key:string):ReactNode=>{
   const r=resolved?.get(n);if(!r||!r.visible)return null;
@@ -53,7 +55,7 @@ export function WorkflowApp({workflow,pageId,title,writable,draftId,snapshot}:{w
   return <Fragment key={key}>{renderComponent({node:n,props:r.props,raw:(n.props||{}) as Record<string,unknown>,value,setValue,fire,ctx,children})}</Fragment>;
  };
  const layout=workflow.layout||{};
- return <div className={'wf-app density-'+(layout.density||'normal')} style={{maxWidth:layout.maxWidth||1200,...(layout.accent?{['--wf-accent' as string]:layout.accent}:{})}}>
+ return <div className={'wf-app density-'+(layout.density||'normal')+(layout.plain?' plain':'')} style={layout.plain?undefined:{maxWidth:layout.maxWidth||1200,...(layout.accent?{['--wf-accent' as string]:layout.accent}:{})}}>
   {proposals.map(p=><StorageProposal key={p.actionId} {...p}/>)}
   {resolved?workflow.ui.map((n,i)=>render(n,String(i))):<p role="status" className="wf-muted">Loading…</p>}
   {writable&&bindingErrors.length>0&&<details className="wf-binding-errors"><summary>{bindingErrors.length} display binding problem(s)</summary><ul>{bindingErrors.map((e,i)=><li key={i}><code>{e}</code></li>)}</ul></details>}

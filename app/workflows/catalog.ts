@@ -18,6 +18,7 @@ export const COMPONENTS:Record<string,ComponentSpec>={
  divider:{category:'layout',description:'A horizontal rule with optional label.',props:{label:'string'}},
  spacer:{category:'layout',description:'Vertical space.',props:{size:'small | medium | large'}},
  // Content
+ article:{category:'content',description:'The wiki article of this page: Markdown with numbered citations, images, chart blocks, concept links, select-to-ask and its sources. Its data comes from the preset markdown.read backend tool (the platform fills it on page open); edit the text itself with the wiki editing tools, not in the workflow.',props:{}},
  heading:{category:'content',description:'A heading.',props:{text:'string',level:'1–4',subtitle:'string'}},
  text:{category:'content',description:'Markdown text (tables, lists, links). Images must be same-site URLs.',props:{markdown:'string',size:'small | normal | large',muted:'boolean'}},
  callout:{category:'content',description:'Highlighted notice.',props:{tone,title:'string',text:'markdown'}},

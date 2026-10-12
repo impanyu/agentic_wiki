@@ -20,6 +20,7 @@ import {reviewDraftCode,assertReviewed,checkFrontendSyntax} from './code-review'
 import {assertWorkflow} from '@/app/workflows/validate';
 import {applyPatch} from '@/app/workflows/patch';
 import {appSpecSchema} from '@/app/workflows/workbench';
+import {hasType} from '@/app/workflows/presets';
 import {verifyWorkflow,workflowReportText,workflowTestsSchema} from '@/app/workflows/verify';
 const bucket=()=>(env as unknown as {FILES:R2Bucket}).FILES;
 const path=(agent:Agent)=>'app-edit-drafts/'+agent.id+'.json';
@@ -105,9 +106,13 @@ export async function stageAppRevision(page:AnswerPage,raw:unknown,agent:Agent,r
   const next=change.kind==='workflow'?change.workflow:applyPatch(config.workflow,change.patch);
   if(change.kind==='workflow_patch'&&!config.workflow)throw Error('This page has no workflow yet; propose {kind:"workflow",workflow} with the complete app first.');
   const {workflow}=assertWorkflow(next);
+  // Never trade a wiki page’s existing feature (a main chart, an illustration) for a workflow that cannot show it.
+  if(page.kind==='static'&&config.template&&config.template!=='workflow-app-v1'&&page.dynamic)throw Error('This wiki page already shows a '+config.template+' component that a workflow cannot reproduce yet, so adding a workflow here would remove it. Keep the page as is, or propose the app as a separate page with suggest_page.');
   const {pageCode:_code,components:_components,inputFields:_fields,nativeApp:_native,...rest}=config as typeof config&{nativeApp?:unknown};
   const spec=change.kind==='workflow'&&change.appSpec!==undefined?appSpecSchema.safeParse(change.appSpec):null;
-  config={...rest,template:'workflow-app-v1',executor:'workflow-v1',workflow,customized:true,...(spec?.success?{appSpec:spec.data}:{})} as typeof config;pageKind='dynamic';if(page.kind==='static')templateId='chat-v1';body=change.kind==='workflow'?'Workflow app':'Workflow changes: '+change.patch.map(p=>p.op+' '+p.path).join(', ');
+  config={...rest,template:'workflow-app-v1',executor:'workflow-v1',workflow,customized:true,...(spec?.success?{appSpec:spec.data}:{})} as typeof config;
+  // A wiki page whose workflow keeps its article stays a wiki page (same template, wiki chat); otherwise it becomes an app.
+  if(!(page.kind==='static'&&hasType(workflow.ui,'article'))){pageKind='dynamic';if(page.kind==='static')templateId='chat-v1';}body=change.kind==='workflow'?'Workflow app':'Workflow changes: '+change.patch.map(p=>p.op+' '+p.path).join(', ');
  }
  else if(change.kind==='configuration'){
   config={...config,ui:{...config.ui,mapBasemap:change.mapBasemap}};body='Map basemap: '+change.mapBasemap;

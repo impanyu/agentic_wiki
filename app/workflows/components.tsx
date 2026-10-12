@@ -10,7 +10,7 @@ import type {GeoCollection} from '@/app/geo/data';
 import type {WorkflowNode,RunTrace} from './schema';
 // React implementations of the infrastructure UI components (see catalog.ts).
 // Props arrive already resolved; values and events go back through the app.
-export type Ctx={pageId:string;writable:boolean;running:Record<string,boolean>;errors:Record<string,string>;traces:Record<string,RunTrace[]>;locale:string};
+export type Ctx={pageId:string;writable:boolean;running:Record<string,boolean>;errors:Record<string,string>;traces:Record<string,RunTrace[]>;locale:string;state:Record<string,unknown>;renderArticle?:()=>ReactNode};
 export type ComponentProps={node:WorkflowNode;props:Record<string,any>;raw:Record<string,unknown>;value:unknown;setValue:(v:unknown)=>void;fire:(event:string,payload?:unknown)=>void;ctx:Ctx;children:ReactNode[]};
 const PALETTE=['#2563eb','#16a34a','#ea580c','#9333ea','#0891b2','#dc2626','#ca8a04','#db2777','#4f46e5','#059669'];
 // Media and images load only from this site, so a binding cannot leak data in a URL.
@@ -117,6 +117,8 @@ function Input({node,props,value,setValue,fire}:ComponentProps){
 export function renderComponent(p:ComponentProps):ReactNode{
  const {node,props,ctx,children,fire,setValue,value,raw}=p;
  switch(node.type){
+  // On a page the workspace supplies its full article view; elsewhere (previews) the preset backend’s data is shown plainly.
+  case 'article':{if(ctx.renderArticle)return <div className="wf-article">{ctx.renderArticle()}</div>;const a=(ctx.state.article||{}) as {title?:string;summary?:string;body?:string;sources?:{title:string;url:string}[]};return <article className="wf-article">{a.title&&<h2>{a.title}</h2>}{a.summary&&<p className="wf-muted">{a.summary}</p>}<Markdown text={String(a.body||'')}/>{!!a.sources?.length&&<ol className="wf-sources">{a.sources.map((s,i)=><li key={i}><a href={s.url} target="_blank" rel="noopener noreferrer">{s.title}</a></li>)}</ol>}</article>;}
   case 'section':return <Section {...p}/>;
   case 'card':return <article className={'wf-card tone-'+(props.tone||'neutral')+' pad-'+(props.padding||'normal')}>{sameSite(props.image)&&<img src={props.image} alt="" className="wf-card-image"/>}{(props.title||props.subtitle)&&<header>{props.title&&<h3>{props.title}</h3>}{props.subtitle&&<p className="wf-muted">{props.subtitle}</p>}</header>}{children}{props.footer&&<footer className="wf-muted">{props.footer}</footer>}</article>;
   case 'row':return <div className={'wf-row gap-'+(props.gap||'medium')} style={{alignItems:props.align==='stretch'?'stretch':props.align==='center'?'center':props.align==='end'?'flex-end':'flex-start',justifyContent:props.justify==='between'?'space-between':props.justify==='center'?'center':props.justify==='end'?'flex-end':'flex-start'}}>{children}</div>;

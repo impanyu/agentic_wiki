@@ -37,7 +37,7 @@ export function validateWorkflow(raw:unknown):{workflow:Workflow;errors:string[]
    if(!tool)errors.push(path+': unknown tool "'+s.tool+'". Tools: '+Object.keys(TOOLS).join(', ')+'.');
    for(const text of [...bindingsIn(s.args),...bindingsIn(s.when),...bindingsIn(s.each)]){expressions.push({path,text});for(const ref of stepRefs(text))if(!seen.has(ref))errors.push(path+': reads steps.'+ref+', which is not an earlier step of this action.');}
    if(s.each!==undefined&&!bindingsIn(s.each).length)errors.push(path+': each must be a binding to a list; inside args use $item and $index.');
-   if(name==='load'&&tool?.changes&&['files.write','files.zip'].includes(s.tool))errors.push(path+': the load action runs without a user action, so it cannot write files. Run it from a button or form.');
+   if(name==='load'&&tool?.changes&&['files.write','files.zip','markdown.write'].includes(s.tool))errors.push(path+': the load action runs without a user action, so it cannot write files. Run it from a button or form.');
    seen.add(s.id);
   });
   for(const text of bindingsIn(action.set))expressions.push({path:'actions.'+name+'.set',text});

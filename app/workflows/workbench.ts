@@ -82,7 +82,7 @@ export function createWorkbench(ctx:Ctx,initial?:{workflow?:unknown;spec?:unknow
   if(name==='wf_set'){draft=parse(a.workflowJson,'workflowJson');draft.kind??='workflow-app';return {data:check()};}
   if(name==='wf_edit'){const ops=parse(a.opsJson,'opsJson');if(!Array.isArray(ops)||!ops.length)throw Error('opsJson must be a non-empty array.');draft=applyOps(draft??{kind:'workflow-app',state:{},ui:[],actions:{}},ops);return {data:check()};}
   if(name==='wf_validate')return {data:check()};
-  if(name==='wf_try_tool'){const tool=TOOLS[String(a.tool)];if(!tool)throw Error('Unknown tool. Search with wf_catalog.');if(['files.write','files.zip'].includes(String(a.tool)))return {data:{skipped:'This tool writes a Page file; it runs only inside the app from a user action. Test it with wf_run.'}};const r=await tool.run(parse(a.argsJson,'argsJson')||{},toolCtx(false));return {data:{result:clip(r,30000)}};}
+  if(name==='wf_try_tool'){const tool=TOOLS[String(a.tool)];if(!tool)throw Error('Unknown tool. Search with wf_catalog.');if(['files.write','files.zip','markdown.write'].includes(String(a.tool)))return {data:{skipped:'This tool writes a Page file; it runs only inside the app from a user action. Test it with wf_run.'}};const r=await tool.run(parse(a.argsJson,'argsJson')||{},toolCtx(false));return {data:{result:clip(r,30000)}};}
   if(name==='wf_eval'){const scope=parse(a.scopeJson,'scopeJson')??last??{};return {data:{value:clip(await evaluate(String(a.expression),scope),20000)}};}
   if(name==='wf_run'){
    const {workflow,errors}=(()=>{try{const r=validateWorkflow(draft);return r;}catch(e){return {workflow:null,errors:[e instanceof Error?e.message:'Invalid workflow']};}})();

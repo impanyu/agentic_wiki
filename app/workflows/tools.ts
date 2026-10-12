@@ -1,6 +1,7 @@
 import JSZip from 'jszip';
 import {parse} from 'csv-parse/sync';
 import {executeCall} from '@/app/page-programs/runtime';
+import {readMarkdown,writeMarkdown} from '@/app/documents/markdown';
 import {readFile} from '@/app/resources/service';
 import {resourceSchema} from '@/app/resources/contracts';
 import {storePageTextFile,storePageBinaryFile} from '@/app/context-files/store';
@@ -13,6 +14,8 @@ type Tool={description:string;args:Record<string,string>;returns:string;changes?
 const brokered=(tool:string)=>(args:Record<string,any>,ctx:ToolContext)=>executeCall({id:'step',tool,args},{userId:ctx.userId,pageId:ctx.pageId,input:ctx.explicit?{submitted:true}:{},verification:ctx.verification,signal:ctx.signal});
 const resourceList=(value:unknown)=>{const list=Array.isArray(value)?value:[value];if(!list.length||list.length>200)throw Error('Pass 1–200 file resources.');return list.map(r=>{const {url:_u,size:_s,...rest}=(r||{}) as Record<string,unknown>;return resourceSchema.parse(rest);});};
 export const TOOLS:Record<string,Tool>={
+ 'markdown.read':{description:'Reads this wiki page\u2019s article (the preset backend of wiki pages): title, summary, outline of headings, Markdown body (or one section), sources and labels.',args:{section:'optional heading text to read only that section'},returns:'{title,summary,outline,body,sources,category,labels}',run:async(a,ctx)=>readMarkdown(ctx.pageId,ctx.userId,{section:a.section?String(a.section):undefined})},
+ 'markdown.write':{description:'Changes this page\u2019s article Markdown: append text, replace a section, insert after a section, or replace the whole body. Runs only from a user action on a page the user can edit; the previous text stays restorable in the version menu.',args:{mode:'append | replace_section | insert_after_section | replace_body',heading:'section heading for the section modes',text:'Markdown (citations as [n] referring to the page sources)'},returns:'{saved,outline,chars}',changes:true,run:async(a,ctx)=>writeMarkdown(ctx.pageId,ctx.userId,{mode:String(a.mode||'append') as any,heading:a.heading?String(a.heading):undefined,text:String(a.text??'')},'App edit: '+String(a.mode||'append'))},
  compute:{description:'Returns its value argument; use bindings in value to filter, sort, group, join, aggregate or reshape data with JSONata.',args:{value:'any (usually a binding)'},returns:'the value',run:async a=>a.value},
  'csv.parse':{description:'Parses CSV text into rows.',args:{text:'CSV text',header:'boolean, default true',delimiter:'default ","'},returns:'array of row objects (or arrays without header)',run:async a=>parse(String(a.text||''),{columns:a.header!==false,delimiter:a.delimiter||',',skip_empty_lines:true,relax_column_count:true,cast:true,bom:true}).slice(0,100000)},
  'csv.format':{description:'Formats rows as CSV text.',args:{rows:'array of objects',columns:'optional [keys]'},returns:'CSV text',run:async a=>{const rows=Array.isArray(a.rows)?a.rows:[];const cols:string[]=a.columns||[...new Set(rows.flatMap((r:object)=>Object.keys(r||{})))];const cell=(v:unknown)=>{const s=v==null?'':typeof v==='object'?JSON.stringify(v):String(v);return /[",\n]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s;};return [cols.join(','),...rows.map((r:Record<string,unknown>)=>cols.map(c=>cell(r?.[c])).join(','))].join('\n');}},
