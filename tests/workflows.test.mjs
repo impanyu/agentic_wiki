@@ -1,7 +1,7 @@
 import test from 'node:test';import assert from 'node:assert/strict';import {build} from 'esbuild';import {pathToFileURL} from 'node:url';import {resolve} from 'node:path';
 // Bundles the workflow modules with the platform services stubbed through globalThis.
 const stubs={'@/app/page-programs/runtime':'export const executeCall=(c,ctx)=>globalThis.wfCalls(c,ctx);','@/app/resources/service':'export const readFile=(p,u,r)=>globalThis.wfRead(r);','@/app/context-files/store':'export const storePageTextFile=(...a)=>globalThis.wfStore("text",a);export const storePageBinaryFile=(...a)=>globalThis.wfStore("binary",a);','@/app/api/ask/ai':'export const api=async()=>{throw Error("no model in tests")};export const output=()=>"";','@/db/store':'export const model=()=>"test";export const getPage=()=>globalThis.wfPage;export const database=()=>globalThis.wfDb;','@/app/page-permissions':'export const canWritePage=p=>!!p.owned;','@/app/components-registry/chart-contracts':'export const chartBlockErrors=b=>b.includes("```chart\\n{bad")?["Chart JSON is invalid."]:[];','@/app/api/ask/refresh-matched-page':'export const relocateQuote=(q,s)=>s;','@/app/versions/service':'export const keepOriginal=async()=>{};export const recordVersion=async(...a)=>{globalThis.wfVersions.push(a);};','@/app/resources/contracts':'import {z} from "zod";export const resourceSchema=z.object({space:z.string(),id:z.string(),kind:z.enum(["file","folder"]),name:z.string(),connectorId:z.string().optional()}).strict();'};
-const out=await build({stdin:{contents:"export * from './app/workflows/validate.ts';export * from './app/workflows/executor.ts';export * from './app/workflows/expressions.ts';export {workflowContract} from './app/workflows/contract.ts';export {applyPatch} from './app/workflows/patch.ts';export {TOOLS} from './app/workflows/tools.ts';export {createWorkbench} from './app/workflows/workbench.ts';export * as md from './app/documents/markdown.ts';",resolveDir:process.cwd(),loader:'ts'},bundle:true,format:'esm',platform:'node',write:false,external:['zod','jsonata','jszip','csv-parse','csv-parse/sync','playwright-core'],plugins:[{name:'stubs',setup(b){b.onResolve({filter:/^@\/(app\/(page-programs\/runtime|resources\/service|context-files\/store|resources\/contracts|api\/ask\/ai|page-permissions|components-registry\/chart-contracts|api\/ask\/refresh-matched-page|versions\/service)|db\/store)$/},a=>({path:a.path,namespace:'stub'}));b.onLoad({filter:/.*/,namespace:'stub'},a=>({contents:stubs[a.path],loader:'js',resolveDir:process.cwd()}));}}]});
+const out=await build({stdin:{contents:"export * from './app/workflows/validate.ts';export * from './app/workflows/executor.ts';export * from './app/workflows/expressions.ts';export {workflowContract} from './app/workflows/contract.ts';export {applyPatch} from './app/workflows/patch.ts';export {TOOLS} from './app/workflows/tools.ts';export {createWorkbench} from './app/workflows/workbench.ts';export * as md from './app/documents/markdown.ts';export {describeData} from './app/workflows/describe.ts';export * as notes from './app/workflows/source-notes.ts';",resolveDir:process.cwd(),loader:'ts'},bundle:true,format:'esm',platform:'node',write:false,external:['zod','jsonata','jszip','csv-parse','csv-parse/sync','playwright-core'],plugins:[{name:'stubs',setup(b){b.onResolve({filter:/^@\/(app\/(page-programs\/runtime|resources\/service|context-files\/store|resources\/contracts|api\/ask\/ai|page-permissions|components-registry\/chart-contracts|api\/ask\/refresh-matched-page|versions\/service)|db\/store)$/},a=>({path:a.path,namespace:'stub'}));b.onLoad({filter:/.*/,namespace:'stub'},a=>({contents:stubs[a.path],loader:'js',resolveDir:process.cwd()}));}}]});
 const file=resolve('node_modules/.cache-workflows-test.mjs');(await import('node:fs')).writeFileSync(file,out.outputFiles[0].text);
 const wf=await import(pathToFileURL(file).href);
 const ctx={userId:'u',pageId:'p',language:'en',explicit:true};
@@ -123,4 +123,25 @@ test('json.parse turns connector text into data a workflow can bind',async()=>{
  assert.equal(r.error,undefined);assert.equal(r.state.rows.length,96);assert.equal(r.state.maxWind,9);
  assert.deepEqual(await wf.TOOLS['json.parse'].run({text:'{"a":1}\n{"a":2}\n',lines:true}),[{a:1},{a:2}]);
  await assert.rejects(wf.TOOLS['json.parse'].run({text:'{bad'}),/Not valid JSON/);
+});
+
+test('data.describe summarizes any structure, including JSON held in a string',()=>{
+ const obs=Array.from({length:96},(_,i)=>({time:'2026-10-10T00:'+String(i%60).padStart(2,'0'),temp:10+i/10,...(i%2?{gust:5}:{})}));
+ const d=wf.describeData({content:JSON.stringify({station:'R5-01',observations:obs}),path:'realm5/2026-10-10.json'});
+ const parsed=d.fields.content.parsed;assert.equal(d.fields.content.contains,'json');
+ assert.equal(parsed.fields.observations.length,96);assert.deepEqual(parsed.fields.observations.items.fields.temp.range,[10,19.5]);
+ assert.equal(parsed.fields.observations.items.fields.time.format,'date/time');assert.match(parsed.fields.observations.items.fields.gust.present,/^\d+\/\d+$/);
+ assert.equal(wf.describeData('{"a":1}\n{"a":2}').contains,'json lines (2)');
+ assert.equal(wf.describeData(Array.from({length:100000},(_,i)=>({i}))).length,100000);
+});
+test('source notes are per user, searchable, and surface when an agent tries a tool',async()=>{
+ const rows=[];globalThis.wfDb={prepare:sql=>({bind:(...a)=>({run:async()=>{if(sql.startsWith('INSERT')){const [id,owner,source,notes,at]=a;const old=rows.find(r=>r.owner===owner&&r.source===source);if(old)Object.assign(old,{notes,updated_at:at});else rows.push({id,owner,source,notes,updated_at:at});}},all:async()=>({results:rows.filter(r=>r.owner===a[0])})})})};
+ await wf.notes.saveSourceNote('u','ADMA Realm5 daily weather files','Path realm5/<station>/<YYYY-MM-DD>.json; observations[] every 15 min; temp in C, wind in m/s.');
+ await wf.notes.saveSourceNote('u','ADMA Realm5 daily weather files','Path realm5/<station>/<YYYY-MM-DD>.json; observations[] every 15 min; temp C; wind m/s; UTC.');
+ await wf.notes.saveSourceNote('other','ADMA Realm5 daily weather files','private to another user');
+ assert.equal(rows.length,2);assert.match((await wf.notes.readSourceNotes('u','realm5 weather'))[0].notes,/UTC/);assert.deepEqual(await wf.notes.readSourceNotes('u','soil moisture'),[]);
+ globalThis.wfCalls=async c=>c.tool==='connectors.call'?{content:JSON.stringify({observations:[{temp:1}]})}:{};
+ const bench=wf.createWorkbench({userId:'u',pageId:'p',language:'en',request:'plot',title:'T'});
+ const tried=(await bench.execute('wf_try_tool',{tool:'connectors.call',argsJson:JSON.stringify({connectorId:'adma',tool:'read_text_file',arguments:{path:'realm5/x/2026-10-10.json'}})})).data;
+ assert.equal(tried.shape.fields.content.parsed.fields.observations.items.fields.temp.type,'number');assert.match(tried.knownNotes[0].source,/Realm5/);
 });

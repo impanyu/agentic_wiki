@@ -24,6 +24,8 @@ export function describeToolStart(tool:string,rawArgs:unknown){
   case 'wf_set':case 'wf_edit':return 'Building the app';
   case 'wf_validate':return 'Checking the app structure';
   case 'wf_try_tool':return 'Looking at real data from '+clip(a.tool,40);
+  case 'wf_notes':return 'Recalling what is known about '+clip(a.query,40);
+  case 'wf_note_save':return 'Saving notes about '+clip(a.source,40);
   case 'wf_eval':return 'Testing a data expression';
   case 'wf_run':return 'Running the app’s '+clip(a.action,30)+' action';
   case 'wf_verify':return 'Testing the app and reviewing screenshots';

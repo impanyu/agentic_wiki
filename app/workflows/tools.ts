@@ -2,6 +2,7 @@ import JSZip from 'jszip';
 import {parse} from 'csv-parse/sync';
 import {executeCall} from '@/app/page-programs/runtime';
 import {readMarkdown,writeMarkdown} from '@/app/documents/markdown';
+import {describeData} from './describe';
 import {readFile} from '@/app/resources/service';
 import {resourceSchema} from '@/app/resources/contracts';
 import {storePageTextFile,storePageBinaryFile} from '@/app/context-files/store';
@@ -19,6 +20,7 @@ export const TOOLS:Record<string,Tool>={
  compute:{description:'Returns its value argument; use bindings in value to filter, sort, group, join, aggregate or reshape data with JSONata.',args:{value:'any (usually a binding)'},returns:'the value',run:async a=>a.value},
  'csv.parse':{description:'Parses CSV text into rows.',args:{text:'CSV text',header:'boolean, default true',delimiter:'default ","'},returns:'array of row objects (or arrays without header)',run:async a=>parse(String(a.text||''),{columns:a.header!==false,delimiter:a.delimiter||',',skip_empty_lines:true,relax_column_count:true,cast:true,bom:true}).slice(0,100000)},
  'json.parse':{description:'Parses JSON text (for example a .json file read through a connector or files.read) into data; lines:true parses JSON Lines (one object per line).',args:{text:'JSON text',lines:'boolean, default false'},returns:'the parsed value (or an array for lines)',run:async a=>{const text=String(a.text??'');if(text.length>20*1024*1024)throw Error('JSON text is larger than 20 MB.');if(a.lines===true)return text.split(/\r?\n/).filter(l=>l.trim()).slice(0,200000).map((l,i)=>{try{return JSON.parse(l);}catch{throw Error('Line '+(i+1)+' is not valid JSON.');}});try{return JSON.parse(text.replace(/^\uFEFF/,''));}catch(e){throw Error('Not valid JSON: '+(e instanceof Error?e.message:'parse error'));}}},
+ 'data.describe':{description:'Summarizes the structure of any data however large: fields, types, presence, array lengths, value ranges, samples, and JSON held inside strings.',args:{value:'any data (usually a binding to a step result)'},returns:'structure summary',run:async a=>describeData(a.value)},
  'json.format':{description:'Formats data as JSON text (e.g. to save with files.write).',args:{value:'any',pretty:'boolean, default true'},returns:'JSON text',run:async a=>JSON.stringify(a.value??null,null,a.pretty===false?0:2)},
  'csv.format':{description:'Formats rows as CSV text.',args:{rows:'array of objects',columns:'optional [keys]'},returns:'CSV text',run:async a=>{const rows=Array.isArray(a.rows)?a.rows:[];const cols:string[]=a.columns||[...new Set(rows.flatMap((r:object)=>Object.keys(r||{})))];const cell=(v:unknown)=>{const s=v==null?'':typeof v==='object'?JSON.stringify(v):String(v);return /[",\n]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s;};return [cols.join(','),...rows.map((r:Record<string,unknown>)=>cols.map(c=>cell(r?.[c])).join(','))].join('\n');}},
  'files.list':{description:'Lists files attached to this page (Page files).',args:{},returns:'[{id,name,folderPath,mimeType,size,url,createdAt}]',run:brokered('files.list')},

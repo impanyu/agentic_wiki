@@ -7,6 +7,8 @@ import {evaluate} from './expressions';
 import {applyPatch} from './patch';
 import {verifyWorkflow,workflowReportText,workflowTestsSchema,type WorkflowTests} from './verify';
 import type {Workflow,WorkflowNode} from './schema';
+import {describeData} from './describe';
+import {readSourceNotes,saveSourceNote} from './source-notes';
 // The agents' workbench: the generator and in-page agents are "hyper coders"
 // above the apps they build. These tools let them think (spec), explore the
 // infrastructure (catalog, try tools, evaluate expressions on real data), edit
@@ -29,6 +31,8 @@ export const WORKBENCH_TOOLS=[
  fn('wf_edit','Edit the draft workflow with a list of operations (applied in order; returns validation problems). opsJson = [ {op:"add_node", parent:"<node id>"|null (top level), index?:number, node}, {op:"update_props", id, props (merged; null removes a prop)}, {op:"set_node", id, node}, {op:"remove_node", id}, {op:"move_node", id, parent, index?}, {op:"set_action", name, action}, {op:"remove_action", name}, {op:"set_state", key, value}, {op:"set_layout", layout}, {op:"set_title", title}, or JSON-patch {op:"add"|"replace"|"remove", path:"/ui/0/props/x", value} ]. Give nodes ids to edit them later.',{opsJson:str}),
  fn('wf_validate','Check the draft workflow: components, props, events, bindings, step references.',{}),
  fn('wf_try_tool','Run one infrastructure tool now to see the real data it returns (changes are skipped), e.g. connectors.list, files.list, files.read, resources.browse, connectors.call with a read tool. argsJson is its arguments object.',{tool:str,argsJson:str}),
+ fn('wf_notes','Read what has been learned before about a data source (file paths, formats, field meanings, units, quirks). query = keywords such as "ADMA Realm5 weather". Check this before exploring a source; the real data wins if it disagrees.',{query:str}),
+ fn('wf_note_save','Save or update concise notes about a data source after you have looked at its real data, so later agents need not rediscover it: where the data lives (paths, naming patterns), its format, the fields you used and what they mean, units, time zone, gaps and quirks. source = a short descriptive name (e.g. "ADMA Realm5 daily weather files"). Never store credentials or private personal data.',{source:str,notes:str}),
  fn('wf_eval','Evaluate a JSONata expression to test a binding. scopeJson is the scope object, or empty to use the scope of the last wf_run ({state, values, steps, event}).',{expression:str,scopeJson:str}),
  fn('wf_run','Run one action of the draft for real (changes skipped) and see the resulting state and every step’s output. valuesJson = component values by id (e.g. an uploaded file resource), stateJson = state to start from (empty: the draft’s initial state, or the state after the previous wf_run when continue is true).',{action:str,valuesJson:str,stateJson:str,continue:{type:'boolean'}}),
  fn('wf_verify','Verify the draft end to end: runs tests (testsJson, or empty to use the spec’s acceptance tests) through the executor, renders the real components with the resulting state at desktop and phone width, and reviews the screenshots against the request and every spec requirement. An app is accepted only after it passes.',{testsJson:str}),
@@ -82,15 +86,17 @@ export function createWorkbench(ctx:Ctx,initial?:{workflow?:unknown;spec?:unknow
   if(name==='wf_set'){draft=parse(a.workflowJson,'workflowJson');draft.kind??='workflow-app';return {data:check()};}
   if(name==='wf_edit'){const ops=parse(a.opsJson,'opsJson');if(!Array.isArray(ops)||!ops.length)throw Error('opsJson must be a non-empty array.');draft=applyOps(draft??{kind:'workflow-app',state:{},ui:[],actions:{}},ops);return {data:check()};}
   if(name==='wf_validate')return {data:check()};
-  if(name==='wf_try_tool'){const tool=TOOLS[String(a.tool)];if(!tool)throw Error('Unknown tool. Search with wf_catalog.');if(['files.write','files.zip','markdown.write'].includes(String(a.tool)))return {data:{skipped:'This tool writes a Page file; it runs only inside the app from a user action. Test it with wf_run.'}};const r=await tool.run(parse(a.argsJson,'argsJson')||{},toolCtx(false));return {data:{result:clip(r,30000)}};}
-  if(name==='wf_eval'){const scope=parse(a.scopeJson,'scopeJson')??last??{};return {data:{value:clip(await evaluate(String(a.expression),scope),20000)}};}
+  if(name==='wf_try_tool'){const tool=TOOLS[String(a.tool)];if(!tool)throw Error('Unknown tool. Search with wf_catalog.');if(['files.write','files.zip','markdown.write'].includes(String(a.tool)))return {data:{skipped:'This tool writes a Page file; it runs only inside the app from a user action. Test it with wf_run.'}};const args=parse(a.argsJson,'argsJson')||{},r=await tool.run(args,toolCtx(false));const text=JSON.stringify(r)??'';const notes=await readSourceNotes(ctx.userId,String(a.tool)+' '+JSON.stringify(args)).catch(()=>[]);return {data:{shape:describeData(r),...(text.length>30000?{preview:clip(r,8000),note:'Large result: read its structure in shape (JSON inside strings is parsed there), test bindings with wf_eval after wf_run.'}:{result:r}),...(notes.length?{knownNotes:notes}:{})}};}
+  if(name==='wf_eval'){const scope=parse(a.scopeJson,'scopeJson')??last??{};const v=await evaluate(String(a.expression),scope);return {data:{value:clip(v,20000),...((JSON.stringify(v)??'').length>20000?{shape:describeData(v)}:{})}};}
+  if(name==='wf_notes')return {data:{notes:await readSourceNotes(ctx.userId,String(a.query||''))}};
+  if(name==='wf_note_save')return {data:await saveSourceNote(ctx.userId,String(a.source||''),String(a.notes||''))};
   if(name==='wf_run'){
    const {workflow,errors}=(()=>{try{const r=validateWorkflow(draft);return r;}catch(e){return {workflow:null,errors:[e instanceof Error?e.message:'Invalid workflow']};}})();
    if(!workflow||errors.length)return {data:{ran:false,errors}};
    const values=parse(a.valuesJson,'valuesJson')||{},state=parse(a.stateJson,'stateJson')??(a.continue&&last?last.state:undefined),action=String(a.action),event={type:action==='load'?'load':'click',source:'workbench'};
    const r=await runAction(workflow,action,{state,values,event},toolCtx(action!=='load'),{keepSteps:true});
    last={state:r.state,values,steps:r.steps,event};
-   return {data:{error:r.error??null,state:clip(r.state,12000),steps:Object.fromEntries(Object.entries(r.steps).map(([k,v])=>[k,clip(v,3000)])),trace:r.trace.map(t=>({step:t.step,tool:t.tool,status:t.status,ms:t.ms,error:t.error,items:t.items})),proposals:r.proposals.length}};
+   return {data:{error:r.error??null,state:clip(r.state,12000),steps:Object.fromEntries(Object.entries(r.steps).map(([k,v])=>[k,(JSON.stringify(v)??'').length>3000?{shape:describeData(v),preview:clip(v,1500)}:v])),trace:r.trace.map(t=>({step:t.step,tool:t.tool,status:t.status,ms:t.ms,error:t.error,items:t.items})),proposals:r.proposals.length}};
   }
   if(name==='wf_verify'){
    const tests=workflowTestsSchema.parse(parse(a.testsJson,'testsJson')||specTests());lastTests=tests;
