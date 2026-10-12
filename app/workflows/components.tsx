@@ -26,7 +26,8 @@ export function fmt(v:unknown,format:string|undefined,locale:string):string{
   case 'number':return n==null?String(v):n.toLocaleString(locale,{maximumFractionDigits:2});
   case 'integer':return n==null?String(v):Math.round(n).toLocaleString(locale);
   case 'percent':return n==null?String(v):(Math.abs(n)<=1.5?n*100:n).toLocaleString(locale,{maximumFractionDigits:1})+'%';
-  case 'currency':return n==null?String(v):n.toLocaleString(locale,{style:'currency',currency:'USD'});
+  // Amounts without a currency symbol: the app labels its unit (元, $, €) itself.
+  case 'currency':return n==null?String(v):n.toLocaleString(locale,{minimumFractionDigits:2,maximumFractionDigits:2});
   case 'date':{const d=new Date(String(v));return isNaN(+d)?String(v):d.toLocaleDateString(locale);}
   case 'datetime':{const d=new Date(String(v));return isNaN(+d)?String(v):d.toLocaleString(locale);}
   case 'bytes':{if(n==null)return String(v);const u=['B','KB','MB','GB','TB'];let x=n,i=0;while(x>=1024&&i<u.length-1){x/=1024;i++;}return x.toLocaleString(locale,{maximumFractionDigits:1})+' '+u[i];}
@@ -57,18 +58,20 @@ function Table({props,value,setValue,fire,ctx}:ComponentProps){
   {pages>1&&<div className="wf-pager"><button type="button" disabled={!page} onClick={()=>setPage(p=>p-1)} aria-label="Previous page"><ChevronLeft size={16}/></button><span>{page+1} / {pages}</span><button type="button" disabled={page>=pages-1} onClick={()=>setPage(p=>p+1)} aria-label="Next page"><ChevronRight size={16}/></button></div>}
  </div>;
 }
-function Chart({props,setValue,fire}:ComponentProps){
+// Axis ticks in the reader's locale, compact for large values (1,000,000 → 100万 / 1M).
+const axisTick=(locale:string)=>(v:unknown)=>{const n=num(v);if(n==null)return String(v);return Math.abs(n)>=10000?n.toLocaleString(locale,{notation:'compact',maximumFractionDigits:1}):n.toLocaleString(locale,{maximumFractionDigits:2});};
+function Chart({props,setValue,fire,ctx}:ComponentProps){
  const data:any[]=asList(props.data),kind=props.kind||'line',height=Number(props.height)||320,x=props.x||Object.keys(data[0]||{})[0];
  const series:any[]=Array.isArray(props.series)&&props.series.length?props.series:Object.keys(data[0]||{}).filter(k=>k!==x&&typeof data[0][k]==='number').map(key=>({key}));
  const click=(p:any)=>{const point=p?.activePayload?.[0]?.payload??p?.payload??p;if(point){setValue(point);fire('select',point);}};
  if(!data.length)return <div className="wf-empty"><BarChart3 size={28}/><p>No data to chart yet.</p></div>;
  if(kind==='pie'||kind==='donut'){const key=series[0]?.key||'value';return <ResponsiveContainer width="100%" height={height}><PieChart><Pie data={data} dataKey={key} nameKey={x} innerRadius={kind==='donut'?'55%':0} outerRadius="80%" label onClick={click}>{data.map((_,i)=><Cell key={i} fill={PALETTE[i%PALETTE.length]}/>)}</Pie><Tooltip/>{props.legend!==false&&<Legend/>}</PieChart></ResponsiveContainer>;}
- if(kind==='scatter'){const y=series[0]?.key;return <ResponsiveContainer width="100%" height={height}><ScatterChart><CartesianGrid strokeDasharray="3 3"/><XAxis dataKey={x} name={props.xLabel||x} type="number" label={props.xLabel?{value:props.xLabel,position:'insideBottom',offset:-4}:undefined}/><YAxis dataKey={y} name={props.yLabel||y} label={props.yLabel?{value:props.yLabel,angle:-90,position:'insideLeft'}:undefined}/><Tooltip/><Scatter data={data} fill={series[0]?.color||PALETTE[0]} onClick={click}/></ScatterChart></ResponsiveContainer>;}
+ if(kind==='scatter'){const y=series[0]?.key;return <ResponsiveContainer width="100%" height={height}><ScatterChart><CartesianGrid strokeDasharray="3 3"/><XAxis dataKey={x} name={props.xLabel||x} type="number" label={props.xLabel?{value:props.xLabel,position:'insideBottom',offset:-4}:undefined}/><YAxis dataKey={y} name={props.yLabel||y} tickFormatter={axisTick(ctx.locale)} label={props.yLabel?{value:props.yLabel,angle:-90,position:'insideLeft'}:undefined}/><Tooltip/><Scatter data={data} fill={series[0]?.color||PALETTE[0]} onClick={click}/></ScatterChart></ResponsiveContainer>;}
  const right=series.some(s=>s.axis==='right'),horizontal=kind==='bar'&&props.horizontal;
  const shape=(s:any,i:number)=>{const type=kind==='composed'?(s.type||'line'):kind,color=s.color||PALETTE[i%PALETTE.length],common={dataKey:s.key,name:s.label||s.key,yAxisId:s.axis==='right'?'right':'left',...(props.stacked?{stackId:'a'}:{})};return type==='bar'?<Bar key={s.key} {...common} fill={color} radius={[3,3,0,0]}/>:type==='area'?<Area key={s.key} {...common} type="monotone" stroke={color} fill={color} fillOpacity={0.2}/>:<Line key={s.key} {...common} type="monotone" stroke={color} strokeWidth={2} dot={data.length<40}/>;};
  return <ResponsiveContainer width="100%" height={height}><ComposedChart data={data} layout={horizontal?'vertical':'horizontal'} onClick={click} margin={{top:8,right:16,bottom:props.xLabel?20:4,left:4}}>
   <CartesianGrid strokeDasharray="3 3" vertical={false}/>
-  {horizontal?<><XAxis type="number"/><YAxis yAxisId="left" dataKey={x} type="category" width={120}/></>:<><XAxis dataKey={x} label={props.xLabel?{value:props.xLabel,position:'insideBottom',offset:-12}:undefined}/><YAxis yAxisId="left" label={props.yLabel||props.unit?{value:props.yLabel||props.unit,angle:-90,position:'insideLeft'}:undefined}/>{right&&<YAxis yAxisId="right" orientation="right" label={props.rightLabel||props.rightUnit?{value:props.rightLabel||props.rightUnit,angle:90,position:'insideRight'}:undefined}/>}</>}
+  {horizontal?<><XAxis type="number" tickFormatter={axisTick(ctx.locale)}/><YAxis yAxisId="left" dataKey={x} type="category" width={120}/></>:<><XAxis dataKey={x} label={props.xLabel?{value:props.xLabel,position:'insideBottom',offset:-12}:undefined}/><YAxis yAxisId="left" tickFormatter={axisTick(ctx.locale)} width={64} label={props.yLabel||props.unit?{value:props.yLabel||props.unit,angle:-90,position:'insideLeft'}:undefined}/>{right&&<YAxis yAxisId="right" orientation="right" tickFormatter={axisTick(ctx.locale)} width={64} label={props.rightLabel||props.rightUnit?{value:props.rightLabel||props.rightUnit,angle:90,position:'insideRight'}:undefined}/>}</>}
   <Tooltip/>{props.legend!==false&&series.length>1&&<Legend/>}{series.map(shape)}
  </ComposedChart></ResponsiveContainer>;
 }

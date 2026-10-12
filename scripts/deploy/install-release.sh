@@ -30,11 +30,11 @@ curl -fsSL -o "$asset" "https://github.com/impanyu/agentic_wiki/releases/downloa
 rm -rf .next/standalone.new && mkdir -p .next/standalone.new
 tar -xzf "$asset" -C .next/standalone.new
 ln -sfn ../../node_modules .next/standalone.new/node_modules
-# Let running page-agent replies and page generations finish (up to 3 minutes) so a
+# Let running page-agent replies and page generations finish (up to 20 minutes) so a
 # deploy does not cut them off mid-answer. The new files are swapped in only after
 # this wait: the running server would otherwise serve new assets to old pages.
 NODE_BIN=${NODE_BIN:-$HOME/.local/agenticwiki-node/bin/node}
-for _ in $(seq 1 36); do
+for _ in $(seq 1 240); do
   busy=$("$NODE_BIN" -e "const {DatabaseSync}=require('node:sqlite');const db=new DatabaseSync(process.argv[1],{readOnly:true});console.log(db.prepare(\"SELECT count(*) n FROM generation_locks WHERE expires>? AND (name LIKE 'agent:%' OR name LIKE 'question:%' OR name LIKE 'fork:%')\").get(Date.now()).n)" "${DATA_DIR:-$PWD/data}/agenticwiki.sqlite" 2>/dev/null || echo 0)
   [ "$busy" = "0" ] && break
   echo "Waiting for $busy running agent task(s) to finish before restarting…"; sleep 5
