@@ -14,10 +14,13 @@ export type WorkflowTests=z.infer<typeof workflowTestsSchema>;
 type TestRun={test:string;ok:boolean;actions:{action:string;error?:string;trace:RunTrace[]}[];failed:string[];state:string};
 export type WorkflowReport={passed:boolean;blocking:string[];warnings:string[];tests:TestRun[];review?:{verdict:string;summary:string;issues:{severity:string;area?:string;problem:string;fix?:string}[];coverage?:{requirement:string;status:string;note?:string}[]};screens:{viewport:string;errors:string[];overflow:boolean;textChars:number}[];seconds:number};
 const short=(v:unknown,n=1200)=>{let s:string;try{s=JSON.stringify(v)??'';}catch{s=String(v);}return s.length>n?s.slice(0,n)+'… ('+s.length+' chars)':s;};
-export async function verifyWorkflow(raw:unknown,target:{request:string;title:string;pageId:string;language:string;requirements?:string[];goal?:string},ctx:{userId:string;signal?:AbortSignal;fixtures?:Record<string,{name:string;content:string}>},tests:WorkflowTests=[]):Promise<WorkflowReport>{
+export async function verifyWorkflow(raw:unknown,target:{request:string;title:string;pageId:string;language:string;requirements?:string[];goal?:string;gaps?:string[]},ctx:{userId:string;signal?:AbortSignal;fixtures?:Record<string,{name:string;content:string}>},tests:WorkflowTests=[]):Promise<WorkflowReport>{
  const started=Date.now(),report:WorkflowReport={passed:false,blocking:[],warnings:[],tests:[],screens:[],seconds:0};
  let workflow:Workflow;
  try{const v=validateWorkflow(raw);workflow=v.workflow;report.blocking.push(...v.errors);report.warnings.push(...v.warnings);}catch(e){report.blocking.push(e instanceof Error?e.message:'Invalid workflow.');report.seconds=0;return report;}
+ // code.run is a last resort: the spec must say why tools and expressions cannot do the job.
+ const codeSteps=Object.values(workflow.actions).flatMap(a=>a.steps).filter(s=>s.tool==='code.run').length;
+ if(codeSteps&&!(target.gaps||[]).some(g=>g.trim().length>20))report.blocking.push('The app uses code.run but its spec records no reason in gaps. Arithmetic, schedules, loops over ranges, aggregation, sorting and formatting are done with JSONata ($power, $map([1..n], …), $reduce, $sum, $round); use code.run only for what no tool or expression can do, and record why in wf_spec gaps.');
  if(report.blocking.length){report.seconds=Math.round((Date.now()-started)/1000);return report;}
  const plan=tests.length?tests:[{name:'first load',actions:workflow.actions.load?['load']:[]}];
  let shown:{state:Record<string,unknown>;values:Record<string,unknown>}|null=null;

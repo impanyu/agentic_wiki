@@ -113,7 +113,7 @@ export function createWorkbench(ctx:Ctx,initial?:{workflow?:unknown;spec?:unknow
   if(name==='wf_verify'){
    const tests=workflowTestsSchema.parse(parse(a.testsJson,'testsJson')||specTests());lastTests=tests;
    const requirements=(spec?.acceptance||[]).map(x=>x.requirement).concat(spec?.outputs||[]).slice(0,16);
-   const report=await verifyWorkflow(draft,{request:ctx.request,title:draft?.title||ctx.title,pageId:ctx.pageId,language:ctx.language,requirements,goal:spec?.goal},{userId:ctx.userId,signal:ctx.signal,fixtures},tests);
+   const report=await verifyWorkflow(draft,{request:ctx.request,title:draft?.title||ctx.title,pageId:ctx.pageId,language:ctx.language,requirements,goal:spec?.goal,gaps:spec?.gaps},{userId:ctx.userId,signal:ctx.signal,fixtures},tests);
    if(report.passed)verified.add(JSON.stringify(validateWorkflow(draft).workflow));
    return {data:JSON.parse(workflowReportText(report))};
   }

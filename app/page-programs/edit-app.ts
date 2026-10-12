@@ -50,7 +50,7 @@ export async function readAppDraft(agent:Agent,pageId:string){const draft=await 
 export async function discardAppDraft(agent:Agent){await bucket().delete(path(agent));}
 // Runs the saved or proposed app configuration the way readers will: backend program plus custom frontend.
 async function verifyConfig(page:AnswerPage,config:NonNullable<AnswerPage['dynamic']>|null,agent:Agent,request:string,tests:unknown):Promise<{passed:boolean;text:string}|null>{
- if(config?.template==='workflow-app-v1'&&config.workflow){const parsed=workflowTestsSchema.safeParse(tests);const r=await verifyWorkflow(config.workflow,{request:request||page.question||page.title,title:page.title,pageId:page.id,language:page.language,goal:config.appSpec?.goal,requirements:(config.appSpec?.acceptance||[]).map(a=>a.requirement).concat(config.appSpec?.outputs||[]).slice(0,16)},{userId:agent.ownerId},parsed.success?parsed.data:[]);return {passed:r.passed,text:workflowReportText(r)};}
+ if(config?.template==='workflow-app-v1'&&config.workflow){const parsed=workflowTestsSchema.safeParse(tests);const r=await verifyWorkflow(config.workflow,{request:request||page.question||page.title,title:page.title,pageId:page.id,language:page.language,goal:config.appSpec?.goal,gaps:config.appSpec?.gaps,requirements:(config.appSpec?.acceptance||[]).map(a=>a.requirement).concat(config.appSpec?.outputs||[]).slice(0,16)},{userId:agent.ownerId},parsed.success?parsed.data:[]);return {passed:r.passed,text:workflowReportText(r)};}
  const backendRef=config?.template==='page-program-v1'?config.components?.backend:undefined;
  if(!backendRef&&!config?.pageCode)return null;
  const program=backendRef?JSON.parse((await getComponent(backendRef,{userId:agent.ownerId},'backend_code')).payload):null;
