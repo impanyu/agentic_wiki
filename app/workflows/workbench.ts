@@ -8,6 +8,7 @@ import {applyPatch} from './patch';
 import {verifyWorkflow,workflowReportText,workflowTestsSchema,type WorkflowTests} from './verify';
 import type {Workflow,WorkflowNode} from './schema';
 import {describeData} from './describe';
+import {renderScreens} from './render';
 import {readSourceNotes,saveSourceNote} from './source-notes';
 // The agents' workbench: the generator and in-page agents are "hyper coders"
 // above the apps they build. These tools let them think (spec), explore the
@@ -35,6 +36,7 @@ export const WORKBENCH_TOOLS=[
  fn('wf_note_save','Save or update concise notes about a data source after you have looked at its real data, so later agents need not rediscover it: where the data lives (paths, naming patterns), its format, the fields you used and what they mean, units, time zone, gaps and quirks. source = a short descriptive name (e.g. "ADMA Realm5 daily weather files"). Never store credentials or private personal data.',{source:str,notes:str}),
  fn('wf_eval','Evaluate a JSONata expression to test a binding. scopeJson is the scope object, or empty to use the scope of the last wf_run ({state, values, steps, event}).',{expression:str,scopeJson:str}),
  fn('wf_run','Run one action of the draft for real (changes skipped) and see the resulting state and every step’s output. valuesJson = component values by id (e.g. an uploaded file resource), stateJson = state to start from (empty: the draft’s initial state, or the state after the previous wf_run when continue is true).',{action:str,valuesJson:str,stateJson:str,continue:{type:'boolean'}}),
+ fn('wf_preview','Look at the draft yourself: renders it with the real components in a browser and returns screenshots you can see, plus layout measurements. stateJson/valuesJson set what is shown (empty: the state after your last wf_run, else the initial state); viewport = desktop | phone | both. Use it to check and refine the visual design; wf_verify remains the acceptance check.',{stateJson:str,valuesJson:str,viewport:{type:'string',enum:['desktop','phone','both']}}),
  fn('wf_verify','Verify the draft end to end: runs tests (testsJson, or empty to use the spec’s acceptance tests) through the executor, renders the real components with the resulting state at desktop and phone width, and reviews the screenshots against the request and every spec requirement. An app is accepted only after it passes.',{testsJson:str}),
 ];
 function findNode(nodes:WorkflowNode[],id:string):{list:WorkflowNode[];index:number;node:WorkflowNode}|null{for(let i=0;i<nodes.length;i++){const n=nodes[i];if(n.id===id)return {list:nodes,index:i,node:n};const inner=n.children?findNode(n.children,id):null;if(inner)return inner;}return null;}
@@ -70,7 +72,7 @@ function search(query:string,kind:string){
  const tools=kind==='component'?[]:Object.entries(TOOLS).map(([name,t])=>({name,description:t.description,s:score((name+' '+t.description).toLowerCase())})).filter(t=>!words.length||t.s>0).sort((a,b)=>b.s-a.s).slice(0,10).map(({s:_s,...t})=>t);
  return {components,tools,note:'Ask for an exact name to get its full props/args.'};
 }
-export type Workbench={tools:typeof WORKBENCH_TOOLS;has:(name:string)=>boolean;execute:(name:string,args:Record<string,any>)=>Promise<{data:unknown}>;workflow:()=>Workflow|undefined;spec:()=>AppSpec|undefined;passed:(w:unknown)=>boolean;tests:()=>WorkflowTests};
+export type Workbench={tools:typeof WORKBENCH_TOOLS;has:(name:string)=>boolean;execute:(name:string,args:Record<string,any>)=>Promise<{data:unknown;parts?:unknown[]}>;workflow:()=>Workflow|undefined;spec:()=>AppSpec|undefined;passed:(w:unknown)=>boolean;tests:()=>WorkflowTests};
 export function createWorkbench(ctx:Ctx,initial?:{workflow?:unknown;spec?:unknown}):Workbench{
  let draft:any=initial?.workflow?JSON.parse(JSON.stringify(initial.workflow)):undefined,spec:AppSpec|undefined;
  try{if(initial?.spec)spec=appSpecSchema.parse(initial.spec);}catch{}
@@ -97,6 +99,14 @@ export function createWorkbench(ctx:Ctx,initial?:{workflow?:unknown;spec?:unknow
    const r=await runAction(workflow,action,{state,values,event},toolCtx(action!=='load'),{keepSteps:true});
    last={state:r.state,values,steps:r.steps,event};
    return {data:{error:r.error??null,state:clip(r.state,12000),steps:Object.fromEntries(Object.entries(r.steps).map(([k,v])=>[k,(JSON.stringify(v)??'').length>3000?{shape:describeData(v),preview:clip(v,1500)}:v])),trace:r.trace.map(t=>({step:t.step,tool:t.tool,status:t.status,ms:t.ms,error:t.error,items:t.items})),proposals:r.proposals.length}};
+  }
+  if(name==='wf_preview'){
+   const {workflow,errors}=(()=>{try{return validateWorkflow(draft);}catch(e){return {workflow:null,errors:[e instanceof Error?e.message:'Invalid workflow']};}})();
+   if(!workflow||errors.length)return {data:{rendered:false,errors}};
+   const state=parse(a.stateJson,'stateJson')??last?.state??workflow.state,values=parse(a.valuesJson,'valuesJson')??last?.values??{};
+   const viewports=a.viewport==='desktop'?['desktop' as const]:a.viewport==='phone'?['phone' as const]:['desktop' as const,'phone' as const];
+   const shots=await renderScreens(workflow,{state,values,title:workflow.title||ctx.title,pageId:ctx.pageId},viewports,ctx.signal);
+   return {data:{rendered:true,screens:shots.map(s=>({viewport:s.label,errors:s.errors,horizontalOverflow:s.overflow,textChars:s.textChars})),note:'The screenshots follow as images.'},parts:[{type:'input_text',text:'wf_preview screenshots of the draft app ('+shots.map(s=>s.label).join(', ')+'):'},...shots.map(s=>({type:'input_image',image_url:'data:image/jpeg;base64,'+s.data,detail:'high'}))]};
   }
   if(name==='wf_verify'){
    const tests=workflowTestsSchema.parse(parse(a.testsJson,'testsJson')||specTests());lastTests=tests;

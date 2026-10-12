@@ -1,11 +1,10 @@
-import {existsSync} from 'node:fs';
 import {z} from 'zod';
 import {api,output} from '@/app/api/ask/ai';
 import {model} from '@/db/store';
 import {validateWorkflow} from './validate';
 import {runAction} from './executor';
 import {evaluate} from './expressions';
-import {putPreview,dropPreview} from './preview-store';
+import {renderScreens,chromiumPath,type Shot} from './render';
 import type {Workflow,RunTrace} from './schema';
 // Verifies a workflow app before it is saved: structure, real runs of its
 // actions (changes skipped), the agent's expectations, and a rendered review
@@ -14,7 +13,6 @@ export const workflowTestsSchema=z.array(z.object({name:z.string().max(100).opti
 export type WorkflowTests=z.infer<typeof workflowTestsSchema>;
 type TestRun={test:string;ok:boolean;actions:{action:string;error?:string;trace:RunTrace[]}[];failed:string[];state:string};
 export type WorkflowReport={passed:boolean;blocking:string[];warnings:string[];tests:TestRun[];review?:{verdict:string;summary:string;issues:{severity:string;area?:string;problem:string;fix?:string}[];coverage?:{requirement:string;status:string;note?:string}[]};screens:{viewport:string;errors:string[];overflow:boolean;textChars:number}[];seconds:number};
-const chromiumPath=()=>[process.env.CHROMIUM_PATH,'/usr/bin/chromium','/usr/bin/chromium-browser','/usr/bin/google-chrome'].find(p=>p&&existsSync(p));
 const short=(v:unknown,n=1200)=>{let s:string;try{s=JSON.stringify(v)??'';}catch{s=String(v);}return s.length>n?s.slice(0,n)+'… ('+s.length+' chars)':s;};
 export async function verifyWorkflow(raw:unknown,target:{request:string;title:string;pageId:string;language:string;requirements?:string[];goal?:string},ctx:{userId:string;signal?:AbortSignal},tests:WorkflowTests=[]):Promise<WorkflowReport>{
  const started=Date.now(),report:WorkflowReport={passed:false,blocking:[],warnings:[],tests:[],screens:[],seconds:0};
@@ -37,26 +35,12 @@ export async function verifyWorkflow(raw:unknown,target:{request:string;title:st
   shown??={state,values};
  }
  // Render the real components with the state the first test produced.
- const executablePath=chromiumPath(),shots:{label:string;data:string}[]=[];
- if(!executablePath)report.warnings.push('Rendering check unavailable on this server.');
+ let shots:Shot[]=[];
+ if(!chromiumPath())report.warnings.push('Rendering check unavailable on this server.');
  else if(shown&&!ctx.signal?.aborted){
-  const token=putPreview({workflow,state:shown.state,values:shown.values,title:target.title,pageId:target.pageId});let browser:any;
-  try{
-   const {chromium}=await import('playwright-core');browser=await chromium.launch({executablePath,headless:true,args:['--disable-dev-shm-usage','--no-first-run','--disable-gpu']});
-   for(const viewport of [{label:'desktop 1280px',width:1280,height:900},{label:'phone 390px',width:390,height:844}]){
-    const page=await browser.newPage({viewport:{width:viewport.width,height:viewport.height}}),errors:string[]=[];
-    page.on('pageerror',(e:Error)=>errors.push('Uncaught: '+e.message.slice(0,300)));page.on('console',(m:any)=>{if(m.type()==='error'&&!/favicon|arcgis|tile/i.test(m.text()))errors.push(m.text().slice(0,300));});
-    await page.goto('http://127.0.0.1:'+(process.env.PORT||'3000')+'/workflow-preview?token='+token,{waitUntil:'networkidle',timeout:30000}).catch(()=>{});
-    await page.waitForTimeout(1500);
-    const m=await page.evaluate(()=>({overflow:document.documentElement.scrollWidth>window.innerWidth+2,text:document.body.innerText.length,height:document.documentElement.scrollHeight}));
-    const data=(await page.screenshot({fullPage:true,type:'jpeg',quality:70,clip:{x:0,y:0,width:viewport.width,height:Math.min(m.height,viewport.width<500?3200:2400)}})).toString('base64');
-    shots.push({label:viewport.label,data});report.screens.push({viewport:viewport.label,errors,overflow:m.overflow,textChars:m.text});
-    if(errors.some(e=>e.startsWith('Uncaught')))report.blocking.push(viewport.label+': '+errors.find(e=>e.startsWith('Uncaught')));
-    if(m.overflow)report.warnings.push(viewport.label+': the page scrolls horizontally.');
-    await page.close();
-   }
-  }catch(e){report.warnings.push('Rendering check failed: '+(e instanceof Error?e.message.split('\n')[0].slice(0,200):'error'));}
-  finally{await browser?.close().catch(()=>{});dropPreview(token);}
+  try{shots=await renderScreens(workflow,{state:shown.state,values:shown.values,title:target.title,pageId:target.pageId},['desktop','phone'],ctx.signal);
+   for(const s of shots){report.screens.push({viewport:s.label,errors:s.errors,overflow:s.overflow,textChars:s.textChars});const uncaught=s.errors.find(e=>e.startsWith('Uncaught'));if(uncaught)report.blocking.push(s.label+': '+uncaught);if(s.overflow)report.warnings.push(s.label+': the page scrolls horizontally.');}}
+  catch(e){report.warnings.push('Rendering check failed: '+(e instanceof Error?e.message.split('\n')[0].slice(0,200):'error'));}
  }
  if(shots.length&&!ctx.signal?.aborted){
   try{

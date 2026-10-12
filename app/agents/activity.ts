@@ -28,6 +28,7 @@ export function describeToolStart(tool:string,rawArgs:unknown){
   case 'wf_note_save':return 'Saving notes about '+clip(a.source,40);
   case 'wf_eval':return 'Testing a data expression';
   case 'wf_run':return 'Running the app’s '+clip(a.action,30)+' action';
+  case 'wf_preview':return 'Looking at the app in a browser';
   case 'wf_verify':return 'Testing the app and reviewing screenshots';
   case 'wf_propose':return 'Proposing the app for your review';
   case 'read_generation_contract':return 'Reading the '+clip(a.kind,20)+' format';
