@@ -25,7 +25,7 @@ export async function generateContext(brief:GenerationBrief,context:AgentContext
  context={...context,indexLeafRequired:indexPolicy.leafRequired};
  const generator=await spawnAgent('content-generation',context.ownerId,router),ctx={...context,agent:generator};
  // The workbench holds the app being built; a draft may refer to it with workflow:"workbench".
- const bench=createWorkbench({userId:context.userId,pageId:context.pageId||context.plannedPageId||'',language:context.language,request:brief.question,title:'',signal});
+ const bench=createWorkbench({userId:context.userId,pageId:context.pageId||'',language:context.language,request:brief.question,title:'',signal});
  const fromBench=(raw:any)=>raw&&typeof raw==='object'&&raw.kind==='workflow'?{...raw,workflow:raw.workflow==null||raw.workflow==='workbench'?bench.workflow():raw.workflow,appSpec:raw.appSpec??bench.spec()}:raw;
  let draft:GenerationDraft|undefined,searched=false,dataConsulted=false,imageSearched=false,lastPreview=0;
  const checkedDrafts=new Map<string,GenerationDraft>();
@@ -33,7 +33,7 @@ export async function generateContext(brief:GenerationBrief,context:AgentContext
  const verified=new Set<string>();let lastTests:VerifyTests=[];
  const appKey=(d:GenerationDraft)=>JSON.stringify([d.program,d.frontend,d.templateId]);
  let lastWorkflowTests:WorkflowTests=[];const verifiedWorkflows=new Set<string>();
- const verifyWorkflowDraft=async(d:GenerationDraft,tests:WorkflowTests)=>{emit?.({type:'status',message:context.language.startsWith('zh')?'正在运行并检查应用（动作、数据与界面）…':'Running and checking the app (actions, data and UI)…'});const spec=d.appSpec as import('@/app/workflows/workbench').AppSpec|undefined;const report=await verifyWorkflow(d.workflow,{request:brief.question,title:d.title,pageId:context.pageId||context.plannedPageId||'',language:context.language,goal:spec?.goal,gaps:spec?.gaps,requirements:(spec?.acceptance||[]).map(a=>a.requirement).concat(spec?.outputs||[]).slice(0,16)},{userId:context.userId,signal},tests);if(report.passed)verifiedWorkflows.add(JSON.stringify(d.workflow));return report;};
+ const verifyWorkflowDraft=async(d:GenerationDraft,tests:WorkflowTests)=>{emit?.({type:'status',message:context.language.startsWith('zh')?'正在运行并检查应用（动作、数据与界面）…':'Running and checking the app (actions, data and UI)…'});const spec=d.appSpec as import('@/app/workflows/workbench').AppSpec|undefined;const report=await verifyWorkflow(d.workflow,{request:brief.question,title:d.title,pageId:context.pageId||'',language:context.language,goal:spec?.goal,gaps:spec?.gaps,requirements:(spec?.acceptance||[]).map(a=>a.requirement).concat(spec?.outputs||[]).slice(0,16)},{userId:context.userId,signal},tests);if(report.passed)verifiedWorkflows.add(JSON.stringify(d.workflow));return report;};
  const verifyDraft=async(d:GenerationDraft,tests:VerifyTests)=>{emit?.({type:'status',message:context.language.startsWith('zh')?'正在运行并检查应用（后端逻辑与界面）…':'Running and checking the app (backend logic and UI)…'});const report=await verifyApp({request:brief.question,title:d.title,program:d.program,templateId:d.templateId,frontend:d.frontend,tests},{userId:context.userId,agent:generator,signal});if(report.passed)verified.add(appKey(d));return report;};
  emit?.({type:'status',message:context.language.startsWith('zh')?'生成器正在处理请求…':'The generator is working on your request…'});
  // The page is streamed to the reader once: from the validate_page_draft call

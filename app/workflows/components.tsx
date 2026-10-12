@@ -157,7 +157,7 @@ export function renderComponent(p:ComponentProps):ReactNode{
   case 'calendar':return <Calendar {...p}/>;
   case 'map':return <MapView {...p}/>;
   case 'text_input':case 'number_input':case 'slider':case 'select':case 'radio':case 'segmented':case 'checkbox':case 'date':case 'date_range':case 'search':return <Input {...p}/>;
-  case 'form':return <form className="wf-form" onSubmit={e=>{e.preventDefault();fire('submit',value);}}>{children}<div className="wf-row gap-small"><button type="submit" className="wf-button primary" disabled={Object.values(ctx.running).some(Boolean)}>{props.submitLabel||'Submit'}</button>{props.resetLabel&&<button type="reset" className="wf-button ghost">{props.resetLabel}</button>}</div></form>;
+  case 'form':return <form className="wf-form" noValidate onSubmit={e=>{e.preventDefault();fire('submit',value);}}>{children}<div className="wf-row gap-small"><button type="submit" className="wf-button primary" disabled={Object.values(ctx.running).some(Boolean)}>{props.submitLabel||'Submit'}</button>{props.resetLabel&&<button type="reset" className="wf-button ghost">{props.resetLabel}</button>}</div></form>;
   case 'button':{const action=node.on?.click,busy=!!(action&&ctx.running[action]);return <button type="button" className={'wf-button '+(props.tone||'primary')} disabled={!!props.disabled||busy} onClick={()=>{if(props.confirm&&!window.confirm(String(props.confirm)))return;fire('click');}}>{busy?<RefreshCw size={16} className="wf-spin"/>:ICONS[props.icon]}{props.label||'Run'}</button>;}
   case 'file_upload':return <FileUpload {...p}/>;
   case 'resource_picker':return <ResourceChooser {...p}/>;

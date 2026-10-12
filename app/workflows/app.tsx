@@ -5,6 +5,7 @@ import {useUi} from '@/app/i18n/client';
 import {resolve,bindingsIn} from './expressions';
 import {isBinding,type Workflow,type WorkflowNode,type RunTrace} from './schema';
 import {COMPONENTS} from './catalog';
+import {runClientAction} from './client-run';
 import {renderComponent,type Ctx} from './components';
 import './style.css';
 // Renders a workflow app with the site's own components. Actions run on the
@@ -33,6 +34,8 @@ export function WorkflowApp({workflow,pageId,title,writable,draftId,snapshot,ren
  const run=useCallback(async(action:string,event:unknown)=>{
   setRunning(r=>({...r,[action]:true}));setErrors(e=>{const {[action]:_gone,...rest}=e;return rest;});
   try{
+   // Pure calculations run here in the browser; everything else goes to the server executor.
+   if(workflow.actions[action]?.client){const r=await runClientAction(workflow,action,{state:live.current.state,values:live.current.values,event},{id:pageId,title});setState(r.state);setTraces(t=>({...t,[action]:r.trace}));if(r.error)setErrors(e=>({...e,[action]:r.error!}));return;}
    const response=await fetch('/api/pages/'+encodeURIComponent(pageId)+'/workflow',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action,state:live.current.state,values:live.current.values,event,...(draftId?{draftId}:{})})});
    const data=await response.json() as {state?:Record<string,unknown>;trace?:RunTrace[];proposals?:{actionId:string;request:unknown}[];error?:string};
    if(!response.ok&&!data.state)throw Error(data.error||'The action could not run.');
@@ -41,7 +44,7 @@ export function WorkflowApp({workflow,pageId,title,writable,draftId,snapshot,ren
    if(data.error)setErrors(e=>({...e,[action]:data.error!}));
   }catch(e){setErrors(x=>({...x,[action]:e instanceof Error?e.message:'The action failed.'}));}
   finally{setRunning(r=>({...r,[action]:false}));}
- },[pageId,draftId]);
+ },[pageId,draftId,workflow,title]);
  const loaded=useRef<Workflow|null>(null);
  useEffect(()=>{if(snapshot||preloaded||loaded.current===workflow||!workflow.actions.load)return;loaded.current=workflow;const t=setTimeout(()=>void run('load',{type:'load'}),50);return()=>clearTimeout(t);},[workflow,run,snapshot]);
  const ctx:Ctx={pageId,writable,running,errors,traces,locale,state,renderArticle};

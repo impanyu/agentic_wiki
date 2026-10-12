@@ -36,11 +36,12 @@ export function validateWorkflow(raw:unknown):{workflow:Workflow;errors:string[]
    if(seen.has(s.id))errors.push(path+': step id repeats.');
    if(!tool)errors.push(path+': unknown tool "'+s.tool+'". Tools: '+Object.keys(TOOLS).join(', ')+'.');
    for(const text of [...bindingsIn(s.args),...bindingsIn(s.when),...bindingsIn(s.each)]){expressions.push({path,text});for(const ref of stepRefs(text))if(!seen.has(ref))errors.push(path+': reads steps.'+ref+', which is not an earlier step of this action.');}
-   if(s.tool==='code.run'){if(typeof s.args?.code!=='string'||!s.args.code.trim())errors.push(path+': code.run needs its source as a literal string in args.code (code is never assembled from data).');if(!['javascript','python'].includes(String(s.args?.language)))errors.push(path+': code.run needs args.language "javascript" or "python" as a literal.');if(s.each!==undefined)errors.push(path+': code.run cannot run inside each; pass the whole list as input and loop in the code.');}
+   if(s.tool==='code.run'){if(typeof s.args?.code!=='string'||!s.args.code.trim())errors.push(path+': code.run needs its source as a literal string in args.code (code is never assembled from data).');if(!['javascript','python'].includes(String(s.args?.language)))errors.push(path+': code.run needs args.language "javascript" or "python" as a literal.');if(s.each!==undefined)errors.push(path+': code.run cannot run inside each; pass the whole list as input and loop in the code.');if(s.args?.sandbox!==undefined&&!['auto','vm'].includes(String(s.args.sandbox)))errors.push(path+': code.run sandbox is "auto" or "vm" as a literal.');}
    if(s.each!==undefined&&!bindingsIn(s.each).length)errors.push(path+': each must be a binding to a list; inside args use $item and $index.');
    if(name==='load'&&tool?.changes&&['files.write','files.zip','markdown.write'].includes(s.tool))errors.push(path+': the load action runs without a user action, so it cannot write files. Run it from a button or form.');
    seen.add(s.id);
   });
+  if(action.client){const impure=action.steps.filter(s=>!CLIENT_TOOLS.has(s.tool));if(impure.length)errors.push('actions.'+name+': a client action runs in the browser and may only use '+[...CLIENT_TOOLS].join(', ')+' (found '+impure.map(s=>s.tool).join(', ')+'); run it on the server instead.');if(action.then&&!w.actions[action.then]?.client)errors.push('actions.'+name+': a client action can only chain to another client action.');}
   if(action.steps.filter(s=>s.tool==='code.run').length>3)errors.push('actions.'+name+': use at most 3 code.run steps per action.');
   for(const text of bindingsIn(action.set))expressions.push({path:'actions.'+name+'.set',text});
   if(action.then&&!actions.has(action.then))errors.push('actions.'+name+'.then: unknown action "'+action.then+'".');
@@ -58,4 +59,5 @@ export function validateWorkflow(raw:unknown):{workflow:Workflow;errors:string[]
 const BUILTINS='not|count|sum|max|min|average|exists|keys|string|number|round|floor|ceil|abs|power|sqrt|substring|substringBefore|substringAfter|contains|split|join|length|lowercase|uppercase|trim|pad|replace|match|distinct|sort|reverse|filter|map|reduce|merge|lookup|append|now|millis|fromMillis|toMillis|boolean|type|spread|each|sift|zip|shuffle|formatNumber|formatInteger|parseInteger|single|eval|base64encode|base64decode|encodeUrl|decodeUrl';
 const BARE=new RegExp('(?<![$\\w.\'"])('+BUILTINS+')\\s*\\(');
 export function missingDollar(text:string){const stripped=text.replace(/'(?:[^'\\]|\\.)*'|"(?:[^"\\]|\\.)*"/g,'""');const m=BARE.exec(stripped);return m?m[1]:null;}
+export const CLIENT_TOOLS=new Set(['compute','json.parse','json.format']);
 export function assertWorkflow(raw:unknown){const r=validateWorkflow(raw);if(r.errors.length)throw Error('The workflow has problems: '+r.errors.join(' | '));return r;}

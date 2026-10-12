@@ -21,6 +21,7 @@ export async function verifyWorkflow(raw:unknown,target:{request:string;title:st
  // code.run is a last resort: the spec must say why tools and expressions cannot do the job.
  const codeSteps=Object.values(workflow.actions).flatMap(a=>a.steps).filter(s=>s.tool==='code.run').length;
  if(codeSteps&&!(target.gaps||[]).some(g=>g.trim().length>20))report.blocking.push('The app uses code.run but its spec records no reason in gaps. Arithmetic, schedules, loops over ranges, aggregation, sorting and formatting are done with JSONata ($power, $map([1..n], …), $reduce, $sum, $round); use code.run only for what no tool or expression can do, and record why in wf_spec gaps.');
+ if(codeSteps&&!report.blocking.length&&!ctx.signal?.aborted)for(const problem of await reviewCodeNecessity(workflow,target.request,ctx.signal))report.blocking.push(problem);
  if(report.blocking.length){report.seconds=Math.round((Date.now()-started)/1000);return report;}
  const plan=tests.length?tests:[{name:'first load',actions:workflow.actions.load?['load']:[]}];
  let shown:{state:Record<string,unknown>;values:Record<string,unknown>}|null=null;
@@ -60,6 +61,17 @@ export async function verifyWorkflow(raw:unknown,target:{request:string;title:st
   }catch(e){report.warnings.push('Visual review could not run: '+(e instanceof Error?e.message.slice(0,200):'error'));}
  }
  report.passed=!report.blocking.length;report.seconds=Math.round((Date.now()-started)/1000);return report;
+}
+// An independent reviewer decides whether each code.run step is really needed:
+// work that JSONata, json/csv tools or platform tools can do must not run as code.
+async function reviewCodeNecessity(workflow:Workflow,request:string,signal?:AbortSignal){
+ const steps=Object.entries(workflow.actions).flatMap(([name,a])=>a.steps.filter(s=>s.tool==='code.run').map(s=>({action:name,step:s.id,language:String(s.args?.language),code:String(s.args?.code||'').slice(0,6000)})));
+ if(!steps.length)return [];
+ try{
+  const response=await api('responses',{model:model(),store:false,instructions:'You review code steps in a workflow app. The platform offers JSONata expressions (arithmetic, $power, $sqrt, $round, $sum, $average, $max, $min, $count, $map/$filter/$reduce/$sort, grouping with object constructors, string functions, dates, ranges [1..n]) and tools (compute, csv.parse, json.parse, files.read, connectors.call, resources.browse, data.describe). For each code step decide whether it is NECESSARY: necessary only if no combination of those can reasonably do it (e.g. matrix algebra, regression or model fitting, iterative numerical methods, simulations, complex parsing of an unusual binary/text format). Grouping, counting, totals, averages, percentages, sorting, filtering, formatting, unit conversion, loan or interest formulas, and reshaping data are NOT necessary. Return only JSON: {"steps":[{"step":string,"necessary":boolean,"reason":string,"alternative":string}]}',input:JSON.stringify({request,steps}),max_output_tokens:2000},signal);
+  const text=output(response),r=JSON.parse(text.slice(text.indexOf('{'),text.lastIndexOf('}')+1)) as {steps?:{step:string;necessary:boolean;reason:string;alternative?:string}[]};
+  return (r.steps||[]).filter(s=>s.necessary===false).map(s=>'code.run step '+s.step+' is not necessary: '+String(s.reason).slice(0,300)+(s.alternative?' Use instead: '+String(s.alternative).slice(0,400):''));
+ }catch{return [];}
 }
 async function bindingProblems(workflow:Workflow,scope:Record<string,unknown>){
  const problems:string[]=[];
