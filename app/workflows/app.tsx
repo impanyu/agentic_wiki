@@ -16,6 +16,8 @@ function walk(nodes:WorkflowNode[],fn:(n:WorkflowNode)=>void){for(const n of nod
 function staticResolve(ui:WorkflowNode[]){const map=new Map<WorkflowNode,Resolved>();let dynamic=false;walk(ui,n=>{if(bindingsIn(n.props).length||n.visible!==undefined)dynamic=true;map.set(n,{props:(n.props||{}) as Record<string,any>,visible:true});});return dynamic?null:map;}
 export function WorkflowApp({workflow,pageId,title,writable,draftId,snapshot,renderArticle,preloaded}:{workflow:Workflow;pageId:string;title:string;writable:boolean;draftId?:string;snapshot?:{state:Record<string,unknown>;values:Record<string,unknown>};renderArticle?:()=>ReactNode;preloaded?:Record<string,unknown>}){
  const {locale,t}=useUi();
+ // Read through a ref so a translation arriving later does not recreate run (and cancel a scheduled load).
+ const tr=useRef(t);tr.current=t;
  const [state,setState]=useState<Record<string,unknown>>(()=>({...workflow.state,...(preloaded||{})}));
  const [values,setValues]=useState<Record<string,unknown>>({});
  const [running,setRunning]=useState<Record<string,boolean>>({}),[errors,setErrors]=useState<Record<string,string>>({}),[traces,setTraces]=useState<Record<string,RunTrace[]>>({});
@@ -43,16 +45,16 @@ export function WorkflowApp({workflow,pageId,title,writable,draftId,snapshot,ren
    if(workflow.actions[action]?.client){const r=await runClientAction(workflow,action,{state:live.current.state,values:withFormValues(workflow,live.current.values),event},{id:pageId,title});setState(r.state);setTraces(t=>({...t,[action]:r.trace}));if(r.error)setErrors(e=>({...e,[action]:r.error!}));return;}
    const response=await fetch('/api/pages/'+encodeURIComponent(pageId)+'/workflow',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action,state:live.current.state,values:withFormValues(workflow,live.current.values),event,...(draftId?{draftId}:{})})});
    const data=await response.json() as {state?:Record<string,unknown>;trace?:RunTrace[];proposals?:{actionId:string;request:unknown}[];error?:string};
-   if(!response.ok&&!data.state)throw Error(data.error||t('The action could not run.'));
+   if(!response.ok&&!data.state)throw Error(data.error||tr.current('The action could not run.'));
    if(data.state)setState(data.state);setTraces(t=>({...t,[action]:data.trace||[]}));
    if(data.proposals?.length)setProposals(p=>[...p,...data.proposals!.filter(x=>!p.some(y=>y.actionId===x.actionId))]);
    if(data.error)setErrors(e=>({...e,[action]:data.error!}));
-  }catch(e){setErrors(x=>({...x,[action]:e instanceof Error?e.message:t('The action failed.')}));}
+  }catch(e){setErrors(x=>({...x,[action]:e instanceof Error?e.message:tr.current('The action failed.')}));}
   finally{setRunning(r=>({...r,[action]:false}));}
- },[pageId,draftId,workflow,title,t]);
+ },[pageId,draftId,workflow,title]);
  const loaded=useRef<Workflow|null>(null);
  // load runs once the initial state and input defaults are in place, so its result is not overwritten and it sees the defaults.
- useEffect(()=>{if(!ready||snapshot||preloaded||loaded.current===workflow||!workflow.actions.load)return;loaded.current=workflow;const t=setTimeout(()=>void run('load',{type:'load'}),50);return()=>clearTimeout(t);},[ready,workflow,run,snapshot]);
+ useEffect(()=>{if(!ready||snapshot||preloaded||loaded.current===workflow||!workflow.actions.load)return;const t=setTimeout(()=>{loaded.current=workflow;void run('load',{type:'load'});},50);return()=>clearTimeout(t);},[ready,workflow,run,snapshot]);
  const ctx:Ctx={pageId,writable,running,errors,traces,locale,t,state,renderArticle};
  const formValues=(n:WorkflowNode)=>{const out:Record<string,unknown>={};walk(n.children||[],c=>{if(c.id&&COMPONENTS[c.type]?.value)out[c.id]=live.current.values[c.id];});return out;};
  const render=(n:WorkflowNode,key:string):ReactNode=>{
