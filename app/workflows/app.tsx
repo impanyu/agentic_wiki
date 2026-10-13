@@ -62,9 +62,12 @@ export function WorkflowApp({workflow,pageId,title,writable,draftId,snapshot,ren
   const children=(n.children||[]).map((c,i)=><Fragment key={i}>{render(c,key+'.'+i)}</Fragment>);
   return <Fragment key={key}>{renderComponent({node:n,props:r.props,raw:(n.props||{}) as Record<string,unknown>,value,setValue,fire,ctx,children})}</Fragment>;
  };
+ const reported=new Set<string>();walk(workflow.ui,n=>{if(n.type==='status'&&typeof (n.props as any)?.action==='string')reported.add((n.props as any).action);});
  const layout=workflow.layout||{};
  return <div className={'wf-app density-'+(layout.density||'normal')+(layout.plain?' plain':'')} style={layout.plain?undefined:{maxWidth:layout.maxWidth||1200,...(layout.accent?{['--wf-accent' as string]:layout.accent}:{})}}>
   {proposals.map(p=><StorageProposal key={p.actionId} {...p}/>)}
+  {/* Failures of actions the app does not report itself (no status component for them) are shown here. */}
+  {Object.entries(errors).filter(([action])=>!reported.has(action)).map(([action,message])=><p key={action} role="alert" className="wf-error wf-action-error">{message}<button type="button" className="wf-button ghost" aria-label={t('Dismiss')} onClick={()=>setErrors(e=>{const {[action]:_gone,...rest}=e;return rest;})}>×</button></p>)}
   {resolved?workflow.ui.map((n,i)=>render(n,String(i))):<p role="status" className="wf-muted">{t('Loading…')}</p>}
   {writable&&bindingErrors.length>0&&<details className="wf-binding-errors"><summary>{bindingErrors.length} display binding problem(s)</summary><ul>{bindingErrors.map((e,i)=><li key={i}><code>{e}</code></li>)}</ul></details>}
  </div>;

@@ -1019,5 +1019,6 @@
   "Uploading…": "Uploading…",
   "Use selected": "Use selected",
   "{count} rows": "{count} rows",
-  "{name} is larger than 10 MB.": "{name} is larger than 10 MB."
+  "{name} is larger than 10 MB.": "{name} is larger than 10 MB.",
+  "Dismiss": "Dismiss"
 }

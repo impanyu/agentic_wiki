@@ -40,7 +40,8 @@ export function fmt(v:unknown,format:string|undefined,locale:string):string{
   case 'percent':return n==null?String(v):(Math.abs(n)<=1.5?n*100:n).toLocaleString(locale,{maximumFractionDigits:1})+'%';
   // Amounts without a currency symbol: the app labels its unit (元, $, €) itself.
   case 'currency':return n==null?String(v):n.toLocaleString(locale,{minimumFractionDigits:2,maximumFractionDigits:2});
-  case 'date':{const d=new Date(String(v));return isNaN(+d)?String(v):d.toLocaleDateString(locale);}
+  // A calendar date (2026-10-13) has no time zone: show that day, not the previous one west of UTC.
+  case 'date':{const s=String(v),plain=/^\d{4}-\d{2}-\d{2}$/.test(s),d=new Date(s);return isNaN(+d)?s:d.toLocaleDateString(locale,plain?{timeZone:'UTC'}:undefined);}
   case 'datetime':{const d=new Date(String(v));return isNaN(+d)?String(v):d.toLocaleString(locale);}
   case 'bytes':{if(n==null)return String(v);const u=['B','KB','MB','GB','TB'];let x=n,i=0;while(x>=1024&&i<u.length-1){x/=1024;i++;}return x.toLocaleString(locale,{maximumFractionDigits:1})+' '+u[i];}
   case 'duration':{if(n==null)return String(v);const s=Math.round(n);return s<60?s+'s':s<3600?Math.floor(s/60)+'m '+(s%60)+'s':Math.floor(s/3600)+'h '+Math.floor(s%3600/60)+'m';}

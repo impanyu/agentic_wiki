@@ -760,5 +760,6 @@
   "Uploading…": "上传中…",
   "Use selected": "使用所选",
   "{count} rows": "{count} 行",
-  "{name} is larger than 10 MB.": "{name} 超过 10 MB。"
+  "{name} is larger than 10 MB.": "{name} 超过 10 MB。",
+  "Dismiss": "关闭"
 }

@@ -311,3 +311,11 @@ test('a form value is its inputs by id everywhere values are read; empty records
  globalThis.wfPage={id:'p',owned:true};globalThis.wfDb={prepare:()=>({bind:()=>({all:async()=>({results:[]}),run:async()=>({meta:{changes:1}})})})};
  await assert.rejects(()=>wf.TOOLS['records.save'].run({collection:'x',data:{a:undefined}},{...ctx,pageId:'p',explicit:true}),/no fields/);
 });
+test('calendar dates keep their day in every time zone',async()=>{
+ const {build:b}=await import('esbuild');
+ const out=await b({stdin:{contents:"export {fmt} from './app/workflows/components.tsx';",resolveDir:process.cwd(),loader:'ts'},bundle:true,format:'esm',platform:'node',write:false,external:['react','react-dom','react-markdown','remark-gfm','recharts','lucide-react','@/app/*'],plugins:[{name:'stub',setup(x){x.onResolve({filter:/^@\//},a=>({path:a.path,namespace:'s'}));x.onLoad({filter:/.*/,namespace:'s'},()=>({contents:'export const GeoViewer=null,ResourcePicker=null;',loader:'js'}));x.onResolve({filter:/\.css$/},a=>({path:a.path,namespace:'s'}));}}],jsx:'automatic'});
+ const f=resolve('node_modules/.cache-fmt-test.mjs');(await import('node:fs')).writeFileSync(f,out.outputFiles[0].text);
+ const {fmt}=await import(pathToFileURL(f).href);
+ const tz=process.env.TZ;process.env.TZ='America/Chicago';
+ try{assert.equal(fmt('2026-10-13','date','en-US'),'10/13/2026');}finally{process.env.TZ=tz;}
+});

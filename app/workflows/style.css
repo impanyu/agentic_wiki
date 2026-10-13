@@ -100,3 +100,4 @@ div.wf-divider{border:0}div.wf-divider::before,div.wf-divider::after{content:"";
 .wf-app.plain{display:block;margin:0;font-size:inherit;color:inherit;line-height:inherit}
 .wf-sources{font-size:.9rem}
 .wf-app.plain>*:not(.wf-article){margin:20px 0}
+.wf-action-error{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 12px;border:1px solid #fecaca;background:#fef2f2;border-radius:8px;margin:0 0 12px}
