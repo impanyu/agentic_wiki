@@ -80,7 +80,9 @@ export function createWorkbench(ctx:Ctx,initial?:{workflow?:unknown;spec?:unknow
  let last:{state:Record<string,unknown>;values:Record<string,unknown>;steps:Record<string,unknown>;event:unknown}|null=null,lastTests:WorkflowTests=[];
  const verified=new Set<string>(),fixtures:Record<string,{name:string;content:string}>={};
  const check=()=>{if(!draft)return {errors:['No draft yet: use wf_set or wf_edit.'],warnings:[]};try{const r=validateWorkflow(draft);return {errors:r.errors,warnings:r.warnings};}catch(e){return {errors:[e instanceof Error?e.message:'Invalid workflow'],warnings:[]};}};
- const toolCtx=(explicit:boolean)=>({userId:ctx.userId,pageId:ctx.pageId,language:ctx.language,explicit,verification:true,signal:ctx.signal,fixtures});
+ // Record writes while building stay in one scratch layer, so a later wf_run sees them.
+ const overlay={added:new Map(),deleted:new Set<string>()};
+ const toolCtx=(explicit:boolean)=>({userId:ctx.userId,pageId:ctx.pageId,language:ctx.language,explicit,verification:true,signal:ctx.signal,fixtures,overlay});
  const specTests=():WorkflowTests=>(spec?.acceptance||[]).flatMap(a=>a.test?[{...a.test,name:a.test.name||a.requirement.slice(0,100)}]:[]).slice(0,6);
  const execute=async(name:string,a:Record<string,any>)=>{
   if(name==='wf_spec'){spec=appSpecSchema.parse(parse(a.specJson,'specJson'));return {data:{saved:true,spec,acceptanceTests:specTests().length,hint:'Explore data with wf_try_tool, build with wf_set/wf_edit, test with wf_run, finish with wf_verify.'}};}

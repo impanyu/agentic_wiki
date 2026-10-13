@@ -24,8 +24,9 @@ export async function runAction(workflow:Workflow,name:string,input:RunInput,ctx
    const tool=TOOLS[step.tool];if(!tool)throw Error('Unknown tool '+step.tool);
    if(++calls>LIMITS.callsPerRun)throw Error('This run made more than '+LIMITS.callsPerRun+' tool calls.');
    if(Date.now()-started>LIMITS.runMs)throw Error('This run took longer than '+LIMITS.runMs/1000+' seconds.');
-   const local=['files.write','files.zip','markdown.write'].includes(step.tool);
-   if(local&&ctx.verification)return {skipped:true,verification:'Not executed during verification: '+step.tool+' writes a Page file.'};
+   // Writes need a user action. Verification skips file writes; record writes go to its scratch layer.
+   const local=['files.write','files.zip','markdown.write','records.save','records.delete'].includes(step.tool);
+   if(local&&ctx.verification&&!step.tool.startsWith('records.'))return {skipped:true,verification:'Not executed during verification: '+step.tool+' writes a Page file.'};
    if(local&&!ctx.explicit)throw Error(step.tool+' needs a user action (a button, form or selection).');
    await slot();try{return await tool.run(args,ctx);}finally{release();}
   };

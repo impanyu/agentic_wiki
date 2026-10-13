@@ -1,7 +1,7 @@
 import test from 'node:test';import assert from 'node:assert/strict';import {build} from 'esbuild';import {pathToFileURL} from 'node:url';import {resolve} from 'node:path';
 // Bundles the workflow modules with the platform services stubbed through globalThis.
 const stubs={'@/app/page-programs/runtime':'export const executeCall=(c,ctx)=>globalThis.wfCalls(c,ctx);','@/app/resources/service':'export const readFile=(p,u,r)=>globalThis.wfRead(r);','@/app/context-files/store':'export const storePageTextFile=(...a)=>globalThis.wfStore("text",a);export const storePageBinaryFile=(...a)=>globalThis.wfStore("binary",a);','@/app/api/ask/ai':'export const api=async()=>{throw Error("no model in tests")};export const output=()=>"";','@/db/store':'export const model=()=>"test";export const getPage=()=>globalThis.wfPage;export const database=()=>globalThis.wfDb;','@/app/page-permissions':'export const canWritePage=p=>!!p.owned;','@/app/components-registry/chart-contracts':'export const chartBlockErrors=b=>b.includes("```chart\\n{bad")?["Chart JSON is invalid."]:[];','@/app/api/ask/refresh-matched-page':'export const relocateQuote=(q,s)=>s;','@/app/sandboxes/service':'export const runProgram=(...a)=>globalThis.wfRun(...a);export const sandboxStatus=()=>({allowed:true,configured:true});','@/app/context-files/read':'export const decodeFile=async(b,name,mime,o)=>({data:o&&o.mode==="table"?{rows:[]}:{text:b.toString("utf8"),name}});','@/app/versions/service':'export const keepOriginal=async()=>{};export const recordVersion=async(...a)=>{globalThis.wfVersions.push(a);};','@/app/resources/contracts':'import {z} from "zod";export const resourceSchema=z.object({space:z.string(),id:z.string(),kind:z.enum(["file","folder"]),name:z.string(),connectorId:z.string().optional()}).strict();'};
-const out=await build({stdin:{contents:"export * from './app/workflows/validate.ts';export * from './app/workflows/executor.ts';export * from './app/workflows/expressions.ts';export {workflowContract} from './app/workflows/contract.ts';export {applyPatch} from './app/workflows/patch.ts';export {TOOLS} from './app/workflows/tools.ts';export {createWorkbench} from './app/workflows/workbench.ts';export * as md from './app/documents/markdown.ts';export {describeData} from './app/workflows/describe.ts';export {missingDollar} from './app/workflows/validate.ts';export {verifyWorkflow} from './app/workflows/verify.ts';export {runClientAction} from './app/workflows/client-run.ts';export * as notes from './app/workflows/source-notes.ts';",resolveDir:process.cwd(),loader:'ts'},bundle:true,format:'esm',platform:'node',write:false,external:['zod','jsonata','jszip','csv-parse','csv-parse/sync','playwright-core'],plugins:[{name:'stubs',setup(b){b.onResolve({filter:/^@\/(app\/(page-programs\/runtime|resources\/service|context-files\/store|resources\/contracts|api\/ask\/ai|page-permissions|components-registry\/chart-contracts|api\/ask\/refresh-matched-page|versions\/service|sandboxes\/service|context-files\/read)|db\/store)$/},a=>({path:a.path,namespace:'stub'}));b.onLoad({filter:/.*/,namespace:'stub'},a=>({contents:stubs[a.path],loader:'js',resolveDir:process.cwd()}));}}]});
+const out=await build({stdin:{contents:"export * from './app/workflows/validate.ts';export * from './app/workflows/executor.ts';export * from './app/workflows/expressions.ts';export {workflowContract} from './app/workflows/contract.ts';export {applyPatch} from './app/workflows/patch.ts';export {TOOLS} from './app/workflows/tools.ts';export {createWorkbench} from './app/workflows/workbench.ts';export * as md from './app/documents/markdown.ts';export {describeData} from './app/workflows/describe.ts';export {missingDollar} from './app/workflows/validate.ts';export {verifyWorkflow} from './app/workflows/verify.ts';export {runClientAction} from './app/workflows/client-run.ts';export * as notes from './app/workflows/source-notes.ts';",resolveDir:process.cwd(),loader:'ts'},bundle:true,format:'esm',platform:'node',write:false,external:['zod','jsonata','jszip','csv-parse','csv-parse/sync','csv-parse/browser/esm/sync','exceljs','playwright-core'],plugins:[{name:'stubs',setup(b){b.onResolve({filter:/^@\/(app\/(page-programs\/runtime|resources\/service|context-files\/store|resources\/contracts|api\/ask\/ai|page-permissions|components-registry\/chart-contracts|api\/ask\/refresh-matched-page|versions\/service|sandboxes\/service|context-files\/read)|db\/store)$/},a=>({path:a.path,namespace:'stub'}));b.onLoad({filter:/.*/,namespace:'stub'},a=>({contents:stubs[a.path],loader:'js',resolveDir:process.cwd()}));}}]});
 const file=resolve('node_modules/.cache-workflows-test.mjs');(await import('node:fs')).writeFileSync(file,out.outputFiles[0].text);
 const wf=await import(pathToFileURL(file).href);
 const ctx={userId:'u',pageId:'p',language:'en',explicit:true};
@@ -210,7 +210,7 @@ test('chosen files are read in place; copies are not read back; every data entry
  assert.equal(r.resource.space,'google');assert.equal(r.resource.url,undefined);assert.deepEqual(r.records,[{a:'1',b:'2'}]);
  await assert.rejects(()=>wf.TOOLS['resources.read'].run({resource:{space:'google',id:'f',kind:'folder',name:'F'}},ctx),/reads files/);
  const copy=wf.validateWorkflow(base({ui:[{id:'pick',type:'resource_picker',on:{change:'go'}}],actions:{go:{steps:[{id:'c',tool:'resources.copy',args:{operationId:'x',sources:{$:'values.pick'},destination:{}}},{id:'r',tool:'files.read',args:{fileId:{$:'steps.c.id'}}}]}}}));
- assert.ok(copy.errors.some(e=>/approval request.*resources.read/.test(e)),JSON.stringify(copy.errors));
+ assert.ok(copy.errors.some(e=>/skipped during verification.*resources.read/.test(e)),JSON.stringify(copy.errors));
  const app=base({ui:[{id:'up',type:'file_upload',on:{change:'a'}},{id:'pick',type:'resource_picker',on:{change:'b'}}],actions:{a:{steps:[{id:'r',tool:'resources.read',args:{resource:{$:'values.up'}}}],set:{rows:{$:'[steps.r]'}}},b:{steps:[{id:'r',tool:'resources.read',args:{resource:{$:'values.pick'}}}],set:{rows:{$:'[steps.r]'}}}}});
  const file={space:'page',id:'fixture:w.csv',kind:'file',name:'w.csv'},files=[{name:'w.csv',content:'a,b\n1,2'}];
  const one=await wf.verifyWorkflow(app,{request:'csv',title:'CSV',pageId:'p',language:'en'},{userId:'u'},[{name:'upload',files,values:{up:[file]},actions:['a']}]);
@@ -227,4 +227,78 @@ test('apps read whole files, not an agent-sized sample',async()=>{
  assert.equal(x.lines.length,501);assert.equal(x.text,csv);
  const page=await wf.TOOLS['files.read'].run({fileId:'fixture:big.csv',options:{start:101,count:10}},fx);
  assert.equal(page.records.length,10);assert.equal(page.records[0].n,'99');assert.equal(page.truncated,true);
+});
+test('stats tools: describe, group, histogram, correlate, regress',async()=>{
+ const rows=[{g:'a',x:'1',y:2},{g:'a',x:2,y:4.1},{g:'b',x:3,y:5.9},{g:'b',x:'4',y:8},{g:'b',x:'',y:null},{g:'c',x:'1,000',y:2001}];
+ const d=await wf.TOOLS['stats.describe'].run({rows},ctx);
+ assert.equal(d.numeric.x.count,5);assert.equal(d.numeric.x.missing,1);assert.equal(d.numeric.x.max,1000);assert.equal(d.numeric.x.median,3);assert.equal(d.categorical[0].field,'g');
+ const g=await wf.TOOLS['stats.group'].run({rows,by:'g',metrics:[{op:'count'},{field:'y',op:'sum',as:'total'},{field:'x',op:'mean'}],sort:'total',descending:true},ctx);
+ assert.deepEqual(g.map(r=>r.g),['c','b','a']);assert.equal(g[1].count,3);assert.equal(g[1].total,13.9);assert.equal(g[2].mean_x,1.5);
+ await assert.rejects(()=>wf.TOOLS['stats.group'].run({rows,by:'g',metrics:[{op:'avg',field:'x'}]},ctx),/Unknown aggregate/);
+ const h=await wf.TOOLS['stats.histogram'].run({rows:rows.slice(0,4),field:'x',bins:3},ctx);
+ assert.equal(h.length,3);assert.equal(h.reduce((s,b)=>s+b.count,0),4);
+ const lin=rows.slice(0,4).map(r=>({x:Number(r.x),y:Number(r.x)*2+1}));
+ const r=await wf.TOOLS['stats.regress'].run({rows:lin,x:'x',y:'y',predict:[10]},ctx);
+ assert.equal(r.slope,2);assert.equal(r.intercept,1);assert.equal(r.r2,1);assert.equal(r.predict[0].y,21);assert.equal(r.line.length,2);
+ const c=await wf.TOOLS['stats.correlate'].run({rows:lin},ctx);assert.equal(c.pairs[0].r,1);
+});
+test('records persist per page and scope; verification writes stay in a scratch layer',async()=>{
+ const table=[];
+ globalThis.wfPage={id:'p',owned:true};
+ globalThis.wfDb={prepare:sql=>({bind:(...a)=>({
+  all:async()=>{const [page,col,owner,limit]=a;return {results:table.filter(r=>r.page_id===page&&r.collection===col&&r.owner_id===owner).sort((x,y)=>y.created_at.localeCompare(x.created_at)).slice(0,limit)};},
+  run:async()=>{if(sql.startsWith('INSERT')){const [id,page_id,collection,owner_id,data,created_by,created_at,updated_at]=a;table.push({id,page_id,collection,owner_id,data,created_by,created_at,updated_at});return {meta:{changes:1}};}
+   if(sql.startsWith('UPDATE')){const [data,at,id]=a;const r=table.find(x=>x.id===id);if(r){r.data=data;r.updated_at=at;}return {meta:{changes:r?1:0}};}
+   if(sql.startsWith('DELETE')){const i=table.findIndex(x=>x.id===a[0]);if(i>=0)table.splice(i,1);return {meta:{changes:i>=0?1:0}};}}})})};
+ const T=wf.TOOLS,live={...ctx,pageId:'p',explicit:true};
+ const one=await T['records.save'].run({collection:'expenses',data:{amount:12.5,note:'lunch'}},live);
+ await new Promise(r=>setTimeout(r,2));
+ await T['records.save'].run({collection:'expenses',data:[{amount:3},{amount:4}]},live);
+ let list=await T['records.list'].run({collection:'expenses'},live);
+ assert.equal(list.length,3);assert.deepEqual(list.at(-1).data,{amount:12.5,note:'lunch'});
+ await T['records.save'].run({collection:'expenses',id:one.id,data:{amount:13}},live);
+ list=await T['records.list'].run({collection:'expenses',order:'oldest'},live);assert.deepEqual(list[0].data,{amount:13,note:'lunch'});
+ assert.equal((await T['records.list'].run({collection:'expenses',scope:'user'},live)).length,0);
+ // verification: sees saved records, its own writes stay out of the table
+ const overlay={added:new Map(),deleted:new Set()},check={...live,verification:true,overlay};
+ await T['records.save'].run({collection:'expenses',data:{amount:99}},check);await T['records.delete'].run({collection:'expenses',id:one.id},check);
+ const seen=await T['records.list'].run({collection:'expenses'},check);
+ assert.equal(seen.length,3);assert.ok(seen.some(r=>r.data.amount===99));assert.ok(!seen.some(r=>r.id===one.id));assert.equal(table.length,3);
+ await assert.rejects(()=>T['records.save'].run({collection:'bad name',data:{}},live),/Name the collection/);
+ await assert.rejects(()=>T['records.save'].run({collection:'x',data:'text'},live),/object of fields/);
+ globalThis.wfPage={id:'p',owned:false};
+ await assert.rejects(()=>T['records.save'].run({collection:'expenses',data:{a:1}},live),/editors/);
+ await T['records.save'].run({collection:'mine',scope:'user',data:{a:1}},live);
+ // writes need a user action and are refused in load
+ const v=wf.validateWorkflow(base({actions:{load:{steps:[{id:'s',tool:'records.save',args:{collection:'x',data:{a:1}}}]}}}));
+ assert.ok(v.errors.some(e=>/cannot write files or records/.test(e)));
+});
+test('csv.parse detects delimiters and can keep codes; llm json; geo.read; xlsx export; files.list items read',async()=>{
+ const P=wf.TOOLS['csv.parse'];
+ assert.deepEqual(await P.run({text:'zip;n\n00501;2'},ctx),[{zip:501,n:2}]);
+ assert.deepEqual(await P.run({text:'zip\tn\n00501\t2',cast:false},ctx),[{zip:'00501',n:'2'}]);
+ globalThis.wfCalls=async c=>c.tool==='llm'?{text:'```json\n[{"label":"spam"}]\n```'}:{};
+ assert.deepEqual(await wf.TOOLS.llm.run({prompt:'classify',json:true},ctx),[{label:'spam'}]);
+ globalThis.wfCalls=async()=>({text:'not json'});
+ await assert.rejects(()=>wf.TOOLS.llm.run({prompt:'x',json:true},ctx),/valid JSON/);
+ const g=await wf.TOOLS['geo.read'].run({data:{text:'name,lat,lon\nA,40.8,-96.7'},name:'p.csv'},ctx);
+ assert.equal(g.features[0].geometry.coordinates[1],40.8);
+ const gj=await wf.TOOLS['geo.read'].run({data:{type:'Point',coordinates:[1,2]}},ctx);assert.equal(gj.type,'FeatureCollection');
+ let stored;globalThis.wfStore=async(kind,a)=>{stored={kind,a};return {fileId:'f'};};
+ await wf.TOOLS['files.write'].run({name:'out.xlsx',rows:[{a:1,b:'x'},{a:2,b:'y'}]},{...ctx,explicit:true});
+ assert.equal(stored.kind,'binary');
+ const ExcelJS=(await import('exceljs')).default,book=new ExcelJS.Workbook();await book.xlsx.load(stored.a[3]);
+ assert.equal(book.worksheets[0].getRow(1).getCell(1).value,'a');assert.equal(book.worksheets[0].getRow(3).getCell(2).value,'y');
+ globalThis.wfRead=async r=>({bytes:new TextEncoder().encode('a,b\n1,2'),name:r.name==='file'?'x.csv':r.name,mime:'text/csv'});
+ const fromList=await wf.TOOLS['resources.read'].run({resource:{id:'f1',name:'x.csv',url:'/f',size:7}},ctx);
+ assert.equal(fromList.resource.space,'page');assert.deepEqual(fromList.records,[{a:'1',b:'2'}]);
+});
+test('brokered tools pass the argument names their backends expect',async()=>{
+ const seen=[];globalThis.wfCalls=async c=>{seen.push(c);return {};};
+ await wf.TOOLS['earthengine.run'].run({script:'return 1',account:'user'},ctx);
+ await wf.TOOLS['maps.search'].run({query:'coffee',near:'Lincoln, NE',max:3},ctx);
+ await wf.TOOLS['maps.reverse'].run({lat:'40.8',lon:-96.7},ctx);
+ await wf.TOOLS['contexts.search'].run({query:'soil',pageKind:'dynamic',topicTerms:['soil','moisture']},ctx);
+ assert.deepEqual(seen.map(c=>c.args),[{code:'return 1',account:'mine'},{query:'coffee near Lincoln, NE',max:3},{lat:40.8,lng:-96.7},{query:'soil',page_kind:'dynamic',topic_terms:'soil, moisture'}]);
+ for(const [name,t] of Object.entries(wf.TOOLS))assert.ok(t.description.length>20&&t.returns,name+' is documented');
 });

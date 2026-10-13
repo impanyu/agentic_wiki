@@ -28,9 +28,11 @@ export async function verifyWorkflow(raw:unknown,target:{request:string;title:st
  for(const test of plan){
   const run:TestRun={test:test.name||'test',ok:true,actions:[],failed:[],state:''};let state={...workflow.state};const values=test.values||{};
   const fixtures={...(ctx.fixtures||{}),...Object.fromEntries((test.files||[]).map(f=>[f.name,f]))};
+  // Each test starts from the saved records; its own writes stay in a scratch layer.
+  const overlay={added:new Map(),deleted:new Set<string>()};
   for(const action of test.actions??(workflow.actions.load?['load']:[])){
    if(!workflow.actions[action]){run.failed.push('Unknown action '+action);continue;}
-   const r=await runAction(workflow,action,{state,values,event:{type:action==='load'?'load':'click',source:'verification'}},{userId:ctx.userId,pageId:target.pageId,language:target.language,explicit:action!=='load',verification:true,signal:ctx.signal,fixtures});
+   const r=await runAction(workflow,action,{state,values,event:{type:action==='load'?'load':'click',source:'verification'}},{userId:ctx.userId,pageId:target.pageId,language:target.language,explicit:action!=='load',verification:true,signal:ctx.signal,fixtures,overlay});
    state=r.state;run.actions.push({action,...(r.error?{error:r.error}:{}),trace:r.trace.map(t=>({...t,preview:t.preview?.slice(0,400)}))});
    if(r.error)run.failed.push(action+': '+r.error);
   }
@@ -73,7 +75,7 @@ async function reviewCodeNecessity(workflow:Workflow,request:string,signal?:Abor
  const steps=Object.entries(workflow.actions).flatMap(([name,a])=>a.steps.filter(s=>s.tool==='code.run').map(s=>({action:name,step:s.id,language:String(s.args?.language),code:String(s.args?.code||'').slice(0,6000)})));
  if(!steps.length)return [];
  try{
-  const response=await api('responses',{model:model(),store:false,instructions:'You review code steps in a workflow app. The platform offers JSONata expressions (arithmetic, $power, $sqrt, $round, $sum, $average, $max, $min, $count, $map/$filter/$reduce/$sort, grouping with object constructors, string functions, dates, ranges [1..n]) and tools (compute, csv.parse, json.parse, files.read, connectors.call, resources.browse, data.describe). For each code step decide whether it is NECESSARY: necessary only if no combination of those can reasonably do it (e.g. matrix algebra, regression or model fitting, iterative numerical methods, simulations, complex parsing of an unusual binary/text format). Grouping, counting, totals, averages, percentages, sorting, filtering, formatting, unit conversion, loan or interest formulas, and reshaping data are NOT necessary. Return only JSON: {"steps":[{"step":string,"necessary":boolean,"reason":string,"alternative":string}]}',input:JSON.stringify({request,steps}),max_output_tokens:2000},signal);
+  const response=await api('responses',{model:model(),store:false,instructions:'You review code steps in a workflow app. The platform offers JSONata expressions (arithmetic, $power, $sqrt, $round, $sum, $average, $max, $min, $count, $map/$filter/$reduce/$sort, grouping with object constructors, string functions, dates, ranges [1..n]) and tools (compute, csv.parse, json.parse, files.read, resources.read, stats.describe, stats.group, stats.histogram, stats.correlate, stats.regress, geo.read, connectors.call, resources.browse, data.describe). For each code step decide whether it is NECESSARY: necessary only if no combination of those can reasonably do it (e.g. matrix algebra, regression or model fitting, iterative numerical methods, simulations, complex parsing of an unusual binary/text format). Grouping, counting, totals, averages, percentages, sorting, filtering, formatting, unit conversion, loan or interest formulas, and reshaping data are NOT necessary. Return only JSON: {"steps":[{"step":string,"necessary":boolean,"reason":string,"alternative":string}]}',input:JSON.stringify({request,steps}),max_output_tokens:2000},signal);
   const text=output(response),r=JSON.parse(text.slice(text.indexOf('{'),text.lastIndexOf('}')+1)) as {steps?:{step:string;necessary:boolean;reason:string;alternative?:string}[]};
   return (r.steps||[]).filter(s=>s.necessary===false).map(s=>'code.run step '+s.step+' is not necessary: '+String(s.reason).slice(0,300)+(s.alternative?' Use instead: '+String(s.alternative).slice(0,400):''));
  }catch{return [];}
