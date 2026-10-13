@@ -9,7 +9,7 @@ import type {Workflow,WorkflowNode,RunTrace} from './schema';
 // Verifies a workflow app before it is saved: structure, real runs of its
 // actions (changes skipped), the agent's expectations, and a rendered review
 // of the actual components at desktop and phone width.
-export const workflowTestsSchema=z.array(z.object({name:z.string().max(100).optional(),files:z.array(z.object({name:z.string().min(1).max(200),content:z.string().max(200000)}).strict()).max(3).optional(),values:z.record(z.unknown()).optional(),actions:z.array(z.string().max(48)).max(6).optional(),expect:z.array(z.string().max(500)).max(8).optional()}).strict()).max(6);
+export const workflowTestsSchema=z.array(z.object({name:z.string().max(100).optional(),files:z.array(z.object({name:z.string().min(1).max(200),content:z.string().max(200000)}).strict()).max(3).optional(),values:z.record(z.unknown()).optional(),actions:z.preprocess(v=>typeof v==='string'?[v]:v,z.array(z.string().max(48)).max(6)).optional(),expect:z.preprocess(v=>typeof v==='string'?[v]:v,z.array(z.string().max(500)).max(8)).optional()}).strict()).max(6);
 export type WorkflowTests=z.infer<typeof workflowTestsSchema>;
 type TestRun={test:string;ok:boolean;actions:{action:string;error?:string;trace:RunTrace[]}[];failed:string[];state:string};
 export type WorkflowReport={passed:boolean;blocking:string[];warnings:string[];tests:TestRun[];review?:{verdict:string;summary:string;issues:{severity:string;area?:string;problem:string;fix?:string}[];coverage?:{requirement:string;status:string;note?:string}[]};screens:{viewport:string;errors:string[];overflow:boolean;textChars:number}[];seconds:number};
