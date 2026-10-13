@@ -1,6 +1,7 @@
 import {z} from 'zod';
 import {COMPONENTS} from './catalog';
 import {TOOLS} from './tools';
+import {withFormValues} from './forms';
 import {validateWorkflow} from './validate';
 import {runAction} from './executor';
 import {evaluate} from './expressions';
@@ -98,7 +99,7 @@ export function createWorkbench(ctx:Ctx,initial?:{workflow?:unknown;spec?:unknow
   if(name==='wf_run'){
    const {workflow,errors}=(()=>{try{const r=validateWorkflow(draft);return r;}catch(e){return {workflow:null,errors:[e instanceof Error?e.message:'Invalid workflow']};}})();
    if(!workflow||errors.length)return {data:{ran:false,errors}};
-   const values=parse(a.valuesJson,'valuesJson')||{},state=parse(a.stateJson,'stateJson')??(a.continue&&last?last.state:undefined),action=String(a.action),event={type:action==='load'?'load':'click',source:'workbench'};
+   const values=withFormValues(workflow,parse(a.valuesJson,'valuesJson')||{}),state=parse(a.stateJson,'stateJson')??(a.continue&&last?last.state:undefined),action=String(a.action),event={type:action==='load'?'load':'click',source:'workbench'};
    const r=await runAction(workflow,action,{state,values,event},toolCtx(action!=='load'),{keepSteps:true});
    last={state:r.state,values,steps:r.steps,event};
    return {data:{error:r.error??null,state:clip(r.state,12000),steps:Object.fromEntries(Object.entries(r.steps).map(([k,v])=>[k,(JSON.stringify(v)??'').length>3000?{shape:describeData(v),preview:clip(v,1500)}:v])),trace:r.trace.map(t=>({step:t.step,tool:t.tool,status:t.status,ms:t.ms,error:t.error,items:t.items})),proposals:r.proposals.length}};

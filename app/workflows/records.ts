@@ -45,7 +45,10 @@ export async function saveRecords(ctx:Ctx,a:Record<string,unknown>){
  if(!a.id&&existing.length+items.length>RECORD_LIMITS.perCollection)throw Error('A collection holds at most '+RECORD_LIMITS.perCollection+' records.');
  for(const item of items){
   if(!item||typeof item!=='object'||Array.isArray(item))throw Error('Each record is an object of fields, e.g. {"amount": 12.5, "note": "lunch"}.');
-  const text=JSON.stringify(item);if(text.length>RECORD_LIMITS.recordBytes)throw Error('A record holds at most 20 KB of data.');
+  const text=JSON.stringify(item);
+  // Bindings that found nothing leave an empty record; say so instead of saving it.
+  if(!a.id&&text==='{}')throw Error('The record has no fields: the bindings in data found no values. Check the ids they read (a form\u2019s fields are values.<formId>.<inputId> or values.<inputId>).');
+  if(text.length>RECORD_LIMITS.recordBytes)throw Error('A record holds at most 20 KB of data.');
   const id=a.id?String(a.id):crypto.randomUUID();
   const before=a.id?(ctx.overlay?.added.get(id)??existing.find(r=>r.id===id)):undefined;
   if(a.id&&!before)throw Error('No record '+id+' in '+collection+'.');

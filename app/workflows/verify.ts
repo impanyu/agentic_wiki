@@ -2,6 +2,7 @@ import {z} from 'zod';
 import {api,output} from '@/app/api/ask/ai';
 import {model} from '@/db/store';
 import {validateWorkflow} from './validate';
+import {withFormValues} from './forms';
 import {runAction} from './executor';
 import {evaluate,resolve} from './expressions';
 import {renderScreens,chromiumPath,type Shot} from './render';
@@ -26,7 +27,7 @@ export async function verifyWorkflow(raw:unknown,target:{request:string;title:st
  const plan=tests.length?tests:[{name:'first load',actions:workflow.actions.load?['load']:[]}];
  let shown:{state:Record<string,unknown>;values:Record<string,unknown>}|null=null;
  for(const test of plan){
-  const run:TestRun={test:test.name||'test',ok:true,actions:[],failed:[],state:''};let state={...workflow.state};const values=test.values||{};
+  const run:TestRun={test:test.name||'test',ok:true,actions:[],failed:[],state:''};let state={...workflow.state};const values=withFormValues(workflow,test.values||{});
   const fixtures={...(ctx.fixtures||{}),...Object.fromEntries((test.files||[]).map(f=>[f.name,f]))};
   // Each test starts from the saved records; its own writes stay in a scratch layer.
   const overlay={added:new Map(),deleted:new Set<string>()};

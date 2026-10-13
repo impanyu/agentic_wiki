@@ -5,6 +5,7 @@ import {useUi} from '@/app/i18n/client';
 import {resolve,bindingsIn} from './expressions';
 import {isBinding,type Workflow,type WorkflowNode,type RunTrace} from './schema';
 import {COMPONENTS,INPUT_TYPES} from './catalog';
+import {withFormValues} from './forms';
 import {runClientAction} from './client-run';
 import {renderComponent,type Ctx} from './components';
 import './style.css';
@@ -26,7 +27,7 @@ export function WorkflowApp({workflow,pageId,title,writable,draftId,snapshot,ren
  // Input defaults become initial values (bindings in defaults are resolved once).
  useEffect(()=>{let cancelled=false;void (async()=>{const init:Record<string,unknown>={};const scope={state:workflow.state,values:{},page:{id:pageId,title}};const tasks:Promise<void>[]=[];walk(workflow.ui,n=>{const d=(n.props as any)?.default;if(n.id&&d!==undefined)tasks.push(resolve(d,scope).then(v=>{init[n.id!]=v;},()=>{}));if(n.id&&d===undefined&&['file_upload','resource_picker'].includes(n.type))init[n.id]=[];});await Promise.all(tasks);if(!cancelled){synced.current={};setState(snapshot?.state??{...workflow.state,...(preloaded||{})});setValues({...init,...(snapshot?.values||{})});}})();return()=>{cancelled=true;};},[workflow,pageId,title,snapshot]);
  useEffect(()=>{let cancelled=false;void (async()=>{
-  const map=new Map<WorkflowNode,Resolved>(),problems:string[]=[],scope={state,values,running,errors,page:{id:pageId,title}};
+  const map=new Map<WorkflowNode,Resolved>(),problems:string[]=[],scope={state,values:withFormValues(workflow,values),running,errors,page:{id:pageId,title}};
   const safe=async(v:unknown,where:string)=>{try{return await resolve(v,scope);}catch(e){problems.push(where+': '+(e instanceof Error?e.message:'error'));return undefined;}};
   const visit=async(n:WorkflowNode,path:string)=>{const props=(await safe(n.props||{},path) as Record<string,any>)||{};const visible=n.visible===undefined?true:!!(isBinding(n.visible)?await safe(n.visible,path+'.visible'):n.visible);map.set(n,{props,visible});await Promise.all((n.children||[]).map((c,i)=>visit(c,path+'.'+i)));};
   await Promise.all(workflow.ui.map((n,i)=>visit(n,String(i))));
@@ -39,8 +40,8 @@ export function WorkflowApp({workflow,pageId,title,writable,draftId,snapshot,ren
   setRunning(r=>({...r,[action]:true}));setErrors(e=>{const {[action]:_gone,...rest}=e;return rest;});
   try{
    // Pure calculations run here in the browser; everything else goes to the server executor.
-   if(workflow.actions[action]?.client){const r=await runClientAction(workflow,action,{state:live.current.state,values:live.current.values,event},{id:pageId,title});setState(r.state);setTraces(t=>({...t,[action]:r.trace}));if(r.error)setErrors(e=>({...e,[action]:r.error!}));return;}
-   const response=await fetch('/api/pages/'+encodeURIComponent(pageId)+'/workflow',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action,state:live.current.state,values:live.current.values,event,...(draftId?{draftId}:{})})});
+   if(workflow.actions[action]?.client){const r=await runClientAction(workflow,action,{state:live.current.state,values:withFormValues(workflow,live.current.values),event},{id:pageId,title});setState(r.state);setTraces(t=>({...t,[action]:r.trace}));if(r.error)setErrors(e=>({...e,[action]:r.error!}));return;}
+   const response=await fetch('/api/pages/'+encodeURIComponent(pageId)+'/workflow',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action,state:live.current.state,values:withFormValues(workflow,live.current.values),event,...(draftId?{draftId}:{})})});
    const data=await response.json() as {state?:Record<string,unknown>;trace?:RunTrace[];proposals?:{actionId:string;request:unknown}[];error?:string};
    if(!response.ok&&!data.state)throw Error(data.error||t('The action could not run.'));
    if(data.state)setState(data.state);setTraces(t=>({...t,[action]:data.trace||[]}));
