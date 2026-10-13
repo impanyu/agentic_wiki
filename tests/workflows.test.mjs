@@ -204,3 +204,17 @@ test('inputs accept a value binding that an action can drive',()=>{
  assert.deepEqual(r.errors,[],JSON.stringify(r.errors));
  assert.ok(wf.workflowContract.inputs.includes('value'));
 });
+test('chosen files are read in place; copies are not read back; every data entry needs a test',async()=>{
+ globalThis.wfRead=async r=>({bytes:new TextEncoder().encode('a,b\n1,2'),name:r.name,mime:'text/csv'});
+ const r=await wf.TOOLS['resources.read'].run({resource:[{space:'google',id:'g1',kind:'file',name:'w.csv',url:'/x',size:7}]},ctx);
+ assert.equal(r.resource.space,'google');assert.equal(r.resource.url,undefined);assert.match(r.text,/a,b/);
+ await assert.rejects(()=>wf.TOOLS['resources.read'].run({resource:{space:'google',id:'f',kind:'folder',name:'F'}},ctx),/reads files/);
+ const copy=wf.validateWorkflow(base({ui:[{id:'pick',type:'resource_picker',on:{change:'go'}}],actions:{go:{steps:[{id:'c',tool:'resources.copy',args:{operationId:'x',sources:{$:'values.pick'},destination:{}}},{id:'r',tool:'files.read',args:{fileId:{$:'steps.c.id'}}}]}}}));
+ assert.ok(copy.errors.some(e=>/approval request.*resources.read/.test(e)),JSON.stringify(copy.errors));
+ const app=base({ui:[{id:'up',type:'file_upload',on:{change:'a'}},{id:'pick',type:'resource_picker',on:{change:'b'}}],actions:{a:{steps:[{id:'r',tool:'resources.read',args:{resource:{$:'values.up'}}}],set:{rows:{$:'[steps.r]'}}},b:{steps:[{id:'r',tool:'resources.read',args:{resource:{$:'values.pick'}}}],set:{rows:{$:'[steps.r]'}}}}});
+ const file={space:'page',id:'fixture:w.csv',kind:'file',name:'w.csv'},files=[{name:'w.csv',content:'a,b\n1,2'}];
+ const one=await wf.verifyWorkflow(app,{request:'csv',title:'CSV',pageId:'p',language:'en'},{userId:'u'},[{name:'upload',files,values:{up:[file]},actions:['a']}]);
+ assert.ok(one.blocking.some(e=>/No test covers the data entry resource_picker #pick runs b/.test(e)),JSON.stringify(one.blocking));
+ const both=await wf.verifyWorkflow(app,{request:'csv',title:'CSV',pageId:'p',language:'en'},{userId:'u'},[{name:'upload',files,values:{up:[file]},actions:['a']},{name:'pick',files,values:{pick:[file]},actions:['b'],expect:['$count(state.rows) = 1']}]);
+ assert.ok(!both.blocking.some(e=>/No test covers/.test(e)),JSON.stringify(both.blocking));
+});

@@ -41,6 +41,11 @@ export async function verifyWorkflow(raw:unknown,target:{request:string;title:st
   for(const f of run.failed)report.blocking.push('Test "'+run.test+'": '+f);
   shown??={state,values};
  }
+ // Every way of bringing data in must be exercised by a test; an untested entry point is where apps break.
+ const tested=new Set(plan.flatMap(t=>t.actions??['load'])),entries:string[]=[];
+ const walkEntries=(nodes:WorkflowNode[])=>{for(const n of nodes){if(['file_upload','resource_picker'].includes(n.type))for(const action of Object.values(n.on||{}))if(!tested.has(action))entries.push(n.type+(n.id?' #'+n.id:'')+' runs '+action);if(n.children)walkEntries(n.children);}};
+ walkEntries(workflow.ui);
+ for(const e of entries)report.blocking.push('No test covers the data entry '+e+'. Add a test that gives it a sample file (wf_fixture) and runs that action.');
  // Render the real components with the state the first test produced.
  let shots:Shot[]=[];
  if(!chromiumPath())report.warnings.push('Rendering check unavailable on this server.');
