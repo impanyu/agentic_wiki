@@ -2,10 +2,10 @@ import type {Workflow} from './schema';
 // A component gallery with sample state, rendered at /workflow-preview?demo=1 in
 // development only, to check the component library visually.
 const days=Array.from({length:14},(_,i)=>({date:'2026-09-'+String(i+10).padStart(2,'0'),temp:14+Math.round(8*Math.sin(i/2)),wind:3+(i*7)%9,rain:(i*13)%5}));
-export const demoWorkflow:Workflow={kind:'workflow-app',version:1,title:'Component gallery',actions:{pickOmaha:{client:true,steps:[],set:{station:'Omaha'}}},layout:{maxWidth:1200,accent:'#0f766e'},
- state:{station:null,days,files:[{name:'yield_2026.csv',size:182344,modified:'2026-10-01',space:'Page files'},{name:'fields.geojson',size:4829350,modified:'2026-09-23',space:'ADMA'},{name:'soil.tif',size:112429,modified:'2026-09-26',space:'Google Drive'}],
+export const demoWorkflow:Workflow={kind:'workflow-app',version:1,title:'Component gallery',actions:{pickOmaha:{client:true,steps:[],set:{station:'Omaha'}},load:{client:true,steps:[],set:{loadedAt:'loaded'}}},layout:{maxWidth:1200,accent:'#0f766e'},
+ state:{station:null,loadedAt:'not loaded',days,files:[{name:'yield_2026.csv',size:182344,modified:'2026-10-01',space:'Page files'},{name:'fields.geojson',size:4829350,modified:'2026-09-23',space:'ADMA'},{name:'soil.tif',size:112429,modified:'2026-09-26',space:'Google Drive'}],
   stations:[{lat:40.82,lng:-96.70,label:'Lincoln'},{lat:41.26,lng:-95.94,label:'Omaha'},{lat:40.92,lng:-98.34,label:'Grand Island'}]},
- ui:[
+ ui:[{id:'loadFlag',type:'badge',props:{text:{$:'state.loadedAt'},tone:'info'}},
   {type:'heading',props:{text:'Field station overview',subtitle:'Sample data — every component in one page'}},
   {type:'stats',props:{items:{$:"[{'label':'Average temperature','value':$round($average(state.days.temp),1),'unit':'°C','delta':1.2,'spark':state.days.temp,'tone':'info'},{'label':'Max wind','value':$max(state.days.wind),'unit':'m/s','delta':-0.8,'spark':state.days.wind,'tone':'warning'},{'label':'Rain days','value':$count(state.days[rain>0]),'tone':'success'},{'label':'Files','value':$count(state.files),'format':'integer','tone':'neutral'}]"}}},
   {type:'grid',props:{columns:2},children:[

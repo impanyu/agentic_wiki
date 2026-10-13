@@ -22,10 +22,10 @@ export function WorkflowApp({workflow,pageId,title,writable,draftId,snapshot,ren
  const [proposals,setProposals]=useState<{actionId:string;request:unknown}[]>([]);
  // Binding-free pages (such as a plain wiki article) render on the first paint.
  const [resolved,setResolved]=useState<Map<WorkflowNode,Resolved>|null>(()=>staticResolve(workflow.ui)),[bindingErrors,setBindingErrors]=useState<string[]>([]);
- const synced=useRef<Record<string,string>>({});
+ const synced=useRef<Record<string,string>>({}),[ready,setReady]=useState(false);
  const live=useRef({state,values});live.current={state,values};
  // Input defaults become initial values (bindings in defaults are resolved once).
- useEffect(()=>{let cancelled=false;void (async()=>{const init:Record<string,unknown>={};const scope={state:workflow.state,values:{},page:{id:pageId,title}};const tasks:Promise<void>[]=[];walk(workflow.ui,n=>{const d=(n.props as any)?.default;if(n.id&&d!==undefined)tasks.push(resolve(d,scope).then(v=>{init[n.id!]=v;},()=>{}));if(n.id&&d===undefined&&['file_upload','resource_picker'].includes(n.type))init[n.id]=[];});await Promise.all(tasks);if(!cancelled){synced.current={};setState(snapshot?.state??{...workflow.state,...(preloaded||{})});setValues({...init,...(snapshot?.values||{})});}})();return()=>{cancelled=true;};},[workflow,pageId,title,snapshot]);
+ useEffect(()=>{let cancelled=false;setReady(false);void (async()=>{const init:Record<string,unknown>={};const scope={state:workflow.state,values:{},page:{id:pageId,title}};const tasks:Promise<void>[]=[];walk(workflow.ui,n=>{const d=(n.props as any)?.default;if(n.id&&d!==undefined)tasks.push(resolve(d,scope).then(v=>{init[n.id!]=v;},()=>{}));if(n.id&&d===undefined&&['file_upload','resource_picker'].includes(n.type))init[n.id]=[];});await Promise.all(tasks);if(!cancelled){synced.current={};setState(snapshot?.state??{...workflow.state,...(preloaded||{})});setValues({...init,...(snapshot?.values||{})});setReady(true);}})();return()=>{cancelled=true;};},[workflow,pageId,title,snapshot]);
  useEffect(()=>{let cancelled=false;void (async()=>{
   const map=new Map<WorkflowNode,Resolved>(),problems:string[]=[],scope={state,values:withFormValues(workflow,values),running,errors,page:{id:pageId,title}};
   const safe=async(v:unknown,where:string)=>{try{return await resolve(v,scope);}catch(e){problems.push(where+': '+(e instanceof Error?e.message:'error'));return undefined;}};
@@ -51,7 +51,8 @@ export function WorkflowApp({workflow,pageId,title,writable,draftId,snapshot,ren
   finally{setRunning(r=>({...r,[action]:false}));}
  },[pageId,draftId,workflow,title,t]);
  const loaded=useRef<Workflow|null>(null);
- useEffect(()=>{if(snapshot||preloaded||loaded.current===workflow||!workflow.actions.load)return;loaded.current=workflow;const t=setTimeout(()=>void run('load',{type:'load'}),50);return()=>clearTimeout(t);},[workflow,run,snapshot]);
+ // load runs once the initial state and input defaults are in place, so its result is not overwritten and it sees the defaults.
+ useEffect(()=>{if(!ready||snapshot||preloaded||loaded.current===workflow||!workflow.actions.load)return;loaded.current=workflow;const t=setTimeout(()=>void run('load',{type:'load'}),50);return()=>clearTimeout(t);},[ready,workflow,run,snapshot]);
  const ctx:Ctx={pageId,writable,running,errors,traces,locale,t,state,renderArticle};
  const formValues=(n:WorkflowNode)=>{const out:Record<string,unknown>={};walk(n.children||[],c=>{if(c.id&&COMPONENTS[c.type]?.value)out[c.id]=live.current.values[c.id];});return out;};
  const render=(n:WorkflowNode,key:string):ReactNode=>{
