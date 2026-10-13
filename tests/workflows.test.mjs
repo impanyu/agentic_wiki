@@ -22,15 +22,15 @@ test('the executor runs independent steps in parallel, maps lists, honours when,
  globalThis.wfCalls=async(c)=>{calls.push(c.tool);active++;peak=Math.max(peak,active);await new Promise(r=>setTimeout(r,30));active--;
   if(c.tool==='files.list')return [{id:'1',name:'a.csv',size:10},{id:'2',name:'b.csv',size:30},{id:'3',name:'c.png',size:5}];
   if(c.tool==='connectors.list')return [{id:'arc',name:'ArcGIS Online'}];
-  if(c.tool==='files.read')return {rows:[{v:Number(c.args.fileId)}]};
   return {};};
+ globalThis.wfRead=async r=>({bytes:new TextEncoder().encode('v\n'+r.id),name:'f'+r.id+'.csv',mime:'text/csv'});
  const w=wf.validateWorkflow(base({actions:{load:{steps:[
   {id:'files',tool:'files.list'},{id:'conn',tool:'connectors.list'},
   {id:'reads',tool:'files.read',each:{$:"steps.files[$contains(name,'.csv')]"},args:{fileId:{$:'$item.id'}}},
   {id:'skip',tool:'jobs.list',when:{$:'$count(steps.files) > 10'}}],
-  set:{rows:{$:'steps.reads.rows'},total:{$:'$sum(steps.files.size)'},arc:{$:"steps.conn[name='ArcGIS Online'].id"}}}}})).workflow;
+  set:{rows:{$:'steps.reads.records'},total:{$:'$sum(steps.files.size)'},arc:{$:"steps.conn[name='ArcGIS Online'].id"}}}}})).workflow;
  const r=await wf.runAction(w,'load',{},{...ctx,explicit:false});
- assert.equal(r.error,undefined);assert.deepEqual(r.state.rows,[{v:1},{v:2}]);assert.equal(r.state.total,45);assert.equal(r.state.arc,'arc');
+ assert.equal(r.error,undefined);assert.deepEqual(r.state.rows,[{v:'1'},{v:'2'}]);assert.equal(r.state.total,45);assert.equal(r.state.arc,'arc');
  assert.ok(peak>=2,'independent steps overlap');assert.ok(!calls.includes('jobs.list'));
  assert.deepEqual(r.trace.find(t=>t.step==='reads').items,2);assert.equal(r.trace.find(t=>t.step==='skip').status,'skipped');
 });
@@ -207,7 +207,7 @@ test('inputs accept a value binding that an action can drive',()=>{
 test('chosen files are read in place; copies are not read back; every data entry needs a test',async()=>{
  globalThis.wfRead=async r=>({bytes:new TextEncoder().encode('a,b\n1,2'),name:r.name,mime:'text/csv'});
  const r=await wf.TOOLS['resources.read'].run({resource:[{space:'google',id:'g1',kind:'file',name:'w.csv',url:'/x',size:7}]},ctx);
- assert.equal(r.resource.space,'google');assert.equal(r.resource.url,undefined);assert.match(r.text,/a,b/);
+ assert.equal(r.resource.space,'google');assert.equal(r.resource.url,undefined);assert.deepEqual(r.records,[{a:'1',b:'2'}]);
  await assert.rejects(()=>wf.TOOLS['resources.read'].run({resource:{space:'google',id:'f',kind:'folder',name:'F'}},ctx),/reads files/);
  const copy=wf.validateWorkflow(base({ui:[{id:'pick',type:'resource_picker',on:{change:'go'}}],actions:{go:{steps:[{id:'c',tool:'resources.copy',args:{operationId:'x',sources:{$:'values.pick'},destination:{}}},{id:'r',tool:'files.read',args:{fileId:{$:'steps.c.id'}}}]}}}));
  assert.ok(copy.errors.some(e=>/approval request.*resources.read/.test(e)),JSON.stringify(copy.errors));
@@ -217,4 +217,14 @@ test('chosen files are read in place; copies are not read back; every data entry
  assert.ok(one.blocking.some(e=>/No test covers the data entry resource_picker #pick runs b/.test(e)),JSON.stringify(one.blocking));
  const both=await wf.verifyWorkflow(app,{request:'csv',title:'CSV',pageId:'p',language:'en'},{userId:'u'},[{name:'upload',files,values:{up:[file]},actions:['a']},{name:'pick',files,values:{pick:[file]},actions:['b'],expect:['$count(state.rows) = 1']}]);
  assert.ok(!both.blocking.some(e=>/No test covers/.test(e)),JSON.stringify(both.blocking));
+});
+test('apps read whole files, not an agent-sized sample',async()=>{
+ const csv='n,v\n'+Array.from({length:500},(_,i)=>i+','+i*2).join('\n');
+ const fx={...ctx,fixtures:{'big.csv':{name:'big.csv',content:csv},'big.txt':{name:'big.txt',content:csv}}};
+ const t=await wf.TOOLS['files.read'].run({fileId:'fixture:big.csv'},fx);
+ assert.equal(t.records.length,500);assert.equal(t.totalRows,501);assert.equal(t.truncated,false);assert.deepEqual(t.columns,['n','v']);
+ const x=await wf.TOOLS['files.read'].run({fileId:'fixture:big.txt',options:{mode:'text'}},fx);
+ assert.equal(x.lines.length,501);assert.equal(x.text,csv);
+ const page=await wf.TOOLS['files.read'].run({fileId:'fixture:big.csv',options:{start:101,count:10}},fx);
+ assert.equal(page.records.length,10);assert.equal(page.records[0].n,'99');assert.equal(page.truncated,true);
 });
