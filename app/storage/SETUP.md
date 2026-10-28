@@ -10,7 +10,7 @@ Set a stable `STORAGE_TOKEN_ENCRYPTION_KEY` containing the base64 encoding of 32
 | Dropbox | DROPBOX_CLIENT_ID, DROPBOX_CLIENT_SECRET | /api/storage/dropbox/callback |
 | OneDrive | ONEDRIVE_CLIENT_ID, ONEDRIVE_CLIENT_SECRET | /api/storage/onedrive/callback |
 
-Prefix callbacks with the deployed origin `https://wiki.aisoup.net`. Register localhost callbacks separately for development. Configure the OAuth application as a web application and enable the respective storage API. Microsoft accounts require a registration supporting the intended personal/organizational account types. Dropbox app-folder versus full-Dropbox access is chosen in its console.
+Prefix callbacks with the deployed origin `<APP_URL>`. Register localhost callbacks separately for development. Configure the OAuth application as a web application and enable the respective storage API. Microsoft accounts require a registration supporting the intended personal/organizational account types. Dropbox app-folder versus full-Dropbox access is chosen in its console.
 
 Google requests `drive.readonly` and `drive.file`: all Drive files can be listed and read; changes are limited to files selected through Picker or created by this app. Every mutation still requires explicit confirmation. Declare both scopes in Google Auth Platform Data Access. The read-only scope is restricted and public distribution requires the applicable Google verification. Dropbox requests files.metadata.read/write and files.content.read/write. OneDrive uses delegated Files.ReadWrite plus offline_access.
 
@@ -28,7 +28,7 @@ Both Google OAuth paths request `drive.readonly` and `drive.file`. Users must re
 
 Enable Google Picker API in the same Cloud project as the OAuth client. Set
 `GOOGLE_PICKER_API_KEY` on the server to a dedicated browser API key restricted to
-Google Picker API and HTTP referrers `https://wiki.aisoup.net/*` and
+Google Picker API and HTTP referrers `<APP_URL>/*` and
 `https://docs.google.com/*`. The latter is required for Google's Picker iframe.
 The key is intentionally delivered to the browser; OAuth client secrets and
 refresh tokens remain server-side. `/api/storage/google/picker` requires a

@@ -4,7 +4,7 @@ Open `/tools?app=arcgis-publisher`. This native app uses the **ArcGIS Online con
 
 ## Setup
 
-Register the public OAuth client for user authentication with callback `https://wiki.aisoup.net/api/connectors/arcgis/callback`. Configure `ARCGIS_CLIENT_ID` and the existing encrypted connector vault. PKCE needs no client secret. Each user selects ArcGIS Online in Connectors and authorizes their own account. Access and refresh tokens are encrypted under that wiki principal's vault path, never put in saved pages or agent tool results. Refresh is locked per user. Disconnect removes the saved session. Authorization states are expiring, one-use and tied to both the signed-in wiki account and an HttpOnly cookie.
+Register the public OAuth client for user authentication with callback `<APP_URL>/api/connectors/arcgis/callback`. Configure `ARCGIS_CLIENT_ID` and the existing encrypted connector vault. PKCE needs no client secret. Each user selects ArcGIS Online in Connectors and authorizes their own account. Access and refresh tokens are encrypted under that wiki principal's vault path, never put in saved pages or agent tool results. Refresh is locked per user. Disconnect removes the saved session. Authorization states are expiring, one-use and tied to both the signed-in wiki account and an HttpOnly cookie.
 
 ## Tools and permissions
 

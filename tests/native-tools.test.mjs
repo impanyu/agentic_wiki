@@ -20,5 +20,5 @@ test('ZIP extraction verifies integrity and blocks dangerous paths and expansion
  const bytes=zipFixture();const central=bytes.readUInt32LE(bytes.length-6);bytes.writeUInt32LE(11*1024*1024,central+24);assert.throws(()=>data.zipEntries(bytes),/limit/);
 });
 test('native app hyperlinks retain opaque source references without changing hosts',()=>{
- const source={page:'p',file:'f',connector:'c',name:'a & b.csv',language:'zh'};const u=new URL(links.toolHref('map',source),'https://wiki.aisoup.net');assert.equal(u.pathname,'/maps');for(const [k,v] of Object.entries(source))assert.equal(u.searchParams.get(k),v);assert.equal(new URL(links.toolHref('table',source),'https://wiki.aisoup.net').searchParams.get('app'),'table');
+ const source={page:'p',file:'f',connector:'c',name:'a & b.csv',language:'zh'};const u=new URL(links.toolHref('map',source),'https://wiki.example.com');assert.equal(u.pathname,'/maps');for(const [k,v] of Object.entries(source))assert.equal(u.searchParams.get(k),v);assert.equal(new URL(links.toolHref('table',source),'https://wiki.example.com').searchParams.get('app'),'table');
 });

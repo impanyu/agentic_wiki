@@ -1,10 +1,11 @@
 import {z} from 'zod';
+import {userAgent} from '@/app/site';
 
 export const publicMediaKind=z.enum(['all','image','video','audio','document','dataset']);
 export type PublicMediaKind=z.infer<typeof publicMediaKind>;
 export type PublicMediaResult={kind:Exclude<PublicMediaKind,'all'>;title:string;source:string;url:string;preview?:string;creator?:string;license?:string;description?:string;provider:string};
 const clean=(value:unknown,max=800)=>String(value||'').replace(/<[^>]*>/g,' ').replace(/\s+/g,' ').trim().slice(0,max);
-async function json(url:string,signal?:AbortSignal){const response=await fetch(url,{headers:{'User-Agent':'AgenticWiKi/1.0 (https://wiki.aisoup.net)'},signal:signal?AbortSignal.any([signal,AbortSignal.timeout(12000)]):AbortSignal.timeout(12000)});if(!response.ok)throw Error('SEARCH_UNAVAILABLE');return response.json() as Promise<any>;}
+async function json(url:string,signal?:AbortSignal){const response=await fetch(url,{headers:{'User-Agent':userAgent()},signal:signal?AbortSignal.any([signal,AbortSignal.timeout(12000)]):AbortSignal.timeout(12000)});if(!response.ok)throw Error('SEARCH_UNAVAILABLE');return response.json() as Promise<any>;}
 
 async function openverse(query:string,kind:PublicMediaKind,signal?:AbortSignal):Promise<PublicMediaResult[]>{
  const types=kind==='all'?['images','audio']:kind==='image'?['images']:kind==='audio'?['audio']:[];

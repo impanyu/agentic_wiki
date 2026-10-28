@@ -11,7 +11,7 @@ The Codex Google Drive connector belongs to the Codex session. AgenticWiKi is a 
 5. Create an OAuth client with application type **Web application**.
 6. Add this exact authorized redirect URI:
 
-   `https://wiki.aisoup.net/api/connections/google-drive/callback`
+   `<APP_URL>/api/connections/google-drive/callback`
 
    For local development, separately add `http://localhost:5173/api/connections/google-drive/callback`. If the app moves to another cloud/domain, register that domain's callback too; the application uses its current origin.
 

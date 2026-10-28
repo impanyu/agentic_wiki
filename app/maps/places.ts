@@ -1,4 +1,5 @@
 import {z} from 'zod';
+import {userAgent} from '@/app/site';
 // Built-in place search and reverse geocoding for every agent and app backend (public data,
 // no user account). Uses Google (Places API New / Geocoding) when the platform has
 // GOOGLE_MAPS_API_KEY, otherwise OpenStreetMap Nominatim (keyless, 1 request/second policy).
@@ -6,7 +7,7 @@ import {z} from 'zod';
 export type Place={name:string;address:string;lat:number;lng:number;types?:string[];rating?:number;mapsUrl:string;source:'google'|'openstreetmap'};
 const mapsUrl=(lat:number,lng:number,label:string)=>'https://www.google.com/maps/search/?api=1&query='+encodeURIComponent(label||`${lat},${lng}`);
 const timeout=(signal?:AbortSignal)=>signal?AbortSignal.any([signal,AbortSignal.timeout(15000)]):AbortSignal.timeout(15000);
-const osmHeaders={'User-Agent':'AgenticWiKi/1.0 (https://wiki.aisoup.net)','Accept-Language':'en,zh;q=0.8'};
+const osmHeaders={'User-Agent':userAgent(),'Accept-Language':'en,zh;q=0.8'};
 let lastOsm=0;
 async function osm(path:string,params:Record<string,string>,signal?:AbortSignal){
  const wait=lastOsm+1100-Date.now();if(wait>0)await new Promise(r=>setTimeout(r,wait));lastOsm=Date.now();
