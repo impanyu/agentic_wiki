@@ -22,6 +22,7 @@ import {applyPatch} from '@/app/workflows/patch';
 import {appSpecSchema} from '@/app/workflows/workbench';
 import {hasType} from '@/app/workflows/presets';
 import {verifyWorkflow,workflowReportText,workflowTestsSchema} from '@/app/workflows/verify';
+import {WIKI_EDITION} from '@/app/edition';
 const bucket=()=>(env as unknown as {FILES:R2Bucket}).FILES;
 const path=(agent:Agent)=>'app-edit-drafts/'+agent.id+'.json';
 // config is null when a replacement turns the page back into a static article.
@@ -31,6 +32,7 @@ const basemaps=['osm','streets-vector','satellite','hybrid','topo-vector','terra
 const renderedUiRequest=(message:string)=>/\b(?:ui|interface|layout|panel|button|control|menu|icon|map|basemap|default|display|show|hide|move|position|reader|viewer|frontend|front-end)\b|(?:界面|布局|面板|按钮|控件|菜单|图标|地图|底图|默认|显示|隐藏|移动|前端)/i.test(message);
 export function appEditCapabilities(page:AnswerPage){
  const configurable={mapBasemap:basemaps};
+ if(WIKI_EDITION)return {appearance:true,agentBehavior:true,configurable,workflow:'This wiki has no web apps; edit the article content only.'};
  return {appearance:true,agentBehavior:true,configurable,workflow:page.dynamic?.template==='workflow-app-v1'?'This page is a workflow app (page.dynamic.workflow). Edit it with {kind:"workflow_patch",patch:[{op,path,value}]} for targeted changes or {kind:"workflow",workflow} to rebuild it; read_generation_contract kind=workflow for components, tools and bindings.':'Add or convert to an interactive app with {kind:"workflow",workflow} built from the platform\u2019s components and tools (read_generation_contract kind=workflow). Keep the features this page already has.',legacyCode:page.dynamic?.pageCode||page.dynamic?.template==='page-program-v1'?'This page runs legacy free code, which can no longer be edited; convert it to a workflow that keeps its features. {kind:"code",code:null} removes an old custom panel.':undefined,content:'{kind:"content",title?,summary?,body?,sources?,category?} edits the page title, summary, Markdown body, source list and category in place',replacement:'supported for a different page type; preserve unrelated functionality'};
 }
 async function stored(agent:Agent,pageId:string){const object=await bucket().get(path(agent));if(!object)return null;const draft=await object.json<Draft>();return draft.ownerId===agent.ownerId&&draft.pageId===pageId?draft:null;}

@@ -1,4 +1,4 @@
-import test from 'node:test';import assert from 'node:assert/strict';import {readFileSync} from 'node:fs';import ts from 'typescript';import {z} from 'zod';
+import './edition-globals.mjs';import test from 'node:test';import assert from 'node:assert/strict';import {readFileSync} from 'node:fs';import ts from 'typescript';import {z} from 'zod';
 // Routing profiles: what each page covers or does, and the judge that decides reuse from them.
 let reply;const D={database:()=>null,api:async()=>({output:[{type:'message',content:[{type:'output_text',text:JSON.stringify(reply)}]}]}),cosine:()=>0};
 globalThis.__profiles={z,normalize:t=>String(t).trim().toLowerCase(),database:(...a)=>D.database(...a),getPage:async(...a)=>D.getPage?D.getPage(...a):null,model:()=>'m',api:(...a)=>D.api(...a),output:r=>r.output[0].content[0].text,cosine:(...a)=>D.cosine(...a),recordAction:async()=>{}};

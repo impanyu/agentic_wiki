@@ -1,4 +1,4 @@
-import {Script} from 'node:vm';
+import './edition-globals.mjs';import {Script} from 'node:vm';
 globalThis.reviewDraftCode=async()=>{};globalThis.assertReviewed=async()=>({approved:true,issues:[],summary:''});globalThis.checkFrontendSyntax=async a=>{const {Script}=await import('node:vm');try{new Script(a.javascript);}catch{throw Error('Frontend JavaScript syntax error in main.js');}};
 globalThis.chartBlockErrors=()=>[];
 globalThis.editScript=Script;

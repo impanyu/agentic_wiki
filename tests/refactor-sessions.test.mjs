@@ -1,4 +1,4 @@
-import test from 'node:test';import assert from 'node:assert/strict';import {DatabaseSync} from 'node:sqlite';import {readFileSync,readdirSync} from 'node:fs';import ts from 'typescript';import {z} from 'zod';
+import './edition-globals.mjs';import test from 'node:test';import assert from 'node:assert/strict';import {DatabaseSync} from 'node:sqlite';import {readFileSync,readdirSync} from 'node:fs';import ts from 'typescript';import {z} from 'zod';
 globalThis.wikiWorkflow={kind:'workflow-app',state:{},ui:[{type:'article'}],actions:{}};
 globalThis.createWorkbench=()=>({tools:[],has:()=>false,execute:async()=>({data:null}),workflow:()=>undefined,spec:()=>undefined,passed:()=>false,tests:()=>[]});
 globalThis.chartBlockErrors=()=>[];

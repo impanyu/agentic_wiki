@@ -1,4 +1,4 @@
-import test from 'node:test';import assert from 'node:assert/strict';import ts from 'typescript';import {readFileSync} from 'node:fs';
+import './edition-globals.mjs';import test from 'node:test';import assert from 'node:assert/strict';import ts from 'typescript';import {readFileSync} from 'node:fs';
 const evidence={subjectAligned:true,scopeCovered:true,supportingBlockId:0,requiresFigures:false,figuresBlockId:-1};let verdict={...evidence,complete:true,current:true},searched=true,request;
 globalThis.__qualityApi=async(path,body)=>{request=body;return {output:searched?[{type:'web_search_call',status:'completed'}]:[],verdict};};
 const source=readFileSync('app/api/ask/answer-quality.ts','utf8').replace("import {api,output} from './ai';","const api=(...args)=>globalThis.__qualityApi(...args);const output=r=>JSON.stringify(r.verdict);").replace("import {model} from '@/db/store';","const model=()=> 'test-model';");

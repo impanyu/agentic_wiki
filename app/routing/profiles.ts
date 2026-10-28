@@ -1,6 +1,7 @@
 import {z} from 'zod';
 import {database,getPage,model,normalize} from '@/db/store';
 import {api,output,cosine} from '@/app/api/ask/ai';
+import {editionPageSql} from '@/app/edition';
 import {recordAction,type Agent} from '@/app/agents/runtime';
 
 // Routing by page profile. Every wiki page and web app carries a short description of what it
@@ -44,7 +45,7 @@ export async function refreshProfile(pageId:string){
  try{const row=await database().prepare(SELECT+' WHERE p.id=?').bind(pageId).first<PageRow>();if(row)await store([row]);}
  catch(e){console.error('refreshProfile failed',pageId,e instanceof Error?e.message:e);}
 }
-const ACCESSIBLE="(p.visibility='public' OR p.owner_id=?) AND p.language=? AND p.kind<>'resource' AND NOT EXISTS(SELECT 1 FROM page_aliases a WHERE a.id=p.id) AND NOT EXISTS(SELECT 1 FROM page_replacements r WHERE r.source_id=p.id AND r.user_id=?)";
+const ACCESSIBLE="(p.visibility='public' OR p.owner_id=?) AND "+editionPageSql('p')+" AND p.language=? AND p.kind<>'resource' AND NOT EXISTS(SELECT 1 FROM page_aliases a WHERE a.id=p.id) AND NOT EXISTS(SELECT 1 FROM page_replacements r WHERE r.source_id=p.id AND r.user_id=?)";
 // Pages without a current profile (new, or changed by an older code path) get one before searching.
 async function ensureProfiles(userId:string,language:string){
  const stale=(await database().prepare(SELECT+' LEFT JOIN page_profiles f ON f.page_id=p.id WHERE '+ACCESSIBLE+" AND (f.page_id IS NULL OR f.source_updated<>COALESCE(p.updated_at,p.created_at)) LIMIT 400").bind(userId,language,userId).all<PageRow>()).results;

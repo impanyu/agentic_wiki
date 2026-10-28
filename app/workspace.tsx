@@ -42,6 +42,7 @@ import {readEvents} from './event-stream';
 import {LiveAgentControl} from './live-agent/control';
 import {VersionMenu} from './versions/menu';
 import {navigationRequest,navigationError,waitForGenerationResult} from './navigation-request';
+import {WIKI_EDITION} from './edition';
 
 async function readResponse(response: Response) {
   if (!response.headers.get('content-type')?.includes('application/json')) {
@@ -472,7 +473,7 @@ export default function Workspace({ user, signIn, signOut }: {
         <div hidden={visiblePage.dynamic?.pageCode?.placement==='replace'}>
         <div hidden={!!nativeApp} ref={article} onMouseUp={captureSelection} onKeyUp={captureSelection} onTouchEnd={()=>setTimeout(captureSelection,0)}>
           {/* A page whose workflow places the article among other components renders it there; every other page shows its article exactly as before. */}
-          {articleWorkflow&&visiblePage.dynamic?.workflow?<WorkflowApp key={visiblePage.id+':'+(visiblePage.updatedAt||'')} workflow={visiblePage.dynamic.workflow} pageId={visiblePage.id} title={visiblePage.title} writable={canWritePage(visiblePage)} renderArticle={()=>articleView} preloaded={{article:{title:visiblePage.title,summary:visiblePage.summary,body:visiblePage.body,sources:visiblePage.sources}}}/>:articleView}
+          {articleWorkflow&&!WIKI_EDITION&&visiblePage.dynamic?.workflow?<WorkflowApp key={visiblePage.id+':'+(visiblePage.updatedAt||'')} workflow={visiblePage.dynamic.workflow} pageId={visiblePage.id} title={visiblePage.title} writable={canWritePage(visiblePage)} renderArticle={()=>articleView} preloaded={{article:{title:visiblePage.title,summary:visiblePage.summary,body:visiblePage.body,sources:visiblePage.sources}}}/>:articleView}
         </div>
         {visiblePage.kind==='dynamic'&&visiblePage.dynamic?.template==='unit-converter-v1'&&<UnitConverter key={visiblePage.id+JSON.stringify(visiblePage.runtime?.input)} page={visiblePage} onResult={page=>{const text=page.runtime?`${page.runtime.input.value} ${page.runtime.fromSymbol} → ${page.runtime.toSymbol}`:question;setSelected(page);setQuestion(text);recordHistory(page.id,text,page.runtime?.input);setStatus('');}}/>}
         {visiblePage.dynamic?.template==='google-drive-folders-v1'&&visiblePage.dynamic.driveLabels&&<DriveFolders key={'drive:'+visiblePage.id} pageId={visiblePage.id} labels={visiblePage.dynamic.driveLabels}/>}

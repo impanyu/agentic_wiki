@@ -1,4 +1,4 @@
-import test from 'node:test';import assert from 'node:assert/strict';import {readFileSync} from 'node:fs';import ts from 'typescript';import {z} from 'zod';
+import './edition-globals.mjs';import test from 'node:test';import assert from 'node:assert/strict';import {readFileSync} from 'node:fs';import ts from 'typescript';import {z} from 'zod';
 const load=code=>import('data:text/javascript;base64,'+Buffer.from(ts.transpile(code,{module:ts.ModuleKind.ESNext,target:ts.ScriptTarget.ES2022})).toString('base64'));
 const strip=path=>readFileSync(path,'utf8').replace(/^import .*;$/gm,'');
 globalThis.resourceTest={z};const contracts=await load('const {z}=globalThis.resourceTest;'+strip('app/resources/contracts.ts'));const tree=await load(strip('app/context-files/tree.ts'));

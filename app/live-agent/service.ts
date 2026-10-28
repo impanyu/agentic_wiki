@@ -2,6 +2,7 @@ import {database,getPage,lock,unlock} from '@/db/store';
 import {recordVersion} from '@/app/versions/service';
 import {canWritePage} from '@/app/page-permissions';
 import type {AnswerPage} from '@/app/page-types';
+import {editionPageSql} from '@/app/edition';
 
 // A page's long-running live agent: on a schedule it runs the page's own in-page agent with a
 // maintenance brief, as the user who switched it on, and saves the change that agent stages
@@ -34,7 +35,7 @@ export async function setLiveAgent(pageId:string,userId:string,input:{enabled?:b
 }
 export async function dueLiveAgents(limit=2){
  const now=Date.now();
- return (await database().prepare('SELECT page_id FROM page_live_agents WHERE enabled=1 AND next_run_at<=? AND running_until<? ORDER BY next_run_at LIMIT ?').bind(now,now,limit).all<{page_id:string}>()).results.map(r=>r.page_id);
+ return (await database().prepare('SELECT l.page_id FROM page_live_agents l JOIN pages p ON p.id=l.page_id WHERE l.enabled=1 AND l.next_run_at<=? AND l.running_until<? AND '+editionPageSql('p')+' ORDER BY l.next_run_at LIMIT ?').bind(now,now,limit).all<{page_id:string}>()).results.map(r=>r.page_id);
 }
 export async function runningLiveAgents(){return Number((await database().prepare('SELECT count(*) n FROM page_live_agents WHERE running_until>?').bind(Date.now()).first<{n:number}>())?.n||0);}
 

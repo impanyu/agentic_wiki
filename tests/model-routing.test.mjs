@@ -1,4 +1,4 @@
-import test from 'node:test';import assert from 'node:assert/strict';import {readFileSync} from 'node:fs';import ts from 'typescript';
+import './edition-globals.mjs';import test from 'node:test';import assert from 'node:assert/strict';import {readFileSync} from 'node:fs';import ts from 'typescript';
 const fn=readFileSync('db/store.ts','utf8').split('\n').find(l=>l.startsWith('export function model('));
 const source='const env={};const process={env:{}};\n'+fn;
 const {model}=await import('data:text/javascript;base64,'+Buffer.from(ts.transpile(source,{module:ts.ModuleKind.ESNext})).toString('base64'));

@@ -3,6 +3,7 @@ import {repairKnownMappings} from './known-mapping-repairs';
 import {hydrateComponents} from '@/app/components-registry/runtime';
 import {env} from '@/server/runtime';
 import type {AnswerPage} from '@/app/page-types';
+import {editionPageSql} from '@/app/edition';
 export function database(){if(!env.DB)throw new Error('The answer database is not available. Please try again later.');return env.DB;}
 export function aiKey(){return (env as unknown as Record<string,string>).OPENAI_API_KEY || process.env.OPENAI_API_KEY || '';}
 export function model(role=''){const settings=env as unknown as Record<string,string>;if(/generation|coding|composer|coder|^(comments|page):/.test(role))return settings.OPENAI_AGENT_MODEL||process.env.OPENAI_AGENT_MODEL||'gpt-5.6-terra';return settings.OPENAI_MODEL || process.env.OPENAI_MODEL || 'gpt-5.4-mini';}
@@ -12,7 +13,7 @@ export async function getPage(id:string,userId:string):Promise<AnswerPage|null>{
  await repairKnownMappings(database(),userId);
  const replacement=await database().prepare("SELECT r.page_id FROM page_replacements r JOIN pages p ON p.id=r.page_id WHERE r.user_id=? AND r.source_id=COALESCE((SELECT page_id FROM page_aliases WHERE id=?),?) AND (p.visibility='public' OR p.owner_id=?)").bind(userId,id,id,userId).first<{page_id:string}>();
  if(replacement)id=replacement.page_id;
- const row=await database().prepare(`SELECT p.*, (SELECT count(*) FROM questions q WHERE q.page_id=p.id) question_count FROM pages p WHERE p.id=COALESCE((SELECT page_id FROM page_aliases WHERE id=?),?) AND (p.visibility='public' OR p.owner_id=?)`).bind(id,id,userId).first<Row>();
+ const row=await database().prepare(`SELECT p.*, (SELECT count(*) FROM questions q WHERE q.page_id=p.id) question_count FROM pages p WHERE p.id=COALESCE((SELECT page_id FROM page_aliases WHERE id=?),?) AND (p.visibility='public' OR p.owner_id=?) AND ${editionPageSql('p')}`).bind(id,id,userId).first<Row>();
  if(!row){
   const c=await database().prepare("SELECT c.*,(SELECT count(*) FROM component_questions q WHERE q.component_id=c.id) question_count FROM components c WHERE c.id=? AND c.type<>'page' AND (c.visibility='public' OR c.owner_id=?)").bind(id,userId).first<{id:string;type:string;version:number;owner_id:string;visibility:'public'|'private';language:string;title:string;description:string;payload:string;created_at:string;updated_at:string|null;checked_at:string|null;question_count:number}>();
   if(!c)return null;

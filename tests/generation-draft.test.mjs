@@ -1,4 +1,4 @@
-import test from 'node:test';import assert from 'node:assert/strict';import {readFileSync} from 'node:fs';import ts from 'typescript';import {z} from 'zod';
+import './edition-globals.mjs';import test from 'node:test';import assert from 'node:assert/strict';import {readFileSync} from 'node:fs';import ts from 'typescript';import {z} from 'zod';
 const strip=p=>readFileSync(p,'utf8').replace(/^import .*;$/gm,'');
 globalThis.draftZod=z;
 const files=['app/page-programs/custom-style.ts','app/page-programs/visual-style.ts','app/page-programs/generation-intent.ts','app/disambiguation/index.ts','app/components-registry/contracts.ts','app/components-registry/chart-contracts.ts','app/page-programs/inputs.ts','app/sandboxes/contracts.ts','app/page-programs/generation-draft.ts'];
@@ -21,33 +21,12 @@ test('generation validates evidence, ambiguity and source URL identity before sa
  assert.throws(()=>m.validateGenerationDraft(base,'https://source.test', {...ctx,sourceDocument:{url:'https://source.test'}},true),/supplied document/);
  assert.throws(()=>m.validateGenerationDraft({...base,kind:'disambiguation',entries:[{question:'china',description:'Country',group:''},{question:'Porcelain',description:'Material',group:''}]},'china',ctx,true),/unambiguous/);
 });
-test('a storage request becomes a registered browser and expression examples are checked',()=>{
- assert.equal(m.validateGenerationDraft({...base,kind:'files'},'list my dropbox files',ctx,false).kind,'files');
- const form={kind:'form',submit:'Calculate',fields:[{name:'x',label:'X',type:'number',default:null}],outputs:[{name:'double',label:'Double'}]};
- const d={...base,kind:'form',form,expression:{kind:'expression-program',outputs:{double:{op:'multiply',args:[{input:'x'},2]}}},examples:[{input:{x:3},output:{double:6}}]};
- assert.equal(m.validateGenerationDraft(d,'Double a number',ctx,false).kind,'form');
- assert.throws(()=>m.validateGenerationDraft({...d,examples:[{input:{x:3},output:{double:9}}]},'Double',ctx,false),/example failed/);
-});
-test('native apps materialize reusable implementations without generated backend code',async()=>{
- for(const nativeApp of ['map','table','json','text','image','pdf','archive','hub']){const draft=m.validateGenerationDraft({...base,kind:'native',nativeApp},'Open data tools',ctx,false),result=await m.materializeGenerationDraft(draft,ctx);assert.equal(result.definition.config.template,'native-app-v1');assert.equal(result.definition.config.nativeApp,nativeApp);assert.equal(result.templateId,nativeApp==='map'?'geo-v1':'data-tools-v1');assert.deepEqual(result.definition.components,[]);}
- assert.throws(()=>m.validateGenerationDraft({...base,kind:'native'},'Tools',ctx,false),/nativeApp/);
-});
-
-test('connector plots reject browser substitutes and accept consulted file data without web search',()=>{
- const question='the temperature plot 9/1/2026 from my dropbox weather csv';
- assert.throws(()=>m.validateGenerationDraft({...base,kind:'files'},question,ctx,true),/file browser cannot/);
- const draft={...base,kind:'chart',chart:{kind:'chart',xLabel:'Time',unit:'°C',series:[{key:'temperature',label:'Temperature'}],labels:{line:'Line',bar:'Bar',data:'Data',download:'Download'}},dataset:{rows:[{x:'2026-09-01T12:00:00Z',values:{temperature:21},sources:[1]}],sources:[{title:'Weather station observations',url:'https://example.org/weather'}],notes:'Fixture observations'}};
- assert.throws(()=>m.validateGenerationDraft(draft,question,ctx,false,false),/Read the chart observations/);
- assert.equal(m.validateGenerationDraft(draft,question,ctx,false,true).kind,'chart');
- assert.throws(()=>m.validateGenerationDraft(draft,'Station temperature since 9/1/2026',ctx,false,true),/only the starting date/);
- const later={...draft,dataset:{...draft.dataset,rows:[...draft.dataset.rows,{x:'2026-09-02T12:00:00Z',values:{temperature:22},sources:[1]}]}};
- assert.equal(m.validateGenerationDraft(later,'Station temperature since 9/1/2026',ctx,false,true).kind,'chart');
-});
-
-test('the generator owns artifact choice even with a legacy router hint',()=>{
- assert.equal(m.validateGenerationDraft({...base,kind:'chat'},'Topic',{...ctx,pageIntent:'article'},true).kind,'chat');
- assert.equal(m.validateGenerationDraft(base,'Plot',{...ctx,pageIntent:'chart'},true).kind,'article');
- assert.equal(m.validateGenerationDraft({...base,kind:'chat'},'Plot',{...ctx,pageIntent:'chart'},true).kind,'chat');
+test('the wiki edition accepts only wiki pages',()=>{
+ for(const kind of ['files','native','chart','chat','form','converter','index','workflow','program'])assert.throws(()=>m.validateGenerationDraft({...base,kind},'An app',ctx,true),/only wiki pages/,kind);
+ assert.equal(m.validateGenerationDraft(base,'Topic',{...ctx,pageIntent:'chart'},true).kind,'article');
+ assert.equal(m.validateGenerationDraft({...base,intent:{...base.intent,outputKind:'application',service:'none'}},'Mortgage calculator',ctx,true).intent.outputKind,'article');
+ const interactive={kind:'sandbox-app',html:'<button>Explore</button>',css:'',javascript:'',height:400};
+ assert.throws(()=>m.validateGenerationDraft({...base,interactive},'Explain with an interactive example',ctx,true),/no longer accepted/);
 });
 
 test('wiki articles can rely on authorized connector evidence without public web search',()=>{
@@ -59,15 +38,6 @@ test('paper articles reuse the pre-coded reader while remaining editable static 
  const draft=m.validateGenerationDraft({...base,templateId:'paper-v1'},'Read this research paper',ctx,true);
  const result=await m.materializeGenerationDraft(draft,ctx);
  assert.equal(result.templateId,'paper-v1');assert.equal(result.definition,undefined);
-});
-
-test('free frontend code is no longer accepted; apps are workflows',()=>{
- const interactive={kind:'sandbox-app',html:'<button>Explore</button>',css:'',javascript:'document.querySelector("button").onclick=()=>{}',height:400};
- assert.throws(()=>m.validateGenerationDraft({...base,interactive},'Explain with an interactive example',ctx,true),/no longer accepted/);
- assert.throws(()=>m.validateGenerationDraft({...base,kind:'program',program:{kind:'sandbox-program',language:'javascript',code:'export function main(){}'}},'An app',ctx,true),/kind="workflow"/);
- assert.throws(()=>m.validateGenerationDraft({...base,kind:'workflow'},'An app',ctx,true),/needs a workflow object/);
- const workflow={kind:'workflow-app',ui:[{type:'heading',props:{text:'Hi'}}]};
- assert.equal(m.validateGenerationDraft({...base,kind:'workflow',workflow},'An app',ctx,true).workflow.checked,true);
 });
 
 test('articles must cite their sources inline, not only list them',()=>{

@@ -16,6 +16,7 @@ import {formSchema,validateProgram,validateParameters,executeProgram,parametersS
 import {createComponent,type AgentContext,type Component} from '@/app/components-registry/registry';
 import type {DynamicConfig,ConverterLabels} from '@/app/dynamic/units';
 import type {TemplateId} from '@/app/templates/catalog';
+import {WIKI_EDITION} from '@/app/edition';
 const source=z.object({title:z.string().min(1).max(500),url:z.string().url().refine(u=>/^https?:\/\//.test(u))});
 // "pages I visited about history", "history pages I have viewed", "my recently opened apps",
 // "我看过的历史页面": requests for the user's own pages on this wiki.
@@ -38,6 +39,9 @@ export function inlineCitations(body:string,sources:{url:string}[]){
 }
 export function validateGenerationDraft(raw:unknown,question:string,context:AgentContext,webSearched:boolean,dataConsulted=false){
  const d=draftSchema.parse(raw);
+ // The wiki edition creates only wiki pages.
+ if(WIKI_EDITION&&!['article','disambiguation'].includes(d.kind))throw Error('This wiki creates only wiki pages: use kind="article" (or kind="disambiguation" for a genuinely ambiguous query). For a requested tool or app, write the article that explains the task with worked examples, tables, chart blocks and illustrations, and link the built-in tools (/maps, /tools?app=…) where they help.');
+ if(WIKI_EDITION&&d.kind==='article'&&d.intent)d.intent={...d.intent,outputKind:'article',service:'none'};
  // Web apps are workflows of platform components and tools; agents no longer write free code.
  if((d.kind as string)==='program')throw Error('Web apps are now built as kind="workflow": a workflow of the platform\u2019s UI components and tools (read_generation_contract kind=workflow). kind="program" and custom frontend code are no longer accepted.');
  if(d.frontend||d.interactive)throw Error('Custom frontend code (frontend / interactive) is no longer accepted. Build the interface as kind="workflow" from the platform\u2019s components (read_generation_contract kind=workflow); articles can use chart blocks and images.');
@@ -48,7 +52,7 @@ export function validateGenerationDraft(raw:unknown,question:string,context:Agen
  if(d.intent.visualTheme==='custom')d.intent.visualDesign=normalizeCustomStyle(d.intent.visualDesign);
  // Lists of the user's own pages or tasks are never ambiguous: "pages I visited/created" means this
  // wiki's pages (web-browser history is not accessible), so they go straight to the live index.
- if(ownPagesRequest(question)&&!['context_pages','user_jobs'].includes(d.intent.service))throw Error('This question asks for the user\u2019s own wiki pages (pages they visited, viewed, opened or created). Set intent.service="context_pages" and kind="index": a live, linked list of their pages, optionally filtered by topic, never a disambiguation or an article listing pages.');
+ if(!WIKI_EDITION&&ownPagesRequest(question)&&!['context_pages','user_jobs'].includes(d.intent.service))throw Error('This question asks for the user\u2019s own wiki pages (pages they visited, viewed, opened or created). Set intent.service="context_pages" and kind="index": a live, linked list of their pages, optionally filtered by topic, never a disambiguation or an article listing pages.');
  const ownIndex=d.intent.service==='context_pages'||d.intent.service==='user_jobs';
  if(ownIndex&&d.kind==='disambiguation')throw Error('This request lists the user\u2019s own wiki pages or running tasks, which is not ambiguous: use kind="index" (a live, linked list), not a disambiguation page.');
  if(ownIndex){d.intent.needsDisambiguation=false;d.intent.singleMeaningCertain=true;d.intent.interpretations=[];}

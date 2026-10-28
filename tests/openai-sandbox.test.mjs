@@ -1,4 +1,4 @@
-import test from 'node:test';import assert from 'node:assert/strict';import ts from 'typescript';import {readFileSync} from 'node:fs';import {pathToFileURL} from 'node:url';
+import './edition-globals.mjs';import test from 'node:test';import assert from 'node:assert/strict';import ts from 'typescript';import {readFileSync} from 'node:fs';import {pathToFileURL} from 'node:url';
 const compile=s=>'data:text/javascript;base64,'+Buffer.from(ts.transpile(s,{module:ts.ModuleKind.ESNext,target:ts.ScriptTarget.ES2022})).toString('base64');
 const contracts=compile(readFileSync('app/sandboxes/contracts.ts','utf8').replace("from 'zod'",`from '${pathToFileURL(process.cwd()+'/node_modules/zod/index.js')}'`));
 const {runOpenAIProgram,hostedExecution}=await import(compile(readFileSync('app/sandboxes/openai-provider.ts','utf8').replace("from './contracts'",`from '${contracts}'`)));

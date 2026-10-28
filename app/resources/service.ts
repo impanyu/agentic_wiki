@@ -9,6 +9,7 @@ import {database,getPage,lock,unlock} from '@/db/store';
 import {canWritePage,canUseConnectorsOn} from '@/app/page-permissions';
 import {resourceSchema,copySchema,assertCopyTarget,resourceKey,MAX_COPY_ITEMS,MAX_COPY_BYTES,MAX_FILE_BYTES,type Resource,type Mention} from './contracts';
 import {downloadBinary,uploadBinary,type BinaryFile} from './binary';
+import {editionPageSql} from '@/app/edition';
 const bucket=()=>(env as unknown as {FILES:R2Bucket}).FILES;
 async function pageAccess(pageId:string,userId:string){const page=await getPage(pageId,userId);if(!page)throw Error('Page unavailable.');return page;}
 async function authorize(resource:Resource,userId:string,operation:'list'|'read'|'upload'|'mkdir'){
@@ -65,6 +66,6 @@ async function mentionedPage(id:string,userId:string){
 // Pages and web apps the user can see, for the @ picker: their own and public ones, newest first.
 export async function mentionablePages(pageId:string,userId:string,query:string,offset:number){
  await pageAccess(pageId,userId);const q=query.trim().slice(0,200),like='%'+q.replace(/[%_\\]/g,m=>'\\'+m)+'%';
- const rows=(await database().prepare("SELECT id,title,summary,visibility,owner_id,dynamic_config IS NOT NULL app,COALESCE(updated_at,created_at) updated FROM pages WHERE (owner_id=? OR visibility='public') AND (?='' OR title LIKE ? ESCAPE '\\' OR summary LIKE ? ESCAPE '\\' OR question LIKE ? ESCAPE '\\') ORDER BY (owner_id=?) DESC,updated DESC LIMIT 31 OFFSET ?").bind(userId,q,like,like,like,userId,offset).all<{id:string;title:string;summary:string;visibility:string;owner_id:string;app:number;updated:string}>()).results;
+ const rows=(await database().prepare("SELECT id,title,summary,visibility,owner_id,dynamic_config IS NOT NULL app,COALESCE(updated_at,created_at) updated FROM pages WHERE (owner_id=? OR visibility='public') AND "+editionPageSql('pages')+" AND (?='' OR title LIKE ? ESCAPE '\\' OR summary LIKE ? ESCAPE '\\' OR question LIKE ? ESCAPE '\\') ORDER BY (owner_id=?) DESC,updated DESC LIMIT 31 OFFSET ?").bind(userId,q,like,like,like,userId,offset).all<{id:string;title:string;summary:string;visibility:string;owner_id:string;app:number;updated:string}>()).results;
  return {pages:rows.slice(0,30).map(r=>({id:r.id,title:r.title,summary:String(r.summary||'').slice(0,160),app:!!r.app,mine:r.owner_id===userId,visibility:r.visibility,updated:r.updated})),next:rows.length>30?offset+30:null};
 }

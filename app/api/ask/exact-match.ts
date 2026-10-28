@@ -6,13 +6,14 @@ import {parametersSchema} from '@/app/components-registry/contracts';
 import {storagePageMismatch} from '@/app/storage/page-scope';
 import {requireValidIndex} from '@/app/disambiguation/graph';
 import {deferPageExecution} from '@/app/page-programs/deferred';
+import {editionPageSql} from '@/app/edition';
 // Only reuse an accessible, unambiguous, exact, current-version mapping.
 // Semantic uncertainty, stale articles, ambiguous forks, and fresh-data requests
 // continue through the existing routing workflow.
 export async function exactSavedQuestion(question:string,userId:string){
  if(/\b(latest|current|currently|today|tonight|now|recent|price|weather|news)\b|最新|目前|今天|现在|当前|实时/i.test(question))return null;
  await repairKnownMappings(database(),userId);
- const rows=await database().prepare(`SELECT q.page_id,q.parameters FROM questions q JOIN pages p ON p.id=q.page_id WHERE NOT EXISTS(SELECT 1 FROM root_routes r WHERE r.owner_id=p.owner_id AND r.normalized=q.normalized AND r.language=p.language AND json_extract(r.intent,'$.fresh')=1) AND q.normalized=? AND q.match_version=? AND (p.owner_id=? OR p.visibility='public') AND (q.routing_scope<>'session' OR p.owner_id=? OR EXISTS(SELECT 1 FROM session_routes sr WHERE sr.owner_id=? AND sr.page_id=p.id)) AND NOT EXISTS(SELECT 1 FROM page_aliases a WHERE a.id=p.id) AND NOT EXISTS(SELECT 1 FROM page_replacements pr WHERE pr.user_id=? AND pr.source_id=p.id) ORDER BY q.created_at DESC LIMIT 8`).bind(normalize(question),MATCH_VERSION,userId,userId,userId,userId).all<{page_id:string;parameters:string}>();
+ const rows=await database().prepare(`SELECT q.page_id,q.parameters FROM questions q JOIN pages p ON p.id=q.page_id WHERE NOT EXISTS(SELECT 1 FROM root_routes r WHERE r.owner_id=p.owner_id AND r.normalized=q.normalized AND r.language=p.language AND json_extract(r.intent,'$.fresh')=1) AND q.normalized=? AND q.match_version=? AND (p.owner_id=? OR p.visibility='public') AND ${editionPageSql('p')} AND (q.routing_scope<>'session' OR p.owner_id=? OR EXISTS(SELECT 1 FROM session_routes sr WHERE sr.owner_id=? AND sr.page_id=p.id)) AND NOT EXISTS(SELECT 1 FROM page_aliases a WHERE a.id=p.id) AND NOT EXISTS(SELECT 1 FROM page_replacements pr WHERE pr.user_id=? AND pr.source_id=p.id) ORDER BY q.created_at DESC LIMIT 8`).bind(normalize(question),MATCH_VERSION,userId,userId,userId,userId).all<{page_id:string;parameters:string}>();
  if(!rows.results.length){
   // A question that is exactly the title of one of the reader's own wiki pages
   // opens that page instead of generating a duplicate article.
