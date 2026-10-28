@@ -7,16 +7,15 @@ import {database,getPage,lock,unlock} from '@/db/store';
 import {canWritePage} from '@/app/page-permissions';
 import {listContextFiles} from '@/app/context-files/server';
 const schema=copySchema.extend({confirmRemoval:z.literal(true)});
-const removalTool=(r:Resource)=>r.space==='adma'?'delete_'+r.kind:'trash';
+const removalTool=(_r:Resource)=>'trash';
 async function permission(pageId:string,userId:string,r:Resource){
  if(!canWritePage(await getPage(pageId,userId)))throw Error('This page is read only.');
- if(r.space==='hcc'||r.space==='adapt')throw Error('Files on '+(r.space==='hcc'?'HCC':'ADAPT')+' can be copied but not moved from here; copy them, then delete the originals there if needed.');
- if(!r.id||r.id==='root'||r.space==='adma'&&['repositories','third-party'].includes(r.id))throw Error('Repository roots cannot be moved. Select files or folders inside them.');
+ if(!r.id||r.id==='root')throw Error('Repository roots cannot be moved. Select files or folders inside them.');
  if(r.space==='page'){
   if(r.kind==='file'&&!(await listContextFiles(pageId,userId)).some(f=>f.id===r.id&&f.removable))throw Error('Source file cannot be removed.');
   return;
  }
- const c=(await connections(userId)).find(c=>c.id===(r.space==='adma'?r.connectorId:r.space)),tool=removalTool(r);
+ const c=(await connections(userId)).find(c=>c.id===r.space),tool=removalTool(r);
  if(!c?.enabled||!c.connected||!c.allowed.includes(tool)||!c.automatic.includes(tool))throw Error('Enable '+tool+' for this connection before moving, or use Copy.');
 }
 async function remove(pageId:string,userId:string,r:Resource){
@@ -29,7 +28,7 @@ async function remove(pageId:string,userId:string,r:Resource){
   }else await database().prepare("DELETE FROM page_file_folders WHERE page_id=? AND path=? AND (scope='' OR scope=?)").bind(pageId,r.id,userId).run();
   return;
  }
- const result=await callConnector(userId,r.space==='adma'?r.connectorId!:r.space,removalTool(r),{id:r.id},pageId) as any;
+ const result=await callConnector(userId,r.space,removalTool(r),{id:r.id},pageId) as any;
  if(result?.confirmationRequired||result?.error)throw Error(result.error||'Source removal awaits connector approval; it has not completed.');
 }
 export async function moveResources(pageId:string,userId:string,raw:unknown){

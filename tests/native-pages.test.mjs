@@ -16,8 +16,8 @@ test('source references survive native page navigation without becoming shared p
 });
 
 test('GIS links retain each repository identity and folders never open as maps',()=>{
- for(const space of ['page','adma','google','dropbox','onedrive']){
- const resource={space,id:'/folder/field.geojson',name:'field.geojson',kind:'file',...(space==='adma'?{connectorId:'account'}:{})};
+ for(const space of ['page','google','dropbox','onedrive']){
+ const resource={space,id:'/folder/field.geojson',name:'field.geojson',kind:'file'};
  const url=new URL(sources.geoFileHref('context',resource,'en'),'https://wiki.aisoup.net');
  assert.equal(url.pathname,'/maps');assert.equal(url.searchParams.get('space'),space);assert.equal(url.searchParams.get('file'),resource.id);
  const parameters=JSON.parse(new URL(pages.nativePageAddress('map',Object.fromEntries(url.searchParams)),'https://wiki.aisoup.net').searchParams.get('inputs'));

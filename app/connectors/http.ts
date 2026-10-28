@@ -16,7 +16,7 @@ export async function remoteRequest(endpoint:string,headers:Record<string,string
      reject(Error('Connector request failed (HTTP '+res.statusCode+')'+(detail?': '+detail:'')+'.'));});return;
    }
    const namedTextDownload=/^application\/octet-stream(?:;|$)/i.test(String(res.headers['content-type']||''))&&/filename(?:\*)?=(?:UTF-8''|")?[^;\r\n]*\.(?:txt|csv|tsv|json|geojson|xml|md)(?:"|;|$)/i.test(String(res.headers['content-disposition']||''));
-   if(options.textResponse&&!namedTextDownload&&!/^(text\/|application\/(?:[a-z0-9.+-]*json|[a-z0-9.+-]*xml|csv|javascript)(?:;|$))/i.test(String(res.headers['content-type']||''))){res.resume();reject(Error('This ADMA file is not a supported text format.'));return;}
+   if(options.textResponse&&!namedTextDownload&&!/^(text\/|application\/(?:[a-z0-9.+-]*json|[a-z0-9.+-]*xml|csv|javascript)(?:;|$))/i.test(String(res.headers['content-type']||''))){res.resume();reject(Error('This file is not a supported text format.'));return;}
    const finish=(data:any)=>{if(done)return;done=true;resolve({headers:res.headers,data});res.destroy();};
    const match=(data:any)=>{const items=Array.isArray(data)?data:[data];return items.find(x=>x&&x.id===id&&(x.result!==undefined||x.error));};
    if(!options.textResponse)res.setEncoding('utf8');res.on('data',(chunk:string|Buffer)=>{size+=Buffer.byteLength(chunk);if(size>1024*1024){res.destroy(Error('Connector response is too large.'));return;}if(options.textResponse){textChunks.push(Buffer.from(chunk));return;}text+=chunk;

@@ -6,8 +6,8 @@ const m=await import('data:text/javascript;base64,'+Buffer.from(ts.transpile('co
 test('profiles describe wiki sections and app inputs',()=>{
  const wiki=m.profileText({title:'Nebraska Sandhills',summary:'Grass-stabilized dunes.',body:'## Landscape\ntext\n## Ecology\n### Birds',labels:'{}',dynamic_config:null,kind:'static',category:'Geography'});
  assert.match(wiki,/Nebraska Sandhills\nGrass-stabilized dunes\.\nSections: Landscape; Ecology; Birds\nCategory: Geography/);
- const app=m.profileText({title:'UNL HCC Dashboard',summary:'Submit and monitor Slurm jobs.',body:'',labels:'{}',dynamic_config:JSON.stringify({nativeApp:'hcc',inputFields:[{name:'job',description:'Slurm job ID'}]}),kind:'static',category:''});
- assert.match(app,/Web app \(hcc\)\.\nInputs: job — Slurm job ID/);
+ const app=m.profileText({title:'Cluster Jobs Dashboard',summary:'Submit and monitor Slurm jobs.',body:'',labels:'{}',dynamic_config:JSON.stringify({nativeApp:'jobs',inputFields:[{name:'job',description:'Slurm job ID'}]}),kind:'static',category:''});
+ assert.match(app,/Web app \(jobs\)\.\nInputs: job — Slurm job ID/);
 });
 test('the judge reuses only with no doubt, checks the page when uncertain, and creates otherwise',async()=>{
  const c=[{pageId:'a',title:'A',profile:'A',score:.9,kind:'static'},{pageId:'b',title:'B',profile:'B',score:.8,kind:'dynamic'}];

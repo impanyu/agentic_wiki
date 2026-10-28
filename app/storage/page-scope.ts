@@ -6,16 +6,15 @@ export function namedConnectors(question:string){
 // A storage provider names the source, not the requested output. These are
 // explicit analytical outputs that the registered file browser cannot produce.
 export function requestsDataResult(question:string){
- return /\b(seeding tool|shape to json|si tool|yield summary|valid yield extractor|map|mapping|plot|chart|graph|visuali[sz](?:e|ation)|analy[sz]e|analysis|correlat(?:e|ion)|forecast|histogram|regression|aggregate)\b|地图|地理位置|画出.{0,40}位置|绘图|画图|图表|曲线|可视化|分析|相关性|预测|汇总/i.test(question);
+ return /\b(map|mapping|plot|chart|graph|visuali[sz](?:e|ation)|analy[sz]e|analysis|correlat(?:e|ion)|forecast|histogram|regression|aggregate)\b|地图|地理位置|画出.{0,40}位置|绘图|画图|图表|曲线|可视化|分析|相关性|预测|汇总/i.test(question);
 }
 export function storagePageMismatch(question:string,page:{question?:string;title:string;dynamic?:{template?:string};labels?:{templateId?:string}}){
  const requested=namedConnectors(question),saved=namedConnectors(page.question||page.title);
  // Combining named services is a conjunctive task, not a choice of meanings.
  if(page.labels?.templateId==='disambiguation-v1'&&requested.length>1&&/\b(combined|unified|both|together|side.by.side)\b|合并|整合|同时|一起/i.test(question))return true;
- const basicAdmaProgram=page.dynamic?.template==='page-program-v1'&&/^(?:list|show|browse|open|manage)(?:\s+me)?(?:\s+my)?\s+adma(?:['’]s)?\s+(?:files|folders)(?:\s+and\s+(?:files|folders))?[.!?]?$/i.test((page.question||'').trim());
- if(requestsDataResult(question)&&(basicAdmaProgram||['file-browser-v1','google-drive-folders-v1','agent-chat-v1'].includes(page.dynamic?.template||'')))return true;
+ if(requestsDataResult(question)&&(['file-browser-v1','google-drive-folders-v1','agent-chat-v1'].includes(page.dynamic?.template||'')))return true;
  if(requested.length&&saved.length&&requested.some(id=>!saved.includes(id)))return true;
- return page.dynamic?.template==='file-browser-v1'&&requested.some(id=>id!=='adma'&&!providers.includes(id as StorageProvider));
+ return page.dynamic?.template==='file-browser-v1'&&requested.some(id=>!providers.includes(id as StorageProvider));
 }
 const names:Record<StorageProvider,RegExp>={google:/google\s*drive|谷歌云盘/i,dropbox:/\bdropbox\b/i,onedrive:/\bonedrive\b/i};
 export function pageStorageProviders(question:string,parameters:Record<string,unknown>={}){
@@ -33,5 +32,5 @@ export function nativeWorkspaceApp(page:{kind?:string;question?:string;title:str
  if(page.dynamic?.template==='native-app-v1')return 'tools';
  if(page.dynamic?.template!=='file-browser-v1')return null;
  const providers=namedConnectors(page.question||page.title);
- return providers.includes('adma')?'adma':providers.includes('google')?'drive':null;
+ return providers.includes('google')?'drive':null;
 }

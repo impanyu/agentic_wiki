@@ -116,7 +116,7 @@ test('json.parse turns connector text into data a workflow can bind',async()=>{
  const obs=Array.from({length:96},(_,i)=>({t:'2026-10-10T'+String(Math.floor(i/4)).padStart(2,'0')+':'+String(i%4*15).padStart(2,'0'),temp:10+i/10,wind:3+(i%7)}));
  globalThis.wfCalls=async c=>c.tool==='connectors.call'?{content:JSON.stringify({station:'R5-01',observations:obs})}:{};
  const w=wf.validateWorkflow(base({state:{rows:[]},actions:{pick:{steps:[
-  {id:'file',tool:'connectors.call',args:{connectorId:'adma',tool:'read_text_file',arguments:{path:{$:"'realm5/' & values.day & '.json'"}}}},
+  {id:'file',tool:'connectors.call',args:{connectorId:'weather',tool:'read_text_file',arguments:{path:{$:"'stations/' & values.day & '.json'"}}}},
   {id:'data',tool:'json.parse',args:{text:{$:'steps.file.content'}}}],
   set:{rows:{$:'steps.data.observations[]'},maxWind:{$:'$max(steps.data.observations.wind)'}}}}})).workflow;
  const r=await wf.runAction(w,'pick',{values:{day:'2026-10-10'}},ctx);
@@ -127,7 +127,7 @@ test('json.parse turns connector text into data a workflow can bind',async()=>{
 
 test('data.describe summarizes any structure, including JSON held in a string',()=>{
  const obs=Array.from({length:96},(_,i)=>({time:'2026-10-10T00:'+String(i%60).padStart(2,'0'),temp:10+i/10,...(i%2?{gust:5}:{})}));
- const d=wf.describeData({content:JSON.stringify({station:'R5-01',observations:obs}),path:'realm5/2026-10-10.json'});
+ const d=wf.describeData({content:JSON.stringify({station:'R5-01',observations:obs}),path:'stations/2026-10-10.json'});
  const parsed=d.fields.content.parsed;assert.equal(d.fields.content.contains,'json');
  assert.equal(parsed.fields.observations.length,96);assert.deepEqual(parsed.fields.observations.items.fields.temp.range,[10,19.5]);
  assert.equal(parsed.fields.observations.items.fields.time.format,'date/time');assert.match(parsed.fields.observations.items.fields.gust.present,/^\d+\/\d+$/);
@@ -136,14 +136,14 @@ test('data.describe summarizes any structure, including JSON held in a string',(
 });
 test('source notes are per user, searchable, and surface when an agent tries a tool',async()=>{
  const rows=[];globalThis.wfDb={prepare:sql=>({bind:(...a)=>({run:async()=>{if(sql.startsWith('INSERT')){const [id,owner,source,notes,at]=a;const old=rows.find(r=>r.owner===owner&&r.source===source);if(old)Object.assign(old,{notes,updated_at:at});else rows.push({id,owner,source,notes,updated_at:at});}},all:async()=>({results:rows.filter(r=>r.owner===a[0])})})})};
- await wf.notes.saveSourceNote('u','ADMA Realm5 daily weather files','Path realm5/<station>/<YYYY-MM-DD>.json; observations[] every 15 min; temp in C, wind in m/s.');
- await wf.notes.saveSourceNote('u','ADMA Realm5 daily weather files','Path realm5/<station>/<YYYY-MM-DD>.json; observations[] every 15 min; temp C; wind m/s; UTC.');
- await wf.notes.saveSourceNote('other','ADMA Realm5 daily weather files','private to another user');
- assert.equal(rows.length,2);assert.match((await wf.notes.readSourceNotes('u','realm5 weather'))[0].notes,/UTC/);assert.deepEqual(await wf.notes.readSourceNotes('u','soil moisture'),[]);
+ await wf.notes.saveSourceNote('u','Station daily weather files','Path stations/<station>/<YYYY-MM-DD>.json; observations[] every 15 min; temp in C, wind in m/s.');
+ await wf.notes.saveSourceNote('u','Station daily weather files','Path stations/<station>/<YYYY-MM-DD>.json; observations[] every 15 min; temp C; wind m/s; UTC.');
+ await wf.notes.saveSourceNote('other','Station daily weather files','private to another user');
+ assert.equal(rows.length,2);assert.match((await wf.notes.readSourceNotes('u','station weather'))[0].notes,/UTC/);assert.deepEqual(await wf.notes.readSourceNotes('u','soil moisture'),[]);
  globalThis.wfCalls=async c=>c.tool==='connectors.call'?{content:JSON.stringify({observations:[{temp:1}]})}:{};
  const bench=wf.createWorkbench({userId:'u',pageId:'p',language:'en',request:'plot',title:'T'});
- const tried=(await bench.execute('wf_try_tool',{tool:'connectors.call',argsJson:JSON.stringify({connectorId:'adma',tool:'read_text_file',arguments:{path:'realm5/x/2026-10-10.json'}})})).data;
- assert.equal(tried.shape.fields.content.parsed.fields.observations.items.fields.temp.type,'number');assert.match(tried.knownNotes[0].source,/Realm5/);
+ const tried=(await bench.execute('wf_try_tool',{tool:'connectors.call',argsJson:JSON.stringify({connectorId:'weather',tool:'read_text_file',arguments:{path:'stations/x/2026-10-10.json'}})})).data;
+ assert.equal(tried.shape.fields.content.parsed.fields.observations.items.fields.temp.type,'number');assert.match(tried.knownNotes[0].source,/Station/);
 });
 
 test('code.run is a literal, isolated, last-resort compute step',async()=>{

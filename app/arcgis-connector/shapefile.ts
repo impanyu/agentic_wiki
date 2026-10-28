@@ -17,8 +17,8 @@ async function listFolder(pageId:string,userId:string,folder:Resource){
 }
 async function siblings(pageId:string,userId:string,file:Resource):Promise<Resource[]>{
  if(file.space==='page'){const files=await listContextFiles(pageId,userId),me=files.find(f=>f.id===file.id);if(!me)throw Error('That Page file is no longer available.');return files.filter(f=>f.folderPath===me.folderPath).map(f=>({space:'page',id:f.id,name:f.name,kind:'file'}));}
- if(['hcc','adapt','dropbox'].includes(file.space)){const cut=file.id.lastIndexOf('/'),parent=cut>0?file.id.slice(0,cut):file.space==='dropbox'?'':'/';return (await listFolder(pageId,userId,{...file,id:parent,kind:'folder',name:'folder'})).filter(r=>r.kind==='file');}
- throw Error('For a shapefile in Google Drive, OneDrive or ADMA, choose the folder that contains it instead of the .shp file; its companion files are then packaged automatically.');
+ if(file.space==='dropbox'){const cut=file.id.lastIndexOf('/'),parent=cut>0?file.id.slice(0,cut):'';return (await listFolder(pageId,userId,{...file,id:parent,kind:'folder',name:'folder'})).filter(r=>r.kind==='file');}
+ throw Error('For a shapefile in Google Drive or OneDrive, choose the folder that contains it instead of the .shp file; its companion files are then packaged automatically.');
 }
 export function needsPackaging(r:Resource){return r.kind==='folder'||/\.shp$/i.test(r.name);}
 export async function packageShapefile(pageId:string,userId:string,chosen:Resource):Promise<{name:string;bytes:Uint8Array}>{

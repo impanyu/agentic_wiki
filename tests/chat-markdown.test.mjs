@@ -16,6 +16,6 @@ test('chat formats bold lists and citations while rejecting active HTML and unsa
 });
 
 test('chat page offers render as internal buttons with safe encoded questions',()=>{
- const link=pageLink('Compare (ADMA) and Drive','Open comparison');assert.equal(pageLinkQuestion(link.href),'Compare (ADMA) and Drive');assert.equal(pageLinkQuestion('https://evil.test/?ask=question'),null);assert.equal(pageLinkQuestion('//evil.test/?ask=question'),null);
+ const link=pageLink('Compare (Dropbox) and Drive','Open comparison');assert.equal(pageLinkQuestion(link.href),'Compare (Dropbox) and Drive');assert.equal(pageLinkQuestion('https://evil.test/?ask=question'),null);assert.equal(pageLinkQuestion('//evil.test/?ask=question'),null);
  const html=renderToStaticMarkup(React.createElement(ChatMarkdown,{text:link.markdown}));assert.match(html,/class="chat-page-link"/);assert.match(html,/href="\/\?ask=/);assert.doesNotMatch(html,/target="_blank"/);assert.match(link.note,/No page has been generated/);
 });

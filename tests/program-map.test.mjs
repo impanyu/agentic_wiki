@@ -16,8 +16,8 @@ test('program maps reject missing, invalid and non-WGS84 geometry',()=>{
 });
 
 test('generated file rows preserve validated repository identity for inline transfers',()=>{
- const resource={space:'adma',connectorId:'11111111-1111-4111-8111-111111111111',id:'real-file',kind:'file',name:'Data.csv'};
+ const resource={space:'dropbox',id:'/real-file.csv',kind:'file',name:'Data.csv'};
  const parsed=viewSchema.parse({...view,files:[{id:'display-row',name:'Data.csv',kind:'file',resource}]});
  assert.deepEqual(parsed.files[0].resource,resource);
- assert.throws(()=>viewSchema.parse({...view,files:[{id:'row',name:'Data.csv',kind:'file',resource:{...resource,connectorId:undefined}}]}));
+ assert.throws(()=>viewSchema.parse({...view,files:[{id:'row',name:'Data.csv',kind:'file',resource:{...resource,space:'unknown'}}]}));
 });

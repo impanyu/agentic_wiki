@@ -3,7 +3,7 @@ import type {Workflow} from './schema';
 // development only, to check the component library visually.
 const days=Array.from({length:14},(_,i)=>({date:'2026-09-'+String(i+10).padStart(2,'0'),temp:14+Math.round(8*Math.sin(i/2)),wind:3+(i*7)%9,rain:(i*13)%5}));
 export const demoWorkflow:Workflow={kind:'workflow-app',version:1,title:'Component gallery',actions:{pickOmaha:{client:true,steps:[],set:{station:'Omaha'}},load:{client:true,steps:[],set:{loadedAt:'loaded'}}},layout:{maxWidth:1200,accent:'#0f766e'},
- state:{station:null,loadedAt:'not loaded',days,files:[{name:'yield_2026.csv',size:182344,modified:'2026-10-01',space:'Page files'},{name:'fields.geojson',size:4829350,modified:'2026-09-23',space:'ADMA'},{name:'soil.tif',size:112429,modified:'2026-09-26',space:'Google Drive'}],
+ state:{station:null,loadedAt:'not loaded',days,files:[{name:'yield_2026.csv',size:182344,modified:'2026-10-01',space:'Page files'},{name:'fields.geojson',size:4829350,modified:'2026-09-23',space:'Dropbox'},{name:'soil.tif',size:112429,modified:'2026-09-26',space:'Google Drive'}],
   stations:[{lat:40.82,lng:-96.70,label:'Lincoln'},{lat:41.26,lng:-95.94,label:'Omaha'},{lat:40.92,lng:-98.34,label:'Grand Island'}]},
  ui:[{id:'loadFlag',type:'badge',props:{text:{$:'state.loadedAt'},tone:'info'}},
   {type:'heading',props:{text:'Field station overview',subtitle:'Sample data — every component in one page'}},
@@ -25,6 +25,6 @@ export const demoWorkflow:Workflow={kind:'workflow-app',version:1,title:'Compone
     {type:'callout',props:{tone:'warning',title:'Station offline',text:'Grand Island has not reported for **6 hours**.'}}]}]},
   {type:'row',children:[{type:'kanban',props:{columns:[{title:'To do',tone:'neutral',items:[{title:'Calibrate sensor',badge:'Lincoln'}]},{title:'Doing',tone:'info',items:[{title:'Clean dataset',text:'Remove duplicates'}]},{title:'Done',tone:'success',items:[{title:'Upload yield maps'}]}]}}]},
   {type:'timeline',props:{items:[{time:'Oct 7',title:'Harvest data uploaded',tone:'success'},{time:'Oct 5',title:'Station maintenance',text:'Omaha anemometer replaced',tone:'warning'}]}},
-  {type:'list',props:{layout:'cards',selectable:true,items:[{title:'Yield summary',subtitle:'ADMA tool',badge:'ready',badgeTone:'success',description:'Summarize yield by field'},{title:'Seeding tool',subtitle:'ADMA tool',badge:'beta',badgeTone:'warning'}]}},
+  {type:'list',props:{layout:'cards',selectable:true,items:[{title:'Yield summary',subtitle:'Analysis tool',badge:'ready',badgeTone:'success',description:'Summarize yield by field'},{title:'Seeding tool',subtitle:'Analysis tool',badge:'beta',badgeTone:'warning'}]}},
   {type:'details',props:{summary:'Raw JSON'},children:[{type:'json',props:{data:{$:'state.files[0]'}}}]},
   {type:'empty',props:{title:'No alerts',text:'Everything is running normally.',icon:'inbox'}}]};

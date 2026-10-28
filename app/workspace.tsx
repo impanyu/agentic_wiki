@@ -11,14 +11,11 @@ import {canWritePage,canUseConnectorsOn,pageAccess,type PageAccess} from './page
 import {DisambiguationIndex} from './disambiguation/view';
 import {ProgramView} from './page-programs/view';
 import {ConnectorPanel} from './connectors/panel';
-import {ProcessingPanel} from './adma/processing-panel';
 import {GeoViewer} from './geo/viewer';
 import {ArcgisPublisher} from './arcgis-publisher/app';
 import {Workbench} from './tools/workbench';
 import {PaperWorkspace} from './papers/workspace';
 import {nativePageSource} from './tools/sources';
-import {AdmaApp} from './adma/app';
-import {HccApp} from './hcc/app';
 import {nativeWorkspaceApp,pageStorageProviders} from './storage/page-scope';
 import {StoragePanel} from './storage/panel';
 import {DriveFolders} from './connections/google-drive/view';
@@ -482,8 +479,7 @@ export default function Workspace({ user, signIn, signOut }: {
         {visiblePage.dynamic?.template==='component-form-v1'&&<ComponentForm key={'form:'+visiblePage.id} page={visiblePage} onResult={page=>{setSelected(page);recordHistory(page.id,question,page.parameters);}}/>}
         {visiblePage.runtimeError&&visiblePage.dynamic?.template!=='page-program-v1'&&<p role="alert">{t(visiblePage.runtimeError)}</p>}
         {visiblePage.dynamic?.template==='workflow-app-v1'&&visiblePage.dynamic.workflow&&!articleWorkflow&&<WorkflowApp key={visiblePage.id+':'+(visiblePage.updatedAt||'')} workflow={visiblePage.dynamic.workflow} pageId={visiblePage.id} title={visiblePage.title} writable={canWritePage(visiblePage)}/>}
-        {visiblePage.dynamic?.template==='native-app-v1'&&(visiblePage.dynamic.nativeApp==='arcgis-publisher'?<ArcgisPublisher key={visiblePage.id} source={nativePageSource(visiblePage)}/>:visiblePage.dynamic.nativeApp==='adma-tools'?<ProcessingPanel key={visiblePage.id+JSON.stringify(visiblePage.parameters||{})} pageId={visiblePage.id} writable={canUseConnectorsOn(visiblePage)} initialTool={String(visiblePage.parameters?.tool||'')} onFork={()=>void createFork()}/>:visiblePage.dynamic.nativeApp==='unl-hcc'?<HccApp key={visiblePage.id} pageId={visiblePage.id} writable={canWritePage(visiblePage)}/>:visiblePage.dynamic.nativeApp==='map'?<GeoViewer key={visiblePage.id+JSON.stringify(visiblePage.parameters||{})} embedded revision={filesRevision} source={nativePageSource(visiblePage)} initialBasemap={visiblePage.dynamic.ui?.mapBasemap}/>:<Workbench key={visiblePage.id+JSON.stringify(visiblePage.parameters||{})} embedded revision={filesRevision} app={visiblePage.dynamic.nativeApp||'hub'} source={nativePageSource(visiblePage)}/>)}
-        {nativeApp==='adma'&&<AdmaApp key={visiblePage.id+String(visiblePage.parameters?.tool||'')} pageId={visiblePage.id} writable={canWritePage(visiblePage)} tool={String(visiblePage.parameters?.tool||'')}/>}
+        {visiblePage.dynamic?.template==='native-app-v1'&&(visiblePage.dynamic.nativeApp==='arcgis-publisher'?<ArcgisPublisher key={visiblePage.id} source={nativePageSource(visiblePage)}/>:visiblePage.dynamic.nativeApp==='map'?<GeoViewer key={visiblePage.id+JSON.stringify(visiblePage.parameters||{})} embedded revision={filesRevision} source={nativePageSource(visiblePage)} initialBasemap={visiblePage.dynamic.ui?.mapBasemap}/>:<Workbench key={visiblePage.id+JSON.stringify(visiblePage.parameters||{})} embedded revision={filesRevision} app={visiblePage.dynamic.nativeApp||'hub'} source={nativePageSource(visiblePage)}/>)}
         {visiblePage.kind==='dynamic'&&visiblePage.dynamic?.template==='file-browser-v1'&&pageStorageProviders(visiblePage.question||visiblePage.title,visiblePage.parameters).length>0&&<StoragePanel writable={canWritePage(visiblePage)} question={visiblePage.question} key={visiblePage.id+JSON.stringify(visiblePage.parameters||{})} parameters={visiblePage.parameters} pageId={visiblePage.id} language={visiblePage.language} expanded={visiblePage.labels.templateId==='files-v1'||!!visiblePage.runtimeError}/>} 
         </div>
         {visiblePage.dynamic?.pageCode?.placement==='after'&&<SandboxView app={visiblePage.dynamic.pageCode.frontend} title={visiblePage.title} pageId={visiblePage.id}/>}

@@ -31,7 +31,7 @@ export function LiveAgentControl({pageId,disabled}:{pageId:string;disabled?:bool
   {changed&&<p className="live-agent-note">{t('The live agent changed this page.')} <button type="button" onClick={()=>location.reload()}>{t('Reload to see it')}</button></p>}
   {open&&status.canEdit&&<div className="live-agent-details">
    <div className="live-agent-actions"><button type="button" disabled={disabled||busy||status.running} onClick={()=>void send('POST',{action:'run'})}>{status.running?t('Running…'):t('Run now')}</button>{status.canRevert&&<button type="button" disabled={disabled||busy||status.running} onClick={()=>void send('POST',{action:'revert'})}>{t('Undo last change')}</button>}</div>
-   <label>{t('Maintenance focus (optional)')}<textarea value={focus} maxLength={600} rows={2} placeholder={t('For example: keep prices current, check the ADAPT folders still load')} onChange={e=>setFocus(e.target.value)} onBlur={()=>{if(focus!==status.focus)void send('PUT',{focus});}}/></label>
+   <label>{t('Maintenance focus (optional)')}<textarea value={focus} maxLength={600} rows={2} placeholder={t('For example: keep prices current, check the linked data still loads')} onChange={e=>setFocus(e.target.value)} onBlur={()=>{if(focus!==status.focus)void send('PUT',{focus});}}/></label>
    {status.lastSummary&&<div className="live-agent-summary"><strong>{t('Last run')}{status.lastRunAt?' · '+new Date(status.lastRunAt).toLocaleString(locale):''}</strong><p>{status.lastSummary}</p></div>}
    <small>{t('Each run uses this page’s agent with all its tools, appears in the page chat, and saves only changes that pass verification. You can undo the latest change.')}</small>
   </div>}

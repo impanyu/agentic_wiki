@@ -1,4 +1,4 @@
-import {registeredAdmaPage} from '@/app/page-programs/deferred';
+import {registeredStoragePage} from '@/app/page-programs/deferred';
 import {getComponent} from '@/app/components-registry/registry';
 import {mentionSchema} from '@/app/resources/contracts';
 import {resolveMentions} from '@/app/resources/service';
@@ -31,7 +31,7 @@ import {runProgram} from '@/app/sandboxes/service';
 import {codeSchema} from '@/app/sandboxes/contracts';
 import {session,respond,handlePost} from '@/app/chat/page-turn';
 export async function GET(request:Request,{params}:{params:Promise<{id:string}>}){
- try{const id=(await params).id,s=await session(request,id),rawPage=await getPage(id,s.userId),page=rawPage?registeredAdmaPage(rawPage):null;if(!page)return reply({error:'This page is private or does not exist.'},404);
+ try{const id=(await params).id,s=await session(request,id),rawPage=await getPage(id,s.userId),page=rawPage?registeredStoragePage(rawPage):null;if(!page)return reply({error:'This page is private or does not exist.'},404);
  if(new URL(request.url).searchParams.has('running'))return respond({running:runningTurn(id,s.userId)},s.cookie);
  if(page.kind==='static')return getWikiComments(request,page,s);
  const before=Number(new URL(request.url).searchParams.get('before'))||undefined;
@@ -44,7 +44,7 @@ export async function GET(request:Request,{params}:{params:Promise<{id:string}>}
 // Cancel an unsaved proposal without touching the page.
 export async function DELETE(request:Request,{params}:{params:Promise<{id:string}>}){
  if(!sameOrigin(request))return reply({error:'This request must come from the site.'},403);
- try{const id=(await params).id,s=await session(request,id),rawPage=await getPage(id,s.userId),page=rawPage?registeredAdmaPage(rawPage):null;if(!page)return reply({error:'This page is private or does not exist.'},404);
+ try{const id=(await params).id,s=await session(request,id),rawPage=await getPage(id,s.userId),page=rawPage?registeredStoragePage(rawPage):null;if(!page)return reply({error:'This page is private or does not exist.'},404);
   if(page.kind==='static')await discardWikiDrafts(page,s);else await Promise.all([discardAppDraft(s.agent),discardEditDraft(s.agent)]);
   return respond({discarded:true},s.cookie);
  }catch{return reply({error:'Could not cancel the proposal.'},503);}

@@ -8,7 +8,7 @@ import {runProgramLoop} from './runtime';
 import {sandboxContextFiles} from '@/app/context-files/server';
 import {codeSchema} from '@/app/sandboxes/contracts';
 import {inputFieldsSchema} from './inputs';
-import {registeredAdmaPage} from './deferred';
+import {registeredStoragePage} from './deferred';
 import {customStyleSchema,normalizeCustomStyle} from './custom-style';
 import {visualThemes} from './visual-style';
 import {canWritePage} from '@/app/page-permissions';
@@ -64,7 +64,7 @@ export async function verifyCurrentApp(page:AnswerPage,agent:Agent,request:strin
 }
 export async function stageAppRevision(page:AnswerPage,raw:unknown,agent:Agent,request='',tests:unknown=[],options:{verified?:boolean}={}){
  if(!canWritePage(page))throw Error('PAGE_READ_ONLY');
- page=registeredAdmaPage(page);
+ page=registeredStoragePage(page);
  // Consecutive proposals in one conversation build on the unsaved draft instead of
  // replacing it, so "change the code, then the text" saves both.
  const saved=page,pending=await stored(agent,page.id);
@@ -146,7 +146,7 @@ export async function stageAppRevision(page:AnswerPage,raw:unknown,agent:Agent,r
 }
 export async function saveAppDraft(agent:Agent,pageId:string,draftId:string){
  const lease=await lock('refresh:'+pageId,90000);if(!lease)throw Error('This page is being updated. Try again.');
- try{const rawPage=await getPage(pageId,agent.ownerId),page=rawPage?registeredAdmaPage(rawPage):null,draft=await stored(agent,pageId);if(!page||!canWritePage(page)||!draft||draft.id!==draftId)throw Error('This app proposal is unavailable.');if(draft.saved)return {page,alreadySaved:true};if(revision(page)!==draft.base)throw Error('The app changed. Ask the agent to revise its proposal.');
+ try{const rawPage=await getPage(pageId,agent.ownerId),page=rawPage?registeredStoragePage(rawPage):null,draft=await stored(agent,pageId);if(!page||!canWritePage(page)||!draft||draft.id!==draftId)throw Error('This app proposal is unavailable.');if(draft.saved)return {page,alreadySaved:true};if(revision(page)!==draft.base)throw Error('The app changed. Ask the agent to revise its proposal.');
   const refs=Object.entries(draft.config?.components||{}).map(([role,ref])=>({role,ref})).filter(r=>r.ref);
   const deps=refs.flatMap(({role,ref})=>[
    ...(page.visibility==='public'?[database().prepare("UPDATE components SET visibility='public' WHERE id=? AND owner_id=? AND type IN ('frontend_template','backend_code','data','workflow')").bind(ref!.id,agent.ownerId)]:[]),
@@ -154,6 +154,6 @@ export async function saveAppDraft(agent:Agent,pageId:string,draftId:string){
   ]);
   await keepOriginal(page.id,agent.ownerId);
   const now=new Date().toISOString();await database().batch([...deps,database().prepare("UPDATE pages SET title=?,summary=?,body=?,dynamic_config=?,labels=?,kind=?,sources=?,category=?,updated_at=? WHERE id=? AND (owner_id=? OR (visibility='public' AND public_write=1)) AND EXISTS(SELECT 1 FROM generation_locks WHERE token=? AND expires>?)").bind(draft.title,draft.summary,draft.pageBody??'',draft.config?JSON.stringify(draft.config):null,JSON.stringify({...page.labels,templateId:draft.templateId,...(draft.labels||{})}),draft.kind||(draft.config?'dynamic':'static'),JSON.stringify(draft.sources||page.sources||[]),draft.category??page.category??'',now,pageId,agent.ownerId,lease,Date.now())]);
-  const updated=await getPage(pageId,agent.ownerId);if(updated?.updatedAt!==now)throw Error('Could not save the app revision.');await recordVersion(pageId,agent.ownerId,'app-revision','App revision');await bucket().put(path(agent),JSON.stringify({...draft,saved:true}));return {page:updated?registeredAdmaPage(updated):updated,alreadySaved:false};
+  const updated=await getPage(pageId,agent.ownerId);if(updated?.updatedAt!==now)throw Error('Could not save the app revision.');await recordVersion(pageId,agent.ownerId,'app-revision','App revision');await bucket().put(path(agent),JSON.stringify({...draft,saved:true}));return {page:updated?registeredStoragePage(updated):updated,alreadySaved:false};
  }finally{await unlock(lease);}
 }

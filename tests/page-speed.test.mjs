@@ -16,8 +16,8 @@ test('nested streaming decodes partial article text without exposing nested code
 });
 test('deferred reads return the saved app without executing its backend',async()=>{
  let calls=0;const page={id:'p',kind:'dynamic',dynamic:{template:'page-program-v1'},parameters:{}};
- const {deferPageExecution,registeredAdmaPage}=await load(strip('app/page-programs/deferred.ts'));
- globalThis.deferDeps={parametersSchema:z.record(z.union([z.string(),z.number(),z.boolean()])),programNavigationInput:p=>({values:p}),deferPageExecution,registeredAdmaPage,registeredContextIndexPage:p=>p,executePage:async p=>{calls++;return {...p,view:{}};},getActor:async()=>({userId:'u',finish:r=>r}),getPage:async()=>page,reply:(data,status=200)=>Response.json(data,{status})};
+ const {deferPageExecution,registeredStoragePage}=await load(strip('app/page-programs/deferred.ts'));
+ globalThis.deferDeps={parametersSchema:z.record(z.union([z.string(),z.number(),z.boolean()])),programNavigationInput:p=>({values:p}),deferPageExecution,registeredStoragePage,registeredContextIndexPage:p=>p,executePage:async p=>{calls++;return {...p,view:{}};},getActor:async()=>({userId:'u',finish:r=>r}),getPage:async()=>page,reply:(data,status=200)=>Response.json(data,{status})};
  const code=strip('app/api/pages/[id]/route.ts').split('export async function PATCH')[0];
  const m=await load('const {'+Object.keys(globalThis.deferDeps).join(',')+'}=globalThis.deferDeps;'+code);
  const response=await m.GET(new Request('https://wiki.test/api/pages/p?defer=1'),{params:Promise.resolve({id:'p'})});
@@ -68,23 +68,13 @@ test('exact saved question fast path uses real SQL permissions, freshness, and m
   await db.prepare('UPDATE questions SET match_version=0').run();assert.equal(await m.exactSavedQuestion('Photosynthesis','u'),null);
  }finally{db.close();rmSync(dir,{recursive:true,force:true});delete globalThis.exactDeps;}
 });
-test('ordinary combined repositories reuse native panels while analytical dashboards retain code',async()=>{
- const {deferPageExecution,basicCombinedRepositories}=await load(strip('app/page-programs/deferred.ts'));
- for(const question of ['Create a combined ADMA and Google Drive dashboard','adma and google drive dashboard','Show my Google Drive and ADMA files']){
-  assert.equal(basicCombinedRepositories(question),true);
+test('basic Google Drive browsers reuse the native panel while analytical dashboards retain code',async()=>{
+ const {deferPageExecution,registeredStoragePage}=await load(strip('app/page-programs/deferred.ts'));
+ for(const question of ['list my google drive','Show my Google Drive files','google drive dashboard']){
   const page=deferPageExecution({id:'existing',kind:'dynamic',question,labels:{},dynamic:{template:'page-program-v1'},runtimeError:'old failure',view:{}},{search:'field'});
   assert.equal(page.id,'existing');assert.equal(page.dynamic.template,'file-browser-v1');assert.equal(page.runtimePending,false);assert.equal(page.runtimeError,undefined);assert.equal(page.view,undefined);assert.equal(page.parameters.search,'field');
  }
- for(const question of ['Plot ADMA and Google Drive data','Create a combined ADMA and Google Drive dashboard with temperature charts','Compare ADMA and Google Drive duplicates']){
-  assert.equal(basicCombinedRepositories(question),false);
-  assert.equal(deferPageExecution({question,dynamic:{template:'page-program-v1'}}).runtimePending,true);
- }
-});
-test('a saved ADMA dashboard cannot remain replaced by a map-only app',async()=>{
- const {registeredAdmaPage,basicAdmaDashboard}=await load(strip('app/page-programs/deferred.ts'));
- assert.equal(basicAdmaDashboard('adma dashboard'),true);
- const restored=registeredAdmaPage({id:'adma',kind:'dynamic',question:'adma dashboard',title:'ADMA Geo Viewer',summary:'Map only',body:'',labels:{templateId:'geo-v1'},dynamic:{template:'native-app-v1',executor:'native-app-v1',nativeApp:'map'}});
- assert.equal(registeredAdmaPage({...restored,dynamic:{...restored.dynamic,customized:true,pageCode:{placement:'after'}}}).dynamic.customized,true);
- assert.equal(restored.title,'ADMA Dashboard');assert.equal(restored.dynamic.template,'file-browser-v1');assert.equal(restored.dynamic.nativeApp,undefined);assert.equal(restored.labels.templateId,'files-v1');
+ for(const question of ['Plot my Google Drive data','Compare Google Drive and Dropbox duplicates'])assert.equal(deferPageExecution({question,dynamic:{template:'page-program-v1'}}).runtimePending,true);
+ assert.equal(registeredStoragePage({question:'list my google drive',dynamic:{template:'page-program-v1',customized:true}}).dynamic.template,'page-program-v1');
  const viewer=readFileSync('app/geo/viewer.tsx','utf8');assert.match(viewer,/defaultBasemap=initialBasemap\|\|preference\|\|inherited\|\|'satellite'/);assert.match(viewer,/Basemap\.fromId\(defaultBasemap\)/);
 });

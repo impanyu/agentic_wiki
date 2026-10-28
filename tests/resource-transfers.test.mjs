@@ -3,12 +3,6 @@ const load=code=>import('data:text/javascript;base64,'+Buffer.from(ts.transpile(
 const strip=path=>readFileSync(path,'utf8').replace(/^import .*;$/gm,'');
 globalThis.resourceTest={z};const contracts=await load('const {z}=globalThis.resourceTest;'+strip('app/resources/contracts.ts'));const tree=await load(strip('app/context-files/tree.ts'));
 globalThis.resourceTest={...contracts,...tree};const binary=await load('const {MAX_FILE_BYTES,fileName}=globalThis.resourceTest;'+strip('app/resources/binary.ts'));
-test('binary copies preserve non-UTF8 bytes, MIME type and private ADMA upload settings',async()=>{
- const bytes=new Uint8Array([0,255,254,128,1,10]);let upload;
- const file=await binary.downloadBinary('adma','id','secret',async(url,options)=>{assert.equal(options.redirect,'error');assert.equal(options.headers.Authorization,'Token secret');return url.includes('metadata')?Response.json({name:'image.png'}):new Response(bytes,{headers:{'Content-Type':'image/png'}});});assert.deepEqual(file.bytes,bytes);
- await binary.uploadBinary('adma','folder',file,'secret',async(url,options)=>{upload=options.body;return Response.json({files:[{id:'new'}]});});assert.equal(upload.get('is_public'),'false');assert.equal(upload.get('folder_id'),'folder');assert.deepEqual(new Uint8Array(await upload.get('files').arrayBuffer()),bytes);
- await assert.rejects(binary.uploadBinary('adma','folder',file,'secret',async()=>Response.json({files:[],rejected_count:1})),/rejected/);
-});
 test('downloads enforce size bounds and OneDrive does not forward tokens to download hosts',async()=>{
  await assert.rejects(binary.boundedBytes(new Response('x',{headers:{'Content-Length':String(contracts.MAX_FILE_BYTES+1)}})),/limit/);
  let count=0;await binary.downloadBinary('onedrive','id','secret',async(url,options)=>{count++;if(count===1)return Response.json({name:'x.txt',file:{mimeType:'text/plain'},'@microsoft.graph.downloadUrl':'https://tenant.sharepoint.com/file'});assert.deepEqual(options.headers,{});return new Response('content');});assert.equal(count,2);
@@ -32,14 +26,4 @@ test('Drive exports use Office formats and cloud uploads keep bytes without over
  await binary.uploadBinary('google','parent',file,'token',async(url,init)=>{assert.match(url,/uploadType=multipart/);const body=new Uint8Array(await init.body.arrayBuffer());assert.ok(Buffer.from(body).includes(Buffer.from(bytes)));assert.match(Buffer.from(body).toString(),/"parents":\["parent"\]/);return Response.json({id:'g'});});
  await binary.uploadBinary('dropbox','/folder',file,'token',async(url,init)=>{const arg=JSON.parse(init.headers['Dropbox-API-Arg']);assert.equal(arg.mode,'add');assert.equal(arg.strict_conflict,true);assert.deepEqual(init.body,bytes);return Response.json({id:'d'});});
  await binary.uploadBinary('onedrive','parent',file,'token',async(url,init)=>{assert.match(url,/conflictBehavior=fail/);assert.deepEqual(init.body,bytes);return Response.json({id:'o'});});
-});
-test('ADMA transfer browser exposes personal root independently from third-party catalog',async()=>{
- const calls=[],id='11111111-1111-4111-8111-111111111111';
- const mocks={...contracts,getPage:async()=>({id:'p'}),signedIn:()=>{},connections:async()=>[{id,provider:'adma',enabled:true,connected:true,allowed:['list_files','list_folders']}],publicThirdPartyCatalog:async()=>[{id:'realm',name:'Realm5',kind:'folder'}],callConnector:async(u,c,t,args)=>{calls.push({t,args});return t==='list_files'?{files:[{id:'own',name:'Own.csv'}]}:{folders:[]};}};
- globalThis.admaRootTest=mocks;const {browseResources,copyResources}=await load('const {'+Object.keys(mocks).join(',')+'}=globalThis.admaRootTest;'+strip('app/resources/service.ts'));
- const root={space:'adma',connectorId:id,id:'repositories',kind:'folder',name:'ADMA'};
- const top=await browseResources('p','u',root);assert.deepEqual(top.items.map(x=>x.id),['','third-party']);assert.equal(calls.length,0);
- const mine=await browseResources('p','u',top.items[0]);assert.equal(mine.items[0].name,'Own.csv');assert.deepEqual(calls.map(x=>x.args),[{},{}]);
- const shared=await browseResources('p','u',top.items[1]);assert.equal(shared.items[0].id,'realm');
- await assert.rejects(copyResources('p','u',{operationId:crypto.randomUUID(),sources:[mine.items[0]],destination:root}),/destination/);
 });
