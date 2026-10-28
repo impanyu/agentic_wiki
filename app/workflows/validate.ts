@@ -61,5 +61,6 @@ const BARE=new RegExp('(?<![$\\w.\'"])('+BUILTINS+')\\s*\\(');
 export function missingDollar(text:string){const stripped=text.replace(/'(?:[^'\\]|\\.)*'|"(?:[^"\\]|\\.)*"/g,'""');const m=BARE.exec(stripped);return m?m[1]:null;}
 // Transfers are skipped while an app is verified, so steps that build on them cannot be tested.
 const PENDING_TOOLS=new Set(['resources.copy','resources.move']);
-export const CLIENT_TOOLS=new Set(['compute','json.parse','json.format']);
+// Tools a browser-only action may use: pure computation, and reading this page's own files.
+export const CLIENT_TOOLS=new Set(['compute','json.parse','json.format','csv.parse','csv.format','page_file.read','stats.describe','stats.group','stats.histogram','stats.correlate','stats.regress']);
 export function assertWorkflow(raw:unknown){const r=validateWorkflow(raw);if(r.errors.length)throw Error('The workflow has problems: '+r.errors.join(' | '));return r;}

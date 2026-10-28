@@ -8,6 +8,7 @@ import {useState, type ReactNode} from 'react';
 import {pageAddress} from './dynamic/units';
 import {CornerUpLeft} from 'lucide-react';
 import {Dashboard} from './templates/dashboard';
+import {ComponentBlock} from './workflows/component-block-view';
 import {chartSchema,validateChartData,chartProblem} from './components-registry/chart-contracts';
 import {parseGoogleMapsUrl,embedPath} from './maps/url';
 import {ImageZoomArea} from './image-viewer';
@@ -84,6 +85,10 @@ export function AnswerText({body,title,summary,labels,sources,highlights,links=[
    const end=lines.findIndex((value,at)=>at>i&&/^```\s*$/.test(value.trim()));
    // A broken chart shows why it cannot be drawn, with its data kept in a collapsed block.
    if(end>i){const code=lines.slice(i+1,end).join('\n');try{const raw=JSON.parse(code) as {chart?:unknown;dataset?:unknown},chart=chartSchema.parse(raw.chart),dataset=validateChartData(chart,raw.dataset);blocks.push(<Dashboard key={id} chart={chart} dataset={dataset}/>);}catch(e){blocks.push(<div className="chart-invalid" role="note" key={id}><strong>{t('This chart could not be displayed.')}</strong><p>{chartProblem(e)}</p><details><summary>{t('Chart data')}</summary><pre>{code}</pre></details></div>);}i=end;continue;}
+  }
+  if(/^```component\s*$/.test(line.trim())){
+   const end=lines.findIndex((value,at)=>at>i&&/^```\s*$/.test(value.trim()));
+   if(end>i){blocks.push(<ComponentBlock key={id} code={lines.slice(i+1,end).join('\n')} pageId={pageId||''} title={title}/>);i=end;continue;}
   }
   if(heading){blocks.push(heading[1].length===3?<h3 id={'section-'+i} key={id}>{inline(heading[2],id)}</h3>:<h2 id={'section-'+i} key={id}>{inline(heading[2],id)}</h2>);continue;}
   const map=mapLine(line);

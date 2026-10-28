@@ -993,5 +993,8 @@
   "{name} is larger than 10 MB.": "{name} is larger than 10 MB.",
   "Dismiss": "Dismiss",
   "Remove originals only after all copied files are verified. Cloud files go to trash where supported. Page files are detached from this page.": "Remove originals only after all copied files are verified. Cloud files go to trash where supported. Page files are detached from this page.",
-  "For example: keep prices current, check the linked data still loads": "For example: keep prices current, check the linked data still loads"
+  "For example: keep prices current, check the linked data still loads": "For example: keep prices current, check the linked data still loads",
+  "This component could not be displayed.": "This component could not be displayed.",
+  "Component source": "Component source",
+  "Drag to rotate · Click, then scroll to zoom": "Drag to rotate · Click, then scroll to zoom"
 }

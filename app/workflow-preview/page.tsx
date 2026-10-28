@@ -2,13 +2,13 @@
 import {useEffect,useMemo,useState} from 'react';
 import {WorkflowApp} from '@/app/workflows/app';
 import type {Workflow} from '@/app/workflows/schema';
-import {demoWorkflow} from '@/app/workflows/demo';
+import {demoWorkflow,vizDemoWorkflow} from '@/app/workflows/demo';
 import {usePageUi,UiContext} from '@/app/i18n/client';
 // Renders a verification snapshot of a workflow app (see app/workflows/verify.ts) as the
 // page owner sees it; nothing runs here, so upload and action controls are only drawn.
 export default function WorkflowPreview(){
  const [data,setData]=useState<{workflow:Workflow;state:Record<string,unknown>;values:Record<string,unknown>;title:string;pageId:string;language?:string}|null>(null),[error,setError]=useState('');
- useEffect(()=>{const q=new URLSearchParams(location.search);if(q.get('demo')&&process.env.NODE_ENV!=='production'){setData({workflow:demoWorkflow,state:demoWorkflow.state,values:{},title:'Component gallery',pageId:'demo',language:q.get('lang')||'en'});return;}const token=q.get('token')||'';fetch('/api/workflow-preview/'+encodeURIComponent(token)).then(r=>r.ok?r.json():Promise.reject(Error('Preview expired.'))).then(d=>setData(d as typeof data),e=>setError(e.message));},[]);
+ useEffect(()=>{const q=new URLSearchParams(location.search);if(q.get('demo')&&process.env.NODE_ENV!=='production'){const w=q.get('demo')==='viz'?vizDemoWorkflow:demoWorkflow;setData({workflow:w,state:w.state,values:{},title:w.title||'Component gallery',pageId:'demo',language:q.get('lang')||'en'});return;}const token=q.get('token')||'';fetch('/api/workflow-preview/'+encodeURIComponent(token)).then(r=>r.ok?r.json():Promise.reject(Error('Preview expired.'))).then(d=>setData(d as typeof data),e=>setError(e.message));},[]);
  // Shown in the page's language, as readers of the page see it.
  const ui=usePageUi(data?.language||'en');
  // The development gallery runs like a live page (its load action runs); verification snapshots do not.

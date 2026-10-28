@@ -9,6 +9,17 @@ import {ResourcePicker} from '@/app/resources/picker';
 import type {GeoCollection} from '@/app/geo/data';
 import type {WorkflowNode,RunTrace} from './schema';
 import type {Translator} from '@/app/i18n/client';
+import dynamic from 'next/dynamic';
+// Rich visualization and media components load their libraries only when a page uses them.
+const loadingViz=()=><div className="wf-viz wf-viz-loading" aria-busy="true"/>;
+const EChart=dynamic(()=>import('./viz/echart'),{ssr:false,loading:loadingViz});
+const Scene3D=dynamic(()=>import('./viz/scene3d'),{ssr:false,loading:loadingViz});
+const MediaPlayer=dynamic(()=>import('./viz/media'),{ssr:false,loading:loadingViz});
+const Diagram=dynamic(()=>import('./viz/diagram'),{ssr:false,loading:loadingViz});
+const MathBlock=dynamic(()=>import('./viz/math'),{ssr:false,loading:loadingViz});
+const CodeBlock=dynamic(()=>import('./viz/code-block'),{ssr:false,loading:loadingViz});
+const Compare=dynamic(()=>import('./viz/compare'),{ssr:false,loading:loadingViz});
+const Carousel=dynamic(()=>import('./viz/carousel'),{ssr:false,loading:loadingViz});
 // React implementations of the infrastructure UI components (see catalog.ts).
 // Props arrive already resolved; values and events go back through the app.
 export type Ctx={pageId:string;writable:boolean;running:Record<string,boolean>;errors:Record<string,string>;traces:Record<string,RunTrace[]>;locale:string;t:Translator;state:Record<string,unknown>;renderArticle?:()=>ReactNode};
@@ -160,9 +171,15 @@ export function renderComponent(p:ComponentProps):ReactNode{
   case 'steps':return <ol className="wf-steps">{(asList(props.items)).map((it:any,i:number)=><li key={i} className={'st-'+(it.status||'pending')}><span className="dot">{it.status==='done'?'✓':it.status==='error'?'!':i+1}</span><div><strong>{it.title}</strong>{it.text&&<p className="wf-muted">{it.text}</p>}</div></li>)}</ol>;
   case 'image':{const src=mediaUrl(props.src,ctx.pageId);return src?<figure className="wf-image"><img src={src} alt={props.alt||props.caption||''} style={{objectFit:props.fit||'contain',height:props.height?Number(props.height):undefined}}/>{props.caption&&<figcaption>{props.caption}</figcaption>}</figure>:<p className="wf-muted">{ctx.t('Image unavailable.')}</p>;}
   case 'gallery':return <Gallery {...p}/>;
-  case 'video':{const src=mediaUrl(props.src,ctx.pageId);return src?<figure className="wf-image">{props.kind==='audio'?<audio controls src={src}/>:<video controls src={src}/>}{props.caption&&<figcaption>{props.caption}</figcaption>}</figure>:null;}
+  case 'video':case 'media':{const src=typeof props.src==='string'&&/^https:\/\//.test(props.src)?props.src:mediaUrl(props.src,ctx.pageId);return src?<MediaPlayer props={{...props,src}} setValue={setValue} fire={fire} ctx={ctx}/>:null;}
   case 'pdf':{const src=mediaUrl(props.src,ctx.pageId);return src?<iframe className="wf-pdf" title="PDF" src={src.includes('inline=1')?src:src+(src.includes('?')?'&':'?')+'inline=1'} style={{height:Number(props.height)||640}}/>:null;}
-  case 'code':return <pre className={'wf-code'+(props.wrap?' wrap':'')} style={{maxHeight:Number(props.maxHeight)||480}}><code>{String(props.text??'')}</code></pre>;
+  case 'code':return <CodeBlock props={props} setValue={setValue} fire={fire} ctx={ctx}/>;
+  case 'echart':return <EChart props={props} setValue={setValue} fire={fire} ctx={ctx}/>;
+  case 'scene3d':return <Scene3D props={props} setValue={setValue} fire={fire} ctx={ctx}/>;
+  case 'diagram':return <Diagram props={props} setValue={setValue} fire={fire} ctx={ctx}/>;
+  case 'math':return <MathBlock props={props} setValue={setValue} fire={fire} ctx={ctx}/>;
+  case 'compare':return <Compare props={props} setValue={setValue} fire={fire} ctx={ctx}/>;
+  case 'carousel':return <Carousel props={props} setValue={setValue} fire={fire} ctx={ctx}/>;
   case 'json':return <div className="wf-json-root"><JsonTree data={props.data} depth={0} expanded={Number(props.expanded??1)}/></div>;
   case 'empty':return <div className="wf-empty">{EMPTY_ICONS[props.icon]||<Inbox size={28}/>}{props.title&&<strong>{props.title}</strong>}{props.text&&<p>{props.text}</p>}</div>;
   case 'link':{const href=props.href,ok=sameSite(href)||(!isComputed(raw.href)&&/^https:\/\//.test(String(href||'')));if(!ok)return <span>{props.text}</span>;const ext=!sameSite(href);return <a className={props.button?'wf-button secondary':'wf-link'} href={href} {...(ext?{target:'_blank',rel:'noopener noreferrer'}:{})}>{props.text||href}</a>;}

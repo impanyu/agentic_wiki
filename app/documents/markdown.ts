@@ -3,6 +3,7 @@ import {canWritePage} from '@/app/page-permissions';
 import {chartBlockErrors} from '@/app/components-registry/chart-contracts';
 import {relocateQuote} from '@/app/api/ask/refresh-matched-page';
 import {keepOriginal,recordVersion} from '@/app/versions/service';
+import {componentBlockErrors} from '@/app/workflows/component-block-check';
 // The infrastructure layer's document store for wiki articles. The Markdown
 // lives in the page record (with title, summary and sources) and every change
 // is snapshotted in page_versions; callers use these functions, not the table.
@@ -41,7 +42,7 @@ export async function writeMarkdown(pageId:string,userId:string,edit:MarkdownEdi
  const page=await getPage(pageId,userId);if(!page)throw Error('Page context is inaccessible.');if(!canWritePage(page))throw Error('PAGE_READ_ONLY');
  if(edit.text.length>40000)throw Error('Write at most 40,000 characters at a time.');
  const body=applyMarkdownEdit(page.body||'',edit);if(body.length>200000)throw Error('The article would exceed 200,000 characters.');
- const charts=chartBlockErrors(body);if(charts.length)throw Error(charts.join(' '));
+ const charts=[...chartBlockErrors(body),...componentBlockErrors(body)];if(charts.length)throw Error(charts.join(' '));
  await keepOriginal(pageId,userId);
  const now=new Date().toISOString(),links=await database().prepare('SELECT id,quote,segments FROM internal_links WHERE source_id=?').bind(pageId).all<{id:string;quote:string;segments:string}>();
  const next={title:page.title,summary:page.summary,body};

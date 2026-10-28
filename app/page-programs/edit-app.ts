@@ -23,6 +23,7 @@ import {appSpecSchema} from '@/app/workflows/workbench';
 import {hasType} from '@/app/workflows/presets';
 import {verifyWorkflow,workflowReportText,workflowTestsSchema} from '@/app/workflows/verify';
 import {WIKI_EDITION} from '@/app/edition';
+import {componentBlockErrors} from '@/app/workflows/component-block-check';
 const bucket=()=>(env as unknown as {FILES:R2Bucket}).FILES;
 const path=(agent:Agent)=>'app-edit-drafts/'+agent.id+'.json';
 // config is null when a replacement turns the page back into a static article.
@@ -99,7 +100,7 @@ export async function stageAppRevision(page:AnswerPage,raw:unknown,agent:Agent,r
  else if(change.kind==='content'){
   if(change.title===undefined&&change.summary===undefined&&change.body===undefined&&change.sources===undefined&&change.category===undefined)throw Error('A content edit needs a title, summary, body, sources or category.');
   if(change.sources!==undefined)sources=change.sources;if(change.category!==undefined)category=change.category;
-  title=change.title??title;summary=change.summary??summary;pageBody=change.body!==undefined?change.body.split('\n').map(line=>line.replace(/^(!\[[^\]]*\]\()\s*([^\s)]+)\s*\)\s*$/,'$1$2)')).join('\n'):pageBody;if(change.body!==undefined){const charts=chartBlockErrors(change.body);if(charts.length)throw Error(charts.join(' ')+' Fix the chart JSON (or remove the block) and propose again.');const broken=await unreachableImages(change.body);if(broken.length)throw Error('These image URLs do not serve an image and would render as gaps: '+broken.join(', ')+'. If the host blocks direct embedding, copy the image into Page files with import_image and embed that url; otherwise use find_images or a page file, one image per line as ![caption](url).');}body=[change.title!==undefined?'title':'',change.summary!==undefined?'summary':'',change.body!==undefined?'body':'',change.sources!==undefined?'sources':'',change.category!==undefined?'category':''].filter(Boolean).join(', ')+' updated';
+  title=change.title??title;summary=change.summary??summary;pageBody=change.body!==undefined?change.body.split('\n').map(line=>line.replace(/^(!\[[^\]]*\]\()\s*([^\s)]+)\s*\)\s*$/,'$1$2)')).join('\n'):pageBody;if(change.body!==undefined){const charts=[...chartBlockErrors(change.body),...componentBlockErrors(change.body)];if(charts.length)throw Error(charts.join(' ')+' Fix the chart JSON (or remove the block) and propose again.');const broken=await unreachableImages(change.body);if(broken.length)throw Error('These image URLs do not serve an image and would render as gaps: '+broken.join(', ')+'. If the host blocks direct embedding, copy the image into Page files with import_image and embed that url; otherwise use find_images or a page file, one image per line as ![caption](url).');}body=[change.title!==undefined?'title':'',change.summary!==undefined?'summary':'',change.body!==undefined?'body':'',change.sources!==undefined?'sources':'',change.category!==undefined?'category':''].filter(Boolean).join(', ')+' updated';
  }
  else if(change.kind==='program'){
   throw Error('Backend programs are no longer accepted. Convert this app to a workflow: propose {kind:"workflow",workflow} built from the platform\u2019s components and tools (read_generation_contract kind=workflow), keeping the features the page has.');
