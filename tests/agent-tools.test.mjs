@@ -1,4 +1,4 @@
-import test from 'node:test';import assert from 'node:assert/strict';import {readFileSync} from 'node:fs';import ts from 'typescript';import {z} from 'zod';
+import './edition-globals.mjs';import test from 'node:test';import assert from 'node:assert/strict';import {readFileSync} from 'node:fs';import ts from 'typescript';import {z} from 'zod';
 const load=async s=>import('data:text/javascript;base64,'+Buffer.from(ts.transpile(s,{module:ts.ModuleKind.ESNext,target:ts.ScriptTarget.ES2022})).toString('base64'));
 test('shared toolbox dispatches directly as the actor and rechecks page permissions',async()=>{
  let owned=true,calls=0,actor,scope;
@@ -8,7 +8,10 @@ test('shared toolbox dispatches directly as the actor and rechecks page permissi
  const agent={id:'a',role:'page:p',ownerId:'viewer'},context={userId:'owner',ownerId:'owner',language:'en',visibility:'private'};
  const toolbox=await applicationToolbox(agent,context);assert.equal(actor,'viewer');assert.equal(scope,'p');assert.ok(toolbox.tools.some(t=>t.name==='read_page_context'));assert.ok(!toolbox.tools.some(t=>t.name==='delegate_task'));
  await toolbox.execute('list_data_files',{after:''});assert.equal(actor,'viewer');assert.equal(calls,1);
- await toolbox.execute('execute_code',{componentId:'c',version:1,inputJson:'{}'});assert.equal(actor,'viewer');assert.equal(calls,2);
- owned=false;await assert.rejects(toolbox.execute('execute_code',{componentId:'c',version:1,inputJson:'{}'}),/READ_ONLY/);assert.equal(calls,2);
- const readonly=await applicationToolbox(agent,context);assert.ok(!readonly.tools.some(t=>t.name==='execute_code'));assert.ok(readonly.tools.some(t=>t.name==='list_data_files'));const generator=await applicationToolbox({id:'g',role:'generation',ownerId:'viewer'},{userId:'owner',ownerId:'owner',language:'en',visibility:'private'});assert.ok(generator.tools.some(t=>t.name==='call_connector'));assert.ok(generator.tools.some(t=>t.name==='suggest_page'));await generator.execute('call_connector',{connectorId:'test',tool:'read',argumentsJson:'{}'});assert.equal(actor,'viewer');delete globalThis.toolboxTest;
+ // The wiki edition runs no agent-written code on the server.
+ assert.ok(!toolbox.tools.some(t=>['execute_code','render_plot','test_page_program'].includes(t.name)));
+ await assert.rejects(toolbox.execute('execute_code',{componentId:'c',version:1,inputJson:'{}'}),/unavailable/);assert.equal(calls,1);
+ // Write tools recheck page permissions when they run.
+ owned=false;await assert.rejects(toolbox.execute('write_page_file',{name:'a.svg',content:'<svg/>'}),/READ_ONLY/);
+ const readonly=await applicationToolbox(agent,context);assert.ok(!readonly.tools.some(t=>t.name==='write_page_file'));assert.ok(readonly.tools.some(t=>t.name==='list_data_files'));const generator=await applicationToolbox({id:'g',role:'generation',ownerId:'viewer'},{userId:'owner',ownerId:'owner',language:'en',visibility:'private'});assert.ok(generator.tools.some(t=>t.name==='call_connector'));assert.ok(generator.tools.some(t=>t.name==='suggest_page'));await generator.execute('call_connector',{connectorId:'test',tool:'read',argumentsJson:'{}'});assert.equal(actor,'viewer');delete globalThis.toolboxTest;
 });
