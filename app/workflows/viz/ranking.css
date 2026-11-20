@@ -168,3 +168,7 @@
  .wf-rank-picker,.wf-rank-select{width:100%}
  .wf-rank .wf-rank-select select{flex:1;width:auto}
 }
+/* One plot under the leaderboard. */
+.wf-rank .wf-rank-chart{margin-top:18px}
+.wf-rank .wf-rank-charttools{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:4px 8px 6px}
+.wf-rank .wf-rank-charttitle{font-size:13px;font-weight:600;color:#334155}

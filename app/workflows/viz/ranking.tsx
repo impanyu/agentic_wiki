@@ -1,6 +1,6 @@
 'use client';
 import {useEffect,useMemo,useRef,useState} from 'react';
-import {Trophy,Sigma,Activity,Hash,Search,ArrowDownWideNarrow,ArrowUpNarrowWide} from 'lucide-react';
+import {Search,ArrowDownWideNarrow,ArrowUpNarrowWide} from 'lucide-react';
 import type {VizProps} from './types';
 import {type Criterion,type Entry,type Summary,normalizeCriteria,toEntries,rankEntries,summarize,makeFormatter,shareOf,chartMode,colorScale,groupsOf,equalEarth,equalEarthInvert,escapeHtml,linkParts,askHref,fixAntimeridian} from './ranking-data';
 import {countryKey} from './world-codes';
@@ -77,6 +77,32 @@ function barOption(o:{shown:Entry[];c:Criterion;fmt:Fmt;axisFmt:Fmt;colorOf:(e:E
    label:{show:true,position:'right',distance:6,color:'#334155',fontSize:11,fontWeight:600,formatter:(p:any)=>fmt(p.value)},
    emphasis:{focus:'none',itemStyle:{shadowBlur:14,shadowColor:'rgba(79,124,255,.35)'}},
    animationDelay:(i:number)=>Math.min(i,30)*22,universalTransition:true}],
+ };
+}
+
+// Vertical bars (columns), rank 1 on the left: the plot under the leaderboard.
+function columnOption(o:{shown:Entry[];c:Criterion;fmt:Fmt;axisFmt:Fmt;window?:number;noData:string}){
+ const {shown,c,fmt,axisFmt}=o;
+ const zoom=o.window&&shown.length>o.window;
+ const colors=(e:Entry)=>{const r=e.rank??0;const top=r>=1&&r<=3?MEDAL[r-1]:'#4f7cff';const neg=e.value!<0;const base=neg?NEG:top;
+  return {type:'linear',x:0,y:0,x2:0,y2:1,colorStops:[{offset:0,color:base},{offset:1,color:rgba(base,.35)}]};};
+ const rotate=shown.length>12&&!zoom?40:zoom?40:0;
+ return {
+  textStyle:{fontFamily:FONT},animationDuration:900,animationDurationUpdate:750,animationEasing:'cubicOut',animationEasingUpdate:'cubicInOut',aria:{enabled:true},
+  grid:{left:8,right:16,top:28,bottom:zoom?44:12,containLabel:true},
+  tooltip:{...TOOLTIP,formatter:(p:any)=>{const e=shown[p.dataIndex];return e?tooltipHtml(e,c,fmt,o.noData):'';}},
+  xAxis:{type:'category',data:shown.map((_,i)=>String(i)),axisLine:{lineStyle:{color:'#e2e8f0'}},axisTick:{show:false},
+   axisLabel:{interval:0,rotate,color:'#475569',fontSize:11,margin:10,hideOverlap:false,
+    formatter:(v:string)=>{const e=shown[Number(v)];return e?clip(e.name,rotate?16:12):'';}}},
+  yAxis:{type:'value',splitNumber:4,axisLabel:{color:'#94a3b8',fontSize:10,formatter:(v:number)=>axisFmt(v)},splitLine:{lineStyle:{color:'#eef1f6',type:'dashed'}},axisLine:{show:false},axisTick:{show:false}},
+  dataZoom:zoom?[
+   {type:'inside',xAxisIndex:0,filterMode:'none',startValue:0,endValue:o.window!-1,zoomOnMouseWheel:false,moveOnMouseWheel:true,moveOnMouseMove:true},
+   {type:'slider',xAxisIndex:0,filterMode:'none',startValue:0,endValue:o.window!-1,bottom:6,height:10,showDetail:false,brushSelect:false,zoomLock:true,borderColor:'transparent',backgroundColor:'#f1f5f9',fillerColor:'rgba(79,124,255,.35)',handleSize:0,moveHandleSize:0,showDataShadow:false}]:[],
+  series:[{id:'rank',type:'bar',barMaxWidth:34,barCategoryGap:'28%',
+   data:shown.map(e=>({value:e.value,name:e.name,itemStyle:{color:colors(e),borderRadius:e.value!<0?[0,0,6,6]:[6,6,0,0]}})),
+   label:{show:shown.length<=24&&!zoom,position:'top',distance:4,color:'#334155',fontSize:10,fontWeight:600,formatter:(p:any)=>axisFmt(p.value)},
+   emphasis:{focus:'none',itemStyle:{shadowBlur:14,shadowColor:'rgba(79,124,255,.35)'}},
+   animationDelay:(i:number)=>Math.min(i,40)*18,universalTransition:true}],
  };
 }
 
@@ -163,8 +189,9 @@ export default function Ranking({props,setValue,fire,ctx}:VizProps){
  const charts=useRef<Record<string,Chart|null>>({});
  const tableWrap=useRef<HTMLDivElement>(null);
 
- const requested=useMemo(()=>chartMode(props.chart,entries),[props.chart,entries]);
- const mode=requested==='map'&&mapError?'bar':requested;
+ // One plot under the leaderboard: vertical bars of the current criterion; a world map only when asked for.
+ const requested=props.chart==='none'?'none':props.chart==='map'&&chartMode('map',entries)==='map'?'map':'column';
+ const mode=requested==='map'&&mapError?'column':requested;
  useEffect(()=>{
   if(requested!=='map')return;let dead=false;
   loadWorld().then(n=>!dead&&setNames(n)).catch(e=>!dead&&setMapError(errMessage(e)));
@@ -189,8 +216,9 @@ export default function Ranking({props,setValue,fire,ctx}:VizProps){
  // Bar chart: the top N, or every entity with a scroll window.
  const barShown=allBars?chartRanked:chartRanked.slice(0,top);
  const windowSize=Math.max(8,Math.floor((height-24)/28));
- const barHeight=allBars?height:Math.max(160,Math.min(height,barShown.length*26+24));
- const barOpt=useMemo(()=>c&&mode==='bar'&&barShown.length?barOption({shown:barShown,c,fmt,axisFmt,colorOf,window:allBars?windowSize:undefined,noData}):null,
+ const barHeight=Math.min(height,380);
+ const columnWindow=30;
+ const barOpt=useMemo(()=>c&&mode==='column'&&barShown.length?columnOption({shown:barShown,c,fmt,axisFmt,window:allBars?columnWindow:undefined,noData}):null,
   // eslint-disable-next-line react-hooks/exhaustive-deps
   [c,mode,chartRanked,allBars,top,fmt,axisFmt,colorOf,windowSize,noData]);
  const mapOpt=useMemo(()=>c&&mode==='map'&&names?mapOption({ranked,c,fmt,names,noData}):null,[c,mode,names,ranked,fmt,noData]);
@@ -260,37 +288,6 @@ export default function Ranking({props,setValue,fire,ctx}:VizProps){
    {c.description&&<span className="wf-rank-desc">{c.description}</span>}
   </div>
 
-  <div className="wf-rank-stats" key={'s-'+c.key}>
-   <div className="wf-rank-stat lead"><span className="ico"><Trophy size={16}/></span><span className="lbl">{t('#1')}</span>
-    {summary.top?<><a className="big" href={askHref(summary.top.question)}>{summary.top.name}</a><span className="sub">{fmt(summary.top.value)}</span></>:<span className="big">—</span>}</div>
-   <div className="wf-rank-stat"><span className="ico"><Activity size={16}/></span><span className="lbl">{t('Median')}</span><span className="big">{fmt(summary.median)}</span></div>
-   <div className="wf-rank-stat"><span className="ico"><Sigma size={16}/></span><span className="lbl">{summary.aggregate==='sum'?t('Total'):t('Average')}</span><span className="big">{fmt(summary.aggregateValue)}</span></div>
-   <div className="wf-rank-stat"><span className="ico"><Hash size={16}/></span><span className="lbl">{t('Ranked')}</span><span className="big">{summary.ranked.toLocaleString(locale)}</span><span className="sub">{t('of {total} entities',{total:summary.total.toLocaleString(locale)})}</span></div>
-  </div>
-
-  {groups.length>1&&<div className="wf-rank-groups" role="group" aria-label={t('Filter by group')}>
-   <button type="button" className={!group?'on':''} onClick={()=>setGroup(null)}>{t('All groups')}</button>
-   {groups.map(g=><button key={g} type="button" className={group===g?'on':''} style={{['--c' as any]:groupColor(g)}} onClick={()=>setGroup(group===g?null:g)}><i/>{g}</button>)}
-  </div>}
-
-  {mode!=='none'&&<div className={'wf-rank-chart '+mode}>
-   {mapError&&requested==='map'&&<div className="wf-rank-notice">{t('The map could not load; showing a bar chart instead.')}</div>}
-   {mode==='bar'&&<>
-    {chartRanked.length>top&&<div className="wf-rank-charttools"><div className="wf-rank-seg" role="radiogroup" aria-label={t('Bars shown')}>
-     <button type="button" role="radio" aria-checked={!allBars} className={!allBars?'on':''} onClick={()=>setAllBars(false)}>{t('Top {n}',{n:top})}</button>
-     <button type="button" role="radio" aria-checked={allBars} className={allBars?'on':''} onClick={()=>setAllBars(true)}>{t('All {n}',{n:chartRanked.length})}</button>
-    </div></div>}
-    {barShown.length?<ChartBox option={barOpt} height={barHeight} label={c.label} onClick={p=>pick(barShown[p.dataIndex])} onChart={ch=>{charts.current.bar=ch;}}/>:<div className="wf-rank-empty">{noData}</div>}
-   </>}
-   {mode==='map'&&<div className="wf-rank-mapgrid">
-    <ChartBox option={mapOpt} height={height} aspect={MAP_ASPECT} extra={MAP_BOTTOM+6} label={c.label} onClick={p=>pick(byKey.get(p.name))} onChart={ch=>{charts.current.map=ch;}}/>
-    <div className="wf-rank-mini">
-     <div className="wf-rank-minititle">{t('Top {n}',{n:miniShown.length})}</div>
-     <ChartBox option={miniOpt} height={Math.max(220,miniShown.length*30+16)} label={c.label} onClick={p=>pick(miniShown[p.dataIndex])} onChart={ch=>{charts.current.mini=ch;}}/>
-    </div>
-   </div>}
-  </div>}
-
   <div className="wf-rank-tools">
    <label className="wf-rank-search"><Search size={14}/><input type="search" value={query} placeholder={t('Search…')} aria-label={t('Search entities')} onChange={ev=>setQuery(ev.target.value)}/></label>
    <span className="wf-rank-count">{(q||group)?t('{count} matching',{count:(tRanked.length+tMissing.length).toLocaleString(locale)})+' · ':''}{t('{ranked} ranked',{ranked:summary.ranked.toLocaleString(locale)})}{missing.length?' · '+t('{count} without data',{count:missing.length.toLocaleString(locale)}):''}</span>
@@ -314,6 +311,24 @@ export default function Ranking({props,setValue,fire,ctx}:VizProps){
   {(hidden>0||expanded&&tRanked.length+tMissing.length>PAGE)&&<div className="wf-rank-more">
    <button type="button" onClick={()=>setExpanded(x=>!x)}>{hidden>0?t('Show all {count}',{count:(tRanked.length+tMissing.length).toLocaleString(locale)}):t('Show fewer')}</button>
   </div>}
+  {mode!=='none'&&<div className={'wf-rank-chart '+mode}>
+   {mapError&&requested==='map'&&<div className="wf-rank-notice">{t('The map could not load; showing a bar chart instead.')}</div>}
+   {mode==='column'&&<>
+    <div className="wf-rank-charttools"><span className="wf-rank-charttitle">{c.label}{c.year?' · '+c.year:''}</span>{chartRanked.length>top&&<div className="wf-rank-seg" role="radiogroup" aria-label={t('Bars shown')}>
+     <button type="button" role="radio" aria-checked={!allBars} className={!allBars?'on':''} onClick={()=>setAllBars(false)}>{t('Top {n}',{n:top})}</button>
+     <button type="button" role="radio" aria-checked={allBars} className={allBars?'on':''} onClick={()=>setAllBars(true)}>{t('All {n}',{n:chartRanked.length})}</button>
+    </div>}</div>
+    {barShown.length?<ChartBox option={barOpt} height={barHeight} label={c.label} onClick={p=>pick(barShown[p.dataIndex])} onChart={ch=>{charts.current.bar=ch;}}/>:<div className="wf-rank-empty">{noData}</div>}
+   </>}
+   {mode==='map'&&<div className="wf-rank-mapgrid">
+    <ChartBox option={mapOpt} height={height} aspect={MAP_ASPECT} extra={MAP_BOTTOM+6} label={c.label} onClick={p=>pick(byKey.get(p.name))} onChart={ch=>{charts.current.map=ch;}}/>
+    <div className="wf-rank-mini">
+     <div className="wf-rank-minititle">{t('Top {n}',{n:miniShown.length})}</div>
+     <ChartBox option={miniOpt} height={Math.max(220,miniShown.length*30+16)} label={c.label} onClick={p=>pick(miniShown[p.dataIndex])} onChart={ch=>{charts.current.mini=ch;}}/>
+    </div>
+   </div>}
+  </div>}
+
   {source&&<figcaption className="wf-rank-source">{t('Source:')} {linkParts(source).map((p,i)=>p.href?<a key={i} href={p.href} target="_blank" rel="noopener noreferrer">{p.text}</a>:<span key={i}>{p.text}</span>)}</figcaption>}
  </figure>;
 }
