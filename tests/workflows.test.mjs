@@ -327,6 +327,12 @@ test('article component blocks: examples pass, server tools and workspace compon
  assert.match(wf.componentBlockErrors('```component\n{bad json\n```').join(' '),/invalid JSON/);
  assert.match(wf.componentBlockErrors('```component\n{"ui":[{"type":"text"}]').join(' '),/close it/);
  assert.match(wf.componentBlockErrors(block({ui:[{type:'file_upload',id:'f'}]})).join(' '),/cannot be used in an article/);
+ // A load step named after a state value fills it; a bound state value nothing sets is an error.
+ const named={state:{rows:[]},actions:{load:{steps:[{id:'rows',tool:'page_file.read',args:{name:'c.csv'}}]}},ui:[{type:'table',props:{rows:{$:'state.rows'}}}]};
+ assert.deepEqual(wf.componentBlockErrors(block(named)),[]);
+ assert.deepEqual(wf.blockWorkflow(named).actions.load.set,{rows:{$:'steps.rows'}});
+ const unset={state:{rows:[]},actions:{load:{steps:[{id:'read',tool:'page_file.read',args:{name:'c.csv'}}]}},ui:[{type:'table',props:{rows:{$:'state.rows'}}}]};
+ assert.match(wf.componentBlockErrors(block(unset)).join(' '),/state\.rows is shown but starts empty/);
  assert.match(wf.componentBlockErrors(block({ui:[{type:'text'}],actions:{load:{steps:[{id:'r',tool:'records.list',args:{collection:'x'}}]}}})).join(' '),/client action/);
  // The calculator example computes in the browser runner.
  const w=wf.blockWorkflow(c.examples[0].block);

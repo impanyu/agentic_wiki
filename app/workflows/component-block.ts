@@ -8,7 +8,14 @@ export const blockSchema=z.object({title:z.string().max(200).optional(),state:z.
 export const BLOCK_EXCLUDED=new Set(['article','file_upload','resource_picker','log']);
 export function blockWorkflow(raw:unknown):Workflow{
  const b=blockSchema.parse(raw);
- const actions=Object.fromEntries(Object.entries(b.actions||{}).map(([k,a])=>[k,{...(a as object),client:true}]));
+ const state=(b.state||{}) as Record<string,unknown>;
+ // A step whose id names a state value fills it when the action does not say otherwise:
+ // {"state":{"rows":[]},"actions":{"load":{"steps":[{"id":"rows","tool":"page_file.read",…}]}}}.
+ const actions=Object.fromEntries(Object.entries(b.actions||{}).map(([k,a])=>{
+  const x:Record<string,unknown>={...(a as Record<string,unknown>),client:true};
+  if(!x.set&&Array.isArray(x.steps)){const auto=Object.fromEntries((x.steps as {id?:unknown}[]).filter(st=>typeof st?.id==='string'&&Object.hasOwn(state,st.id)).map(st=>[st.id as string,{$:'steps.'+st.id}]));if(Object.keys(auto).length)x.set=auto;}
+  return [k,x];
+ }));
  return workflowSchema.parse({kind:'workflow-app',title:b.title,state:b.state||{},ui:b.ui,actions,layout:{density:'normal',...(b.layout||{})}});
 }
 export function excludedComponents(w:Workflow){const found:string[]=[];const walk=(nodes:WorkflowNode[])=>{for(const n of nodes){if(BLOCK_EXCLUDED.has(n.type))found.push(n.type);if(n.children)walk(n.children);}};walk(w.ui);return [...new Set(found)];}
