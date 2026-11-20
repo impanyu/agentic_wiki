@@ -13,6 +13,7 @@ import dynamic from 'next/dynamic';
 // Rich visualization and media components load their libraries only when a page uses them.
 const loadingViz=()=><div className="wf-viz wf-viz-loading" aria-busy="true"/>;
 const EChart=dynamic(()=>import('./viz/echart'),{ssr:false,loading:loadingViz});
+const Ranking=dynamic(()=>import('./viz/ranking'),{ssr:false,loading:loadingViz});
 const Scene3D=dynamic(()=>import('./viz/scene3d'),{ssr:false,loading:loadingViz});
 const MediaPlayer=dynamic(()=>import('./viz/media'),{ssr:false,loading:loadingViz});
 const Diagram=dynamic(()=>import('./viz/diagram'),{ssr:false,loading:loadingViz});
@@ -175,6 +176,7 @@ export function renderComponent(p:ComponentProps):ReactNode{
   case 'pdf':{const src=mediaUrl(props.src,ctx.pageId);return src?<iframe className="wf-pdf" title="PDF" src={src.includes('inline=1')?src:src+(src.includes('?')?'&':'?')+'inline=1'} style={{height:Number(props.height)||640}}/>:null;}
   case 'code':return <CodeBlock props={props} setValue={setValue} fire={fire} ctx={ctx}/>;
   case 'echart':return <EChart props={props} setValue={setValue} fire={fire} ctx={ctx}/>;
+  case 'ranking':return <Ranking props={props} setValue={setValue} fire={fire} ctx={ctx}/>;
   case 'scene3d':return <Scene3D props={props} setValue={setValue} fire={fire} ctx={ctx}/>;
   case 'diagram':return <Diagram props={props} setValue={setValue} fire={fire} ctx={ctx}/>;
   case 'math':return <MathBlock props={props} setValue={setValue} fire={fire} ctx={ctx}/>;

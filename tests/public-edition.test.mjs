@@ -30,14 +30,33 @@ test('the public toolbox offers public data sources and no user connectors or dr
  assert.match(source,/\.\.\.\(PUBLIC_EDITION\?publicSourceTools:\[\]\)/);
 });
 
-test('public data sources validate arguments and refuse unknown sources and tools',async()=>{
- globalThis.publicTest={remoteRequest:async(url)=>{globalThis.publicTest.last=url;return {data:url.includes('/search/repositories')?{total_count:1,items:[{full_name:'a/b',stargazers_count:5}]}:{total:1,results:[{id:'i1',title:'Parcels',type:'Feature Service'}]}};},callMcp:async()=>({}),discoverMcp:async()=>[],executeApiConnector:async()=>({items:[]}),z};
- const m=await load('app/public-data/service.ts','const {remoteRequest,callMcp,discoverMcp,executeApiConnector,z}=globalThis.publicTest;\n');
- await assert.rejects(m.callPublicSource('slack','send_message',{}),/Unknown public source/);
- await assert.rejects(m.callPublicSource('github','delete_repo',{}),/Unknown tool/);
- await assert.rejects(m.callPublicSource('arcgis','query_layer',{url:'https://example.com/data.json'}),/FeatureServer/);
- const repos=await m.callPublicSource('github','search_repositories',{query:'topic:llm',count:3});
+test('public data sources validate arguments, refuse unknown sources and tools, and save large tables as datasets',async()=>{
+ const reply=(url)=>url.includes('/search/repositories')?{total_count:1,items:[{full_name:'a/b',stargazers_count:5}]}:url.includes('rss.marketingtools')?{feed:{results:Array.from({length:50},(_,i)=>({id:String(i),name:'App '+i,artistName:'Dev',artworkUrl100:'https://x/100x100bb.png',url:'https://apps.apple.com/'+i}))}}:{total:1,results:[{id:'i1',title:'Parcels',type:'Feature Service'}]};
+ globalThis.publicTest={httpsTransport:async(url)=>{globalThis.publicTest.last=url;return {status:200,headers:{},text:JSON.stringify(reply(url))};},callMcp:async()=>({}),discoverMcp:async()=>[{name:'ask_question',description:'Ask. More text.',inputSchema:{type:'object',properties:{repoName:{},question:{}},required:['repoName']}}],
+  saveDataset:async(scope,input)=>{globalThis.publicTest.saved={scope,input};return {datasetId:'ds_test0000',title:input.title,source:input.source,rowCount:input.rows.length,columns:[],preview:input.rows.slice(0,8)};},datasetScope:ctx=>ctx.agent?.id||ctx.userId,z};
+ const src=['fetcher.ts','normalize.ts','sources.ts','service.ts'].map(f=>readFileSync('app/public-data/'+f,'utf8')).join('\n');
+ const m=await import('data:text/javascript;base64,'+Buffer.from('const {httpsTransport,callMcp,discoverMcp,saveDataset,datasetScope,z}=globalThis.publicTest;\n'+ts.transpile(src.replace(/^import .*;$/gm,''),{module:ts.ModuleKind.ESNext,target:ts.ScriptTarget.ES2022})).toString('base64'));
+ delete process.env.YOUTUBE_API_KEY;const ctx={userId:'u1',agent:{id:'ag1'}};
+ await assert.rejects(m.callPublicSource('slack','send_message',{},ctx),/Unknown public source/);
+ await assert.rejects(m.callPublicSource('github','delete_repo',{},ctx),/Unknown tool/);
+ await assert.rejects(m.callPublicSource('github','search_repositories',{query:'x',count:99},ctx),/Invalid arguments/);
+ await assert.rejects(m.callPublicSource('arcgis','query_layer',{url:'https://example.com/data.json'},ctx),/FeatureServer/);
+ await assert.rejects(m.callPublicSource('youtube','search',{query:'x'},ctx),/Unknown public source/);
+ const repos=await m.callPublicSource('github','search_repositories',{query:'topic:llm',count:3},ctx);
  assert.equal(repos.items[0].fullName,'a/b');assert.match(globalThis.publicTest.last,/per_page=3/);
- const items=await m.callPublicSource('arcgis','search_items',{query:'parcels'});
+ const items=await m.callPublicSource('arcgis','search_items',{query:'parcels'},ctx);
  assert.equal(items.items[0].page,'https://www.arcgis.com/home/item.html?id=i1');assert.match(decodeURIComponent(globalThis.publicTest.last),/access:public/);
+ const small=await m.callPublicSource('appstore','top_charts',{chart:'top-free-apps',count:10},ctx);
+ assert.equal(small.rows.length,10);assert.equal(small.dataset,undefined);
+ const big=await m.callPublicSource('appstore','top_charts',{chart:'top-free-apps',count:50},ctx);
+ assert.equal(big.rows,undefined);assert.equal(big.dataset.datasetId,'ds_test0000');assert.equal(big.rowCount,50);assert.match(big.note,/50 rows saved as dataset ds_test0000/);
+ assert.equal(globalThis.publicTest.saved.scope,'ag1');assert.equal(globalThis.publicTest.saved.input.rows[0].rank,1);
+ const catalog=await m.listPublicSources(undefined,'');
+ assert.ok(catalog.sources.length>=18);assert.ok(!catalog.sources.some(s=>s.id==='youtube'));
+ assert.ok(catalog.sources.find(s=>s.id==='wikidata').tools.includes('sparql(query, limit?)'));
+ assert.deepEqual(catalog.sources.find(s=>s.id==='deepwiki').tools,['ask_question(repoName, question?)']);
+ const one=await m.listPublicSources(undefined,'worldbank');
+ assert.equal(one.tools[0].inputSchema.required[0],'indicator');
+ await assert.rejects(m.listPublicSources(undefined,'nope'),/Unknown public source/);
+ assert.deepEqual(m.publicSourceTools[0].parameters.required,['source']);
 });

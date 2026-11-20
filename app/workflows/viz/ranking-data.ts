@@ -1,0 +1,162 @@
+// Pure helpers for the ranking component: parse, rank, format, summarize, choose the chart.
+// No React or DOM; tests load this file (with world-codes.ts and rich-helpers.ts) directly.
+import {countryKey} from './world-codes';
+import {safeImageUrl} from './rich-helpers';
+
+type Obj=Record<string,unknown>;
+export type Format='number'|'compact'|'percent'|'currency'|'decimal';
+export type Criterion={key:string;label:string;unit?:string;order:'desc'|'asc';format:Format;decimals?:number;currency?:string;description?:string;year?:string};
+export type Entry={index:number;row:Obj;name:string;question:string;value:number|null;rank:number|null;group:string|null;image:string|null;code:string|null};
+export type Summary={top:Entry|null;median:number|null;aggregate:'sum'|'average';aggregateValue:number|null;ranked:number;total:number;max:number;min:number};
+
+const isObj=(v:unknown):v is Obj=>!!v&&typeof v==='object'&&!Array.isArray(v);
+const FORMATS:Format[]=['number','compact','percent','currency','decimal'];
+
+// Numbers or numeric strings ("1,234.5", "72.5%", "$ 1 200", "1_000"); anything else is no data.
+export function parseNumber(v:unknown):number|null{
+ if(typeof v==='number')return Number.isFinite(v)?v:null;
+ if(typeof v!=='string')return null;
+ const s=v.replace(/[\s  ,_]/g,'').replace(/^[$€£¥]/,'').replace(/%$/,'').replace(/^\+/,'').replace(/^[−–]/,'-');
+ if(!s||!/^-?(\d+\.?\d*|\.\d+)(e[+-]?\d+)?$/i.test(s))return null;
+ const n=Number(s);return Number.isFinite(n)?n:null;
+}
+
+const text=(v:unknown)=>typeof v==='string'?v.trim():typeof v==='number'&&Number.isFinite(v)?String(v):'';
+
+export function normalizeCriteria(raw:unknown):Criterion[]{
+ const out:Criterion[]=[];const seen=new Set<string>();
+ for(const c of Array.isArray(raw)?raw:[]){
+  if(!isObj(c)||typeof c.key!=='string'||!c.key||seen.has(c.key))continue;seen.add(c.key);
+  const d=parseNumber(c.decimals);
+  out.push({key:c.key,label:text(c.label)||c.key,order:c.order==='asc'?'asc':'desc',format:FORMATS.includes(c.format as Format)?c.format as Format:'number',
+   ...(text(c.unit)?{unit:text(c.unit)}:{}),...(d!=null&&d>=0?{decimals:Math.min(6,Math.round(d))}:{}),
+   ...(typeof c.currency==='string'&&/^[A-Za-z]{3}$/.test(c.currency)?{currency:c.currency.toUpperCase()}:{}),
+   ...(text(c.description)?{description:text(c.description)}:{}),...(text(c.year)?{year:text(c.year)}:{})});
+ }
+ return out;
+}
+
+export const askHref=(question:string)=>'/?ask='+encodeURIComponent(question);
+
+// One entry per row that has a name; value is null when the criterion is missing.
+export function toEntries(rows:unknown,nameKey='name',groupKey?:string):Omit<Entry,'value'|'rank'>[]{
+ const out:Omit<Entry,'value'|'rank'>[]=[];
+ (Array.isArray(rows)?rows:isObj(rows)?[rows]:[]).forEach((row,index)=>{
+  if(!isObj(row))return;const name=text(row[nameKey]);if(!name)return;
+  out.push({index,row,name,question:text(row.question)||name,group:groupKey?text(row[groupKey])||null:null,image:safeImageUrl(row.image),code:text(row.code)||null});
+ });
+ return out;
+}
+
+// Competition ranking (1,2,2,4); rows without a value follow, unranked, in their original order.
+export function rankEntries(entries:Omit<Entry,'value'|'rank'>[],key:string,order:'desc'|'asc'='desc'):{ranked:Entry[];missing:Entry[]}{
+ const all=entries.map(e=>({...e,value:parseNumber(e.row[key]),rank:null as number|null}));
+ const ranked=all.filter(e=>e.value!=null).sort((a,b)=>(order==='asc'?a.value!-b.value!:b.value!-a.value!)||a.index-b.index);
+ ranked.forEach((e,i)=>{e.rank=i&&ranked[i-1].value===e.value?ranked[i-1].rank:i+1;});
+ return {ranked,missing:all.filter(e=>e.value==null)};
+}
+
+export function median(values:number[]):number|null{
+ if(!values.length)return null;const s=[...values].sort((a,b)=>a-b),m=s.length>>1;
+ return s.length%2?s[m]:(s[m-1]+s[m])/2;
+}
+
+// Sums are meaningless for rates and averages (percent, decimal): those show the average.
+export function summarize(ranked:Entry[],missing:Entry[],c:Pick<Criterion,'format'>):Summary{
+ const vals=ranked.map(e=>e.value!);const sum=vals.reduce((a,b)=>a+b,0);
+ const aggregate=c.format==='percent'||c.format==='decimal'?'average':'sum';
+ return {top:ranked[0]??null,median:median(vals),aggregate,aggregateValue:vals.length?aggregate==='sum'?sum:sum/vals.length:null,ranked:ranked.length,total:ranked.length+missing.length,
+  max:vals.length?Math.max(...vals):0,min:vals.length?Math.min(...vals):0};
+}
+
+const intl=(locale:string,o:Intl.NumberFormatOptions)=>{try{return new Intl.NumberFormat(locale||'en',o);}catch{try{return new Intl.NumberFormat('en',o);}catch{return new Intl.NumberFormat('en');}}};
+const unitGlue=(unit:string)=>/^[%°′″‰]/.test(unit)?unit:' '+unit;
+
+// A formatter for one criterion; values decide the default precision (0 when all are integers).
+export function makeFormatter(c:Pick<Criterion,'format'|'decimals'|'currency'|'unit'>,values:number[],locale:string,opts:{unit?:boolean;compact?:boolean}={}):(n:number|null)=>string{
+ const ints=values.every(v=>Number.isInteger(v));
+ const maxAbs=values.reduce((m,v)=>Math.max(m,Math.abs(v)),0);
+ let f:Intl.NumberFormat;let suffix='';
+ switch(c.format){
+  case 'compact':f=intl(locale,{notation:'compact',maximumFractionDigits:c.decimals??1});break;
+  case 'percent':f=intl(locale,{maximumFractionDigits:c.decimals??1});suffix='%';break;
+  // Large amounts (GDP) read better as $25.4T than as 14 digits.
+  case 'currency':f=intl(locale,maxAbs>=1e6||opts.compact?{style:'currency',currency:c.currency||'USD',notation:'compact',maximumFractionDigits:c.decimals??1}:{style:'currency',currency:c.currency||'USD',minimumFractionDigits:c.decimals??(ints?0:2),maximumFractionDigits:c.decimals??(ints?0:2)});break;
+  case 'decimal':f=intl(locale,{minimumFractionDigits:c.decimals??1,maximumFractionDigits:c.decimals??1});break;
+  default:f=opts.compact?intl(locale,{notation:'compact',maximumFractionDigits:1}):intl(locale,{maximumFractionDigits:c.decimals??(ints?0:2)});
+ }
+ const unit=opts.unit!==false&&c.unit&&c.format!=='percent'&&c.format!=='currency'?unitGlue(c.unit):'';
+ return n=>n==null||!Number.isFinite(n)?'—':f.format(n)+suffix+unit;
+}
+
+// Share of the total (for summable values) or a "top x%" percentile.
+export function shareOf(e:Entry,s:Summary,locale:string):{kind:'share'|'top';text:string}|null{
+ if(e.value==null||e.rank==null)return null;
+ if(s.aggregate==='sum'&&s.aggregateValue&&s.aggregateValue>0&&s.min>=0){
+  const p=e.value/s.aggregateValue*100;
+  return {kind:'share',text:intl(locale,{maximumFractionDigits:p<1?2:1}).format(p)+'%'};
+ }
+ return {kind:'top',text:Math.max(1,Math.ceil(e.rank/s.ranked*100))+'%'};
+}
+
+// 'auto' draws a world map when at least 60% of rows carry a recognizable country code.
+export function chartMode(chart:unknown,entries:{code:string|null}[]):'bar'|'map'|'none'{
+ if(chart==='bar'||chart==='map'||chart==='none')return chart;
+ if(!entries.length)return 'bar';
+ const known=entries.filter(e=>countryKey(e.code)).length;
+ return known>=3&&known/entries.length>=.6?'map':'bar';
+}
+
+// Map colors follow a log scale when positive values span two or more orders of magnitude (population, GDP).
+export function colorScale(values:number[]):{log:boolean;min:number;max:number}{
+ if(!values.length)return {log:false,min:0,max:1};
+ const min=Math.min(...values),max=Math.max(...values);
+ if(min>0&&max/min>=100)return {log:true,min:Math.log10(min),max:Math.log10(max)};
+ return {log:false,min,max:max===min?min+1:max};
+}
+
+// Stable group order (first appearance) for colors and filter chips.
+export function groupsOf(entries:{group:string|null}[]):string[]{
+ const out:string[]=[];for(const e of entries)if(e.group&&!out.includes(e.group))out.push(e.group);return out;
+}
+
+// Equal Earth projection (Šavrič, Patterson, Jenny 2018); y grows downward as ECharts expects.
+const A1=1.340264,A2=-0.081106,A3=0.000893,A4=0.003796,M=Math.sqrt(3)/2,RAD=Math.PI/180;
+export function equalEarth(p:number[]):number[]{
+ const t=Math.asin(M*Math.sin(p[1]*RAD)),t2=t*t,t6=t2*t2*t2;
+ return [p[0]*RAD*Math.cos(t)/(M*(A1+3*A2*t2+t6*(7*A3+9*A4*t2))),-t*(A1+A2*t2+t6*(A3+A4*t2))];
+}
+export function equalEarthInvert(p:number[]):number[]{
+ const y=-p[1];let t=y,t2=0,t6=0;
+ for(let i=0;i<12;i++){t2=t*t;t6=t2*t2*t2;const fy=t*(A1+A2*t2+t6*(A3+A4*t2))-y,fpy=A1+3*A2*t2+t6*(7*A3+9*A4*t2);const d=fy/fpy;t-=d;if(Math.abs(d)<1e-12)break;}
+ t2=t*t;t6=t2*t2*t2;
+ return [M*p[0]*(A1+3*A2*t2+t6*(7*A3+9*A4*t2))/Math.cos(t)/RAD,Math.asin(Math.max(-1,Math.min(1,Math.sin(t)/M)))/RAD];
+}
+
+export const escapeHtml=(s:string)=>s.replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c]!);
+
+// Attribution text split into plain and link parts (http/https URLs only).
+export function linkParts(s:string):{text:string;href?:string}[]{
+ const out:{text:string;href?:string}[]=[];let last=0;
+ for(const m of s.matchAll(/https?:\/\/[^\s<>"']+/g)){
+  let url=m[0];const trail=url.match(/[.,;:!?)\]]+$/);if(trail)url=url.slice(0,-trail[0].length);
+  if(m.index!>last)out.push({text:s.slice(last,m.index)});
+  out.push({text:url,href:url});last=m.index!+url.length;
+ }
+ if(last<s.length)out.push({text:s.slice(last)});
+ return out;
+}
+
+// Polygons that cross the antimeridian (Russia, Fiji) would streak across a flat map:
+// their points on the far side are pinned to the edge of the side holding most of the polygon.
+export function fixAntimeridian(geometry:{type:string;coordinates:any}):{type:string;coordinates:any}{
+ const polys:number[][][][]=geometry.type==='Polygon'?[geometry.coordinates]:geometry.type==='MultiPolygon'?geometry.coordinates:[];
+ const fixed=polys.map(poly=>{
+  const crosses=poly.some(ring=>ring.some((p,i)=>i>0&&Math.abs(p[0]-ring[i-1][0])>180));
+  if(!crosses)return poly;
+  let east=0,west=0;for(const ring of poly)for(const p of ring)p[0]>=0?east++:west++;
+  const edge=east>=west?180:-180;
+  return poly.map(ring=>ring.map(p=>(edge>0?p[0]<0:p[0]>0)?[edge,p[1]]:p));
+ });
+ return geometry.type==='Polygon'?{...geometry,coordinates:fixed[0]}:geometry.type==='MultiPolygon'?{...geometry,coordinates:fixed}:geometry;
+}
