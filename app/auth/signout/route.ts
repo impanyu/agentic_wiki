@@ -1,8 +1,9 @@
+import {SITE_NAME,PUBLIC_EDITION} from '@/app/edition';
 import { env } from '@/server/runtime';
 import { cookie, hash, origin, sessionCookie, requestCookie } from '@/server/auth';
 const copy={
- en:{title:'Sign out of AgenticWiKi?',body:'You will leave this device signed out. Your pages, history and connectors stay saved in your account.',confirm:'Sign out',cancel:'Cancel'},
- zh:{title:'退出 AgenticWiKi？',body:'退出后此设备将不再保持登录。你的页面、浏览记录和连接器仍会保存在账户中。',confirm:'退出登录',cancel:'取消'},
+ en:{title:'Sign out of '+SITE_NAME+'?',body:'You will leave this device signed out. '+(PUBLIC_EDITION?'Your history stays saved in your account.':'Your pages, history and connectors stay saved in your account.'),confirm:'Sign out',cancel:'Cancel'},
+ zh:{title:'退出 '+SITE_NAME+'？',body:'退出后此设备将不再保持登录。'+(PUBLIC_EDITION?'你的浏览记录仍会保存在账户中。':'你的页面、浏览记录和连接器仍会保存在账户中。'),confirm:'退出登录',cancel:'取消'},
 };
 const style=`:root{color-scheme:light dark;--bg:#f1f3f6;--card:#fff;--text:#1f2a3d;--muted:#5f6b80;--line:#dce1e8;--brand:#47536a;--primary:#2f5bd3;--primary-hover:#244bb4}
 @media(prefers-color-scheme:dark){:root{--bg:#12161d;--card:#1b212b;--text:#e7ebf2;--muted:#9aa5b8;--line:#2c3441;--brand:#c3cad6;--primary:#4f7cf0;--primary-hover:#6a91f5}}
@@ -16,7 +17,7 @@ button:focus-visible,a.cancel:focus-visible{outline:2px solid var(--primary);out
 const mark='<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83Z"/><path d="m22 17.65-9.17 4.16a2 2 0 0 1-1.66 0L2 17.65"/><path d="m22 12.65-9.17 4.16a2 2 0 0 1-1.66 0L2 12.65"/></svg>';
 export async function GET(request: Request) {
   const lang=/^zh\b/i.test(request.headers.get('accept-language')||'')?'zh':'en',t=copy[lang];
-  const html=`<!doctype html><html lang="${lang==='zh'?'zh-CN':'en'}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${t.confirm} · AgenticWiKi</title><style>${style}</style></head><body><main><div class="brand">${mark}<span>AgenticWiKi</span></div><h1>${t.title}</h1><p>${t.body}</p><form method="post" class="actions"><button type="submit" autofocus>${t.confirm}</button><a class="cancel" href="/">${t.cancel}</a></form></main></body></html>`;
+  const html=`<!doctype html><html lang="${lang==='zh'?'zh-CN':'en'}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${t.confirm} · ${SITE_NAME}</title><style>${style}</style></head><body><main><div class="brand">${mark}<span>${SITE_NAME}</span></div><h1>${t.title}</h1><p>${t.body}</p><form method="post" class="actions"><button type="submit" autofocus>${t.confirm}</button><a class="cancel" href="/">${t.cancel}</a></form></main></body></html>`;
   return new Response(html,{headers:{'Content-Type':'text/html; charset=utf-8','Cache-Control':'no-store','Content-Security-Policy':"default-src 'none'; style-src 'unsafe-inline'; form-action 'self'; frame-ancestors 'none'"}});
 }
 export async function POST(request: Request) {

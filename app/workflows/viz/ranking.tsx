@@ -146,7 +146,10 @@ export default function Ranking({props,setValue,fire,ctx}:VizProps){
  const nameKey=typeof props.nameKey==='string'&&props.nameKey?props.nameKey:'name';
  const groupKey=typeof props.groupKey==='string'&&props.groupKey?props.groupKey:undefined;
  const entries=useMemo(()=>toEntries(props.rows,nameKey,groupKey),[props.rows,nameKey,groupKey]);
- const initial=criteria.find(c=>c.key===props.default)?.key??criteria[0]?.key??'';
+ // ?rank=<criterion key> opens the ranking on that criterion (one ranking page per scope;
+ // "countries by GDP" and "countries by population" are the same page on different criteria).
+ const fromUrl=typeof location!=='undefined'?new URLSearchParams(location.search).get('rank'):null;
+ const initial=criteria.find(c=>c.key===fromUrl)?.key??criteria.find(c=>c.key===props.default)?.key??criteria[0]?.key??'';
  const [critKey,setCritKey]=useState(initial);
  const c=criteria.find(x=>x.key===critKey)??criteria.find(x=>x.key===initial)??criteria[0];
  const height=typeof props.height==='number'&&props.height>=200?Math.min(props.height,1200):420;
@@ -181,7 +184,7 @@ export default function Ranking({props,setValue,fire,ctx}:VizProps){
  const noData=t('No data');
 
  const pick=(e:Entry|undefined)=>{if(e)fire('select',e.row);};
- const choose=(key:string)=>{if(key===critKey)return;setCritKey(key);setValue(key);fire('change',key);};
+ const choose=(key:string)=>{if(key===critKey)return;setCritKey(key);setValue(key);fire('change',key);try{const u=new URL(location.href);u.searchParams.set('rank',key);history.replaceState(history.state,'',u);}catch{}};
 
  // Bar chart: the top N, or every entity with a scroll window.
  const barShown=allBars?chartRanked:chartRanked.slice(0,top);

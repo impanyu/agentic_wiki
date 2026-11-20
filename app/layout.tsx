@@ -1,8 +1,9 @@
+import {PUBLIC_EDITION} from './edition';
 import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "AgenticWiKi · A question is an address",
+  title: PUBLIC_EDITION?"RankWiki · Search any entity, rank any category":"AgenticWiKi · A question is an address",
   description: "Enter a question like an address. Open one consistent answer.",
   other: {
     "codex-preview": "development",

@@ -739,5 +739,8 @@
   "For example: keep prices current, check the linked data still loads": "例如：保持价格为最新；检查链接的数据能否正常加载",
   "This component could not be displayed.": "此组件无法显示。",
   "Component source": "组件源码",
-  "Drag to rotate · Click, then scroll to zoom": "拖动旋转 · 点击后滚动缩放"
+  "Drag to rotate · Click, then scroll to zoom": "拖动旋转 · 点击后滚动缩放",
+  "Search any entity, rank any category.": "搜索任何实体，排名任何类别。",
+  "Type a thing (a country, a phone, a perfume…) or a category (countries, smartphones, perfumes…) and press Enter.": "输入一个事物（一个国家、一款手机、一款香水……）或一个类别（国家、智能手机、香水……），然后按 Enter。",
+  "Search an entity or a ranking — e.g. Countries, iPhone 17, Perfumes": "搜索实体或排名——例如：国家、iPhone 17、香水"
 }

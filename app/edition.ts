@@ -8,6 +8,8 @@ export const WIKI_EDITION=true;
 // read-only; there are no user connectors, uploads, Page-file management, editing,
 // page chat, forks or private pages. Signing in only keeps the visitor's history.
 export const PUBLIC_EDITION=true;
+// The site's name: the public edition is RankWiki, an entity search and ranking site.
+export const SITE_NAME=PUBLIC_EDITION?'RankWiki':'AgenticWiKi';
 type PageLike={kind?:string;question?:string;dynamic?:{template?:string;nativeApp?:string;workflow?:{ui?:unknown}}|null};
 export function editionShowsPage(page:PageLike){
  if(page.kind!=='dynamic')return true;

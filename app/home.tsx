@@ -1,4 +1,5 @@
 'use client';
+import {PUBLIC_EDITION} from './edition';
 import {useCallback,useEffect,useRef,useState} from 'react';
 import {Clock3,LoaderCircle,AppWindow,FileText,X,Bot} from 'lucide-react';
 import {useUi} from '@/app/i18n/client';
@@ -33,7 +34,7 @@ export function HomePage({onOpen,revision=0}:{onOpen:(card:HomeCard)=>void;revis
   {!!cards?.length&&data?.next!=null&&<div ref={sentinel} className="home-more">{loadingMore?<><LoaderCircle className="spinner" size={15}/>{t('Loading more…')}</>:<button type="button" onClick={()=>void loadMore()}>{t('Load more')}</button>}</div>}
  </section>;
  return <div className="home-page">
-  <div className="home-intro"><p>{t("A question is an address.")}</p><span>{t("Type above and press Enter, or reopen a page below.")}</span></div>
+  <div className="home-intro">{PUBLIC_EDITION?<><p>{t("Search any entity, rank any category.")}</p><span>{t("Type a thing (a country, a phone, a perfume…) or a category (countries, smartphones, perfumes…) and press Enter.")}</span></>:<><p>{t("A question is an address.")}</p><span>{t("Type above and press Enter, or reopen a page below.")}</span></>}</div>
   {error&&<p className="request-error" role="alert">{t(error)}</p>}
   {section(t('Recently visited'),Clock3,data?.visited,t('No visited pages yet.'))}
  </div>;
