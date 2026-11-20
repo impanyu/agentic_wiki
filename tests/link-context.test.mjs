@@ -3,7 +3,7 @@ const strip=p=>readFileSync(p,'utf8').replace(/^import .*;$/gm,'');
 const page={title:'Malaria',summary:'An infectious disease',body:'## Transmission\nTransmission occurs through mosquitoes.'};
 let accessible=true,request,result;
 globalThis.linkFixture={z,getPage:async()=>accessible?page:null,model:()=> 'routing-model',api:async(_,p)=>{request=p;return {};},output:()=>JSON.stringify(result)};
-const source='const {z,getPage,model,api,output}=globalThis.linkFixture;\n'+strip('app/internal-links.ts')+'\n'+strip('app/routing/link-context.ts');
+const source='const {z,getPage,model,api,output}=globalThis.linkFixture;const respond=(b,s)=>api("responses",b,s);\n'+strip('app/internal-links.ts')+'\n'+strip('app/routing/link-context.ts');
 const m=await import('data:text/javascript;base64,'+Buffer.from(ts.transpile(source,{module:ts.ModuleKind.ESNext,target:ts.ScriptTarget.ES2022})).toString('base64'));
 const origin={pageId:'11111111-1111-4111-8111-111111111111',highlight:{quote:'Transmission',segments:[{node:'line1.0',start:0,end:12}]}};
 test('link resolution uses authenticated source and local passage only when needed',async()=>{

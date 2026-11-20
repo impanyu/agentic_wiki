@@ -10,7 +10,7 @@ test('durable page conversation survives FIFO limits, paginates and isolates pri
  const database=()=>({prepare(sql){return {bind(...args){return {first:async()=>db.prepare(sql).get(...args),all:async()=>({results:db.prepare(sql).all(...args)}),run:async()=>db.prepare(sql).run(...args)};}};}});
  db.exec("INSERT INTO agent_instances VALUES('session','page:p','owner',NULL,'now')");
  globalThis.chatTest={database,model:()=>'',api:async()=>({}),output:()=> 'Remember the first goals.',memory:async()=>[]};
- const h=await load(stripped('app/chat/history.ts')+'\nconst {database,model,api,output,memory}=globalThis.chatTest;');const a={id:'session',ownerId:'owner',role:'page:p'};
+ const h=await load(stripped('app/chat/history.ts')+'\nconst {database,model,api,output,memory}=globalThis.chatTest;const respond=(b,s)=>api("responses",b,s);');const a={id:'session',ownerId:'owner',role:'page:p'};
  for(let i=1;i<=65;i++)await h.saveTurn(a,'question '+i,'reply '+i);
  const recent=await h.readTurns(a);assert.equal(recent.messages.length,50);assert.equal(recent.messages[0].user,'question 16');assert.equal(recent.messages.at(-1).user,'question 65');
  const earlier=await h.readTurns(a,recent.before);assert.equal(earlier.messages.length,15);assert.equal(earlier.before,null);

@@ -13,7 +13,7 @@ test('generator may omit media; selected IDs are deduplicated and never replaced
  const candidates=extractSourceMedia('<img src="/chart.png" alt="Measured values">','https://example.org/article');let selection={items:[]};
  globalThis.sourceSelection={z,api:async()=>selection,output:r=>JSON.stringify(r),model:()=> 'test'};
  const code=readFileSync('app/url-content/select-media.ts','utf8').replace(/^import .*;$/gm,'');
- const {selectSourceMedia}=await load('const {z,api,output,model}=globalThis.sourceSelection;\n'+code);
+ const {selectSourceMedia}=await load('const {z,api,output,model}=globalThis.sourceSelection;const respond=(b,s)=>api("responses",b,s);\n'+code);
  assert.deepEqual(await selectSourceMedia({media:candidates},'Article','en'),[]);
  selection={items:[{id:candidates[0].id,caption:'Measured values'},{id:candidates[0].id,caption:'Duplicate'},{id:'invented',caption:'Fake'}]};
  const selected=await selectSourceMedia({media:candidates},'Article','en');assert.equal(selected.length,1);assert.equal(selected[0].url,candidates[0].url);assert.equal(selected[0].caption,'Measured values');

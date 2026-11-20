@@ -19,7 +19,7 @@ test('agent owns a direct tool loop and required search still requires actual ev
  let completed=true,payload;
  globalThis.directLoop={model:()=> 'test-model',memory:async()=>[],recordAction:async()=>{},output:()=> '{"needed":false}',api:async(path,p)=>{payload=p;return {output:completed?[{type:'web_search_call',status:'completed'}]:[]};}};
  const code=strip('app/agents/runtime.ts').slice(strip('app/agents/runtime.ts').indexOf('type AgentOptions=')).replace("await (await import('./tools')).applicationToolbox(agent,options.context,signal)","({tools:[{type:'web_search'}],instructions:'',execute:async()=>({data:{}})})");
- const m=await load('const {'+Object.keys(globalThis.directLoop).join(',')+'}=globalThis.directLoop;const reasoningOptions=()=>({}),compactSession=async()=>({}),sessionContext=async()=>({}),runJournal=()=>async()=>{};\n'+strip('app/agents/loop.ts')+'\n'+code);
+ const m=await load('const {'+Object.keys(globalThis.directLoop).join(',')+'}=globalThis.directLoop;const respond=(b,s)=>api("responses",b,s);const reasoningOptions=()=>({}),compactSession=async()=>({}),sessionContext=async()=>({}),runJournal=()=>async()=>{};\n'+strip('app/agents/loop.ts')+'\n'+code);
  const agent={role:'content-generation'};
  await m.askAgent(agent,'Check meanings',{}, {},undefined,undefined,[],{webSearch:true});assert.equal(payload.tool_choice,'auto');assert.ok(payload.tools.some(t=>t.name==='delegate_task'));
  completed=false;await assert.rejects(m.askAgent(agent,'Check',{}, {},undefined,undefined,[],{webSearch:true}),/AI_UNAVAILABLE/);

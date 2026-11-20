@@ -30,7 +30,7 @@ test('durable memory, notes and tool journals are isolated and old actions stay 
  const database=()=>({prepare(sql){return {bind(...args){return {first:async()=>db.prepare(sql).get(...args),all:async()=>({results:db.prepare(sql).all(...args)}),run:async()=>db.prepare(sql).run(...args)};}};},batch:async statements=>Promise.all(statements.map(s=>s.run()))});
  db.exec("INSERT INTO agent_instances VALUES('a','page:p','alice',NULL,'now'),('b','page:p','bob',NULL,'now')");
  globalThis.agentSessionTest={database,model:()=>'',api:async()=>({}),output:()=> 'First goal and unfinished tasks.',z};
- const m=await load('const {database,model,api,output,z}=globalThis.agentSessionTest;\n'+source('app/agents/session.ts'));
+ const m=await load('const {database,model,api,output,z}=globalThis.agentSessionTest;const respond=(b,s)=>api("responses",b,s);\n'+source('app/agents/session.ts'));
  const a={id:'a',ownerId:'alice',role:'page:p'},b={id:'b',ownerId:'bob',role:'page:p'};
  for(let i=1;i<=65;i++)db.prepare('INSERT INTO agent_memory(agent_id,action,result,created_at) VALUES(?,?,?,?)').run('a','action '+i,'result '+i,'now');
  await m.compactSession(a);assert.equal(db.prepare('SELECT count(*) n FROM agent_memory').get().n,65);

@@ -1,0 +1,593 @@
+import type {EntityDb,Queryable,Row} from './client';
+import {GLOBAL_ID_KEYS,storedEmbedDim} from './schema';
+import {getEmbedder,toVector,entityText} from './embeddings';
+import {METRIC_KEY,DENOMINATORS,parseDefinition,parseMetricRef,evaluateDefinition,competitionRanks,type DerivedDefinition,type EvalData,type Point} from './metrics';
+// Repository for the entity database. Every function takes the database (or a transaction) first.
+// All SQL is parameterised: user values only ever travel as $n parameters.
+
+class Params{list:unknown[]=[];add(v:unknown){this.list.push(v);return '$'+this.list.length;}}
+const UPSERT_LOCK=724_002;
+const UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const TYPE=/^[a-z][a-z0-9_]{0,40}$/;
+const iso=(d:unknown)=>d instanceof Date?d.toISOString():d==null?null:String(d);
+export function normalizeType(t:string){const s=String(t||'').trim().toLowerCase().replace(/[\s-]+/g,'_');if(!TYPE.test(s))throw Error('Invalid entity type "'+t+'": use a lower-case noun like "country", "city", "football_club".');return s;}
+function stable(v:unknown):string{if(Array.isArray(v))return '['+v.map(stable).join(',')+']';if(v&&typeof v==='object')return '{'+Object.keys(v).filter(k=>(v as Row)[k]!==undefined).sort().map(k=>JSON.stringify(k)+':'+stable((v as Row)[k])).join(',')+'}';return JSON.stringify(v);}
+
+// ───────────── values ─────────────
+export function parseNumber(v:unknown):number|null{
+ if(typeof v==='number')return Number.isFinite(v)?v:null;
+ if(typeof v!=='string')return null;
+ const s=v.trim().replace(/[−–]/g,'-').replace(/[,\s_ ]/g,'').replace(/%$/,'');
+ return /^[-+]?\d*\.?\d+(e[-+]?\d+)?$/i.test(s)?Number(s):null;
+}
+export function normalizeId(key:string,value:unknown):string|null{
+ if(value==null)return null;let s=String(value).trim();if(!s)return null;
+ if(key==='wikidata'){const m=/Q\d+/i.exec(s);return m?m[0].toUpperCase():null;}
+ if(['iso3','iso2','ticker','isin','lei','iata','icao','fifa'].includes(key))s=s.toUpperCase();
+ return s.slice(0,200);
+}
+
+// ───────────── entities: identity resolution and upsert ─────────────
+export type EntityInput={type:string;name:string;aliases?:string[];description?:string;ids?:Record<string,string>;attributes?:Record<string,unknown>;image?:string;pageId?:string;topicId?:string|null};
+export type EntityMapping={type:string;nameColumn:string;idColumns?:Record<string,string>;aliasColumns?:string[];descriptionColumn?:string;imageColumn?:string;
+ attributeColumns?:(string|{column:string;key:string})[];metricColumns?:Record<string,{metric:string;unit?:string;period?:string}>;topicId?:string|null};
+export type Provenance={source:string;retrievedAt?:string|Date};
+export type UpsertResult={rows:number;inserted:number;merged:number;skipped:number;observations:number;idConflicts:number;errors:string[];entityIds:string[]};
+
+type Match={id:string;ids:Record<string,string>;tsv:string};
+// Identity rule:
+// 1. any shared standard id (ids keys) → same entity; wikidata matches across types, other keys within the type;
+//    when ids point at different entities the first (wikidata first) wins and the conflicting keys are not written;
+// 2. else same type and a shared normalised name/alias, unless both carry the same id key with different values;
+// 3. else a new entity. Existing ids are never overwritten; aliases are merged; attributes are updated.
+export async function upsertEntity(q:Queryable,input:EntityInput):Promise<{id:string;action:'inserted'|'merged';idConflicts:number}>{
+ const type=normalizeType(input.type),name=String(input.name||'').trim().slice(0,300);
+ if(!name)throw Error('An entity needs a name.');
+ const ids:Record<string,string>={};
+ for(const [k,v] of Object.entries(input.ids||{})){const key=k.trim().toLowerCase();const n=normalizeId(key,v);if(n&&/^[a-z][a-z0-9_]{0,40}$/.test(key))ids[key]=n;}
+ const order=Object.keys(ids).sort((a,b)=>Number(!GLOBAL_ID_KEYS.includes(a as never))-Number(!GLOBAL_ID_KEYS.includes(b as never)));
+ let target:Match|null=null;let conflicts=0;const drop=new Set<string>();
+ for(const k of order){
+  const global=GLOBAL_ID_KEYS.includes(k as never);
+  const r=await q.query<Match>('select id, ids, tsv::text as tsv from entities where ids @> $1::jsonb and ($3::boolean or type = $2::text) limit 1',[JSON.stringify({[k]:ids[k]}),type,global]);
+  const row=r.rows[0];if(!row)continue;
+  if(!target)target=row;else if(row.id!==target.id){drop.add(k);conflicts++;}
+ }
+ const aliases=(input.aliases||[]).map(a=>String(a).trim().slice(0,300)).filter(Boolean);
+ if(!target){
+  const r=await q.query<Match>(`select id, ids, tsv::text as tsv from entities where type = $1::text and name_keys && ent_keys($2::text, $3::text[])
+   order by (ent_norm(name) = ent_norm($2::text)) desc, created_at limit 10`,[type,name,aliases]);
+  target=r.rows.find(row=>!Object.keys(ids).some(k=>row.ids[k]!=null&&row.ids[k]!==ids[k]))||null;
+ }
+ if(target)for(const k of Object.keys(ids))if(target.ids[k]!=null&&target.ids[k]!==ids[k]&&!drop.has(k)){drop.add(k);conflicts++;}
+ const writeIds=Object.fromEntries(Object.entries(ids).filter(([k])=>!drop.has(k)));
+ const attributes=Object.fromEntries(Object.entries(input.attributes||{}).filter(([,v])=>v!==undefined&&v!==null&&v!==''));
+ const description=String(input.description||'').trim().slice(0,4000),image=String(input.image||'').trim().slice(0,2000),pageId=String(input.pageId||'').trim().slice(0,200);
+ const topicId=input.topicId&&UUID.test(input.topicId)?input.topicId:null;
+ if(!target){
+  const r=await q.query<{id:string}>(`insert into entities(type,name,aliases,description,ids,attributes,image,page_id,topic_id)
+   values ($1::text,$2::text,ent_merge_aliases($2::text,$3::text[]),$4::text,$5::jsonb,$6::jsonb,nullif($7::text,''),nullif($8::text,''),$9::uuid) returning id`,
+   [type,name,aliases,description,JSON.stringify(writeIds),JSON.stringify(attributes),image,pageId,topicId]);
+  return {id:r.rows[0].id,action:'inserted',idConflicts:conflicts};
+ }
+ const r=await q.query<{tsv:string}>(`update entities set aliases = ent_merge_aliases(name, aliases || $2::text[]), ids = $3::jsonb || ids,
+   attributes = attributes || $4::jsonb, description = case when $5::text <> '' then $5::text else description end,
+   image = coalesce(nullif($6::text,''), image), page_id = coalesce(page_id, nullif($7::text,'')), topic_id = coalesce(topic_id, $8::uuid), updated_at = now()
+   where id = $1::uuid returning tsv::text as tsv`,[target.id,[name,...aliases],JSON.stringify(writeIds),JSON.stringify(attributes),description,image,pageId,topicId]);
+ // Text that feeds the embedding changed → re-embed later.
+ if(r.rows[0]?.tsv!==target.tsv)await q.query('update entities set embedding = null where id = $1::uuid',[target.id]);
+ return {id:target.id,action:'merged',idConflicts:conflicts};
+}
+
+const cellText=(v:unknown)=>v==null?'':typeof v==='object'?JSON.stringify(v):String(v).trim();
+// Maps dataset rows to entities (+ observations) and upserts them in transactions of 250 rows.
+// A bad row is skipped (savepoint) and reported, never aborting the batch.
+export async function upsertEntities(db:EntityDb,rows:Row[],mapping:EntityMapping,provenance:Provenance):Promise<UpsertResult>{
+ const type=normalizeType(mapping.type);
+ const metricCols=Object.entries(mapping.metricColumns||{}).map(([column,m])=>{const {key}=parseMetricRef(m.metric);return {column,key,unit:m.unit||'',period:m.period||''};});
+ const source=String(provenance.source||'').slice(0,500),retrievedAt=iso(provenance.retrievedAt)||new Date().toISOString();
+ const out:UpsertResult={rows:rows.length,inserted:0,merged:0,skipped:0,observations:0,idConflicts:0,errors:[],entityIds:[]};
+ if(metricCols.length)await ensureObservedMetrics(db,metricCols.map(m=>({key:m.key,unit:m.unit})));
+ for(let start=0;start<rows.length;start+=250){
+  await db.tx(async q=>{
+   await q.query('select pg_advisory_xact_lock($1)',[UPSERT_LOCK]);
+   const obs:ObservationInput[]=[];
+   for(const [i,row] of rows.slice(start,start+250).entries()){
+    const name=cellText(row[mapping.nameColumn]);
+    if(!name){out.skipped++;continue;}
+    const ids:Record<string,string>={};for(const [k,col] of Object.entries(mapping.idColumns||{})){const v=cellText(row[col]);if(v)ids[k]=v;}
+    const aliases=(mapping.aliasColumns||[]).flatMap(c=>{const v=row[c];return Array.isArray(v)?v.map(String):cellText(v).split(/\s*[;|]\s*/);}).filter(Boolean);
+    const attributes:Row={};for(const a of mapping.attributeColumns||[]){const {column,key}=typeof a==='string'?{column:a,key:a}:a;const v=row[column];if(v!=null&&v!=='')attributes[key]=typeof v==='string'?v.trim():v;}
+    await q.query('savepoint entity_row');
+    try{
+     const r=await upsertEntity(q,{type,name,aliases,ids,attributes,description:mapping.descriptionColumn?cellText(row[mapping.descriptionColumn]):'',image:mapping.imageColumn?cellText(row[mapping.imageColumn]):'',topicId:mapping.topicId});
+     await q.query('release savepoint entity_row');
+     out[r.action]++;out.idConflicts+=r.idConflicts;out.entityIds.push(r.id);
+     for(const m of metricCols){const value=parseNumber(row[m.column]);if(value==null)continue;
+      const period=m.period&&m.period in row?cellText(row[m.period]):m.period;
+      obs.push({entityId:r.id,metric:m.key,value,period,source,retrievedAt});}
+    }catch(e){await q.query('rollback to savepoint entity_row');out.skipped++;if(out.errors.length<5)out.errors.push('row '+(start+i+1)+' ('+name.slice(0,60)+'): '+(e as Error).message);}
+   }
+   out.observations+=await writeObservations(q,obs);
+  });
+ }
+ out.entityIds=[...new Set(out.entityIds)];
+ return out;
+}
+
+// ───────────── observations ─────────────
+export type ObservationInput={entityId:string;metric:string;value:number;period?:string;source?:string;retrievedAt?:string|Date;metricVersion?:number};
+async function writeObservations(q:Queryable,list:ObservationInput[]):Promise<number>{
+ const byKey=new Map<string,ObservationInput>();// last one wins inside a batch
+ for(const o of list){if(!UUID.test(o.entityId)||!Number.isFinite(o.value))continue;const key=parseMetricRef(o.metric).key;byKey.set([o.entityId,key,o.period||'',o.source||''].join('\u0000'),{...o,metric:key});}
+ const rows=[...byKey.values()];if(!rows.length)return 0;
+ await q.query(`insert into observations(entity_id,metric,metric_version,value,period,source,retrieved_at)
+  select u.e, u.m, u.v, u.x, u.p, u.s, u.t from unnest($1::uuid[], $2::text[], $3::int[], $4::float8[], $5::text[], $6::text[], $7::timestamptz[]) u(e,m,v,x,p,s,t)
+  on conflict (entity_id, metric, period, source) do update set value = excluded.value, metric_version = excluded.metric_version, retrieved_at = excluded.retrieved_at`,
+  [rows.map(r=>r.entityId),rows.map(r=>r.metric),rows.map(r=>r.metricVersion||0),rows.map(r=>r.value),rows.map(r=>String(r.period||'').slice(0,40)),rows.map(r=>String(r.source||'').slice(0,500)),rows.map(r=>iso(r.retrievedAt)||new Date().toISOString())]);
+ return rows.length;
+}
+// Records facts (unique per entity, metric, period, source; a repeat updates the value). Undefined
+// metrics are defined as observed metrics labelled with their key.
+export async function recordObservations(db:EntityDb,list:ObservationInput[]):Promise<number>{
+ const keys=[...new Set(list.map(o=>parseMetricRef(o.metric).key))];
+ await ensureObservedMetrics(db,keys.map(key=>({key,unit:''})));
+ return db.tx(q=>writeObservations(q,list));
+}
+async function ensureObservedMetrics(db:Queryable,list:{key:string;unit:string}[]){
+ for(const m of list){if(!METRIC_KEY.test(m.key))throw Error('Invalid metric key "'+m.key+'".');
+  await db.query(`insert into metrics(key,version,label,unit,kind,created_by,status,used) select $1::text,1,$1::text,$2::text,'observed','system','published',true
+   where not exists (select 1 from metrics where key = $1::text)`,[m.key,m.unit]);
+  await db.query("update metrics set used = true where key = $1::text and kind = 'observed' and not used",[m.key]);}
+}
+
+// ───────────── metric definitions (public, versioned) ─────────────
+export type MetricDef={key:string;version:number;label:string;unit:string;description:string;methodology:string;order:'desc'|'asc';format:string;kind:'observed'|'derived';definition:DerivedDefinition|null;createdBy:string;status:'draft'|'published'|'retired';used:boolean;createdAt:string|null};
+const metricRow=(r:Row):MetricDef=>({key:String(r.key),version:Number(r.version),label:String(r.label),unit:String(r.unit),description:String(r.description),methodology:String(r.methodology),order:r.sort_order==='asc'?'asc':'desc',format:String(r.format),kind:r.kind==='derived'?'derived':'observed',definition:(r.definition as DerivedDefinition)||null,createdBy:String(r.created_by),status:r.status as MetricDef['status'],used:r.used===true,createdAt:iso(r.created_at)});
+export async function getMetric(db:Queryable,key:string,version?:number):Promise<MetricDef|null>{
+ const r=version?await db.query('select * from metrics where key=$1::text and version=$2::int',[key,version])
+  :await db.query("select * from metrics where key=$1::text order by (status='published') desc, version desc limit 1",[key]);
+ return r.rows[0]?metricRow(r.rows[0]):null;
+}
+export async function listMetrics(db:Queryable,{status,kind}:{status?:string;kind?:string}={}):Promise<MetricDef[]>{
+ const r=await db.query('select * from metrics where ($1::text is null or status=$1::text) and ($2::text is null or kind=$2::text) order by key, version',[status||null,kind||null]);
+ return r.rows.map(metricRow);
+}
+export type MetricInput={key:string;label?:string;unit?:string;description?:string;methodology?:string;order?:'desc'|'asc'|'';format?:string;createdBy?:string};
+type SaveResult={key:string;version:number;status:string;action:'created'|'new_version'|'updated'|'unchanged'};
+async function saveMetric(db:EntityDb,input:MetricInput,kind:'observed'|'derived',definition:DerivedDefinition|null):Promise<SaveResult>{
+ const key=String(input.key||'').trim();if(!METRIC_KEY.test(key))throw Error('Invalid metric key "'+key+'": lower-case letters, digits and _ (e.g. "gdp_per_capita").');
+ return db.tx(async q=>{
+  await q.query('select pg_advisory_xact_lock($1, hashtext($2::text))',[UPSERT_LOCK,key]);
+  const latest=(await q.query("select * from metrics where key=$1::text order by version desc limit 1",[key])).rows[0];
+  const prev=latest?metricRow(latest):null;
+  if(prev&&prev.kind!==kind)throw Error(`Metric "${key}" is ${prev.kind}; choose another key for a ${kind} metric.`);
+  const next={label:input.label?.trim()||prev?.label||key,unit:input.unit??prev?.unit??'',description:input.description??prev?.description??'',methodology:input.methodology??prev?.methodology??'',
+   order:input.order||prev?.order||'desc',format:input.format??prev?.format??'',createdBy:input.createdBy||prev?.createdBy||'system'};
+  const status=kind==='derived'?'draft':'published';
+  const insert=async(version:number)=>{await q.query(`insert into metrics(key,version,label,unit,description,methodology,sort_order,format,kind,definition,created_by,status)
+   values ($1::text,$2::int,$3::text,$4::text,$5::text,$6::text,$7::text,$8::text,$9::text,$10::jsonb,$11::text,$12::text)`,
+   [key,version,next.label,next.unit,next.description,next.methodology,next.order,next.format,kind,definition?JSON.stringify(definition):null,next.createdBy,status]);return version;};
+  if(!prev)return {key,version:await insert(1),status,action:'created'};
+  // Meaning = unit, order and (derived) definition. Once a version is used or published its meaning is frozen.
+  const sameMeaning=next.unit===prev.unit&&next.order===prev.order&&stable(definition?parseDefinition(definition):null)===stable(prev.definition?parseDefinition(prev.definition):null);
+  const frozen=prev.used||prev.status!=='draft';
+  if(!sameMeaning&&frozen)return {key,version:await insert(prev.version+1),status,action:'new_version'};
+  const presentationSame=next.label===prev.label&&next.description===prev.description&&next.methodology===prev.methodology&&next.format===prev.format;
+  if(sameMeaning&&presentationSame)return {key,version:prev.version,status:prev.status,action:'unchanged'};
+  await q.query(`update metrics set label=$3::text, unit=$4::text, description=$5::text, methodology=$6::text, sort_order=$7::text, format=$8::text, definition=$9::jsonb, updated_at=now()
+   where key=$1::text and version=$2::int`,[key,prev.version,next.label,next.unit,next.description,next.methodology,next.order,next.format,definition?JSON.stringify(definition):null]);
+  return {key,version:prev.version,status:prev.status,action:'updated'};
+ });
+}
+// Observed metric (a fact pulled from a source). Presentation fields (label, description, methodology, format)
+// update in place; a different unit or order creates the next version.
+export const defineMetric=(db:EntityDb,input:MetricInput)=>saveMetric(db,input,'observed',null);
+// Derived metric from a declarative definition (see metrics.ts). Starts as a draft; a changed definition,
+// unit or order of a used or published version creates the next version.
+export async function defineDerivedMetric(db:EntityDb,input:MetricInput&{definition:unknown}):Promise<SaveResult>{
+ const def=parseDefinition(input.definition);
+ for(const i of def.inputs){const ref=parseMetricRef(i.metric);
+  if(ref.key===input.key)throw Error('A derived metric cannot use itself as an input.');
+  const m=await getMetric(db,ref.key,i.version??ref.version);
+  if(!m&&!(await db.query('select 1 from observations where metric=$1::text limit 1',[ref.key])).rows.length)throw Error(`Input metric "${i.metric}" does not exist (no definition and no observations).`);}
+ for(const t of new Set(def.inputs.map(i=>i.transform)))if(t==='per_capita'||t==='per_km2'){const den=DENOMINATORS[t];if(!(await db.query('select 1 from observations where metric=$1::text limit 1',[den])).rows.length)throw Error(`Transform ${t} needs observations of "${den}" first.`);}
+ return saveMetric(db,input,'derived',def);
+}
+// Makes a version the public one; earlier published versions of the key are retired.
+export async function publishMetric(db:EntityDb,key:string,version:number):Promise<MetricDef>{
+ return db.tx(async q=>{
+  const r=await q.query("update metrics set status='published', updated_at=now() where key=$1::text and version=$2::int returning *",[key,version]);
+  if(!r.rows[0])throw Error(`Unknown metric ${key}@${version}.`);
+  await q.query("update metrics set status='retired', updated_at=now() where key=$1::text and version<>$2::int and status='published'",[key,version]);
+  return metricRow(r.rows[0]);
+ });
+}
+
+// A requested metric resolved to the observations that carry it.
+type ResolvedMetric={column:string;key:string;version:number;obsVersion:number;def:MetricDef|null};
+async function resolveMetric(q:Queryable,ref:string,version?:number):Promise<ResolvedMetric>{
+ const r=parseMetricRef(ref);const v=version??r.version;
+ const def=await getMetric(q,r.key,v);
+ if(!def){if(v)throw Error(`Unknown metric ${r.key}@${v}.`);return {column:r.key,key:r.key,version:1,obsVersion:0,def:null};}
+ return {column:r.version?`${r.key}_v${r.version}`:r.key,key:r.key,version:def.version,obsVersion:def.kind==='derived'?def.version:0,def};
+}
+
+// ───────────── scope filters ─────────────
+export type Scope={type?:string;topicId?:string;filters?:Record<string,unknown>};
+const OPS:Record<string,string>={'>':'>','>=':'>=','<':'<','<=':'<=','=':'=','==':'=','!=':'<>','<>':'<>'};
+const latestSql=(p:Params,key:string,obsVersion:number,period?:string)=>`select distinct on (o.entity_id) o.entity_id, o.value, o.period, o.source from observations o
+ where o.metric = ${p.add(key)}::text and o.metric_version = ${p.add(obsVersion)}::int${period?` and o.period = ${p.add(period)}::text`:''} order by o.entity_id, o.period desc, o.retrieved_at desc`;
+// Filters: {"region":"Asia"} attribute equality (case-insensitive, also matches inside arrays); arrays mean "any of";
+// {"population":{">":1e7}} compares a metric's latest value (or a numeric attribute); ops > >= < <= = != in contains exists;
+// "ids.wikidata" / "id.iso3" match identifiers.
+async function scopeSql(q:Queryable,p:Params,scope:Scope,a='e'):Promise<string>{
+ const parts:string[]=['true'];
+ if(scope.type)parts.push(`${a}.type = ${p.add(normalizeType(scope.type))}::text`);
+ if(scope.topicId){if(!UUID.test(scope.topicId))throw Error('Invalid topicId.');parts.push(`${a}.topic_id = ${p.add(scope.topicId)}::uuid`);}
+ const entries=Object.entries(scope.filters||{});
+ if(!entries.length)return parts.join(' and ');
+ const keys=entries.map(([k])=>k).filter(k=>/^[a-z][a-z0-9_]{0,63}(@\d+)?$/.test(k));
+ const metricKeys=new Set(keys.length?(await q.query<{k:string}>('select key as k from metrics where key = any($1::text[]) union select metric from observations where metric = any($1::text[])',[keys.map(k=>parseMetricRef(k).key)])).rows.map(r=>r.k):[]);
+ for(const [rawKey,cond] of entries){
+  const key=rawKey.trim();if(!key||key.length>80)throw Error('Invalid filter key "'+rawKey+'".');
+  if(key==='type'){parts.push(`${a}.type = ${p.add(normalizeType(String(cond)))}::text`);continue;}
+  const idKey=/^ids?\.([a-z][a-z0-9_]{0,40})$/.exec(key);
+  if(idKey){const vals=(Array.isArray(cond)?cond:[cond]).map(v=>normalizeId(idKey[1],v)).filter(Boolean);parts.push(`${a}.ids->>${p.add(idKey[1])}::text = any(${p.add(vals)}::text[])`);continue;}
+  const conds:[string,unknown][]=cond&&typeof cond==='object'&&!Array.isArray(cond)?Object.entries(cond as Row):[[Array.isArray(cond)?'in':'=',cond]];
+  const isMetric=/^[a-z][a-z0-9_]{0,63}(@\d+)?$/.test(key)&&metricKeys.has(parseMetricRef(key).key);
+  let metricSrc='';
+  if(isMetric){const m=await resolveMetric(q,key);metricSrc=latestSql(p,m.key,m.obsVersion);}
+  for(const [op,val] of conds){
+   if(isMetric){
+    if(op==='exists'){parts.push(`${val===false?'not ':''}exists (select 1 from (${metricSrc}) l where l.entity_id = ${a}.id)`);continue;}
+    if(op==='in'){parts.push(`${a}.id in (select l.entity_id from (${metricSrc}) l where l.value = any(${p.add((Array.isArray(val)?val:[val]).map(parseNumber).filter(n=>n!=null))}::float8[]))`);continue;}
+    const sqlOp=OPS[op];const n=parseNumber(val);if(!sqlOp||n==null)throw Error(`Filter ${key}: use {">": number} style comparisons (ops > >= < <= = !=).`);
+    parts.push(`${a}.id in (select l.entity_id from (${metricSrc}) l where l.value ${sqlOp} ${p.add(n)}::float8)`);continue;
+   }
+   const k=p.add(key);
+   if(op==='exists'){parts.push(`${val===false?'not ':''}(${a}.attributes ? ${k}::text)`);continue;}
+   if(op==='contains'){parts.push(`${a}.attributes->>${k}::text ilike ${p.add('%'+String(val).replace(/[\\%_]/g,m=>'\\'+m)+'%')}::text`);continue;}
+   if(op==='in'||op==='='||op==='=='){
+    const vals=Array.isArray(val)?val:[val];
+    const nums=vals.filter(v=>typeof v==='number'),strs=vals.filter(v=>typeof v!=='number').map(v=>String(v));
+    const or:string[]=[];
+    if(strs.length){const s=p.add(strs),sl=p.add(strs.map(x=>x.toLowerCase()));or.push(`lower(${a}.attributes->>${k}::text) = any(${sl}::text[])`,`(jsonb_typeof(${a}.attributes->${k}::text) = 'array' and ${a}.attributes->${k}::text ?| ${s}::text[])`);}
+    if(nums.length)or.push(`ent_num(${a}.attributes->>${k}::text) = any(${p.add(nums)}::float8[])`);
+    parts.push(or.length?'('+or.join(' or ')+')':'false');continue;
+   }
+   if(op==='!='||op==='<>'){parts.push(typeof val==='number'?`ent_num(${a}.attributes->>${k}::text) is distinct from ${p.add(val)}::float8`:`lower(${a}.attributes->>${k}::text) is distinct from lower(${p.add(String(val))}::text)`);continue;}
+   const sqlOp=OPS[op];const n=parseNumber(val);
+   if(!sqlOp||n==null)throw Error(`Filter ${key}: unknown operator "${op}" (use > >= < <= = != in contains exists).`);
+   parts.push(`ent_num(${a}.attributes->>${k}::text) ${sqlOp} ${p.add(n)}::float8`);
+  }
+ }
+ return parts.join(' and ');
+}
+
+// ───────────── search ─────────────
+export type EntitySummary={id:string;name:string;type:string;aliases:string[];description:string;ids:Record<string,string>;attributes:Row;image:string|null;pageId:string|null;topicId:string|null};
+const ENTITY_COLS='e.id, e.name, e.type, e.aliases, e.description, e.ids, e.attributes, e.image, e.page_id, e.topic_id';
+const entityRow=(r:Row):EntitySummary=>({id:String(r.id),name:String(r.name),type:String(r.type),aliases:(r.aliases as string[])||[],description:String(r.description||''),ids:(r.ids as Record<string,string>)||{},attributes:(r.attributes as Row)||{},image:(r.image as string)||null,pageId:(r.page_id as string)||null,topicId:(r.topic_id as string)||null});
+export type SearchHit=EntitySummary&{score:number;matchedBy:string[]};
+const RRF_K=60;
+const words=(s:string)=>(s.toLowerCase().match(/[\p{L}\p{N}]+/gu)||[]).slice(0,12);
+// Hybrid search: vector KNN (when an embedder is configured), full text ('simple' tsvector, prefix
+// matching on every word, OR-ed) and name/alias matching, each restricted by the scope filters, fused by
+// reciprocal rank (score = Σ 1/(60+rank)). With no query, returns the filtered entities by name.
+export async function hybridSearch(db:Queryable,{query='',type,topicId,filters,limit=20}:{query?:string;type?:string;topicId?:string;filters?:Record<string,unknown>;limit?:number}):Promise<{mode:string;results:SearchHit[]}>{
+ const lim=Math.min(100,Math.max(1,Math.floor(limit)||20)),k=Math.max(50,lim*4),text=String(query||'').trim().slice(0,500);
+ const lists:{name:string;ids:string[]}[]=[];
+ const run=async(name:string,build:(p:Params,where:string)=>string)=>{const p=new Params();const where=await scopeSql(db,p,{type,topicId,filters});lists.push({name,ids:(await db.query<{id:string}>(build(p,where),p.list)).rows.map(r=>r.id)});};
+ if(!text){
+  const p=new Params();const where=await scopeSql(db,p,{type,topicId,filters});
+  const r=await db.query(`select ${ENTITY_COLS} from entities e where ${where} order by e.name limit ${p.add(lim)}::int`,p.list);
+  return {mode:'filter',results:r.rows.map(x=>({...entityRow(x),score:0,matchedBy:['filter']}))};
+ }
+ const embed=getEmbedder();let mode='text';
+ if(embed){
+  try{const dim=await storedEmbedDim(db);const [v]=await embed([text]);const vec=toVector(v,dim);
+   await run('vector',(p,where)=>`select e.id from entities e where ${where} and e.embedding is not null order by e.embedding <=> ${p.add(vec)}::vector limit ${p.add(k)}::int`);mode='hybrid';
+  }catch(e){console.warn('entity-db: query embedding failed, using text search',(e as Error).message);}
+ }
+ const w=words(text);
+ if(w.length)await run('text',(p,where)=>`select e.id from entities e, to_tsquery('simple', ${p.add(w.map(x=>x+':*').join(' | '))}::text) tq
+   where ${where} and e.tsv @@ tq order by ts_rank_cd(e.tsv, tq) desc, e.name limit ${p.add(k)}::int`);
+ await run('name',(p,where)=>{const t=p.add(text);const prefix=p.add(text.toLowerCase().replace(/[\\%_]/g,m=>'\\'+m)+'%');
+  return `select e.id from entities e where ${where} and (e.name_keys && ent_keys(${t}::text, '{}'::text[]) or exists (select 1 from unnest(e.name_keys) nk where nk like ${prefix}::text))
+   order by (ent_norm(e.name) = ent_norm(${t}::text)) desc, (e.name_keys && ent_keys(${t}::text, '{}'::text[])) desc, length(e.name), e.name limit ${p.add(k)}::int`;});
+ const scores=new Map<string,{score:number;by:string[]}>();
+ for(const l of lists)l.ids.forEach((id,i)=>{const s=scores.get(id)||{score:0,by:[]};s.score+=1/(RRF_K+i+1);s.by.push(l.name);scores.set(id,s);});
+ const top=[...scores].sort((a,b)=>b[1].score-a[1].score).slice(0,lim);
+ if(!top.length)return {mode,results:[]};
+ const r=await db.query(`select ${ENTITY_COLS} from entities e where e.id = any($1::uuid[])`,[top.map(([id])=>id)]);
+ const byId=new Map(r.rows.map(x=>[String(x.id),entityRow(x)]));
+ return {mode,results:top.flatMap(([id,s])=>byId.has(id)?[{...byId.get(id)!,score:Math.round(s.score*1e5)/1e5,matchedBy:s.by}]:[])};
+}
+
+// ───────────── metric tables (ranking-ready) ─────────────
+export type MetricColumn={column:string;key:string;version:number;kind:string;label:string;unit:string;order:'desc'|'asc';format:string;status:string;methodology:string;count:number};
+export type MetricTable={metrics:MetricColumn[];rows:Row[];period:string};
+// One row per entity in scope that has at least one of the metrics: each metric's latest value (or the
+// value for the given period), its period and source, and its competition rank among the scope
+// (ties share a rank; entities without a value have no rank). Rows are ordered by the first metric.
+// Derived metrics resolve to their published (else latest) version, or "key@N" for a specific one.
+export async function metricTable(db:Queryable,{type,topicId,filters,metrics,period='latest'}:{type?:string;topicId?:string;filters?:Record<string,unknown>;metrics:string[];period?:string}):Promise<MetricTable>{
+ if(!metrics.length)throw Error('Name at least one metric.');if(metrics.length>12)throw Error('At most 12 metrics per table.');
+ const resolved:ResolvedMetric[]=[];for(const m of metrics)resolved.push(await resolveMetric(db,m));
+ const per=period&&period!=='latest'?String(period):'';
+ const p=new Params();const where=await scopeSql(db,p,{type,topicId,filters});
+ const keys=p.add(resolved.map(m=>m.key)),vers=p.add(resolved.map(m=>m.obsVersion)),dirs=p.add(resolved.map(m=>m.def?.order||'desc')),cols=p.add(resolved.map(m=>m.column));
+ const r=await db.query(`with ents as (select e.id, e.name, e.type, e.ids from entities e where ${where}),
+  wanted as (select * from unnest(${keys}::text[], ${vers}::int[], ${dirs}::text[], ${cols}::text[]) w(key, ver, dir, col)),
+  obs as (select distinct on (o.entity_id, w.col) o.entity_id, w.col, w.dir, o.value, o.period, o.source
+   from observations o join ents on ents.id = o.entity_id join wanted w on w.key = o.metric and w.ver = o.metric_version
+   ${per?`where o.period = ${p.add(per)}::text`:''} order by o.entity_id, w.col, o.period desc, o.retrieved_at desc)
+  select obs.entity_id, obs.col, obs.value, obs.period, obs.source, ents.name, ents.type, ents.ids,
+   rank() over (partition by obs.col order by case when obs.dir = 'asc' then obs.value else -obs.value end) as rnk,
+   count(*) over (partition by obs.col) as cnt
+  from obs join ents on ents.id = obs.entity_id`,p.list);
+ const rows=new Map<string,Row>();const counts=new Map<string,number>();
+ for(const x of r.rows){const id=String(x.entity_id);let row=rows.get(id);
+  if(!row){row={rank:null,entity_id:id,name:x.name,type:x.type};const wd=(x.ids as Row)?.wikidata;if(wd)row.wikidata=wd;rows.set(id,row);}
+  const c=String(x.col);row[c]=Number(x.value);row[c+'_rank']=Number(x.rnk);row[c+'_period']=x.period;row[c+'_source']=x.source;counts.set(c,Number(x.cnt));}
+ const first=resolved[0].column;
+ const list=[...rows.values()].map(row=>{for(const m of resolved)if(!(m.column in row)){row[m.column]=null;row[m.column+'_rank']=null;row[m.column+'_period']=null;row[m.column+'_source']=null;}row.rank=row[first+'_rank'];return row;});
+ list.sort((a,b)=>(a.rank==null?1e15:Number(a.rank))-(b.rank==null?1e15:Number(b.rank))||String(a.name).localeCompare(String(b.name)));
+ return {period:per||'latest',rows:list,metrics:resolved.map(m=>({column:m.column,key:m.key,version:m.version,kind:m.def?.kind||'observed',label:m.def?.label||m.key,unit:m.def?.unit||'',order:m.def?.order||'desc',format:m.def?.format||'',status:m.def?.status||'published',methodology:m.def?.methodology||'',count:counts.get(m.column)||0}))};
+}
+
+// ───────────── derived metrics: compute and sensitivity ─────────────
+async function loadEvalData(db:Queryable,def:DerivedDefinition,period:string):Promise<{data:EvalData;entities:Map<string,string>}>{
+ const p0=new Params();const where=await scopeSql(db,p0,{type:def.scope.type,filters:def.scope.filter as Record<string,unknown>|undefined});
+ const ents=await db.query<{id:string;name:string}>(`select e.id, e.name from entities e where ${where}`,p0.list);
+ const entities=new Map(ents.rows.map(r=>[r.id,r.name]));const idList=[...entities.keys()];
+ const latest=async(key:string,obsVersion:number,per:string):Promise<Map<string,Point>>=>{
+  const p=new Params();const src=latestSql(p,key,obsVersion,per||undefined);
+  const r=await db.query<{entity_id:string;value:number;period:string}>(`select l.entity_id, l.value, l.period from (${src}) l where l.entity_id = any(${p.add(idList)}::uuid[])`,p.list);
+  return new Map(r.rows.map(x=>[x.entity_id,{value:Number(x.value),period:String(x.period)}]));};
+ const inputs:Map<string,Point>[]=[];
+ for(const i of def.inputs){const m=await resolveMetric(db,i.metric,i.version);
+  const per=i.period==='latest'?'':i.period==='same'?(period==='latest'?'':period):i.period;
+  inputs.push(await latest(m.key,m.obsVersion,per));}
+ const needs=new Set(def.inputs.map(i=>i.transform));
+ const denominators={population:needs.has('per_capita')?await latest(DENOMINATORS.per_capita,0,''):new Map<string,Point>(),area_km2:needs.has('per_km2')?await latest(DENOMINATORS.per_km2,0,''):new Map<string,Point>()};
+ return {data:{inputs,denominators},entities};
+}
+async function derivedMetric(db:Queryable,key:string,version?:number):Promise<MetricDef&{definition:DerivedDefinition}>{
+ const m=await getMetric(db,key,version);
+ if(!m)throw Error(`Unknown metric ${key}${version?'@'+version:''}.`);
+ if(m.kind!=='derived'||!m.definition)throw Error(`${key} is an observed metric; only derived metrics are computed.`);
+ return {...m,definition:parseDefinition(m.definition)};
+}
+export const derivedSource=(key:string,version:number)=>`derived:${key}@v${version}`;
+// Evaluates a derived metric over its scope and stores the values as observations (source
+// 'derived:<key>@v<version>', metric_version = version). period 'latest' uses each entity's latest
+// inputs (stored under the latest input period); a year uses that period for inputs marked "same".
+// A recompute replaces earlier values of the same period (all periods for 'latest').
+export async function computeDerivedMetric(db:EntityDb,key:string,version?:number,{period='latest'}:{period?:string}={}){
+ const m=await derivedMetric(db,key,version);
+ const {data,entities}=await loadEvalData(db,m.definition,period);
+ const values=evaluateDefinition(m.definition,data);
+ const source=derivedSource(m.key,m.version);
+ const per=period&&period!=='latest'?period:'';
+ const written=await db.tx(async q=>{
+  await q.query(`delete from observations where source = $1::text and metric = $2::text${per?' and period = $3::text':''}`,per?[source,m.key,per]:[source,m.key]);
+  const n=await writeObservations(q,[...values].map(([entityId,v])=>({entityId,metric:m.key,metricVersion:m.version,value:v.value,period:per||v.period,source})));
+  await q.query('update metrics set used = true, updated_at = now() where key = $1::text and version = $2::int',[m.key,m.version]);
+  return n;
+ });
+ const ranks=competitionRanks(values,m.order);
+ const top=[...ranks].sort((a,b)=>a[1]-b[1]).slice(0,10).map(([id,rank])=>({rank,name:entities.get(id),value:Math.round(values.get(id)!.value*1e6)/1e6}));
+ return {key:m.key,version:m.version,status:m.status,source,period:per||'latest',inScope:entities.size,computed:written,skipped:entities.size-values.size,top};
+}
+// Robustness of a derived ranking: how the top 20 move when each weight is ±20% and when each input
+// is dropped (the rest reweighted). Nothing is stored.
+export async function sensitivity(db:Queryable,key:string,version?:number,{period='latest',top:topN=20}:{period?:string;top?:number}={}){
+ const m=await derivedMetric(db,key,version);const def=m.definition;
+ const {data,entities}=await loadEvalData(db,def,period);
+ const base=evaluateDefinition(def,data);const baseRanks=competitionRanks(base,m.order);
+ const top=[...baseRanks].sort((a,b)=>a[1]-b[1]).slice(0,topN);
+ const label=(i:number)=>def.inputs[i].label||def.inputs[i].metric+(def.inputs[i].transform!=='none'?' ('+def.inputs[i].transform+')':'');
+ const scenario=(name:string,kind:string,input:number,factor:number|null,opts:{weights?:number[];drop?:number})=>{
+  const vals=evaluateDefinition(def,data,opts.drop!=null?{drop:opts.drop}:{weights:opts.weights});
+  const ranks=competitionRanks(vals,m.order);
+  const moves=top.map(([id,from])=>({name:entities.get(id)||id,from,to:ranks.get(id)??null}));
+  const shifts=moves.map(x=>x.to==null?topN:Math.abs(x.to-x.from));
+  return {scenario:name,kind,input:def.inputs[input].metric,inputLabel:label(input),factor,
+   meanAbsShift:Math.round(shifts.reduce((a,b)=>a+b,0)/Math.max(1,shifts.length)*100)/100,maxAbsShift:Math.max(0,...shifts),
+   topRetained:moves.filter(x=>x.to!=null&&x.to<=topN).length,
+   moved:moves.filter(x=>x.to!==x.from).sort((a,b)=>(b.to==null?1e9:Math.abs(b.to-b.from))-(a.to==null?1e9:Math.abs(a.to-a.from))).slice(0,5)};
+ };
+ const scenarios:ReturnType<typeof scenario>[]=[];
+ const weighted=def.combine==='weighted_sum'||def.combine==='weighted_geomean';
+ if(weighted&&def.weights)def.weights.forEach((w,i)=>{if(w===0)return;for(const f of [1.2,0.8]){const ws=[...def.weights!];ws[i]=w*f;scenarios.push(scenario(`${label(i)} weight ${f>1?'+':'-'}20%`,'weight',i,f,{weights:ws}));}});
+ if(weighted&&def.inputs.length>1)def.inputs.forEach((_,i)=>scenarios.push(scenario(`without ${label(i)}`,'drop',i,null,{drop:i})));
+ const worst=scenarios.reduce<ReturnType<typeof scenario>|null>((a,b)=>!a||b.meanAbsShift>a.meanAbsShift?b:a,null);
+ const weightMax=Math.max(0,...scenarios.filter(s=>s.kind==='weight').map(s=>s.maxAbsShift));
+ return {key:m.key,version:m.version,period,entities:base.size,
+  top:top.map(([id,rank])=>({entityId:id,name:entities.get(id),rank,value:Math.round(base.get(id)!.value*1e6)/1e6})),
+  scenarios,
+  summary:!scenarios.length?'Not applicable: '+def.combine+' has no weights to vary.'
+   :`Across ${scenarios.length} scenarios the top ${top.length} moved by at most ${weightMax} places for ±20% weight changes; the most influential change is "${worst!.scenario}" (mean shift ${worst!.meanAbsShift}, ${worst!.topRetained}/${top.length} stay in the top ${topN}).`};
+}
+
+// ───────────── entity detail ─────────────
+export async function getEntity(db:Queryable,idOrName:string,type?:string){
+ const s=String(idOrName||'').trim();if(!s)throw Error('Name an entity (id, name, or a standard id such as "Q30" or "iso3:USA").');
+ let rows:Row[];const t=type?normalizeType(type):null;
+ const idMatch=/^([a-z][a-z0-9_]{0,40}):(.+)$/.exec(s);
+ if(UUID.test(s))rows=(await db.query(`select ${ENTITY_COLS} from entities e where e.id = $1::uuid`,[s])).rows;
+ else if(/^Q\d+$/i.test(s))rows=(await db.query(`select ${ENTITY_COLS} from entities e where e.ids @> $1::jsonb`,[JSON.stringify({wikidata:s.toUpperCase()})])).rows;
+ else if(idMatch&&!/\s/.test(idMatch[1]))rows=(await db.query(`select ${ENTITY_COLS} from entities e where e.ids @> $1::jsonb and ($2::text is null or e.type = $2::text)`,[JSON.stringify({[idMatch[1]]:normalizeId(idMatch[1],idMatch[2])}),t])).rows;
+ else rows=[];
+ if(!rows.length)rows=(await db.query(`select ${ENTITY_COLS} from entities e where e.name_keys && ent_keys($1::text, '{}'::text[]) and ($2::text is null or e.type = $2::text)
+  order by (ent_norm(e.name) = ent_norm($1::text)) desc, e.created_at limit 6`,[s,t])).rows;
+ if(!rows.length)return null;
+ const e=entityRow(rows[0]);
+ const latest=await db.query(`select distinct on (o.metric, o.metric_version) o.metric, o.metric_version, o.value, o.period, o.source, o.retrieved_at, d.label, d.unit, d.format, d.kind
+  from observations o left join lateral (select label, unit, format, kind from metrics m where m.key = o.metric and (o.metric_version = 0 or m.version = o.metric_version) order by m.version desc limit 1) d on true
+  where o.entity_id = $1::uuid order by o.metric, o.metric_version, o.period desc, o.retrieved_at desc`,[e.id]);
+ const refs=latest.rows.slice(0,12).map(o=>Number(o.metric_version)?`${o.metric}@${o.metric_version}`:String(o.metric));
+ const table=refs.length?await metricTable(db,{type:e.type,metrics:refs}):null;
+ const rankRow=table?.rows.find(r=>r.entity_id===e.id);
+ const history=await db.query(`select metric, metric_version, period, value, source from observations where entity_id = $1::uuid order by metric, period desc, retrieved_at desc limit 300`,[e.id]);
+ return {...e,
+  facts:latest.rows.map((o,i)=>{const col=i<12?table!.metrics[i].column:'';return {metric:o.metric,version:Number(o.metric_version)||undefined,label:o.label||o.metric,unit:o.unit||'',format:o.format||'',kind:o.kind||'observed',
+   value:Number(o.value),period:o.period,source:o.source,retrievedAt:iso(o.retrieved_at),
+   ...(col&&rankRow?.[col+'_rank']!=null?{rank:rankRow[col+'_rank'],of:table!.metrics[i].count,rankScope:'all '+e.type.replace(/_/g,' ')+' entities, latest values'}:{})};}),
+  history:history.rows.map(h=>({metric:h.metric,version:Number(h.metric_version)||undefined,period:h.period,value:Number(h.value),source:h.source})),
+  alternatives:rows.slice(1).map(r=>({id:r.id,name:r.name,type:r.type}))};
+}
+
+// ───────────── embeddings ─────────────
+// Embeds entities and topics whose embedding is null, in batches, with the injected embedder.
+export async function embedPending(db:Queryable,limit=256,batch=64):Promise<{entities:number;topics:number;skipped:boolean}>{
+ const embed=getEmbedder();if(!embed)return {entities:0,topics:0,skipped:true};
+ const dim=await storedEmbedDim(db);let entities=0,topics=0;
+ const ents=await db.query<{id:string;name:string;type:string;aliases:string[];description:string;attributes:Row}>('select id, name, type, aliases, description, attributes from entities where embedding is null order by updated_at limit $1::int',[limit]);
+ for(let i=0;i<ents.rows.length;i+=batch){const chunk=ents.rows.slice(i,i+batch);const vecs=await embed(chunk.map(entityText));
+  for(const [j,e] of chunk.entries()){await db.query('update entities set embedding = $2::vector where id = $1::uuid',[e.id,toVector(vecs[j],dim)]);entities++;}}
+ const tops=await db.query<{id:string;name:string;description:string}>('select id, name, description from topics where embedding is null limit $1::int',[Math.max(1,limit-entities)]);
+ if(tops.rows.length){const vecs=await embed(tops.rows.map(t=>(t.name+'. '+t.description).slice(0,2000)));
+  for(const [j,t] of tops.rows.entries()){await db.query('update topics set embedding = $2::vector where id = $1::uuid',[t.id,toVector(vecs[j],dim)]);topics++;}}
+ return {entities,topics,skipped:false};
+}
+
+// ───────────── topics ─────────────
+export type Topic={id:string;parentId:string|null;slug:string;name:string;description:string;scope:Row;status:string};
+const topicRow=(r:Row):Topic=>({id:String(r.id),parentId:(r.parent_id as string)||null,slug:String(r.slug),name:String(r.name),description:String(r.description),scope:(r.scope as Row)||{},status:String(r.status)});
+const slugify=(s:string)=>s.toLowerCase().normalize('NFKD').replace(/[̀-ͯ]/g,'').replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'').slice(0,100);
+export async function createTopic(db:Queryable,{parentId=null,slug,name,description='',scope={}}:{parentId?:string|null;slug?:string;name:string;description?:string;scope?:Row}):Promise<Topic>{
+ const s=slugify(slug||name);if(!s)throw Error('A topic needs a name.');
+ const r=await db.query(`insert into topics(parent_id,slug,name,description,scope) values ($1::uuid,$2::text,$3::text,$4::text,$5::jsonb) returning *`,[parentId,s,name.trim().slice(0,200),description.slice(0,4000),JSON.stringify(scope)]);
+ return topicRow(r.rows[0]);
+}
+export async function getTopic(db:Queryable,idOrSlug:string):Promise<Topic|null>{
+ const r=UUID.test(idOrSlug)?await db.query('select * from topics where id=$1::uuid',[idOrSlug]):await db.query('select * from topics where slug=$1::text',[idOrSlug]);
+ return r.rows[0]?topicRow(r.rows[0]):null;
+}
+export async function listChildTopics(db:Queryable,parentId:string|null):Promise<Topic[]>{
+ return (await db.query("select * from topics where parent_id is not distinct from $1::uuid and status <> 'archived' order by name",[parentId])).rows.map(topicRow);
+}
+// Nearest topics to a query (text, embedded with the injected embedder) or a vector, by cosine similarity;
+// falls back to full-text match over name + description when there are no embeddings.
+export async function nearestTopics(db:Queryable,query:string|number[],limit=5):Promise<(Topic&{score:number})[]>{
+ const lim=Math.min(50,Math.max(1,limit));let vec:number[]|null=Array.isArray(query)?query:null;
+ if(!vec&&getEmbedder()){try{vec=(await getEmbedder()!([String(query)]))[0];}catch{vec=null;}}
+ if(vec){const dim=await storedEmbedDim(db);
+  const r=await db.query(`select *, 1 - (embedding <=> $1::vector) as score from topics where embedding is not null and status <> 'archived' order by embedding <=> $1::vector limit $2::int`,[toVector(vec,dim),lim]);
+  if(r.rows.length)return r.rows.map(x=>({...topicRow(x),score:Number(x.score)}));}
+ const w=words(Array.isArray(query)?'':query);if(!w.length)return [];
+ const r=await db.query(`select *, ts_rank(to_tsvector('simple', name || ' ' || description), to_tsquery('simple', $1::text)) as score from topics
+  where status <> 'archived' and to_tsvector('simple', name || ' ' || description) @@ to_tsquery('simple', $1::text) order by score desc limit $2::int`,[w.map(x=>x+':*').join(' | '),lim]);
+ return r.rows.map(x=>({...topicRow(x),score:Number(x.score)}));
+}
+
+// ───────────── editors and leasing ─────────────
+export type Editor={id:string;topicId:string;brief:Row;memory:unknown;state:string;leaseId:string|null;leaseUntil:string|null;nextShiftAt:string|null;stats:Row};
+const editorRow=(r:Row):Editor=>({id:String(r.id),topicId:String(r.topic_id),brief:(r.brief as Row)||{},memory:r.memory,state:String(r.state),leaseId:(r.lease_id as string)||null,leaseUntil:iso(r.lease_until),nextShiftAt:iso(r.next_shift_at),stats:(r.stats as Row)||{}});
+export async function createEditor(db:Queryable,{topicId,brief={},nextShiftAt}:{topicId:string;brief?:Row;nextShiftAt?:Date|string}):Promise<Editor>{
+ const r=await db.query('insert into editors(topic_id,brief,next_shift_at) values ($1::uuid,$2::jsonb,coalesce($3::timestamptz, now())) returning *',[topicId,JSON.stringify(brief),iso(nextShiftAt)]);
+ return editorRow(r.rows[0]);
+}
+export async function getEditor(db:Queryable,id:string):Promise<Editor|null>{const r=await db.query('select * from editors where id=$1::uuid',[id]);return r.rows[0]?editorRow(r.rows[0]):null;}
+// Leases up to `limit` due editors (next_shift_at passed, not paused, no live lease) with
+// FOR UPDATE SKIP LOCKED, so concurrent schedulers never get the same editor. A crashed shift's
+// lease expires and the editor becomes leasable again.
+export async function leaseDueEditors(db:Queryable,{limit=1,leaseSeconds=600,now}:{limit?:number;leaseSeconds?:number;now?:Date}={}):Promise<Editor[]>{
+ const r=await db.query(`update editors set state = 'running', lease_id = gen_random_uuid(), lease_until = coalesce($3::timestamptz, now()) + make_interval(secs => $2::int), updated_at = now()
+  where id in (select id from editors where state in ('idle','running') and next_shift_at <= coalesce($3::timestamptz, now())
+   and (lease_until is null or lease_until < coalesce($3::timestamptz, now())) order by next_shift_at limit $1::int for update skip locked)
+  returning *`,[Math.max(1,limit),Math.max(1,Math.floor(leaseSeconds)),iso(now)]);
+ return r.rows.map(editorRow);
+}
+export async function renewLease(db:Queryable,editorId:string,leaseId:string,leaseSeconds=600,now?:Date):Promise<boolean>{
+ const r=await db.query(`update editors set lease_until = coalesce($4::timestamptz, now()) + make_interval(secs => $3::int) where id = $1::uuid and lease_id = $2::uuid and state = 'running' returning id`,[editorId,leaseId,Math.floor(leaseSeconds),iso(now)]);
+ return r.rows.length>0;
+}
+export async function releaseEditor(db:Queryable,editorId:string,leaseId:string,{nextShiftAt,memory,stats}:{nextShiftAt?:Date|string;memory?:unknown;stats?:Row}={}):Promise<boolean>{
+ const r=await db.query(`update editors set state = 'idle', lease_id = null, lease_until = null, next_shift_at = coalesce($3::timestamptz, now() + interval '1 hour'),
+  memory = coalesce($4::jsonb, memory), stats = stats || coalesce($5::jsonb, '{}'::jsonb), updated_at = now() where id = $1::uuid and lease_id = $2::uuid returning id`,
+  [editorId,leaseId,iso(nextShiftAt),memory===undefined?null:JSON.stringify(memory),stats?JSON.stringify(stats):null]);
+ return r.rows.length>0;
+}
+
+// ───────────── roadmap ─────────────
+export type RoadmapKind='source'|'ingest'|'entity_pages'|'ranking'|'refresh'|'review';
+export type RoadmapItem={id:string;editorId:string;area:string;kind:RoadmapKind;title:string;spec:Row;priority:number;cadence:string;status:string;dueAt:string|null;origin:string;attempts:number;lastResult:unknown;lastRunAt:string|null};
+const itemRow=(r:Row):RoadmapItem=>({id:String(r.id),editorId:String(r.editor_id),area:String(r.area),kind:r.kind as RoadmapKind,title:String(r.title),spec:(r.spec as Row)||{},priority:Number(r.priority),cadence:String(r.cadence),status:String(r.status),dueAt:iso(r.due_at),origin:String(r.origin),attempts:Number(r.attempts),lastResult:r.last_result??null,lastRunAt:iso(r.last_run_at)});
+// Next due time for a cadence: hourly, daily, weekly, monthly, quarterly, yearly, or "<n>h|d|w|m|y"
+// ("" / "once" → null: one-off). Months and years are calendar steps in UTC.
+export function nextDue(cadence:string,from:Date=new Date()):Date|null{
+ const c=String(cadence||'').trim().toLowerCase();if(!c||c==='once')return null;
+ const named:Record<string,string>={hourly:'1h',daily:'1d',weekly:'1w',monthly:'1m',quarterly:'3m',yearly:'1y',annually:'1y'};
+ const m=/^(\d{1,4})\s*([hdwmy])$/.exec(named[c]||c);if(!m)throw Error('Unknown cadence "'+cadence+'" (use hourly, daily, weekly, monthly, quarterly, yearly or e.g. "6h", "3d", "2w").');
+ const n=Number(m[1]),d=new Date(from.getTime());
+ if(m[2]==='h')d.setUTCHours(d.getUTCHours()+n);else if(m[2]==='d')d.setUTCDate(d.getUTCDate()+n);else if(m[2]==='w')d.setUTCDate(d.getUTCDate()+7*n);
+ else{const day=d.getUTCDate();d.setUTCDate(1);if(m[2]==='m')d.setUTCMonth(d.getUTCMonth()+n);else d.setUTCFullYear(d.getUTCFullYear()+n);
+  const last=new Date(Date.UTC(d.getUTCFullYear(),d.getUTCMonth()+1,0)).getUTCDate();d.setUTCDate(Math.min(day,last));}
+ return d;
+}
+export async function addRoadmapItem(db:Queryable,item:{editorId:string;area?:string;kind:RoadmapKind;title:string;spec?:Row;priority?:number;cadence?:string;dueAt?:Date|string;origin?:'plan'|'query'|'review'}):Promise<RoadmapItem>{
+ if(item.cadence)nextDue(item.cadence);// validate
+ const r=await db.query(`insert into roadmap_items(editor_id,area,kind,title,spec,priority,cadence,due_at,origin) values ($1::uuid,$2::text,$3::text,$4::text,$5::jsonb,$6::int,$7::text,coalesce($8::timestamptz, now()),$9::text) returning *`,
+  [item.editorId,item.area||'',item.kind,item.title.slice(0,300),JSON.stringify(item.spec||{}),Math.round(item.priority??50),item.cadence||'',iso(item.dueAt),item.origin||'plan']);
+ return itemRow(r.rows[0]);
+}
+const ITEM_FIELDS:Record<string,[string,string]>={area:['area','text'],kind:['kind','text'],title:['title','text'],spec:['spec','jsonb'],priority:['priority','int'],cadence:['cadence','text'],status:['status','text'],dueAt:['due_at','timestamptz'],origin:['origin','text']};
+export async function updateRoadmapItem(db:Queryable,id:string,patch:Partial<{area:string;kind:RoadmapKind;title:string;spec:Row;priority:number;cadence:string;status:string;dueAt:Date|string;origin:string}>):Promise<RoadmapItem|null>{
+ if(patch.cadence)nextDue(patch.cadence);
+ const p=new Params();const idRef=p.add(id);const sets:string[]=[];
+ for(const [k,v] of Object.entries(patch)){const f=ITEM_FIELDS[k];if(!f||v===undefined)continue;sets.push(`${f[0]} = ${p.add(f[1]==='jsonb'?JSON.stringify(v):v instanceof Date?v.toISOString():v)}::${f[1]}`);}
+ if(!sets.length)throw Error('Nothing to update.');
+ const r=await db.query(`update roadmap_items set ${sets.join(', ')}, updated_at = now() where id = ${idRef}::uuid returning *`,p.list);
+ return r.rows[0]?itemRow(r.rows[0]):null;
+}
+export async function listRoadmap(db:Queryable,editorId:string,{status}:{status?:string}={}):Promise<RoadmapItem[]>{
+ return (await db.query('select * from roadmap_items where editor_id = $1::uuid and ($2::text is null or status = $2::text) order by status, due_at, priority desc',[editorId,status||null])).rows.map(itemRow);
+}
+// Due items in shift order: reader demand first, then priority, then the oldest due.
+export async function dueRoadmapItems(db:Queryable,editorId:string,{limit=10,now}:{limit?:number;now?:Date}={}):Promise<RoadmapItem[]>{
+ return (await db.query(`select * from roadmap_items where editor_id = $1::uuid and status = 'pending' and due_at <= coalesce($3::timestamptz, now())
+  order by (origin = 'query') desc, priority desc, due_at limit $2::int`,[editorId,limit,iso(now)])).rows.map(itemRow);
+}
+// Completing an item: recurring cadence → pending again at the next due time; one-off → done.
+// A failure retries with backoff (1h, 2h, 4h … capped at 24h) and fails for good after 5 attempts.
+export async function completeRoadmapItem(db:Queryable,id:string,{ok=true,result=null,now=new Date(),maxAttempts=5}:{ok?:boolean;result?:unknown;now?:Date;maxAttempts?:number}={}):Promise<RoadmapItem|null>{
+ const cur=(await db.query('select * from roadmap_items where id = $1::uuid',[id])).rows[0];if(!cur)return null;
+ const item=itemRow(cur);let status:string,due:Date|null,attempts:number;
+ if(ok){due=nextDue(item.cadence,now);status=due?'pending':'done';attempts=0;}
+ else{attempts=item.attempts+1;status=attempts>=maxAttempts?'failed':'pending';due=new Date(now.getTime()+Math.min(24,2**(attempts-1))*3600_000);}
+ const r=await db.query(`update roadmap_items set status = $2::text, due_at = coalesce($3::timestamptz, due_at), attempts = $4::int, last_result = $5::jsonb, last_run_at = $6::timestamptz, updated_at = now() where id = $1::uuid returning *`,
+  [id,status,iso(due),attempts,JSON.stringify(result??null),now.toISOString()]);
+ return itemRow(r.rows[0]);
+}
+
+// ───────────── inbox ─────────────
+export type InboxEntry={id:string;editorId:string;query:string;language:string;pageId:string|null;served:boolean;createdAt:string|null;triagedAt:string|null;note:string|null};
+const inboxRow=(r:Row):InboxEntry=>({id:String(r.id),editorId:String(r.editor_id),query:String(r.query),language:String(r.language),pageId:(r.page_id as string)||null,served:r.served===true,createdAt:iso(r.created_at),triagedAt:iso(r.triaged_at),note:(r.note as string)||null});
+export async function addInbox(db:Queryable,{editorId,query,language='',pageId=null,served=false}:{editorId:string;query:string;language?:string;pageId?:string|null;served?:boolean}):Promise<InboxEntry>{
+ const r=await db.query('insert into inbox(editor_id,query,language,page_id,served) values ($1::uuid,$2::text,$3::text,$4::text,$5::boolean) returning *',[editorId,query.slice(0,2000),language.slice(0,20),pageId,served]);
+ return inboxRow(r.rows[0]);
+}
+export async function listInbox(db:Queryable,editorId:string,{untriaged=true,limit=50}:{untriaged?:boolean;limit?:number}={}):Promise<InboxEntry[]>{
+ return (await db.query('select * from inbox where editor_id = $1::uuid and (not $2::boolean or triaged_at is null) order by created_at limit $3::int',[editorId,untriaged,limit])).rows.map(inboxRow);
+}
+// Marks entries triaged (with an optional note: "answered by page X", "added roadmap item Y").
+export async function triageInbox(db:Queryable,editorId:string,ids:string[],note=''):Promise<number>{
+ const r=await db.query('update inbox set triaged_at = now(), note = nullif($3::text, \'\') where editor_id = $1::uuid and id = any($2::uuid[]) and triaged_at is null returning id',[editorId,ids.filter(i=>UUID.test(i)),note.slice(0,1000)]);
+ return r.rows.length;
+}
+
+// ───────────── sources and rankings ─────────────
+export async function addSource(db:Queryable,{topicId=null,url,kind='',notes=''}:{topicId?:string|null;url:string;kind?:string;notes?:string}){
+ const r=await db.query(`insert into sources(topic_id,url,kind,notes) values ($1::uuid,$2::text,$3::text,$4::text)
+  on conflict (coalesce(topic_id::text, ''), url) do update set kind = excluded.kind, notes = excluded.notes returning *`,[topicId,url.slice(0,2000),kind,notes.slice(0,2000)]);
+ return r.rows[0];
+}
+export async function markSourceOk(db:Queryable,id:string){await db.query('update sources set last_ok_at = now() where id = $1::uuid',[id]);}
+export async function listSources(db:Queryable,topicId:string|null){return (await db.query('select * from sources where topic_id is not distinct from $1::uuid order by created_at',[topicId])).rows;}
+export async function recordRanking(db:Queryable,{topicId=null,title='',scope={},criteria=[],pageId=null}:{topicId?:string|null;title?:string;scope?:Row;criteria?:string[];pageId?:string|null}){
+ return (await db.query('insert into rankings(topic_id,title,scope,criteria,page_id) values ($1::uuid,$2::text,$3::jsonb,$4::text[],$5::text) returning *',[topicId,title,JSON.stringify(scope),criteria,pageId])).rows[0];
+}

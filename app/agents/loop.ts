@@ -25,7 +25,8 @@ export async function runToolLoop(options:{
    for(let attempt=0;attempt<2;attempt++){
     const started=Date.now();
     response=await request(payload);
-    await event?.({kind:'model_finished',data:{round:round+1,attempt:attempt+1,model:payload.model,reasoning:payload.reasoning?.effort,durationMs:Date.now()-started,usage:response.usage,status:response.status}});
+    // llm: provider, model, class, latency, cost and fallback reasons from the LLM layer.
+    await event?.({kind:'model_finished',data:{round:round+1,attempt:attempt+1,model:response?.llm?.model||payload.model,reasoning:payload.reasoning?.effort,durationMs:Date.now()-started,usage:response.usage,status:response.status,...(response?.llm?{llm:response.llm}:{})}});
     if(response.status!=='incomplete'&&response.status!=='failed')break;
    }
    if(payload.tool_choice==='required')payload.tool_choice='auto';

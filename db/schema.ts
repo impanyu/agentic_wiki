@@ -1,4 +1,4 @@
-import { sqliteTable, text, integer, index, uniqueIndex } from 'drizzle-orm/sqlite-core';
+import { sqliteTable, text, integer, real, index, uniqueIndex } from 'drizzle-orm/sqlite-core';
 export const pages = sqliteTable('pages', {
  id:text('id').primaryKey(), ownerId:text('owner_id').notNull(), question:text('question').notNull(),
  title:text('title').notNull(), summary:text('summary').notNull(), body:text('body').notNull(),
@@ -122,3 +122,7 @@ export const agentSessionState=sqliteTable('agent_session_state',{
 export const agentRunEvents=sqliteTable('agent_run_events',{
  sequence:integer('sequence').primaryKey({autoIncrement:true}),agentId:text('agent_id').notNull().references(()=>agentInstances.id,{onDelete:'cascade'}),runId:text('run_id').notNull(),kind:text('kind').notNull(),data:text('data').notNull(),createdAt:text('created_at').notNull(),
 },t=>[index('agent_run_history').on(t.agentId,t.sequence)]);
+// Per-call LLM routing record; the monthly OpenAI budget sums cost_usd by month (UTC).
+export const llmUsage=sqliteTable('llm_usage',{
+ id:integer('id').primaryKey({autoIncrement:true}),createdAt:text('created_at').notNull(),month:text('month').notNull(),class:text('class').notNull(),provider:text('provider').notNull(),model:text('model').notNull(),status:text('status').notNull(),latencyMs:integer('latency_ms').notNull(),inputTokens:integer('input_tokens').notNull().default(0),cachedTokens:integer('cached_tokens').notNull().default(0),outputTokens:integer('output_tokens').notNull().default(0),costUsd:real('cost_usd').notNull().default(0),webSearches:integer('web_searches').notNull().default(0),fallbackReason:text('fallback_reason'),
+},t=>[index('idx_llm_usage_month').on(t.month,t.provider)]);

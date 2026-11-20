@@ -1,6 +1,7 @@
 import {createHash} from 'node:crypto';
 import {Script} from 'node:vm';
-import {api,output} from '@/app/api/ask/ai';
+import {output} from '@/app/api/ask/ai';
+import {respond} from '@/app/llm';
 import {model} from '@/db/store';
 import type {SandboxDefinition} from '@/app/components-registry/sandbox-contracts';
 import {listedLibrary} from '@/app/app-libs/proxy';
@@ -45,7 +46,7 @@ export async function reviewAppCode(app:SandboxDefinition,signal?:AbortSignal):P
  const chunks:string[]=[];let current='';for(const part of numbered){if(current&&current.length+part.length>250000){chunks.push(current);current='';}current+=(current?'\n\n':'')+part.slice(0,400000);}if(current)chunks.push(current);
  const issues:ReviewIssue[]=[],summaries:string[]=[];let approved=true;
  for(const chunk of chunks){
-  const response=await api('responses',{model:model(),store:false,instructions:INSTRUCTIONS,input:[{role:'user',content:[{type:'input_text',text:'Libraries: '+JSON.stringify(app.libraries||{})+'\n\n'+chunk}]}],text:{format:{type:'json_schema',name:'code_review',strict:true,schema:SCHEMA}},max_output_tokens:4000},signal);
+  const response=await respond({class:'premium',model:model(),store:false,instructions:INSTRUCTIONS,input:[{role:'user',content:[{type:'input_text',text:'Libraries: '+JSON.stringify(app.libraries||{})+'\n\n'+chunk}]}],text:{format:{type:'json_schema',name:'code_review',strict:true,schema:SCHEMA}},max_output_tokens:4000},signal);
   const r=JSON.parse(output(response)) as {verdict:string;summary:string;issues:ReviewIssue[]};
   if(r.verdict!=='approve')approved=false;issues.push(...r.issues.slice(0,20));summaries.push(r.summary);
  }

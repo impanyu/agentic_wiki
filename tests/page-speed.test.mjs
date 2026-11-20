@@ -39,15 +39,17 @@ test('a streamed tool draft is previewed and finalized by reference without a se
  await m.generateContext({question:'Topic'},{userId:'u',ownerId:'u',language:'en'}, {},e=>events.push(e),new AbortController().signal);delete globalThis.draftSpeed;
 });
 test('Responses function-argument deltas reach the draft preview callback',async()=>{
- const seen=[];globalThis.streamSpeed={reasoningOptions:()=>({}),aiKey:()=> 'test',fetch:async()=>({ok:true,body:{}}),readEvents:async function*(){
+ const seen=[];globalThis.streamSpeed={env:name=>name==='OPENAI_API_KEY'?'test':undefined,usage:{record:async()=>{},monthSpend:async()=>0},fetch:async()=>({ok:true,body:{}}),readEvents:async function*(){
   yield {type:'response.output_item.added',item:{id:'tool1',type:'function_call',name:'validate_page_draft',arguments:''}};
   yield {type:'response.function_call_arguments.delta',item_id:'tool1',delta:'{"draftJson":'};
   yield {type:'response.function_call_arguments.delta',item_id:'tool1',delta:'"draft text"}'};
   yield {type:'response.completed',response:{output:[]}};
  }};
- const source=strip('app/api/ask/ai.ts');const part=source.slice(source.indexOf('export async function streamArticle'),source.indexOf('export function output'));
- const m=await load('const {'+Object.keys(globalThis.streamSpeed).join(',')+'}=globalThis.streamSpeed;'+part);
- await m.streamArticle({},()=>{},undefined,(name,text)=>seen.push({name,text}));
+ // The stream parser lives in the LLM layer; ai.ts streamArticle forwards these callbacks to it.
+ const llmSource=['catalog','prices','limits','schema','translate','search','core'].map(f=>strip('app/llm/'+f+'.ts')).join('\n');
+ const {createLLM}=await load(llmSource);const llm=createLLM(globalThis.streamSpeed);
+ await llm.respondStream({class:'premium',model:'test-model'},{onToolArguments:(name,text)=>seen.push({name,text})});
+ assert.match(strip('app/api/ask/ai.ts'),/respondStream\(body,\{onToolArguments,/);
  assert.deepEqual(seen.at(-1),{name:'validate_page_draft',text:'{"draftJson":"draft text"}'});delete globalThis.streamSpeed;
 });
 
