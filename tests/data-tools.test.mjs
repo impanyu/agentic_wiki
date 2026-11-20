@@ -89,7 +89,7 @@ test('XML: RSS items and Atom entries become rows',()=>{
 });
 
 test('blocked pages are recognised',()=>{
- assert.match(parse.blockedReason('Checking your browser… Verify you are human','Just a moment...','https://x.com/a'),/bot-protection/);
+ assert.match(parse.blockedReason('Checking your browser… Verify you are human','Just a moment...','https://x.com/a'),/interactive challenge/);
  assert.match(parse.blockedReason('Please log in to continue','Sign in','https://x.com/login'),/login/);
  assert.equal(parse.blockedReason('A long ordinary article '.repeat(300),'Article','https://x.com/a'),null);
 });

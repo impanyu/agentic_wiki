@@ -2,10 +2,12 @@
 // in-memory LRU cache of GET responses and retries with backoff on 429/5xx. The network
 // transport is injected (transport.ts on the server, a stub in tests), so this file stays pure.
 export const USER_AGENT='rankwiki-bot/1.0 (+https://rankwiki.aisoup.net)';
-export type TransportResponse={status:number;headers:Record<string,string|string[]|undefined>;text:string};
+export type TransportResponse={status:number;headers:Record<string,string|string[]|undefined>;text:string;bytes?:Uint8Array;url?:string};
 export type Transport=(url:string,init:{headers:Record<string,string>;signal?:AbortSignal;timeoutMs:number})=>Promise<TransportResponse>;
 export type JsonOptions={headers?:Record<string,string>;timeoutMs?:number;cacheMs?:number;noCache?:boolean;retries?:number};
-export type Http={json(url:string,options?:JsonOptions):Promise<any>};
+export type RawResponse={status:number;headers:TransportResponse['headers'];bytes:Uint8Array;url:string};
+// json: parsed JSON; text: the body as text (HTML, NDJSON); raw: status, headers and bytes (Range requests, gzip records).
+export type Http={json(url:string,options?:JsonOptions):Promise<any>;text?(url:string,options?:JsonOptions):Promise<string>;raw?(url:string,options?:JsonOptions):Promise<RawResponse>};
 export class PublicHttpError extends Error{
  constructor(public status:number,public host:string,detail=''){super('HTTP '+status+' from '+host+(detail?': '+detail:''));this.name='PublicHttpError';}
 }
@@ -49,6 +51,9 @@ export const HOST_INTERVALS:Record<string,number>={
  'nominatim.openstreetmap.org':1100,'overpass.private.coffee':1000,'maps.mail.ru':1000,'musicbrainz.org':1100,'overpass-api.de':1000,'api.coingecko.com':2500,
  'query.wikidata.org':250,'steamspy.com':1100,'store.steampowered.com':400,'api.github.com':250,'api.stackexchange.com':150,
  'crates.io':1000,'pypistats.org':500,'openlibrary.org':300,'api.openalex.org':120,
+ // Archives: the Internet Archive asks for about one request per second; Common Crawl's index
+ // server is a single shared instance.
+ 'web.archive.org':1000,'archive.org':1000,'index.commoncrawl.org':1000,'data.commoncrawl.org':500,
 };
 const errorDetail=(text:string)=>{
  let detail=text;
@@ -63,9 +68,10 @@ export function createFetcher(options:{transport:Transport;intervals?:Record<str
  const limiter=options.limiter||new HostLimiter(h=>intervals[h]??options.defaultIntervalMs??100,now,sleep);
  const cache=options.cache||new TtlLru<unknown>(200,40*1024*1024,now);
  const defaultCache=options.cacheMs??600_000;
- async function json(url:string,o:JsonOptions={},signal?:AbortSignal):Promise<any>{
-  const host=new URL(url).hostname;
-  if(!o.noCache){const hit=cache.get(url);if(hit!==undefined)return hit;}
+ async function json(url:string,o:JsonOptions={},signal?:AbortSignal):Promise<any>{return request(url,o,signal,'json');}
+ async function request(url:string,o:JsonOptions,signal:AbortSignal|undefined,mode:'json'|'text'|'raw'):Promise<any>{
+  const host=new URL(url).hostname,key=mode==='json'?url:mode+' '+url+' '+(o.headers?.Range||'');
+  if(!o.noCache){const hit=cache.get(key);if(hit!==undefined)return hit;}
   let last:unknown;
   const tries=o.retries??retries;
   for(let attempt=0;attempt<=tries;attempt++){
@@ -73,17 +79,21 @@ export function createFetcher(options:{transport:Transport;intervals?:Record<str
    if(attempt)await sleep(Math.max(1000*3**(attempt-1),last instanceof RetryLater?last.after:0),signal);
    await limiter.wait(host,signal);
    let res:TransportResponse;
-   try{res=await options.transport(url,{headers:{'User-Agent':USER_AGENT,Accept:'application/json',...o.headers},signal,timeoutMs:o.timeoutMs||30_000});}
+   try{res=await options.transport(url,{headers:{'User-Agent':USER_AGENT,Accept:mode==='json'?'application/json':'*/*',...o.headers},signal,timeoutMs:o.timeoutMs||30_000});}
    catch(e){if(signal?.aborted)throw e;last=e;continue;}
    if(res.status===429||res.status>=500){last=new RetryLater(res.status,host,errorDetail(res.text),retryAfter(res.headers));continue;}
    if(res.status<200||res.status>=300)throw new PublicHttpError(res.status,host,errorDetail(res.text));
-   let data:unknown;try{data=res.text.trim()?JSON.parse(res.text):null;}catch{throw Error('Invalid JSON from '+host+'.');}
-   if(!o.noCache)cache.set(url,data,res.text.length,o.cacheMs??defaultCache);
+   let data:unknown,size=res.text.length;
+   if(mode==='text')data=res.text;
+   else if(mode==='raw'){const bytes=res.bytes||new TextEncoder().encode(res.text);data={status:res.status,headers:res.headers,bytes,url:res.url||url};size=bytes.length;}
+   else{try{data=res.text.trim()?JSON.parse(res.text):null;}catch{throw Error('Invalid JSON from '+host+'.');}}
+   if(!o.noCache)cache.set(key,data,size,o.cacheMs??defaultCache);
    return data;
   }
   if(last instanceof RetryLater)throw new PublicHttpError(last.status,host,(last.status===429?'rate limited; try again later':'service unavailable')+(last.detail?' ('+last.detail+')':''));
   throw Error('Request to '+host+' failed: '+(last instanceof Error?last.message:String(last)));
  }
- return {json,cache,limiter,bind:(signal?:AbortSignal):Http=>({json:(url,o)=>json(url,o,signal)})};
+ return {json,cache,limiter,text:(url:string,o:JsonOptions={},signal?:AbortSignal):Promise<string>=>request(url,o,signal,'text'),raw:(url:string,o:JsonOptions={},signal?:AbortSignal):Promise<RawResponse>=>request(url,o,signal,'raw'),
+  bind:(signal?:AbortSignal):Http=>({json:(url,o)=>json(url,o,signal),text:(url,o)=>request(url,o||{},signal,'text'),raw:(url,o)=>request(url,o||{},signal,'raw')})};
 }
 class RetryLater extends PublicHttpError{constructor(status:number,host:string,public detail:string,public after:number){super(status,host,detail);}}

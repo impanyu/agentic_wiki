@@ -5,7 +5,9 @@ import {flattenSparql,compactClaims,wikidataIds,labelIds,commonsFileUrl,wbCountr
 // Fixed-tool public data sources. Each tool declares its arguments once (zod for validation,
 // JSON schema for list_public_sources) and returns compact, normalized output. Tabular
 // results come back as {rows,...}; the service saves large row sets as datasets.
-export type ToolCtx={http:Http;env:(name:string)=>string|undefined};
+// save: stores extra tables (e.g. the tables of an archived page) as datasets of the caller.
+export type SavedTable={datasetId:string;rowCount:number;preview:unknown[]};
+export type ToolCtx={http:Http;env:(name:string)=>string|undefined;save?:(input:{title:string;source:string;rows:Record<string,unknown>[];notes?:string})=>Promise<SavedTable>};
 export type Arg={zod:z.ZodTypeAny;json:Record<string,unknown>;optional?:boolean};
 export type ToolDef={name:string;description:string;args:Record<string,Arg>;run:(a:any,c:ToolCtx)=>Promise<unknown>};
 export type ProviderDef={id:string;name:string;description:string;tools:ToolDef[];available?:(env:(name:string)=>string|undefined)=>boolean};
@@ -423,4 +425,7 @@ const arcgis:ProviderDef={id:'arcgis',name:'ArcGIS Online (public)',description:
   return a.returnGeometry?{type:r.type,features:r.features}:{title:'ArcGIS layer query',source:base.href,fields:(r.fields||[]).map((f:any)=>({name:f.name,type:f.type,alias:f.alias})),rows:(r.features||[]).map((f:any)=>f.attributes),exceededTransferLimit:r.exceededTransferLimit||undefined};
  }),
 ]};
+// Sources defined in their own modules (archive.ts) add themselves here when imported.
+export const REGISTERED_SOURCES:ProviderDef[]=[];
+export const registerSource=(def:ProviderDef)=>{if(!REGISTERED_SOURCES.some(s=>s.id===def.id))REGISTERED_SOURCES.push(def);};
 export const FIXED_SOURCES:ProviderDef[]=[wikidata,wikipedia,worldbank,countries,openalex,appstore,steam,coingecko,osm,stackexchange,hackernews,packages,gbif,openlibrary,musicbrainz,githubSource,youtube,arcgis];

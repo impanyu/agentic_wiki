@@ -12,7 +12,7 @@ export function publicUrl(input:string):URL{
 }
 export function friendlyError(e:unknown,url:string):Error{
  const m=(e as Error)?.message||String(e);
- const known:Record<string,string>={URL_PRIVATE:'Only public internet addresses can be fetched.',URL_INVALID:'This is not a valid http(s) address.',URL_TOO_LARGE:'The response is too large (limit 20 MB); ask the API for fewer rows or columns.',URL_UNSUPPORTED:'The response is not a data format these tools read (JSON, CSV/TSV, XML, HTML).',URL_UNAVAILABLE:'The address could not be fetched (HTTP error, login required, bot protection or too many redirects): '+url+'. If it needs a login or blocks automated access, use the platform\'s public API or another source.'};
+ const known:Record<string,string>={URL_PRIVATE:'Only public internet addresses can be fetched.',URL_INVALID:'This is not a valid http(s) address.',URL_TOO_LARGE:'The response is too large (limit 20 MB); ask the API for fewer rows or columns.',URL_UNSUPPORTED:'The response is not a data format these tools read (JSON, CSV/TSV, XML, HTML).',URL_UNAVAILABLE:'The address could not be fetched (HTTP error, login wall, access challenge or too many redirects): '+url+'. Do not try to get around it: read its archived copy (call_public_source archive.wayback_fetch, or archive.commoncrawl_index + commoncrawl_fetch; extract_tables, browse_page and crawl_pages do this automatically), or use the platform\'s official API or a data dump.'};
  if(known[m])return Error(known[m]);
  if(/abort|timeout/i.test(m))return Error('The request timed out: '+url);
  if(/ENOTFOUND|EAI_AGAIN/.test(m))return Error('The host does not exist: '+new URL(url).hostname);

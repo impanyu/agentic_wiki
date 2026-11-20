@@ -1,15 +1,16 @@
 import {chromiumPath} from '@/app/workflows/render';
 import {allowedRequestUrl,publicUrl} from './net';
 import {guardProxy} from './proxy';
-import {describeShape,jsonRows,blockedReason} from './parse';
+import {describeShape,jsonRows,detectChallenge,type Challenge} from './parse';
 // Headless Chromium for JavaScript-built public pages. One browser per process, one page at a
 // time (a queue), a fresh context per call (no cookies or storage kept), downloads, service
 // workers and permission prompts refused. Every request goes through a pinned-address proxy
 // (proxy.ts) and route interception, so only public hosts are reached — redirects, subresources
 // and WebSockets included.
 export type CapturedJson={url:string;status:number;bytes:number;shape:string;rowCount:number;value:unknown};
-export type Rendered={url:string;title:string;html:string;text:string;json:CapturedJson[];blocked:string|null;blockedRequests:number};
-// Analytics, telemetry, consent and bot-detection endpoints are not page data.
+export type Rendered={url:string;title:string;html:string;text:string;json:CapturedJson[];blocked:string|null;challenge:Challenge|null;blockedRequests:number};
+// Analytics, telemetry, consent and bot-detection endpoints are not page data. Pages that load
+// such scripts are read normally; only a real challenge or login wall counts as blocked (parse.ts).
 const NOISE=/telemetry|analytics|collect\b|beacon|sentry|awswaf|captcha|recaptcha|hcaptcha|stripe\.com|doubleclick|google-analytics|googletagmanager|segment\.io|mixpanel|amplitude|hotjar|clarity\.ms|consent|onetrust|cookielaw|datadome|perimeterx|newrelic|nr-data/i;
 const HARD_TIMEOUT=45_000,JSON_MAX=5*1024*1024,JSON_KEEP=40;
 const UA={desktop:'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',mobile:'Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Mobile Safari/537.36'};
@@ -67,7 +68,8 @@ export async function renderPage(address:string,options:{waitFor?:string;scrolls
    await Promise.race([Promise.allSettled(pending),new Promise(r=>setTimeout(r,2000))]);
    const url=page.url(),title=await page.title().catch(()=>''),html=await page.content();
    const text=await page.evaluate(()=>(document.body?.innerText||'').replace(/[ \t]+/g,' ').replace(/\n{3,}/g,'\n\n').trim()).catch(()=>'');
-   return {url,title,html,text,json,blocked:blockedReason(text,title,url),blockedRequests};
+   const challenge=detectChallenge({text,title,url,html});
+   return {url,title,html,text,json,blocked:challenge?.reason||null,challenge,blockedRequests};
   }catch(e){
    const m=(e as Error).message||'';
    if(/Timeout|closed|Target page/i.test(m))throw Error('The page did not finish loading within '+HARD_TIMEOUT/1000+' s: '+start.href);

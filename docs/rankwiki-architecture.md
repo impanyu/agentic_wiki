@@ -64,6 +64,33 @@ The editor works in **shifts**: the scheduler gives it a time slice; it picks th
 priority due items (demand first, then due refreshes, then backlog), runs them as tool-using
 agent turns, records results, updates the roadmap, and ends the shift.
 
+### Data collection — crawler infrastructure plus an on-demand recipe agent
+Scheduled crawling and refreshing is infrastructure, not an agent's job. Only the parts that
+need judgment use a model.
+
+- **Recipes**: a declarative *ingestion recipe* says how to get one dataset: tool and URL
+  pattern, pagination, JSONata selection, mapping to entities/metrics/attributes, identity
+  keys, units, schedule, and validation (expected row count range, required fields, value
+  ranges). Recipes are stored in the entity DB, versioned, and reused by every editor.
+- **Crawler (infrastructure, no LLM)**: a scheduler and workers replay recipes on their
+  schedules, 24/7 — incremental fetches, writing observations with source and retrieval time,
+  coverage and freshness bookkeeping, change detection. When a run fails validation (rows
+  drop, schema changes, a page is blocked) it raises an event instead of guessing. It scales
+  out by adding worker machines.
+- **Recipe agent (on demand, cheap model class)**: started only by events —
+  (1) an editor's data request no recipe covers yet → find authoritative sources, write and
+  test a recipe; (2) a recipe broke → repair it; (3) a conflict or identity match the rules
+  cannot settle → adjudicate and record the decision. It exits when done.
+- **Data requests**: editors state what their pages need (scope, entity type, fields,
+  coverage, freshness); the request is matched to existing recipes or handed to the recipe
+  agent; coverage and gaps are reported back to the editor's inbox.
+- Data quality duties (source tiers, cross-checks, conflict records, coverage against
+  membership lists/universes, freshness SLAs) are enforced by the crawler's validation and the
+  recipe agent's decisions.
+
+So per topic: **editor** (roadmap, data requests, pages) + **reviewer**; shared: the
+**crawler** (infrastructure), the **recipe agent** (on demand) and the **router**.
+
 ### How an editor composes a page (replaces the one-shot generator)
 Today a page is written in one agent run: a few searches and reads, then the whole article in
 one final answer (median 5 model calls, ~3.7K output tokens), under the instruction "match
@@ -72,10 +99,10 @@ from the entity database outwards:
 
 1. **Dossier** — collect what the DB already knows about the entity or scope (attributes,
    observations with periods and sources, related entities, existing rankings and positions).
-2. **Gap research** — compare the dossier with the template's required fields and sections
-   for this entity type; fetch what is missing or stale from authoritative sources (data
-   tools, public sources, primary documents), writing every fact back to the DB with source
-   and retrieval time before it is used on a page.
+2. **Gap filling** — compare the dossier with the template's required fields and sections
+   for this entity type; structured data that is missing or stale becomes a data request
+   (served by existing recipes or the recipe agent); the editor itself reads primary documents for narrative facts, writing
+   every fact back to the DB with source and retrieval time before it is used on a page.
 3. **Outline** — the entity-type template gives the section plan (e.g. a country: geography,
    history, politics, economy, demographics, culture, infrastructure, rankings; a company:
    business, products, history, leadership, financials, competitors, rankings) with a target
@@ -112,8 +139,10 @@ from the entity database outwards:
   Cross-checks catch gaps: items on award lists, bestseller charts or critics' lists that are
   missing from the universe are flagged; the reviewer spot-checks well-known members.
   Broad scopes get sub-rankings (by category, price tier, era, region) whose universes are
-  sharper. Sources that forbid crawling or sit behind bot protection are not used; the page
-  says which criteria have reduced coverage.
+  sharper. Agents use any page a normal anonymous visit opens; where a page actually requires
+  a login, a CAPTCHA or an interactive challenge they stop and use archives (Wayback Machine,
+  Common Crawl), official APIs or data dumps instead; the page says which criteria have
+  reduced coverage.
 - **Ranking authority**: each criterion names its source tier; lower-tier values are
   cross-checked; conflicts are recorded and resolved (see Quality).
 
@@ -198,6 +227,25 @@ Quality is the product. Three gates, each checked by the editor and again by its
   duplicates and identity merges, period consistency (no mixing 2019 and 2023 in one ranking
   without saying so), freshness against the source's cadence.
 - Every observation keeps source URL, period, retrieval time and the transformation applied.
+- Collection policy: agents may fetch anything a normal anonymous visit can open — including
+  sites served through bot-protection services, as long as the page loads normally; they stop
+  only when a page actually requires a login, a CAPTCHA or an interactive challenge. They never
+  solve CAPTCHAs, spoof fingerprints to defeat detection, rotate proxies to evade blocks or log
+  in. Challenge detection looks for real interstitials (Cloudflare "Just a moment", "Verify you
+  are human", hCaptcha/reCAPTCHA/Turnstile challenge pages, PerimeterX, DataDome, login walls),
+  not the mere presence of a protection script; a blocked tool call returns
+  `{blocked, reason, fallbacks}`.
+- Fallbacks: the `archive` public source — `wayback_snapshots` / `wayback_fetch` (Wayback CDX
+  index and raw `id_` snapshots) and `commoncrawl_index` / `commoncrawl_fetch` (Common Crawl
+  URL index, falling back to its published cluster.idx/cdx files when the index server is
+  overloaded; one WARC record by HTTP Range) — lists every captured page of a site section and
+  reads pages that are gone or blocked. `extract_tables`, `browse_page` and `crawl_pages` fall
+  back to the latest Wayback capture automatically and mark it `fromArchive` with
+  `snapshotUrl` and the capture date, which the page cites. archive.org and the Common Crawl
+  index are paced at about one request per second in the shared limiter.
+- Crawling: `crawl_pages` stays polite (≥1 s per host, same site, page cap) and obeys
+  robots.txt by default; `CRAWL_ROBOTS=ignore` makes it follow matching links regardless, and
+  every result reports the mode used.
 
 **Page generation** — the page templates, components and the reviewer's checklist (section
 "Reviewers"); a page is published only after it passes.
@@ -232,7 +280,8 @@ It tracks each provider's live quotas (RPM/TPM/RPD), falls back in order, retrie
 translates the internal request format to each provider's API (OpenAI-compatible chat
 completions or native), and records model, latency and usage per call. Web search becomes an
 ordinary tool backed by a search provider instead of OpenAI's built-in `web_search`.
-Model selection is pending the free-model research.
+Implemented in `app/llm` (chains, limits and prices in `catalog.ts`/`prices.ts`; see
+`app/llm/README.md`), with a metered monthly OpenAI budget for the `premium` class.
 
 ## 4. Rankings as a service for agents
 The same data that renders pages is served to other agents, read-only and public:

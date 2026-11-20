@@ -49,3 +49,10 @@ export function linkMatcher(pattern:string):(url:string)=>boolean{
  let re:RegExp;try{const m=p.match(/^\/(.*)\/([a-z]*)$/);re=m?new RegExp(m[1],m[2].replace(/[gy]/g,'')):new RegExp(p);}catch(e){throw Error('linkPattern is not a valid regular expression: '+(e as Error).message);}
  return url=>re.test(url);
 }
+// CRAWL_ROBOTS=respect (default) obeys robots.txt; "ignore" follows matching links regardless
+// (politeness — ≥1 s per host, same site, page cap — still applies).
+export type RobotsMode='respect'|'ignore';
+export const robotsMode=(value?:string|null):RobotsMode=>String(value||'').trim().toLowerCase()==='ignore'?'ignore':'respect';
+export function crawlAllowed(rules:RobotsRules|null,pathAndQuery:string,mode:RobotsMode){
+ return mode==='ignore'||!rules||robotsAllows(rules,pathAndQuery);
+}

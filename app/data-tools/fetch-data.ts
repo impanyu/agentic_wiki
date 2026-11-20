@@ -1,9 +1,10 @@
 import {saveDataset,DATASET_LIMITS,type DatasetSummary} from './datasets';
 import {fetchText} from './net';
-import {parseDelimited,parseJsonLines,xmlRows,xmlToValue,parseXml,jsonRows,flattenRow,detectFormat,blockedReason,type DataFormat,type Row} from './parse';
+import {parseDelimited,parseJsonLines,xmlRows,xmlToValue,parseXml,jsonRows,flattenRow,detectFormat,detectChallenge,type DataFormat,type Row} from './parse';
 import {extractTables,htmlTitle} from './html';
 import {evaluateJsonata,resultRows} from './query';
 import {paginate,setParam} from './paging';
+import {sourceText} from '@/app/url-content/fetch';
 // fetch_data: one public URL (optionally several pages of it) → one dataset.
 export type FetchDataArgs={url:string;format:'auto'|DataFormat;select:string;tableIndex:number;pages:number;nextPage:string;title:string};
 type Parsed={raw:unknown;rows:Row[];format:DataFormat;note?:string;title?:string;tables?:unknown[]};
@@ -17,7 +18,8 @@ export async function parseResponse(text:string,contentType:string,url:string,fo
  else if(fmt==='csv'||fmt==='tsv'){raw=parseDelimited(text,fmt==='tsv'?'\t':undefined);rows=raw as Row[];}
  else if(fmt==='xml'){const root=parseXml(text);raw=xmlToValue(root);if(!select){const r=xmlRows(text);rows=r.rows;note='Rows are the repeated <'+r.element+'> elements (attributes as "@name", nested elements as dotted columns).';}}
  else{
-  const blocked=blockedReason(text.replace(/<[^>]+>/g,' '),htmlTitle(text),url);if(blocked)throw Error(blocked);
+  const blocked=detectChallenge({text:sourceText(text),title:htmlTitle(text),url,html:text});
+  if(blocked)throw Error(blocked.reason+' Archived copy: https://web.archive.org/web/'+url+' (or call_public_source archive.wayback_fetch {"url":"'+url+'"}; extract_tables and browse_page fall back to it automatically).');
   const all=extractTables(text,{baseUrl:url});title=htmlTitle(text);
   tables=all.map(t=>({index:t.index,caption:t.caption,section:t.section,headers:t.headers.slice(0,25),rowCount:t.rows.length}));
   if(tableIndex===-1)return {raw:null,rows:[],format:'html_table',tables,title};

@@ -161,10 +161,51 @@ export function detectFormat(contentType:string,text:string,url=''):DataFormat{
  const first=head.split('\n')[0];return first.includes('\t')?'tsv':'csv';
 }
 
-// Login walls and bot challenges: the tools say so instead of returning a challenge page as data.
-export function blockedReason(text:string,title='',url=''):string|null{
- const t=(title+' '+text.slice(0,4000)).toLowerCase(),short=text.replace(/\s+/g,' ').trim().length<3000;
- if(/just a moment\.\.\.|attention required! \| cloudflare|cf-chl-|challenge-platform|captcha|verify you are (a )?human|are you a robot|unusual traffic|press (&|and) hold|access denied|request blocked|bot detection|perimeterx|datadome/.test(t)&&short)return 'This site answered with a bot-protection or human-verification page, so it cannot be read automatically. Do not try to get around it: use the platform\'s public API, an official data export, or another source.';
- if((/\/(login|signin|sign-in|log-in|accounts\/login|auth)\b/i.test(url)||/(sign|log) ?in to (continue|view|see)|you must (be logged|log) in|please (sign|log) in/.test(t))&&short)return 'This page needs a login, so it cannot be read. Only public data can be used: try the platform\'s public API, its public profile/listing pages, or another source.';
+// Login walls and interactive challenges. Only a page that actually IS a challenge or a login
+// wall counts — a normal page that merely loads a protection or CAPTCHA script (Cloudflare's
+// challenge-platform beacon, DataDome tags, an invisible reCAPTCHA on a contact form) is read
+// as usual. Policy: use any page a normal anonymous visit opens; stop only at a login, a CAPTCHA
+// or an interactive challenge — never solve, spoof or evade it — and fall back to archives.
+export type Challenge={kind:'challenge'|'captcha'|'login'|'denied';via:string;reason:string};
+const CHALLENGE_TITLE:[RegExp,string][]=[
+ [/^just a moment\.*$/,'Cloudflare "Just a moment"'],[/^attention required!? \| cloudflare$/,'Cloudflare block page'],[/^one more step$/,'Cloudflare challenge'],
+ [/^(ddos-guard|checking your browser.*|please wait while we verify.*|security check|human verification|are you a (robot|human)\??|robot check|pardon our interruption\.*|verifying (you are|that you are) human.*|bot verification|access to this page has been denied\.?)$/,'challenge page'],
+];
+const CHALLENGE_HTML:[RegExp,string,Challenge['kind']][]=[
+ [/window\._cf_chl_opt|id=["']challenge-(form|running|stage)["']|cf-browser-verification|\/cdn-cgi\/challenge-platform\/h\/[bg]\/orchestrate/i,'Cloudflare challenge','challenge'],
+ [/id=["']px-captcha["']|captcha\.px-cdn\.net/i,'PerimeterX "Press & Hold"','captcha'],
+ [/<iframe[^>]+src=["'][^"']*captcha-delivery\.com|geo\.captcha-delivery\.com\/captcha|var dd=\{['"]rt['"]:['"][cib]['"]|ct\.captcha-delivery\.com\/[cib]\.js/i,'DataDome CAPTCHA','captcha'],
+ [/_Incapsula_Resource|Incapsula incident ID/i,'Imperva/Incapsula challenge','challenge'],
+ [/AwsWafIntegration\.(checkForceRefresh|getToken)|awswaf\.com\/[^"']*\/(challenge|captcha)\.js/i,'AWS WAF challenge','challenge'],
+];
+const CAPTCHA_WIDGET=/<iframe[^>]+src=["'][^"']*(hcaptcha\.com|google\.com\/recaptcha|recaptcha\.net\/recaptcha|challenges\.cloudflare\.com)|class=["'][^"']*\b(g-recaptcha|h-captcha|cf-turnstile)\b/i;
+const CHALLENGE_TEXT=/verify (that )?you are (a )?human|are you a (robot|human)\b|i['’]?m not a robot|checking (if the site connection is secure|your browser before)|complete the security check|press (&|and) hold|unusual traffic from your computer network|enable javascript and cookies to continue|type the characters you see|confirm you are not a robot|needs to review the security of your connection|please enable js and disable any ad blocker/;
+const DENIED_TEXT=/you don['’]?t have permission to access .* on this server|request unsuccessful\. incapsula|the request could not be satisfied|request blocked\. we can['’]?t connect to the server|error 1020|access denied \| .* used cloudflare/;
+const LOGIN_URL=/\/(login|signin|sign-in|log-in|logon|accounts\/login|auth\/login|auth|sso|session\/new)(\/|\?|$|\.)/i;
+const LOGIN_TEXT=/(sign|log) ?in to (continue|view|see|read|access|proceed)|you must (be logged|log) in|please (sign|log) in|(log|sign) in or (sign up|create an account) to (view|see|continue)|you need to (sign|log) in|this content is (only )?available to (members|subscribers|registered users)/;
+const WHY=' Do not solve, spoof or get around it. Use the latest archived copy instead (call_public_source archive.wayback_fetch, or archive.commoncrawl_index + commoncrawl_fetch), the platform\'s official API or a data dump, and say on the page which criteria have reduced coverage.';
+export function detectChallenge(page:{text:string;title?:string;url?:string;html?:string}):Challenge|null{
+ const html=page.html||'',title=(page.title||'').replace(/\s+/g,' ').trim().toLowerCase();
+ const visible=page.text.replace(/\s+/g,' ').trim(),t=(title+' '+visible.slice(0,4000)).toLowerCase();
+ const tiny=visible.length<1500,short=visible.length<3000;
+ const make=(kind:Challenge['kind'],via:string):Challenge=>({kind,via,reason:kind==='login'?'This page needs a login ('+via+'), so it is not public.'+WHY:kind==='denied'?'The site refused this anonymous request ('+via+') instead of serving the page.'+WHY:'This address answered with '+(kind==='captcha'?'a CAPTCHA':'an interactive challenge')+' ('+via+') instead of the page.'+WHY});
+ if(short)for(const [re,via] of CHALLENGE_TITLE)if(re.test(title))return make(/access .* denied/.test(title)?'denied':'challenge',via);
+ if(short&&html)for(const [re,via,kind] of CHALLENGE_HTML)if(re.test(html))return make(kind,via);
+ if(tiny&&html&&CAPTCHA_WIDGET.test(html)&&!/type=["']password["']/i.test(html))return make('captcha',(html.match(/hcaptcha|recaptcha|turnstile|challenges\.cloudflare/i)?.[0]||'CAPTCHA')+' widget');
+ if(tiny&&CHALLENGE_TEXT.test(t))return make('captcha','human-verification prompt');
+ if(tiny&&(DENIED_TEXT.test(t)||/^(access denied|403 forbidden|forbidden)$/.test(title)))return make('denied',title||'access denied');
+ if(short&&(LOGIN_URL.test(page.url?(()=>{try{return new URL(page.url!).pathname+new URL(page.url!).search;}catch{return page.url!;}})():'')||LOGIN_TEXT.test(t)))return make('login','login wall');
+ if(tiny&&html&&/<input[^>]+type=["']password["']/i.test(html))return make('login','password form');
  return null;
+}
+export function blockedReason(text:string,title='',url='',html=''):string|null{return detectChallenge({text,title,url,html})?.reason||null;}
+// The structured answer a tool gives for a blocked address: why, and where the same page can
+// still be read (Wayback Machine snapshot, Common Crawl index lookup).
+export function blockedHint(url:string,c:Challenge|string){
+ const challenge=typeof c==='string'?{kind:'challenge',via:'',reason:c}:c;
+ let pattern=url;try{const u=new URL(url);pattern=u.host+u.pathname.replace(/\/[^/]*$/,'/')+'*';}catch{}
+ return {blocked:true as const,kind:challenge.kind,reason:challenge.reason,fallbacks:[
+  {source:'wayback',url:'https://web.archive.org/web/'+url,tool:'call_public_source',sourceId:'archive',name:'wayback_fetch',arguments:{url},note:'Latest Wayback Machine snapshot of the same address; cite it with its snapshot date.'},
+  {source:'commoncrawl',tool:'call_public_source',sourceId:'archive',name:'commoncrawl_index',arguments:{url:pattern},note:'Lists captures of this site section in the latest Common Crawl; then commoncrawl_fetch {filename, offset, length} of a row reads one record.'},
+ ]};
 }

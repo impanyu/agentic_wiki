@@ -6,7 +6,8 @@ import type {Transport} from '@/app/public-data/fetcher';
 // HTTPS GET for the public data sources, with the same guarantees as connectors/http.ts
 // remoteRequest (public DNS pinned on the TLS socket, every redirect re-validated, no
 // credentials sent across hosts) plus what these APIs need: the HTTP status for retries,
-// compressed bodies (Stack Exchange always compresses) and responses up to 8 MB.
+// compressed bodies (Stack Exchange always compresses), raw bytes (Range requests for archive
+// records) and responses up to 8 MB.
 const MAX_BYTES=8*1024*1024;
 export const httpsTransport:Transport=async(input,{headers,signal,timeoutMs})=>{
  const deadline=AbortSignal.any([AbortSignal.timeout(timeoutMs),...(signal?[signal]:[])]);
@@ -17,7 +18,7 @@ export const httpsTransport:Transport=async(input,{headers,signal,timeoutMs})=>{
   if(!addresses.length||addresses.some(a=>!publicIPv4(a.address)))throw Error('The endpoint must be public.');
   // Headers that carry a server credential are only sent to the original host.
   const sent=url.origin===origin?headers:Object.fromEntries(Object.entries(headers).filter(([k])=>!/^(authorization|x-[a-z-]*key|x-cg-[a-z-]*)$/i.test(k)));
-  const res=await new Promise<{status:number;headers:Record<string,string|string[]|undefined>;text:string}>((resolve,reject)=>{
+  const res=await new Promise<{status:number;headers:Record<string,string|string[]|undefined>;text:string;bytes?:Uint8Array}>((resolve,reject)=>{
    const req=request(url,{method:'GET',agent:false,family:4,signal:deadline,lookup:(_h,_o,cb)=>cb(null,addresses[0].address,4),headers:{'Accept-Encoding':'gzip, deflate, br',...sent}},r=>{
     const status=r.statusCode||0;
     if(status>=300&&status<400){r.resume();resolve({status,headers:r.headers,text:''});return;}
@@ -27,13 +28,13 @@ export const httpsTransport:Transport=async(input,{headers,signal,timeoutMs})=>{
     r.on('end',()=>{try{
      let bytes=Buffer.concat(chunks);const enc=String(r.headers['content-encoding']||'identity');
      if(enc==='gzip')bytes=gunzipSync(bytes,{maxOutputLength:MAX_BYTES*4});else if(enc==='deflate')bytes=inflateSync(bytes,{maxOutputLength:MAX_BYTES*4});else if(enc==='br')bytes=brotliDecompressSync(bytes,{maxOutputLength:MAX_BYTES*4});
-     resolve({status,headers:r.headers,text:bytes.toString('utf8')});
+     resolve({status,headers:r.headers,text:bytes.toString('utf8'),bytes});
     }catch{reject(Error('The response could not be decoded or is too large.'));}});
    });
    req.on('error',reject);req.end();
   });
   if(res.status>=300&&res.status<400&&res.headers.location){url=new URL(String(res.headers.location),url);continue;}
-  return res;
+  return {...res,url:url.href};
  }
  throw Error('Too many redirects.');
 };
