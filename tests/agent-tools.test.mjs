@@ -8,9 +8,10 @@ test('shared toolbox dispatches directly as the actor and rechecks page permissi
  const agent={id:'a',role:'page:p',ownerId:'viewer'},context={userId:'owner',ownerId:'owner',language:'en',visibility:'private'};
  const toolbox=await applicationToolbox(agent,context);assert.equal(actor,'viewer');assert.equal(scope,'p');assert.ok(toolbox.tools.some(t=>t.name==='read_page_context'));assert.ok(!toolbox.tools.some(t=>t.name==='delegate_task'));
  await toolbox.execute('list_data_files',{after:''});assert.equal(actor,'viewer');assert.equal(calls,1);
- // The wiki edition runs no agent-written code on the server.
- assert.ok(!toolbox.tools.some(t=>['execute_code','render_plot','test_page_program'].includes(t.name)));
- await assert.rejects(toolbox.execute('execute_code',{componentId:'c',version:1,inputJson:'{}'}),/unavailable/);assert.equal(calls,1);
+ // In the wiki edition agents do not write code: saved code still runs, agent-authored code tools are off.
+ assert.ok(!toolbox.tools.some(t=>['render_plot','test_page_program'].includes(t.name)));
+ await assert.rejects(toolbox.execute('render_plot',{code:'x',name:'a',inputJson:'{}'}),/unavailable/);
+ await toolbox.execute('execute_code',{componentId:'c',version:1,inputJson:'{}'});assert.equal(actor,'viewer');assert.equal(calls,2);
  // Write tools recheck page permissions when they run.
  owned=false;await assert.rejects(toolbox.execute('write_page_file',{name:'a.svg',content:'<svg/>'}),/READ_ONLY/);
  const readonly=await applicationToolbox(agent,context);assert.ok(!readonly.tools.some(t=>t.name==='write_page_file'));assert.ok(readonly.tools.some(t=>t.name==='list_data_files'));const generator=await applicationToolbox({id:'g',role:'generation',ownerId:'viewer'},{userId:'owner',ownerId:'owner',language:'en',visibility:'private'});assert.ok(generator.tools.some(t=>t.name==='call_connector'));assert.ok(generator.tools.some(t=>t.name==='suggest_page'));await generator.execute('call_connector',{connectorId:'test',tool:'read',argumentsJson:'{}'});assert.equal(actor,'viewer');delete globalThis.toolboxTest;
