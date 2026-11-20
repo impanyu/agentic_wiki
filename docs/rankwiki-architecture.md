@@ -64,6 +64,45 @@ The editor works in **shifts**: the scheduler gives it a time slice; it picks th
 priority due items (demand first, then due refreshes, then backlog), runs them as tool-using
 agent turns, records results, updates the roadmap, and ends the shift.
 
+### How an editor composes a page (replaces the one-shot generator)
+Today a page is written in one agent run: a few searches and reads, then the whole article in
+one final answer (median 5 model calls, ~3.7K output tokens), under the instruction "match
+length to the question" — which is why pages come out short. Editors instead work in stages,
+from the entity database outwards:
+
+1. **Dossier** — collect what the DB already knows about the entity or scope (attributes,
+   observations with periods and sources, related entities, existing rankings and positions).
+2. **Gap research** — compare the dossier with the template's required fields and sections
+   for this entity type; fetch what is missing or stale from authoritative sources (data
+   tools, public sources, primary documents), writing every fact back to the DB with source
+   and retrieval time before it is used on a page.
+3. **Outline** — the entity-type template gives the section plan (e.g. a country: geography,
+   history, politics, economy, demographics, culture, infrastructure, rankings; a company:
+   business, products, history, leadership, financials, competitors, rankings) with a target
+   depth set by the entity's importance and the evidence available — major entities get long,
+   comprehensive articles; minor ones stay proportionate but never thin.
+4. **Section drafting** — each section is written in its own model call from its slice of the
+   dossier and sources (parallel where possible), so length is not capped by one answer and
+   every paragraph is grounded; components (stats cards, charts from observations, ranking
+   positions) are generated from DB queries, not typed by hand.
+5. **Assembly and checks** — lead, infobox, sections, references (each citation = a source
+   row), "data as of" stamps; automated checks (coverage, numbers vs. DB, links), then the
+   reviewer.
+
+### Freshness, completeness and authority (editor duties)
+- **Every fact is dated and cited**: observations and attributes keep source, period and
+  retrieval time; pages show "data as of" per section and per ranking.
+- **Freshness SLA per field**: each metric/attribute class has a refresh cadence derived from
+  its source (daily prices, monthly stats, annual indicators, rarely-changing facts); the
+  roadmap schedules `refresh` items; stale facts are flagged on pages and to the reviewer.
+- **Change propagation**: when a refresh changes a value, the editor re-renders the affected
+  sections and rankings (not the whole page) and records a page version.
+- **Ranking completeness**: every ranking scope has an authoritative membership list (e.g. UN
+  member states, an exchange's listed companies, a federation's member clubs) stored with its
+  source; coverage = ranked / members; below the threshold a ranking is not published.
+- **Ranking authority**: each criterion names its source tier; lower-tier values are
+  cross-checked; conflicts are recorded and resolved (see Quality).
+
 ### Reviewers — one independent checker per editor
 Every editor has its own **reviewer** agent that judges the editor's pages from an
 independent reader's point of view. It never sees the editor's reasoning, only the published
