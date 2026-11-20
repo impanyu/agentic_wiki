@@ -64,7 +64,7 @@ The editor works in **shifts**: the scheduler gives it a time slice; it picks th
 priority due items (demand first, then due refreshes, then backlog), runs them as tool-using
 agent turns, records results, updates the roadmap, and ends the shift.
 
-### Data collection — crawler infrastructure plus an on-demand recipe agent
+### Data collection — crawler infrastructure plus on-demand collector agents
 Scheduled crawling and refreshing is infrastructure, not an agent's job. Only the parts that
 need judgment use a model.
 
@@ -77,16 +77,19 @@ need judgment use a model.
   coverage and freshness bookkeeping, change detection. When a run fails validation (rows
   drop, schema changes, a page is blocked) it raises an event instead of guessing. It scales
   out by adding worker machines.
-- **Recipe agent (on demand, cheap model class)**: started only by events —
+- **Collector agent (on demand, cheap model class)**: the judgment part of collection —
+  where to get data when a source is blocked or thin, which source is authoritative, how its
+  fields map. Started only by events —
   (1) an editor's data request no recipe covers yet → find authoritative sources, write and
   test a recipe; (2) a recipe broke → repair it; (3) a conflict or identity match the rules
-  cannot settle → adjudicate and record the decision. It exits when done.
+  cannot settle → adjudicate and record the decision. It exits when done. A complex platform (a large marketplace whose layouts change often)
+  may get a dedicated collector agent that owns that platform's recipes long term.
 - **Data requests**: editors state what their pages need (scope, entity type, fields,
-  coverage, freshness); the request is matched to existing recipes or handed to the recipe
+  coverage, freshness); the request is matched to existing recipes or handed to a collector
   agent; coverage and gaps are reported back to the editor's inbox.
 - Data quality duties (source tiers, cross-checks, conflict records, coverage against
   membership lists/universes, freshness SLAs) are enforced by the crawler's validation and the
-  recipe agent's decisions.
+  collector agent's decisions.
 
 So per topic: **editor** (roadmap, data requests, pages) + **reviewer**; shared: the
 **crawler** (infrastructure), the **recipe agent** (on demand) and the **router**.
@@ -101,7 +104,7 @@ from the entity database outwards:
    observations with periods and sources, related entities, existing rankings and positions).
 2. **Gap filling** — compare the dossier with the template's required fields and sections
    for this entity type; structured data that is missing or stale becomes a data request
-   (served by existing recipes or the recipe agent); the editor itself reads primary documents for narrative facts, writing
+   (served by existing recipes or a collector agent); the editor itself reads primary documents for narrative facts, writing
    every fact back to the DB with source and retrieval time before it is used on a page.
 3. **Outline** — the entity-type template gives the section plan (e.g. a country: geography,
    history, politics, economy, demographics, culture, infrastructure, rankings; a company:
