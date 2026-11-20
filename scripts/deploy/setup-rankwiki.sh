@@ -19,6 +19,8 @@ if [ ! -f "$DIR/.env.local" ]; then
  umask 077
  grep -E '^(OPENAI_API_KEY|OPENAI_[A-Z_]*MODEL|GOOGLE_CLIENT_ID|GOOGLE_CLIENT_SECRET|STORAGE_TOKEN_ENCRYPTION_KEY|GOOGLE_MAPS_API_KEY|YOUTUBE_API_KEY|GITHUB_TOKEN|EARTH_ENGINE_[A-Z_]*)=' "$SRC/.env.local" > "$DIR/.env.local" || true
  echo "APP_URL=https://$DOMAIN" >> "$DIR/.env.local"
+ # The owner's choice: crawl regardless of robots.txt (politeness limits still apply).
+ echo "CRAWL_ROBOTS=ignore" >> "$DIR/.env.local"
  ee="$SRC/data/secrets/earthengine-service-account.json"
  if [ -f "$ee" ] && ! grep -q '^EARTH_ENGINE_SERVICE_ACCOUNT_KEY_FILE=' "$DIR/.env.local"; then echo "EARTH_ENGINE_SERVICE_ACCOUNT_KEY_FILE=$ee" >> "$DIR/.env.local"; fi
 fi
