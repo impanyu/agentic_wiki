@@ -97,9 +97,23 @@ from the entity database outwards:
   roadmap schedules `refresh` items; stale facts are flagged on pages and to the reviewer.
 - **Change propagation**: when a refresh changes a value, the editor re-renders the affected
   sections and rankings (not the whole page) and records a page version.
-- **Ranking completeness**: every ranking scope has an authoritative membership list (e.g. UN
-  member states, an exchange's listed companies, a federation's member clubs) stored with its
-  source; coverage = ranked / members; below the threshold a ranking is not published.
+- **Ranking completeness** depends on the kind of scope, recorded on every ranking:
+  - *closed sets* (countries, US states, a league's clubs): an authoritative membership list
+    stored with its source; coverage = ranked / members must be ~100%;
+  - *large catalogs* (companies, universities, apps, perfumes): an explicit universe — a
+    comprehensive catalog plus a public eligibility threshold (e.g. "in a major fragrance
+    database, ≥1,000 community ratings, in production"), a dedupe rule for variants
+    (flankers, editions, concentrations); coverage is measured against that universe and
+    the page shows eligible / ranked / excluded-for-insufficient-data counts;
+  - *subjective "best"* (best perfumes, best films): "best" is broken into measurable
+    criteria — vote-weighted community rating (Bayesian average, so 20 votes can't beat
+    20,000), critics' scores, awards, popularity/sales — plus an optional editor-designed
+    composite index (versioned, with methodology and sensitivity analysis).
+  Cross-checks catch gaps: items on award lists, bestseller charts or critics' lists that are
+  missing from the universe are flagged; the reviewer spot-checks well-known members.
+  Broad scopes get sub-rankings (by category, price tier, era, region) whose universes are
+  sharper. Sources that forbid crawling or sit behind bot protection are not used; the page
+  says which criteria have reduced coverage.
 - **Ranking authority**: each criterion names its source tier; lower-tier values are
   cross-checked; conflicts are recorded and resolved (see Quality).
 
