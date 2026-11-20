@@ -92,7 +92,7 @@ need judgment use a model.
   collector agent's decisions.
 
 So per topic: **editor** (roadmap, data requests, pages) + **reviewer**; shared: the
-**crawler** (infrastructure), the **recipe agent** (on demand) and the **router**.
+**crawler** (infrastructure), **collector agents** (on demand) and the **router**.
 
 ### How an editor composes a page (replaces the one-shot generator)
 Today a page is written in one agent run: a few searches and reads, then the whole article in
