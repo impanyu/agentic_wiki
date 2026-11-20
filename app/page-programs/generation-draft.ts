@@ -21,7 +21,7 @@ const source=z.object({title:z.string().min(1).max(500),url:z.string().url().ref
 // "pages I visited about history", "history pages I have viewed", "my recently opened apps",
 // "我看过的历史页面": requests for the user's own pages on this wiki.
 export function ownPagesRequest(question:string){const q=question.toLowerCase();return /\b(pages?|articles?|apps?|web ?apps?|dashboards?|contexts?)\b[^.?!]{0,40}\b(i|i've|i have|i had)\s+(?:have\s+|recently\s+|just\s+|already\s+)*(visited|viewed|opened|seen|browsed|read|created|made|generated|wrote|saved)\b/.test(q)||/\bmy\s+(?:recent(?:ly)?\s+)?(?:visited|viewed|opened|created|saved)\s+(pages?|articles?|apps?)\b/.test(q)||/我(?:最近)?(?:看过|访问过|浏览过|打开过|创建|写|生成)的.{0,12}(?:页面|文章|应用|网页)/.test(question);}
-const draftSchema=z.object({kind:z.enum(['article','disambiguation','chat','files','index','program','workflow','chart','form','converter','native']),title:z.string().min(1).max(200),summary:z.string().min(1).max(1200),body:z.string().max(40000).default(''),category:z.string().max(100).default(''),sources:z.array(source).max(40).default([]),labels:z.record(z.string().max(500)),intent:generationIntentSchema,entries:indexSchema.shape.entries.optional(),templateId:z.enum(['files-v1','dashboard-v1','table-v1','form-v1','chat-v1','geo-v1','data-tools-v1','paper-v1']).optional(),nativeApp:z.enum(['arcgis-publisher','map','table','json','text','image','pdf','archive','hub']).optional(),interactive:sandboxSchema.optional(),workflow:z.unknown().optional(),appSpec:z.unknown().optional(),frontend:pageCodeSchema.optional(),program:codeSchema.optional(),inputFields:inputFieldsSchema.optional(),chart:z.unknown().optional(),dataset:z.unknown().optional(),form:formSchema.optional(),expression:z.unknown().optional(),examples:z.array(z.object({input:parametersSchema,output:parametersSchema})).max(4).optional(),parameters:parametersSchema.default({})}).strict();
+const draftSchema=z.object({kind:z.enum(['article','disambiguation','chat','files','index','program','workflow','chart','form','converter','native']),title:z.string().min(1).max(200),summary:z.string().min(1).max(1200),body:z.string().max(40000).default(''),category:z.string().max(100).default(''),sources:z.array(source).max(40).default([]),labels:z.record(z.string().max(500)),intent:generationIntentSchema,entries:indexSchema.shape.entries.optional(),templateId:z.enum(['files-v1','dashboard-v1','table-v1','form-v1','chat-v1','geo-v1','data-tools-v1','paper-v1','ranking-v1']).optional(),nativeApp:z.enum(['arcgis-publisher','map','table','json','text','image','pdf','archive','hub']).optional(),interactive:sandboxSchema.optional(),workflow:z.unknown().optional(),appSpec:z.unknown().optional(),frontend:pageCodeSchema.optional(),program:codeSchema.optional(),inputFields:inputFieldsSchema.optional(),chart:z.unknown().optional(),dataset:z.unknown().optional(),form:formSchema.optional(),expression:z.unknown().optional(),examples:z.array(z.object({input:parametersSchema,output:parametersSchema})).max(4).optional(),parameters:parametersSchema.default({})}).strict();
 export type GenerationDraft=z.infer<typeof draftSchema>;
 function datePart(value:string){const match=value.match(/^(\d{4})-(\d{2})-(\d{2})/);return match?match.slice(1).map(Number):null;}
 function requestedSinceDate(question:string){const match=question.match(/\b(?:since|starting(?:\s+from)?|from)\s+(\d{4}-\d{1,2}-\d{1,2}|\d{1,2}\/\d{1,2}\/\d{2,4})/i);if(!match)return null;const raw=match[1],parts=raw.includes('-')?raw.split('-').map(Number):raw.split('/').map(Number),[year,month,day]=raw.includes('-')?parts:[parts[2]<100?2000+parts[2]:parts[2],parts[0],parts[1]];return [year,month,day] as const;}
@@ -65,6 +65,7 @@ export function validateGenerationDraft(raw:unknown,question:string,context:Agen
   d.intent.needsDisambiguation=true;d.intent.singleMeaningCertain=false;d.intent.outputKind='article';
  }else if(d.kind==='article'){
   if(d.body.trim().length<80||!d.sources.length)throw Error('A reference article needs substantive content and cited sources.');
+  if(d.templateId==='ranking-v1'){const e=rankingPageErrors(d.title,d.body);if(e)throw Error(e);}
   // Readers need to see which source supports which statement, not just a list at the end.
   if(d.templateId!=='paper-v1'){const need=Math.min(d.sources.length,3),cited=inlineCitations(d.body,d.sources);if(cited.size<need)throw Error(`Cite the sources inline in the body: after each sourced claim put [n], where n is that source's 1-based position in sources (for example "…was founded in 1802.[2]"). Cite at least ${need} different sources across the article, spread over the paragraphs they support; image credit lines do not count. Currently ${cited.size} cited.`);}
   if(!webSearched&&!dataConsulted&&(!context.sourceDocument||context.sourceDocument.kind==='image'))throw Error('Research the reference subject with web search or authorized connector/file tools before finalizing factual content.');
@@ -99,7 +100,7 @@ export function validateGenerationDraft(raw:unknown,question:string,context:Agen
 export async function materializeGenerationDraft(d:GenerationDraft,context:AgentContext){
  const answer={title:d.title,summary:d.summary,body:d.body,category:d.category,sources:d.sources,labels:d.labels};
  if(d.kind==='article'){
-  const articleTemplate=d.templateId==='paper-v1'?'paper-v1':'wiki-v1';
+  const articleTemplate=d.templateId==='paper-v1'||d.templateId==='ranking-v1'?d.templateId:'wiki-v1';
   if(!d.interactive)return {answer,definition:undefined,templateId:articleTemplate as TemplateId};
   const frontend=await createComponent(d.title+' — interactive illustration','frontend_template',d.interactive,context);
   const config:DynamicConfig={template:'component-sandbox-v1',executor:'static-frontend-v1',version:1,labels:d.labels as ConverterLabels,components:{frontend:{id:frontend.id,version:frontend.version}}};
@@ -133,4 +134,15 @@ export async function materializeGenerationDraft(d:GenerationDraft,context:Agent
   config={...config,template:'component-form-v1',executor:'component-workflow-v1',form:d.form,components:{frontend,workflow}};
  }
  return {answer,templateId,definition:{title:d.title,summary:d.summary,body:d.body,sources:d.sources,config,parameters:d.parameters,components}};
+}
+
+// A ranking page is the ranking: a "<scope> Rankings" title, a ranking component, and little prose.
+export function rankingPageErrors(title:string,body:string):string|null{
+ if(!/\bRankings\b/i.test(title)&&!/排行榜/.test(title))return 'Title a ranking page "<scope as a singular noun> Rankings" (e.g. "Country Rankings", "Perfume Rankings", "University Rankings in Asia"; Chinese "<范围>排行榜"), never "Top …" and never a criterion.';
+ if(/\branked by\b|\bby (population|gdp|revenue|area|sales|rating)\b|^top\s/i.test(title))return 'A ranking title names the scope only; criteria are switched inside the page (e.g. "Country Rankings", not "Countries ranked by population").';
+ const blocks=[...body.matchAll(/```component\n([\s\S]*?)\n```/g)].map(m=>m[1]);
+ if(!blocks.some(b=>/"type"\s*:\s*"ranking"/.test(b)))return 'A ranking page needs a ```component block with a ranking component (read_generation_contract kind "ranking-page").';
+ const prose=body.replace(/```component\n[\s\S]*?\n```/g,'').replace(/\[[^\]]*\]\([^)]*\)/g,'x');
+ if(prose.length>3500)return 'A ranking page is the ranking itself: keep the prose to a one-line lead, a short "About this ranking" note and related rankings (under ~3,000 characters; now '+prose.length+').';
+ return null;
 }

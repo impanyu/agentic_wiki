@@ -459,3 +459,14 @@ html[data-print=report] .voice-input{display:none!important}
 .address-image-button{flex:none;border:0;background:transparent;color:#5f6b80;display:inline-flex;align-items:center;justify-content:center;width:34px;height:34px;border-radius:50%;cursor:pointer}.address-image-button:hover:not(:disabled){background:rgba(37,99,235,.08);color:#2563eb}
 .address-image-error{position:absolute;top:calc(100% + 4px);left:12px;font-size:12px;color:#a12626;background:#fff;padding:2px 8px;border-radius:6px;box-shadow:0 2px 8px rgba(0,0,0,.08);z-index:5}
 .address-bar{position:relative}
+/* Ranking pages (RankWiki): the ranking is the page — no contents sidebar or "Overview" label,
+   full width, a compact heading, short notes below. */
+.template-ranking-v1 .wiki-contents,.template-ranking-v1 .wiki-label{display:none}
+.template-ranking-v1 .wiki-layout{display:block}
+.template-ranking-v1 .wiki-heading{padding-top:18px;margin-bottom:18px}
+.template-ranking-v1 .wiki-heading .lead{font-size:16px;color:#475569;margin:4px 0 0}
+.template-ranking-v1 .wiki-body{max-width:none}
+.template-ranking-v1 .wiki-body h2{font-size:18px;margin-top:28px}
+.template-ranking-v1 .wiki-body ul{font-size:14px;color:#334155}
+.template-ranking-v1 .sources,.template-ranking-v1 .saved-note{margin-left:0;font-size:13px}
+.answer.template-ranking-v1{max-width:1100px}
