@@ -25,6 +25,8 @@ import {registeredContextIndexPage} from '@/app/context-index/server';
 import type {AnswerPage} from '@/app/page-types';
 import {getActor} from '@/app/actor';
 import {database,getPage,reply,sameOrigin,normalize,lock,unlock,aiKey} from '@/db/store';
+import {PUBLIC_EDITION} from '@/app/edition';
+import {publishDependencies} from '@/app/public-data/publish';
 import {detectLanguages,parseConversion,MATCH_VERSION,type ResearchUpdate} from './ai';
 
 export async function POST(request:Request){
@@ -46,6 +48,7 @@ async function routeAnswer(request:Request,actor:Awaited<ReturnType<typeof getAc
   const data=await request.json() as {question?:unknown;visibility?:unknown;origin?:unknown;fork?:{sourceId?:unknown;requestId?:unknown};image?:unknown};
   const image=typeof data.image==='string'&&data.image?data.image:undefined;
   if(image&&(!IMAGE_DATA.test(image)||image.length>12_000_000))return respond({error:'Use a PNG, JPEG, WebP or GIF image under 8 MB.'},400);
+  if(PUBLIC_EDITION&&(data.fork||image))return respond({error:'This wiki answers typed questions only.'},400);
   if(typeof data.question!=='string'||!data.question.trim()&&!image||data.question.length>4000)return respond({error:'Enter between 1 and 4,000 characters.'},400);
   const uid=actor.userId;
   let question=data.question.trim();
@@ -75,7 +78,7 @@ async function routeAnswer(request:Request,actor:Awaited<ReturnType<typeof getAc
    const languages=await detectLanguages(legacy.results.map(p=>({id:p.id,text:p.title+'\n'+p.summary+'\n'+p.body.slice(0,6000)})));
    await database().batch(legacy.results.map(p=>database().prepare("UPDATE pages SET language=? WHERE id=? AND language='und'").bind(languages.get(p.id)!,p.id)));
   }
-  const context:AgentContext={userId:uid,ownerId:uid,language,visibility:'private',sourceDocument:sourceDocument||undefined};
+  const context:AgentContext={userId:uid,ownerId:uid,language,visibility:PUBLIC_EDITION?'public':'private',sourceDocument:sourceDocument||undefined};
   const rootRouter=await spawnAgent('root-routing',context.ownerId);
   const rootRoute=await resolveRootRoute(routingQuestion,vector,language,uid,rootRouter,request.signal,!!fork,fromPage);
   const requested=rootRoute.intent;
@@ -123,7 +126,7 @@ async function routeAnswer(request:Request,actor:Awaited<ReturnType<typeof getAc
   if(matched&&sourceDocument&&(await getPage(matched,uid))?.kind!=='static')matched=null;
   if(matched){const page=await resolvePage(matched);if(!page)return respond({error:'This page is no longer accessible. Please try again.'},404);await remember(page.id,page);const updated=await refreshMatchedPage(page,destination,requested?.fresh||false,uid,router);return respond({page:updated,reused:true,destination});}
   // One generator owns artifact selection after a routing miss.
-  const visibility='private' as const;
+  const visibility=(PUBLIC_EDITION?'public':'private') as 'public'|'private';
   const keyBytes=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(JSON.stringify([language,destinationKey,uid])));
   const generationKey=fork?'fork:'+fork.requestId:'question:'+Array.from(new Uint8Array(keyBytes),b=>b.toString(16).padStart(2,'0')).join('');
   token=await lock(generationKey,660000);
@@ -174,6 +177,7 @@ async function routeAnswer(request:Request,actor:Awaited<ReturnType<typeof getAc
   await inheritGenerationSession(generated.generatorId,id,uid,staticPage);
   for(const file of pendingFiles)await attachContextFile(id,file.componentId,uid,file.folder,file.fileId);
   if(dependencies.length)await attachComponents(id,dependencies,context);
+  if(PUBLIC_EDITION)await publishDependencies(id,uid);
   const page=await resolvePage(id);if(!page)throw new Error('Could not load the saved page.');
   await refreshProfile(id);
   if(definition&&page.parameters)await database().prepare('UPDATE questions SET parameters=? WHERE page_id=?').bind(JSON.stringify(page.parameters),page.id).run();

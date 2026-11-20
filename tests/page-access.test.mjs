@@ -1,4 +1,4 @@
-import test from 'node:test';
+import './edition-globals.mjs';import test from 'node:test';
 globalThis.keepOriginal=async()=>{};globalThis.recordVersion=async()=>{};
 import assert from 'node:assert/strict';
 import {readFileSync,readdirSync} from 'node:fs';

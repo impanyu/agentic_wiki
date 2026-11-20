@@ -1,5 +1,6 @@
 import test from 'node:test';import assert from 'node:assert/strict';import {readFileSync} from 'node:fs';import ts from 'typescript';import {DatabaseSync} from 'node:sqlite';
-const m=await import('data:text/javascript;base64,'+Buffer.from(ts.transpile(readFileSync('app/edition.ts','utf8'),{module:ts.ModuleKind.ESNext,target:ts.ScriptTarget.ES2022})).toString('base64'));
+const load=async publicEdition=>import('data:text/javascript;base64,'+Buffer.from(ts.transpile(readFileSync('app/edition.ts','utf8').replace('export const PUBLIC_EDITION=true','export const PUBLIC_EDITION='+publicEdition),{module:ts.ModuleKind.ESNext,target:ts.ScriptTarget.ES2022})).toString('base64')+'#'+publicEdition);
+const m=await load(false),pub=await load(true);
 test('the wiki edition shows wiki pages and built-in tools, and hides generated apps, in TS and SQL alike',()=>{
  const pages=[
   ['article',{kind:'static',question:'photosynthesis'},true],
@@ -17,4 +18,7 @@ test('the wiki edition shows wiki pages and built-in tools, and hides generated 
  for(const [id,p] of pages)db.prepare('INSERT INTO pages VALUES(?,?,?,?)').run(id,p.kind,p.question,p.dynamic?JSON.stringify(p.dynamic):null);
  const shown=new Set(db.prepare('SELECT id FROM pages p WHERE '+m.editionPageSql('p')).all().map(r=>r.id));
  for(const [id,p,expected] of pages){assert.equal(m.editionShowsPage(p),expected,id+' (TS)');assert.equal(shown.has(id),expected,id+' (SQL)');}
+ // The public edition shows articles only: every app page relies on connectors, drives or uploads.
+ const shownPublic=new Set(db.prepare('SELECT id FROM pages p WHERE '+pub.editionPageSql('p')).all().map(r=>r.id));
+ for(const [id,p] of pages){const expected=p.kind==='static';assert.equal(pub.editionShowsPage(p),expected,id+' (public TS)');assert.equal(shownPublic.has(id),expected,id+' (public SQL)');}
 });

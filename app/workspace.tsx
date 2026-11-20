@@ -42,7 +42,7 @@ import {readEvents} from './event-stream';
 import {LiveAgentControl} from './live-agent/control';
 import {VersionMenu} from './versions/menu';
 import {navigationRequest,navigationError,waitForGenerationResult} from './navigation-request';
-import {WIKI_EDITION} from './edition';
+import {WIKI_EDITION,PUBLIC_EDITION} from './edition';
 
 async function readResponse(response: Response) {
   if (!response.headers.get('content-type')?.includes('application/json')) {
@@ -64,7 +64,7 @@ export default function Workspace({ user, signIn, signOut }: {
   // An image attached to the address bar (pasted, dropped or chosen) asks about what it shows.
   const [attached, setAttached] = useState<{dataUrl:string;name:string}|null>(null),[imageError,setImageError]=useState(''),imagePicker=useRef<HTMLInputElement>(null);
   async function attachImage(file:File|undefined|null){
-    setImageError('');if(!file)return;
+    setImageError('');if(!file||PUBLIC_EDITION)return;
     if(!/^image\/(png|jpeg|webp|gif)$/.test(file.type)){setImageError(t('Use a PNG, JPEG, WebP or GIF image under 8 MB.'));return;}
     try{
       // Large photos are scaled to at most 2048 px so the upload stays small.
@@ -436,15 +436,15 @@ export default function Workspace({ user, signIn, signOut }: {
           enterKeyHint="go" spellCheck={false} aria-describedby="address-help"/>
         {imageError&&<span className="address-image-error" role="alert">{imageError}</span>}
         <VoiceInput handle={voice} onRecordingChange={setVoiceRecording} disabled={busy} onText={text=>{setQuestion(old=>old.trim()?old.replace(/\s+$/,'')+' '+text:text);input.current?.focus();}}/>
-        <input ref={imagePicker} type="file" accept="image/png,image/jpeg,image/webp,image/gif" hidden onChange={event=>{void attachImage(event.target.files?.[0]);event.target.value='';}}/>
-        <button type="button" className="address-image-button" disabled={busy} onClick={()=>imagePicker.current?.click()} aria-label={t('Search with an image')} title={t('Search with an image (or paste / drop one here)')}><ImagePlus size={18}/></button>
+        {!PUBLIC_EDITION&&<><input ref={imagePicker} type="file" accept="image/png,image/jpeg,image/webp,image/gif" hidden onChange={event=>{void attachImage(event.target.files?.[0]);event.target.value='';}}/>
+        <button type="button" className="address-image-button" disabled={busy} onClick={()=>imagePicker.current?.click()} aria-label={t('Search with an image')} title={t('Search with an image (or paste / drop one here)')}><ImagePlus size={18}/></button></>}
         <button type="submit" className="go-button" disabled={busy || voiceSending || (!question.trim() && !voiceRecording && !attached)}
           aria-label={busy ? t("Opening answer") : t("Open answer")} title={voiceRecording ? t("Stop recording and send") : t("Open answer · Enter")}>
           {busy || voiceSending ? <LoaderCircle className="spinner" size={18}/> : <ArrowRight size={18}/>}
         </button>
       </form>
       <input type="file" ref={uploadInput} hidden onChange={e=>{const file=e.target.files?.[0];if(file)void uploadFile(file);}}/>
-      <ConnectorPanel/>
+      {!PUBLIC_EDITION&&<ConnectorPanel/>}
       <a className="account-link" href={user ? signOut : signIn} target="_top" title={user ? t("Signed in as ") + user.name : t("Sign in with Google")}>
         {user ? t("Sign out") : t("Sign in")}
       </a>
@@ -454,21 +454,21 @@ export default function Workspace({ user, signIn, signOut }: {
       {error && <div className="request-error" role="alert">{t(error)}</div>}
       {status && <div className="navigation-status" role="status">{busy ? <LoaderCircle size={15} className="spinner"/> : <Check size={15}/>} {t(status)}</div>}
       {visiblePage ? <MapPreference.Provider value={visiblePage.dynamic?.ui?.mapBasemap}><article {...pageVisualProps(visiblePage)} className={'answer '+(visiblePage.kind==='dynamic'?'dynamic-answer ':'')+'template-'+(visiblePage.labels.templateId||'wiki-v1')+(nativeApp?' connector-page connector-page-'+nativeApp:'')} lang={visiblePage.language==='und'?undefined:visiblePage.language} dir={['ar','he','fa','ur','ps','dv','yi'].includes(visiblePage.language)?'rtl':'ltr'}>
-        {!draft&&visiblePage.forks&&visiblePage.forks.length>0&&<details className="page-forks-disclosure" open={nativeApp?undefined:true}><summary>{t("Context forks")}</summary><nav className="page-forks" aria-label={t("Context forks")}><span>{t("Context forks")}</span><div>{visiblePage.forks.map((fork,i)=><div className="fork-choice" key={fork.id}><button aria-current={fork.id===visiblePage.id?'page':undefined} disabled={busy||fork.id===visiblePage.id} onClick={()=>void openInternal({id:'fork:'+fork.id,targetId:fork.id,targetTitle:fork.title,quote:question||fork.title,segments:[],parameters:{}})}><strong>{fork.isOriginal?(t("Original")):(t("Fork"))+' '+(i+1)}</strong> {fork.title}<small>{pageAccess(fork)==='private'?t("Private"):pageAccess(fork)==='public-write'?t("Public read & write"):t("Public read only")}</small></button>{fork.removable&&<button className="remove-fork" disabled={busy} onClick={()=>void removePageFork(fork.id)} aria-label={t("Remove fork: ")+fork.title}><Trash2 size={13}/>{t("Remove")}</button>}</div>)}</div></nav></details>}
-        {!draft&&<div className="context-actions">{nativeApp&&<h1 className="connector-page-title">{visiblePage.title}</h1>}<div className="context-action-buttons"><button onClick={()=>void createFork()} disabled={busy||saving}><GitFork size={15}/>{t("Fork")}</button>{canWritePage(visiblePage)&&<button disabled={busy||saving} onClick={()=>{setEditing(true);setSaving(true);}}>{t('Edit page')}</button>}<PageShare key={visiblePage.id} page={visiblePage} disabled={busy||saving} onAccess={changeVisibility}/><button type="button" onClick={printReport} disabled={busy||saving} title={t("Print this page as a PDF report")}><Printer size={15}/>{t("Print report")}</button>{canWritePage(visiblePage)&&<VersionMenu key={'versions-'+visiblePage.id} pageId={visiblePage.id} disabled={busy||saving}/>}<LiveAgentControl key={'live-'+visiblePage.id} pageId={visiblePage.id} disabled={busy||saving}/></div><span>{t("Generate a fresh private fork from this question")}</span></div>}
+        {!draft&&!PUBLIC_EDITION&&visiblePage.forks&&visiblePage.forks.length>0&&<details className="page-forks-disclosure" open={nativeApp?undefined:true}><summary>{t("Context forks")}</summary><nav className="page-forks" aria-label={t("Context forks")}><span>{t("Context forks")}</span><div>{visiblePage.forks.map((fork,i)=><div className="fork-choice" key={fork.id}><button aria-current={fork.id===visiblePage.id?'page':undefined} disabled={busy||fork.id===visiblePage.id} onClick={()=>void openInternal({id:'fork:'+fork.id,targetId:fork.id,targetTitle:fork.title,quote:question||fork.title,segments:[],parameters:{}})}><strong>{fork.isOriginal?(t("Original")):(t("Fork"))+' '+(i+1)}</strong> {fork.title}<small>{pageAccess(fork)==='private'?t("Private"):pageAccess(fork)==='public-write'?t("Public read & write"):t("Public read only")}</small></button>{fork.removable&&<button className="remove-fork" disabled={busy} onClick={()=>void removePageFork(fork.id)} aria-label={t("Remove fork: ")+fork.title}><Trash2 size={13}/>{t("Remove")}</button>}</div>)}</div></nav></details>}
+        {!draft&&<div className="context-actions">{nativeApp&&<h1 className="connector-page-title">{visiblePage.title}</h1>}<div className="context-action-buttons">{!PUBLIC_EDITION&&<button onClick={()=>void createFork()} disabled={busy||saving}><GitFork size={15}/>{t("Fork")}</button>}{canWritePage(visiblePage)&&<button disabled={busy||saving} onClick={()=>{setEditing(true);setSaving(true);}}>{t('Edit page')}</button>}{!PUBLIC_EDITION&&<PageShare key={visiblePage.id} page={visiblePage} disabled={busy||saving} onAccess={changeVisibility}/>}<button type="button" onClick={printReport} disabled={busy||saving} title={t("Print this page as a PDF report")}><Printer size={15}/>{t("Print report")}</button>{canWritePage(visiblePage)&&<VersionMenu key={'versions-'+visiblePage.id} pageId={visiblePage.id} disabled={busy||saving}/>}{!PUBLIC_EDITION&&<LiveAgentControl key={'live-'+visiblePage.id} pageId={visiblePage.id} disabled={busy||saving}/>}</div>{!PUBLIC_EDITION&&<span>{t("Generate a fresh private fork from this question")}</span>}</div>}
         {editing&&!draft&&<PageEditor metadataOnly={visiblePage.kind==='dynamic'} page={visiblePage} onFiles={()=>setFilesRevision(n=>n+1)} onClose={()=>{setEditing(false);setSaving(false);}} onSave={page=>{setSelected({...visiblePage,...page});setEditing(false);setSaving(false);setPending(null);setHighlights(all=>({...all,[page.id]:[]}));}}/>}
         <div hidden={editing&&visiblePage.kind!=='dynamic'}>
         <header className="print-report-header" aria-hidden="true"><span>AgenticWiKi · {t("Report")}</span><span>{visiblePage.question&&visiblePage.question!==visiblePage.title?visiblePage.question:""}</span><span>{new Date().toLocaleString(locale)} · {typeof location!=="undefined"?location.origin+"/?page="+visiblePage.id:""}</span></header>
         <div className="page-meta"><span>{visiblePage.category}</span><div className="page-visibility">
           {visiblePage.visibility === 'public' ? <Globe2 size={14}/> : <LockKeyhole size={14}/>}
-          {visiblePage.owned?<select aria-label={t("Page access")} value={pageAccess(visiblePage)} disabled={saving||busy} onChange={e=>void changeVisibility(e.target.value as PageAccess)}>
+          {visiblePage.owned&&!PUBLIC_EDITION?<select aria-label={t("Page access")} value={pageAccess(visiblePage)} disabled={saving||busy} onChange={e=>void changeVisibility(e.target.value as PageAccess)}>
             <option value="private">{t("Private")}</option><option value="public-read">{t("Public read only")}</option><option value="public-write">{t("Public read & write")}</option>
           </select>:<span>{pageAccess(visiblePage)==='private'?t("Private"):pageAccess(visiblePage)==='public-write'?t("Public read & write"):t("Public read only")}</span>}
         </div></div>
         <div className="selection-tools" hidden={!!nativeApp} aria-live="polite">
           {draft ? <span>{busy?t("Generating… You can read the page as it appears."):t("Incomplete draft — retry the question to generate a saved page.")}</span> : pending ? <><span className="selection-quote">“{pending.quote}”</span><button type="button" onMouseDown={e=>e.preventDefault()} onClick={()=>addHighlight(false)} disabled={busy}><Highlighter size={14}/>{t("Highlight")}</button><button type="button" onMouseDown={e=>e.preventDefault()} onClick={()=>addHighlight(true)} disabled={busy}>{t("Highlight & open")}<ArrowRight size={14}/></button></> : <span>{visiblePage.labels.templateId==='disambiguation-v1'?t("Choose the meaning or topic you want to explore."):t(conceptStatus)||t("Select text to highlight it or open it as a question.")}{(conceptStatus.includes('could not')||conceptStatus.includes('still'))&&<button onClick={()=>setConceptAttempt(n=>n+1)}>{t("Retry")}</button>}</span>}
         </div>
-        {!draft&&visiblePage.kind==='dynamic'&&<section className="repository-transfer" aria-label={t('Data transfer')}><div><strong>{t('Data transfer')}</strong><p>{t('Copy or move files and folders between connected repositories and this page.')}</p></div><button type="button" onClick={()=>setTransferPage(visiblePage.id)}>{t('Transfer files')}</button></section>}
+        {!draft&&!PUBLIC_EDITION&&visiblePage.kind==='dynamic'&&<section className="repository-transfer" aria-label={t('Data transfer')}><div><strong>{t('Data transfer')}</strong><p>{t('Copy or move files and folders between connected repositories and this page.')}</p></div><button type="button" onClick={()=>setTransferPage(visiblePage.id)}>{t('Transfer files')}</button></section>}
         {visiblePage.dynamic?.pageCode&&visiblePage.dynamic.pageCode.placement!=='after'&&<SandboxView app={visiblePage.dynamic.pageCode.frontend} title={visiblePage.title} pageId={visiblePage.id}/>}
         <div hidden={visiblePage.dynamic?.pageCode?.placement==='replace'}>
         <div hidden={!!nativeApp} ref={article} onMouseUp={captureSelection} onKeyUp={captureSelection} onTouchEnd={()=>setTimeout(captureSelection,0)}>
@@ -485,10 +485,10 @@ export default function Workspace({ user, signIn, signOut }: {
         </div>
         {visiblePage.dynamic?.pageCode?.placement==='after'&&<SandboxView app={visiblePage.dynamic.pageCode.frontend} title={visiblePage.title} pageId={visiblePage.id}/>}
         <div className={nativeApp?'connector-support':undefined}>
-        {!draft&&visiblePage.labels.templateId==='paper-v1'&&<PaperWorkspace pageId={visiblePage.id} sources={visiblePage.sources} revision={filesRevision}/>} 
-        {!draft&&<ContextFiles key={'files:'+visiblePage.id} page={visiblePage} revision={filesRevision} busy={busy} onChanged={()=>setFilesRevision(n=>n+1)} onUpload={()=>uploadInput.current?.click()}/>} 
+        {!draft&&!PUBLIC_EDITION&&visiblePage.labels.templateId==='paper-v1'&&<PaperWorkspace pageId={visiblePage.id} sources={visiblePage.sources} revision={filesRevision}/>} 
+        {!draft&&!PUBLIC_EDITION&&<ContextFiles key={'files:'+visiblePage.id} page={visiblePage} revision={filesRevision} busy={busy} onChanged={()=>setFilesRevision(n=>n+1)} onUpload={()=>uploadInput.current?.click()}/>} 
         {transferPage===visiblePage.id&&<ResourcePicker pageId={visiblePage.id} copyMode onClose={()=>setTransferPage(null)}/>}
-        {!draft&&<PageAgentChat key={'chat:'+visiblePage.id} page={visiblePage} onResult={setSelected} onOpenQuestion={(text,passage)=>void navigate(text,{pageId:visiblePage.id,kind:'chat',passage:passage.slice(0,6000)})}/>}
+        {!draft&&!PUBLIC_EDITION&&<PageAgentChat key={'chat:'+visiblePage.id} page={visiblePage} onResult={setSelected} onOpenQuestion={(text,passage)=>void navigate(text,{pageId:visiblePage.id,kind:'chat',passage:passage.slice(0,6000)})}/>}
         </div>
 
         <div className="saved-note">{draft ? t(busy?'Draft · Not saved yet':'Incomplete draft · Not saved') : t('Saved {date} · {count} questions linked',{date:new Date(visiblePage.createdAt).toLocaleDateString(locale),count:visiblePage.questionCount})}</div>
