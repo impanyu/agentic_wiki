@@ -24,6 +24,10 @@ import {recordAction,type Agent} from './runtime';
 import {pageContextTool,readPageContext} from '@/app/chat/context-tools';
 import {WIKI_EDITION,PUBLIC_EDITION} from '@/app/edition';
 import {dataTools,dataToolNames,runDataTool} from '@/app/data-tools';
+import {entityTools,entityToolNames,runEntityTool,setEmbedder} from '@/app/entity-db';
+import {embedder as llmEmbedder} from '@/app/llm';
+// The entity database embeds with the LLM layer's fixed entity-index model, resolved on first use.
+if(PUBLIC_EDITION)setEmbedder(texts=>llmEmbedder()(texts));
 import {publicSourceTools,publicSourceInstructions,listPublicSources,callPublicSource} from '@/app/public-data/service';
 const string={type:'string'};
 const tool=(name:string,description:string,properties:Record<string,unknown>)=>({type:'function',name,description,strict:true,parameters:{type:'object',additionalProperties:false,properties,required:Object.keys(properties)}});
@@ -33,6 +37,7 @@ const definitions=[
  ...connectorTools,
  ...(PUBLIC_EDITION?publicSourceTools:[]),
  ...dataTools,
+ ...(PUBLIC_EDITION?entityTools:[]),
  tool('suggest_page','Offer a link button when a separate page/app is more appropriate for the current question. Supply a self-contained destination question and a localized concise label. Include the returned markdown in your reply. Does not generate a page or navigate automatically; user click routes/reuses or creates a new private page. Answer here when sufficient, and never move users merely to avoid completing a task.',{question:string,label:string}),
  tool('browse_resources','Browse exact files and folders on this page or any enabled Google Drive, Dropbox or OneDrive connection. Empty folderJson returns roots and enabled tool directory; otherwise use a returned resource JSON object. Follow next cursor.',{folderJson:string,cursor:string}),
  tool('copy_resources','Copy files or folders between Page files and connected drives, or across drives. requestJson contains operationId (a new UUID), sources (resource objects from browse_resources or mentions), destination (folder resource). Preserves structure and binary content, never deletes sources or requests overwrite. Max 10 MB/file, 100 MB/operation, 200 items. Reuse operationId to retrieve results, never blindly retry an uncertain operation. Only copy when requested by the user. Report partial failures.',{requestJson:string}),
@@ -99,6 +104,7 @@ export async function applicationToolbox(agent:Agent,context?:AgentContext,signa
   if(name==='list_public_sources')return {data:await listPublicSources(signal,z.string().max(40).parse(args.source??''))};
   if(name==='call_public_source')return {data:await callPublicSource(z.string().max(40).parse(args.sourceId),z.string().max(128).parse(args.tool),JSON.parse(z.string().max(16000).parse(args.argumentsJson||'{}')),ctx,signal)};
   if(dataToolNames.includes(name))return runDataTool(name,args,ctx,signal);
+  if(PUBLIC_EDITION&&entityToolNames.includes(name))return runEntityTool(name,args,ctx,signal);
   if(name==='render_plot'){const target=pageId||ctx.plannedPageId;if(!target)throw Error('Open a page first.');const {renderPlot}=await import('./drawing');return {data:await renderPlot(target,ctx,{code:z.string().min(1).max(48000).parse(args.code),inputJson:z.string().max(64000).parse(args.inputJson||''),name:z.string().min(1).max(200).parse(args.name),language:String(args.language||'python')})};}
   if(name==='write_page_file'){const target=pageId||ctx.plannedPageId;if(!target)throw Error('Open a page first.');const {storePageTextFile}=await import('@/app/context-files/store');return {data:await storePageTextFile(target,ctx.userId,z.string().min(1).max(250).parse(args.name),z.string().min(1).parse(args.content),ctx.language,z.string().max(500).parse(args.folderPath||''),pageId?undefined:ctx.pendingFiles)};}
   if(name==='read_markdown'){if(!pageId)throw Error('Open a page first.');const {readMarkdown}=await import('@/app/documents/markdown');return {data:await readMarkdown(pageId,ctx.userId,{section:String(args.section||'')||undefined})};}
