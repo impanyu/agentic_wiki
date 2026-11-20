@@ -64,6 +64,20 @@ The editor works in **shifts**: the scheduler gives it a time slice; it picks th
 priority due items (demand first, then due refreshes, then backlog), runs them as tool-using
 agent turns, records results, updates the roadmap, and ends the shift.
 
+### Topic teams
+Each topic is run by a team of three agents, created together by the router:
+- **editor** — roadmap, data requests, pages;
+- **reviewer** — independent checks of the editor's pages, rework requests;
+- **collector** — the topic's data: designs the entity-type schemas it needs (fields,
+  metrics, identity keys, extending the shared base types), finds sources, writes and
+  repairs ingestion recipes, watches coverage and freshness, settles conflicts.
+Shared by all teams: the **recipe library** (parameterized, versioned recipes with an owner —
+a team reuses e.g. the "Amazon product page" or "schema.org Product" recipe with its own
+parameters instead of writing its own, and a fix by one team helps every team), the
+**entity-type schema registry** (base types such as product, company, place, extended per
+topic), the **crawler** and the **router**. Collectors run on demand (new data request,
+broken recipe, conflict), not continuously.
+
 ### Data collection — crawler infrastructure plus on-demand collector agents
 Scheduled crawling and refreshing is infrastructure, not an agent's job. Only the parts that
 need judgment use a model.
@@ -91,7 +105,7 @@ need judgment use a model.
   membership lists/universes, freshness SLAs) are enforced by the crawler's validation and the
   collector agent's decisions.
 
-So per topic: **editor** (roadmap, data requests, pages) + **reviewer**; shared: the
+So per topic: **editor** + **reviewer** + **collector** (see Topic teams); shared: the
 **crawler** (infrastructure), **collector agents** (on demand) and the **router**.
 
 ### How an editor composes a page (replaces the one-shot generator)
