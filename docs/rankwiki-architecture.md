@@ -64,27 +64,27 @@ The editor works in **shifts**: the scheduler gives it a time slice; it picks th
 priority due items (demand first, then due refreshes, then backlog), runs them as tool-using
 agent turns, records results, updates the roadmap, and ends the shift.
 
-### Teams: content by topic, collection by source
-Two symmetric halves, each with a manager:
+### Topic teams
+Each topic is run by a team of three agents, created together by the router:
+- **editor** — roadmap, data requests, pages;
+- **reviewer** — independent checks of the editor's pages, rework requests;
+- **collector** — the team's data: designs the entity-type schemas of its topic (fields,
+  metrics, units, identity keys), and writes, tests and repairs the ingestion recipes for
+  those types — a recipe is specific to (entity type × source), because each type is
+  stored differently and draws on its own set of sources. It also watches coverage and
+  freshness and settles conflicts. It runs on demand (new data request, broken recipe,
+  conflict), not continuously.
 
-| half | manager | agents |
-|---|---|---|
-| content | **router** (topic tree) | per topic: **editor** + **reviewer** |
-| data | **data desk** (source map) | per data source or platform: **collector** |
-
-- The **editor** states *what* data its pages need — entity type, fields and metrics,
-  scope, coverage, freshness — and owns its topic's entity-type schema (extending shared
-  base types such as product, company, place; reviewed once by the reviewer).
-- The **data desk** decides *where* to get it: it maps a request to sources, splits it across
-  their collectors, creates a collector when a needed source has none (as the router creates
-  editors), merges results and reports coverage and gaps to the editor's inbox.
-- A **collector** owns one source or platform (Amazon, JD, Shopify stores, World Bank,
-  Wikidata, Common Crawl, app stores…): its recipes, its quirks and layout changes, its
-  blocked pages and archive fallbacks, and its **request budget** — all topics' demand on a
-  platform is queued and rate-limited in one place. It writes, tests and repairs recipes and
-  runs on demand only.
-- Shared: the recipe library (owned by collectors), the entity-type schema registry, the
-  crawler (replays recipes without a model) and the entity DB.
+Shared infrastructure (no agents):
+- **Platform building blocks** in the recipe library: how to open and parse a platform's
+  pages or API (e.g. Amazon product page, Shopify products.json, schema.org Product,
+  World Bank indicator, Wikidata SPARQL), parameterized and versioned. Collectors build
+  their type-specific recipes on top — field mapping, units, validation — and a fix to a
+  block helps every team.
+- **Per-source request budgets** in the crawler: every recipe that touches a platform shares
+  one queue and rate limit for it, so many teams never add up to a ban.
+- The entity-type schema registry (base types such as product, company, place, extended per
+  topic), the crawler (replays recipes without a model) and the entity DB.
 
 ### Data collection — crawler infrastructure plus on-demand collector agents
 Scheduled crawling and refreshing is infrastructure, not an agent's job. Only the parts that
@@ -113,8 +113,9 @@ need judgment use a model.
   membership lists/universes, freshness SLAs) are enforced by the crawler's validation and the
   collector agent's decisions.
 
-So: per topic **editor** + **reviewer** (router); per source **collector** (data desk);
-shared: the **recipe library**, the **crawler** and the **entity DB**.
+So: per topic **editor** + **reviewer** + **collector** (created by the router); shared:
+the **recipe library** (platform building blocks + type recipes), the **crawler** with
+per-source budgets, and the **entity DB**.
 
 ### How an editor composes a page (replaces the one-shot generator)
 Today a page is written in one agent run: a few searches and reads, then the whole article in
