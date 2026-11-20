@@ -27,8 +27,11 @@ export function articleNodes(page:{title:string;summary:string;body:string}){
  const nodes=new Map<string,string>([['title',page.title]]);
  function inline(value:string,id:string){inlineParts(value).forEach((part,i)=>{const link=part.match(linkPattern);if(link&&isSourceLabel(link[1]))return;nodes.set(id+'.'+i,link?link[1]:/^\*{1,2}[^*]+\*{1,2}$/.test(part)?part.replace(/^\*{1,2}|\*{1,2}$/g,''):part);});}
  inline(page.summary,'summary');
- const lines=page.body.split('\n');
+ const lines=page.body.split('\n');let fence=false;
  lines.forEach((line,i)=>{
+  // Fenced blocks (component JSON, charts, code) are not article text.
+  if(/^```/.test(line.trim())){fence=!fence;return;}
+  if(fence)return;
   const image=articleImage(line);
   if(image){inline(image[1],'figure'+i);return;}
   const credit=articleCredit(line,i>0?lines[i-1]:undefined);

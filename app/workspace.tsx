@@ -89,7 +89,7 @@ export default function Workspace({ user, signIn, signOut }: {
   const [conceptAttempt,setConceptAttempt]=useState(0);
   const [concepts,setConcepts]=useState<Highlight[]>([]);
   useEffect(()=>{
-    setConcepts([]);setConceptStatus('');if(!selected||selected.kind!=='static'||selected.labels.templateId==='disambiguation-v1')return;setConceptStatus('Preparing concept links…');
+    setConcepts([]);setConceptStatus('');if(!selected||selected.kind!=='static'||selected.labels.templateId==='disambiguation-v1'||selected.labels.templateId==='ranking-v1')return;setConceptStatus('Preparing concept links…');
     const controller=new AbortController();let timer:ReturnType<typeof setTimeout>;
     async function load(attempt=0){try{const r=await fetch('/api/pages/'+selected!.id+'/concepts',{method:'POST',signal:controller.signal});if(!r.ok)throw Error('unavailable');const d=await r.json() as {concepts:Highlight[];retryAfter?:number};if(controller.signal.aborted)return;if(d.retryAfter&&attempt<25){timer=setTimeout(()=>void load(attempt+1),d.retryAfter*1000);return;}setConcepts(d.concepts||[]);setConceptStatus(d.concepts?.length?'Hover over concepts to see links.':d.retryAfter?'Concept links are still being prepared.':'No concept links detected.');}catch{if(!controller.signal.aborted)setConceptStatus('Concept links could not load.');}}
     void load();return()=>{controller.abort();clearTimeout(timer);};

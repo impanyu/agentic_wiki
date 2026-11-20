@@ -6,7 +6,8 @@ import {articleNodes} from '@/app/internal-links';
 import {conceptRanges} from '@/app/concepts/ranges';
 import {output} from '@/app/api/ask/ai';
 import {respond} from '@/app/llm';
-const resultSchema=z.object({terms:z.array(z.string().min(1).max(120)).max(500)});
+// Lenient: a model that returns an over-long term or too many terms loses those, not the whole page.
+const resultSchema=z.object({terms:z.array(z.unknown())}).transform(r=>({terms:r.terms.filter((t):t is string=>typeof t==='string'&&t.trim().length>0&&t.length<=120).slice(0,500)}));
 export async function POST(request:Request,{params}:{params:Promise<{id:string}>}){
  const actor=await getActor(request);let lease:string|null=null;
  try{

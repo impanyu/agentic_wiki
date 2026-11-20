@@ -42,9 +42,19 @@ async function parseCsv(a:Record<string,any>){
 }
 function formatCsv(a:Record<string,any>){const rows:Record<string,unknown>[]=Array.isArray(a.rows)?a.rows:[];const cols:string[]=a.columns||[...new Set(rows.flatMap(r=>Object.keys(r||{})))];const cell=(v:unknown)=>{const s=v==null?'':typeof v==='object'?JSON.stringify(v):String(v);return /[",\n]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s;};return [cols.join(','),...rows.map(r=>cols.map(c=>cell(r?.[c])).join(','))].join('\n');}
 // A Page file of this page, read by the reader's browser (the same access as opening it).
+// While an answer is still being generated its page (and the files it embeds) is saved only
+// at the end, so a block shown during generation waits for the file instead of failing.
+async function findPageFile(pageId:string,a:Record<string,any>,attempts=30){
+ for(let i=0;;i++){
+  const list=await fetch('/api/pages/'+encodeURIComponent(pageId)+'/files').then(r=>r.ok?r.json():null).catch(()=>null) as {files?:{id:string;name:string}[]}|null;
+  const file=list?.files?.find(f=>f.id===a.fileId||f.name===a.name);
+  if(file)return file;
+  if(i>=attempts)throw Error(list?'No Page file named '+String(a.name??a.fileId)+'.':'Page files are unavailable.');
+  await new Promise(r=>setTimeout(r,3000));
+ }
+}
 async function readPageFile(pageId:string,a:Record<string,any>){
- const list=await fetch('/api/pages/'+encodeURIComponent(pageId)+'/files').then(r=>r.ok?r.json():Promise.reject(Error('Page files are unavailable.'))) as {files?:{id:string;name:string}[]};
- const file=(list.files||[]).find(f=>f.id===a.fileId||f.name===a.name);if(!file)throw Error('No Page file named '+String(a.name??a.fileId)+'.');
+ const file=await findPageFile(pageId,a);
  const response=await fetch('/api/pages/'+encodeURIComponent(pageId)+'/files/'+encodeURIComponent(file.id));if(!response.ok)throw Error('The file could not be read.');
  const text=await response.text();if(text.length>20*1024*1024)throw Error('The file is larger than 20 MB.');
  const as=String(a.as||(/\.(csv|tsv)$/i.test(file.name)?'csv':/\.(json|geojson)$/i.test(file.name)?'json':'text'));
