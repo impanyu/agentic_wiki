@@ -112,7 +112,8 @@ Core tables:
 - `entities(id, topic_id, type, name, aliases text[], description, ids jsonb (wikidata,
   iso3, ticker…), attributes jsonb, image, page_id, embedding vector, tsv tsvector,
   updated_at)` with unique keys on standard ids
-- `metrics(key, label, unit, description, order, format)` — definitions
+- `metrics(key, version, kind observed|derived, label, unit, order, format, definition jsonb,
+  methodology, created_by, status draft|published|retired)` — public, versioned definitions
 - `observations(entity_id, metric, value numeric, period, source, retrieved_at)` — facts and
   time series, unique per (entity, metric, period, source)
 - `rankings(id, topic_id, scope jsonb, criteria text[], page_id, built_at)`
@@ -127,6 +128,43 @@ New agent tools over the DB: `entity_upsert` (from a dataset: name/id columns �
 attribute columns, metric columns with unit/period/source), `entity_search` (hybrid + filters),
 `entity_get`, `metric_table` (a ranking-ready dataset for a scope and metrics),
 `roadmap_*` (list, add, update, complete), `inbox_triage`.
+
+### Quality: data, pages and rankings
+Quality is the product. Three gates, each checked by the editor and again by its reviewer:
+
+**Data collection**
+- Source tiers: official statistics and registries (UN, World Bank, national agencies,
+  exchanges, standards bodies) > curated open data (Wikidata, OpenAlex, OSM) > reputable
+  secondary compilations (Wikipedia lists with citations) > everything else. Each `sources`
+  row records its tier, licence, update frequency and last successful pull.
+- Cross-checks: a value from a lower tier is verified against a second source; disagreements
+  beyond a tolerance are recorded as conflicts and resolved by tier, recency and
+  definitional match — never silently averaged.
+- Automated checks on every ingest: coverage (rows vs. the known size of the scope),
+  units and scale (e.g. thousands vs. units), outliers against the previous pull and peers,
+  duplicates and identity merges, period consistency (no mixing 2019 and 2023 in one ranking
+  without saying so), freshness against the source's cadence.
+- Every observation keeps source URL, period, retrieval time and the transformation applied.
+
+**Page generation** — the page templates, components and the reviewer's checklist (section
+"Reviewers"); a page is published only after it passes.
+
+**Rankings and metrics — public and transparent**
+- Every metric has a public definition page: what it measures, unit, direction, sources,
+  periods, coverage, known caveats, version history.
+- **Editors can design their own metrics** (indices and derived measures, e.g. "innovation
+  index = 0.4·patents per capita + 0.3·R&D share of GDP + 0.3·top-500 universities per
+  capita"). A derived metric is declarative, not code: inputs (metrics, periods,
+  transforms such as log or per capita), normalization (min-max, z-score, percentile),
+  combination (weighted sum/geometric mean, ratio, difference), weights, a missing-data rule
+  and the scope. Definitions are versioned and immutable once used; a change makes a new
+  version, and rankings say which version they use.
+- Before a derived metric is published the editor writes its methodology, the system
+  computes a **sensitivity analysis** (how the top ranks move when each weight changes ±20%
+  or an input is dropped), and the reviewer checks the definition is meaningful, not
+  redundant, not double-counting, and robust enough; results appear on the metric page.
+- Ranking pages show for each criterion: definition link, source, period, coverage (N of M),
+  tie rule and how missing values are treated; downloads include the full provenance.
 
 ## 3. LLM layer
 
