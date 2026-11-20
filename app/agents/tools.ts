@@ -66,6 +66,8 @@ const definitions=[
 // This is a toolbox, not another model or agent. Both primary agents execute it directly.
 // The wiki edition runs code but agents do not write it: tools that execute agent-authored code are off.
 const EDITION_DISABLED=new Set(WIKI_EDITION?['render_plot','test_page_program']:[]);
+// Executable component types an agent may not author in the wiki edition (it would be agent-written code).
+const EDITION_NO_AGENT_CODE=new Set(WIKI_EDITION?['backend_code','frontend_template','workflow']:[]);
 const writeTools=new Set(['copy_resources','execute_code','use_computer','remember_component','link_components','execute_api','write_page_file','generate_image','render_plot','plot_chart','import_image']);
 export function workspaceToolDirectory(writable:boolean){return [...definitions,pageContextTool].flatMap(t=>'name' in t&&typeof t.name==='string'&&!EDITION_DISABLED.has(t.name)&&(writable||!writeTools.has(t.name))?[{connectorId:'workspace',connectorName:'Page workspace',name:t.name,description:'description' in t&&typeof t.description==='string'?t.description:''}]:[]);}
 export async function applicationToolbox(agent:Agent,context?:AgentContext,signal?:AbortSignal){
@@ -123,7 +125,9 @@ export async function applicationToolbox(agent:Agent,context?:AgentContext,signa
     const c=await getComponent(ref,ctx);result={id:c.id,version:c.version,type:c.type,payload:JSON.parse(c.payload),links:await componentLinks(ref,ctx)};
     if(c.type==='page'){const page=await getPage(c.id,ctx.userId);result={...result as object,title:page?.title,summary:page?.summary,body:page?.body.slice(0,6000)};}
    }else if(call.name==='remember_component'){
-    const c=await createComponent(z.string().min(1).max(4000).parse(args.question),componentTypeSchema.parse(args.componentType),JSON.parse(z.string().max(64000).parse(args.payloadJson)),ctx);
+    const componentType=componentTypeSchema.parse(args.componentType);
+    if(EDITION_NO_AGENT_CODE.has(componentType))throw Error('Agents cannot save '+componentType+' components in this wiki: agents do not write code here. Run code someone already saved with execute_code, or use a component block in the article.');
+    const c=await createComponent(z.string().min(1).max(4000).parse(args.question),componentType,JSON.parse(z.string().max(64000).parse(args.payloadJson)),ctx);
     result={id:c.id,version:c.version,type:c.type};
    }else if(call.name==='link_components'){
     result=await linkComponents({id:z.string().parse(args.sourceId),version:z.number().int().positive().parse(args.sourceVersion)},z.string().parse(args.relation),{id:z.string().parse(args.targetId),version:z.number().int().positive().parse(args.targetVersion)},ctx);
