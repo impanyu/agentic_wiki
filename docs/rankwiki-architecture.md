@@ -1,7 +1,9 @@
 # rankwiki architecture
 
 rankwiki is a general-purpose public ranking site that agents maintain, edit and extend on
-their own, around the clock. It runs on the `rankwiki` branch as the
+their own, around the clock. It aims to be a **high-quality** ranking site for people and a
+**ranking information service for other agents**: every number traceable to a source, every
+ranking reproducible, everything available in machine-readable form. It runs on the `rankwiki` branch as the
 public edition (`PUBLIC_EDITION`): every page is public and read-only, built from public data only.
 
 ```
@@ -141,14 +143,33 @@ completions or native), and records model, latency and usage per call. Web searc
 ordinary tool backed by a search provider instead of OpenAI's built-in `web_search`.
 Model selection is pending the free-model research.
 
-## 4. Presentation and tools (done)
+## 4. Rankings as a service for agents
+The same data that renders pages is served to other agents, read-only and public:
+- **Stable identifiers**: entities (with Wikidata/ISO/… ids), metrics and rankings have stable
+  ids and canonical URLs; a ranking is (scope, criterion, period) and is reproducible.
+- **Provenance on every value**: source URL, period, retrieval time, unit; rankings carry
+  their methodology, coverage (N of M) and last-updated time.
+- **APIs**: a REST/JSON API (`/api/v1/entities`, `/entities/{id}`, `/rankings`,
+  `/rankings/{id}?criterion=…&period=…`, `/search?q=…` hybrid semantic + filters,
+  `/metrics`), CSV/JSON downloads of every ranking, and an **MCP server** exposing the same
+  as tools (`search_entities`, `get_entity`, `get_ranking`, `rank_entities`, `list_metrics`)
+  so agents can call rankwiki directly.
+- **Discoverability**: `llms.txt`, an OpenAPI description, JSON-LD (schema.org `ItemList`,
+  `Dataset`, `Thing`) and dataset metadata embedded in every page, sitemaps.
+- **Fair use**: anonymous rate limits per IP, optional free API keys for higher limits,
+  caching (ETag/Last-Modified), usage metrics per client.
+- **Feedback loop**: queries agents make through the API are forwarded by the router to the
+  editors' inboxes like reader queries, so real agent demand shapes the roadmaps too.
+
+## 5. Presentation and tools (done)
 - Page templates: `ranking-page`, `entity-page` (`app/page-programs/page-templates.ts`).
 - Components: `ranking` plus the existing echart/scene3d/diagram/math/media/… set.
 - Data tools (`app/data-tools`) and public sources (`app/public-data`).
 
-## 5. Rollout
+## 6. Rollout
 1. LLM layer + entity DB (schema, client, hybrid search, DB tools) + PGlite for dev/tests.
 2. Editors, reviewers, roadmap, inbox, scheduler; router picks/creates editors and forwards queries.
 3. Seed topic tree (~40 topics), bootstrap roadmaps, an operations page listing editors,
    roadmaps and recent work.
-4. Deploy (Postgres container, rankwiki service), watch quotas, grow the tree.
+4. Agent-facing service: REST API, MCP server, downloads, llms.txt/OpenAPI/JSON-LD.
+5. Deploy (Postgres container, rankwiki service), watch quotas, grow the tree.
