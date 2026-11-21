@@ -4,13 +4,13 @@ import {Search,ArrowDownWideNarrow,ArrowUpNarrowWide} from 'lucide-react';
 import type {VizProps} from './types';
 import {type Entry,type Summary,normalizeCriteria,toEntries,rankEntries,summarize,makeFormatter,shareOf,groupsOf,linkParts,parseNumber} from './ranking-data';
 import {useAskLink,useRankingView} from '@/app/seo/link-context';
-import {geoKind,geoKeyOf,registerGeo,baseRegion,pointOf,GEO_ASPECT,type GeoData} from './ranking-geo';
+import {geoKind,geoKeyOf,registerGeo,baseRegion,pointOf,geoAspect,type GeoData} from './ranking-geo';
 import './viz.css';
 import './ranking.css';
 
 type ECharts=typeof import('echarts');
 type Chart=ReturnType<ECharts['init']>;
-import {PALETTE,MAP_BOTTOM,errMessage,rgba,NEG,columnOption,treemapOption,donutOption,choroplethOption,heightMapOption,pointMapOption,pointColumnsOption,scatterOption,autoViews,pickViews,chartKey,type RankingViewKind} from './ranking-chart';
+import {PALETTE,MAP_BOTTOM,errMessage,rgba,NEG,columnOption,viewOption,autoViews,pickViews,VIEW_LABELS,VIEW_HEIGHT,chartKey,type RankingViewKind} from './ranking-chart';
 
 // Same prebuilt bundle as the echart component, so the page shares one echarts instance.
 let echartsP:Promise<ECharts>|null=null;
@@ -61,7 +61,6 @@ function Avatar({e,color}:{e:Entry;color:string}){
 }
 
 const PAGE=50,ROW_CAP=1000;
-const VIEW_LABELS:Record<RankingViewKind,string>={bar:'Bars',treemap:'Treemap',donut:'Donut',map:'Map',map3d:'3D map',scatter:'Scatter'};
 
 export default function Ranking({props,setValue,fire,ctx}:VizProps){
  const t=ctx.t,locale=ctx.locale||'en';
@@ -85,7 +84,6 @@ export default function Ranking({props,setValue,fire,ctx}:VizProps){
  const [query,setQuery]=useState('');
  const [group,setGroup]=useState<string|null>(null);
  const [expanded,setExpanded]=useState(false);
- const [geoData,setGeoData]=useState<GeoData|null>(null);
  const [geoError,setGeoError]=useState('');
  const charts=useRef<Record<string,Chart|null>>({});
  const tableWrap=useRef<HTMLDivElement>(null);
@@ -110,14 +108,17 @@ export default function Ranking({props,setValue,fire,ctx}:VizProps){
  // Views under the leaderboard: the template's list (props.views) or one chosen from the data — bars always,
  // share views (treemap, donut) for quantities that add up, maps for countries or U.S. states, a scatter
  // against a second criterion. One shows at a time (tabs); the first is also rendered on the server.
- const geo=useMemo(()=>geoKind(entries),[entries]);
- const keyOf=useMemo(()=>geo?geoKeyOf(geo):()=>null,[geo]);
+ // props.geo names the map when the data alone cannot tell ("admin1:JP" for prefectures given by name).
+ const geo=useMemo(()=>geoKind(entries,props.geo),[entries,props.geo]);
+ const [geoDataRaw,setGeoData]=useState<GeoData|null>(null);
+ const geoData=geo&&geoDataRaw?.kind===baseRegion(geo)?geoDataRaw:null;
+ const keyOf=useMemo(()=>geo?geoKeyOf(geo,geoData):()=>null,[geo,geoData]);
  const additive=summary.aggregate==='sum'&&summary.min>=0&&ranked.length>1;
  const views=useMemo<RankingViewKind[]>(()=>{
   if(props.chart==='none')return [];
-  const v=pickViews(props.views,autoViews({additive,geo,criteria:criteria.length}));
+  const v=pickViews(props.views,autoViews({additive,geo,criteria:criteria.length,groups:groups.length,count:ranked.length}));
   return props.chart==='map'&&v.includes('map')?['map',...v.filter(x=>x!=='map')]:v;
- },[props.chart,props.views,additive,geo,criteria.length]);
+ },[props.chart,props.views,additive,geo,criteria.length,groups.length,ranked.length]);
  const [viewKind,setViewKind]=useState<RankingViewKind|null>(null);
  const active:RankingViewKind=viewKind&&views.includes(viewKind)?viewKind:views[0]??'bar';
  const mapView=active==='map'||active==='map3d';
@@ -137,24 +138,12 @@ export default function Ranking({props,setValue,fire,ctx}:VizProps){
  const windowSize=Math.max(8,Math.floor((height-24)/28));
  const barHeight=Math.min(height,380);
  const columnWindow=30;
- const opt=useMemo(()=>{
-  if(!c)return null;
-  switch(active){
-   case 'bar':return barShown.length?columnOption({shown:barShown,c,fmt,axisFmt,window:allBars?columnWindow:undefined,noData}):null;
-   case 'treemap':return treemapOption({ranked:chartRanked,c,fmt,othersLabel:t('Others'),noData});
-   case 'donut':return donutOption({ranked:chartRanked,c,fmt,othersLabel:t('Others'),noData});
-   case 'map':case 'map3d':{
-    if(!geo||geoData?.kind!==baseRegion(geo))return null;
-    const g={ranked,c,fmt,map:geoData.name,noData};
-    if(geo==='points')return active==='map'?pointMapOption({...g,pointOf:e=>pointOf(e.row)}):pointColumnsOption({...g,pointOf:e=>pointOf(e.row)});
-    return active==='map'?choroplethOption({...g,kind:geo,keyOf,names:geoData.names}):heightMapOption({...g,kind:geo,keyOf,names:geoData.names});
-   }
-   case 'scatter':{if(!yC)return null;const yv=entries.map(e=>parseNumber(e.row[yC.key])).filter((v):v is number=>v!=null);
-    return scatterOption({entries:[...ranked,...missing],x:c,y:yC,fx:axisFmt,fy:makeFormatter(yC,yv,locale,{unit:false,compact:true}),value:(row,k)=>parseNumber(row[k])});}
-  }
-  return null;
+ // One shared builder for every view (the server uses it too, for the SVG of the first view).
+ const opt=useMemo(()=>c?viewOption({view:active,c,criteria,entries,ranked:chartRanked,missing,fmt,axisFmt,locale,top,allBars,window:columnWindow,other:yC,
+  geo:geo&&geoData?{kind:geo,map:geoData.name,names:geoData.names,keyOf,pointOf:e=>pointOf(e.row),aspectScale:geoData.aspectScale}:null,
+  labels:{others:t('Others'),noData,topHold:(k,pct)=>t('Top {k} hold {pct}',{k,pct}),entities:t('Entities by rank'),count:t('count'),median:t('Median')}}):null,
   // eslint-disable-next-line react-hooks/exhaustive-deps
- },[active,c,chartRanked,ranked,missing,entries,allBars,top,fmt,axisFmt,geo,geoData,keyOf,yC,locale,noData]);
+  [active,c,criteria,chartRanked,missing,entries,allBars,top,fmt,axisFmt,geo,geoData,keyOf,yC,locale,noData]);
  const byKey=useMemo(()=>{const m=new Map<string,Entry>();for(const e of ranked){const k=keyOf(e);if(k&&!m.has(k))m.set(k,e);}return m;},[ranked,keyOf]);
  const hover=(e:Entry|null,on:boolean)=>{
   if(!e||e.value==null)return;const type=on?'highlight':'downplay';const ch=charts.current[active];
@@ -251,14 +240,14 @@ export default function Ranking({props,setValue,fire,ctx}:VizProps){
      <button type="button" role="radio" aria-checked={!allBars} className={!allBars?'on':''} onClick={()=>setAllBars(false)}>{t('Top {n}',{n:top})}</button>
      <button type="button" role="radio" aria-checked={allBars} className={allBars?'on':''} onClick={()=>setAllBars(true)}>{t('All {n}',{n:chartRanked.length})}</button>
     </div>}
-    {active==='scatter'&&yC&&<label className="wf-rank-select wf-rank-vs"><span>{c.label} {t('vs')}</span><select value={yC.key} onChange={ev=>setYKey(ev.target.value)}>{others.map(x=><option key={x.key} value={x.key}>{x.label}</option>)}</select></label>}
+    {(active==='scatter'||active==='slope')&&yC&&<label className="wf-rank-select wf-rank-vs"><span>{c.label} {t('vs')}</span><select value={yC.key} onChange={ev=>setYKey(ev.target.value)}>{others.map(x=><option key={x.key} value={x.key}>{x.label}</option>)}</select></label>}
    </div>
-   {views.length>1&&<div className="wf-rank-charttitle wf-rank-charttitle-sub">{active==='scatter'&&yC?c.label+' × '+yC.label:c.label}{c.year?' · '+c.year:''}</div>}
+   {views.length>1&&<div className="wf-rank-charttitle wf-rank-charttitle-sub">{active==='scatter'&&yC?c.label+' × '+yC.label:active==='slope'&&yC?c.label+' → '+yC.label:active==='heatmap'||active==='parallel'||active==='radar'?t('All criteria'):c.label}{c.year?' · '+c.year:''}</div>}
    {mapView&&geoError?<div className="wf-rank-notice">{t('The map could not load.')}</div>
     :active==='bar'&&!barShown.length?<div className="wf-rank-empty">{noData}</div>
     :<ChartBox key={active} gl={active==='map3d'} option={opt} label={c.label}
-      height={active==='bar'?barHeight:active==='treemap'?440:active==='donut'?360:active==='scatter'?440:active==='map3d'?480:height}
-      {...(active==='map'&&geo?{aspect:GEO_ASPECT[geo],extra:MAP_BOTTOM+6}:{})}
+      height={active==='bar'?barHeight:active==='map'?height:VIEW_HEIGHT[active]??height}
+      {...(active==='map'&&geo?{aspect:geoAspect(geo,geoData),extra:MAP_BOTTOM+6}:{})}
       svg={!allBars&&!group&&active===views[0]?view.charts?.[chartKey(criteria.map(x=>x.key),c.key)+'|'+active]:undefined}
       onClick={p=>pick(active==='bar'?barShown[p.dataIndex]:mapView?byKey.get(p.name):chartRanked.find(e=>e.name===p.name))}
       onChart={ch=>{charts.current[active]=ch;}}/>}

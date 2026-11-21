@@ -1,7 +1,11 @@
 import {blockWorkflow} from '@/app/workflows/component-block';
-import {normalizeCriteria,toEntries,rankEntries,makeFormatter,summarize,parseNumber,type Criterion} from '@/app/workflows/viz/ranking-data';
-import {columnOption,treemapOption,donutOption,choroplethOption,pointMapOption,scatterOption,autoViews,pickViews,chartKey,type RankingViewKind} from '@/app/workflows/viz/ranking-chart';
-import {geoKind,geoKeyOf,registerGeo,pointOf,GEO_ASPECT} from '@/app/workflows/viz/ranking-geo';
+import {normalizeCriteria,toEntries,rankEntries,makeFormatter,summarize,groupsOf,type Criterion} from '@/app/workflows/viz/ranking-data';
+import {viewOption,autoViews,pickViews,chartKey,VIEW_HEIGHT,type RankingViewKind} from '@/app/workflows/viz/ranking-chart';
+import {geoKind,geoKeyOf,registerGeo,pointOf,geoAspect,setGeoFetcher} from '@/app/workflows/viz/ranking-geo';
+import {readFile} from 'node:fs/promises';
+import {join} from 'node:path';
+// On the server, map geometry (public/geo/…) is read from disk.
+setGeoFetcher(async path=>JSON.parse(await readFile(join(process.cwd(),'public',path.replace(/^\/+/,'')),'utf8')));
 // The rankings on a page as the server sees them: their criteria (for ?rank= views, titles and the
 // sitemap) and their rows (from the preloaded block state), and the bar chart of a view rendered to
 // SVG with ECharts' server-side renderer — the same option the browser draws on its canvas.
@@ -43,46 +47,42 @@ type ECharts=typeof import('echarts');
 let echartsP:Promise<ECharts>|null=null;
 const loadECharts=()=>echartsP??=import('echarts').then(m=>((m as unknown as {default?:ECharts}).default??m) as ECharts);
 const WIDTH=960;
+const nameKeyOf=(b:RankingBlock)=>typeof b.props.nameKey==='string'&&b.props.nameKey?b.props.nameKey:'name';
+const groupKeyOf=(b:RankingBlock)=>typeof b.props.groupKey==='string'&&b.props.groupKey?b.props.groupKey:undefined;
 // The views the ranking component shows, in the same order (same rules), so the server draws the first one.
 export function blockViews(b:RankingBlock,state:Record<string,unknown>|undefined,rank?:string):RankingViewKind[]{
  if(b.props.chart==='none')return [];
  const {criterion:c,ranked,missing}=rankedView(b,state,rank);
  const summary=summarize(ranked,missing,c);
- const nameKey=typeof b.props.nameKey==='string'&&b.props.nameKey?b.props.nameKey:'name';
- const geo=geoKind(toEntries(blockRows(b,state),nameKey));
- const v=pickViews(b.props.views,autoViews({additive:summary.aggregate==='sum'&&summary.min>=0&&ranked.length>1,geo,criteria:b.criteria.length}));
+ const entries=toEntries(blockRows(b,state),nameKeyOf(b),groupKeyOf(b));
+ const v=pickViews(b.props.views,autoViews({additive:summary.aggregate==='sum'&&summary.min>=0&&ranked.length>1,geo:geoKind(entries,b.props.geo),criteria:b.criteria.length,groups:groupsOf(entries).length,count:ranked.length}));
  return b.props.chart==='map'&&v.includes('map')?['map',...v.filter(x=>x!=='map')]:v;
 }
 // {chartKey|view → SVG} for the view each ranking shows first (the criterion in view; 3D maps only in the browser).
-export async function rankingChartSvgs(blocks:RankingBlock[],preloaded:Record<string,Record<string,unknown>>,rank:string|undefined,locale:string,labels:{others:string;noData:string}={others:'Others',noData:'—'}):Promise<Record<string,string>>{
+export async function rankingChartSvgs(blocks:RankingBlock[],preloaded:Record<string,Record<string,unknown>>,rank:string|undefined,locale:string):Promise<Record<string,string>>{
  const out:Record<string,string>={};
  for(const b of blocks){
   const state=preloaded[b.code];if(!state)continue;
   const first=blockViews(b,state,rank)[0];if(!first||first==='map3d')continue;
   try{
    const {criterion:c,ranked,missing}=rankedView(b,state,rank);if(!ranked.length)continue;
+   const entries=toEntries(blockRows(b,state),nameKeyOf(b),groupKeyOf(b));
    const top=typeof b.props.top==='number'&&b.props.top>=1?Math.floor(b.props.top):20;
    const height=typeof b.props.height==='number'&&b.props.height>=200?Math.min(b.props.height,1200):420;
    const values=ranked.map(e=>e.value!);
    const fmt=makeFormatter(c,values,locale),axisFmt=makeFormatter(c,values,locale,{unit:false,compact:true});
    const echarts=await loadECharts();
-   let option:Record<string,unknown>|null=null,w=WIDTH,h=Math.min(height,380);
-   if(first==='bar')option=columnOption({shown:ranked.slice(0,top),c,fmt,axisFmt,noData:labels.noData});
-   else if(first==='treemap'){option=treemapOption({ranked,c,fmt,othersLabel:labels.others,noData:labels.noData});h=440;}
-   else if(first==='donut'){option=donutOption({ranked,c,fmt,othersLabel:labels.others,noData:labels.noData});h=360;}
-   else if(first==='scatter'){const y=b.criteria.find(x=>x.key!==c.key);if(y){const yv=[...ranked,...missing].map(e=>parseNumber(e.row[y.key])).filter((v):v is number=>v!=null);
-    option=scatterOption({entries:[...ranked,...missing],x:c,y,fx:axisFmt,fy:makeFormatter(y,yv,locale,{unit:false,compact:true}),value:(row,k)=>parseNumber(row[k])});h=440;}}
-   else if(first==='map'){const nameKey=typeof b.props.nameKey==='string'&&b.props.nameKey?b.props.nameKey:'name';const kind=geoKind(toEntries(blockRows(b,state),nameKey));
-    if(kind){const g=await registerGeo(echarts as never,kind);
-     option=kind==='points'?pointMapOption({ranked,c,fmt,map:g.name,pointOf:e=>pointOf(e.row),noData:labels.noData})
-      :choroplethOption({ranked,c,fmt,kind,map:g.name,keyOf:geoKeyOf(kind),names:g.names,noData:labels.noData});
-     h=Math.round(w/GEO_ASPECT[kind])+MAP_EXTRA;}}
+   const kind=first==='map'?geoKind(entries,b.props.geo):null;
+   const g=kind?await registerGeo(echarts as never,kind):null;
+   const option=viewOption({view:first,c,criteria:b.criteria,entries,ranked,missing,fmt,axisFmt,locale,top,other:b.criteria.find(x=>x.key!==c.key),
+    geo:kind&&g?{kind,map:g.name,names:g.names,keyOf:geoKeyOf(kind,g),pointOf:e=>pointOf(e.row),aspectScale:g.aspectScale}:null,
+    labels:{others:'Others',noData:'—',topHold:(k,pct)=>`Top ${k} hold ${pct}`,entities:'Entities by rank',count:'count',median:'Median'}});
    if(!option)continue;
-   const chart=echarts.init(null as unknown as HTMLElement,undefined,{renderer:'svg',ssr:true,width:w,height:h});
+   const h=first==='bar'?Math.min(height,380):first==='map'&&kind?Math.round(WIDTH/geoAspect(kind,g))+MAP_EXTRA:VIEW_HEIGHT[first]??420;
+   const chart=echarts.init(null as unknown as HTMLElement,undefined,{renderer:'svg',ssr:true,width:WIDTH,height:h});
    try{chart.setOption({...option,animation:false} as never);
     // Scales with its box: a viewBox instead of fixed pixels.
-    const svg=chart.renderToSVGString().replace(/^<svg([^>]*?) width="(\d+)" height="(\d+)"/,(_m,a,ww,hh)=>`<svg${a}${/viewBox=/.test(a)?'':` viewBox="0 0 ${ww} ${hh}"`} preserveAspectRatio="xMidYMid meet"`);
-    out[chartKey(b.criteria.map(x=>x.key),c.key)+'|'+first]=svg;
+    out[chartKey(b.criteria.map(x=>x.key),c.key)+'|'+first]=chart.renderToSVGString().replace(/^<svg([^>]*?) width="(\d+)" height="(\d+)"/,(_m,a,ww,hh)=>`<svg${a}${/viewBox=/.test(a)?'':` viewBox="0 0 ${ww} ${hh}"`} preserveAspectRatio="xMidYMid meet"`);
    }finally{chart.dispose();}
   }catch(e){console.warn('seo: chart svg failed',(e as Error).message);}
  }

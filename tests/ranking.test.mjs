@@ -129,8 +129,9 @@ test('U.S. states match by name, postal code, US-XX or FIPS; geoKind needs most 
  assert.equal(views.geoKind([{code:null,name:'Chanel No. 5'},{code:null,name:'Sauvage'},{code:null,name:'Texas'}]),null);
 });
 test('views: share views only for additive quantities, maps only for geographic entities; explicit lists filtered',()=>{
- assert.deepEqual(views.autoViews({additive:true,geo:'us',criteria:3}),['bar','treemap','donut','map','map3d','scatter']);
- assert.deepEqual(views.autoViews({additive:false,geo:null,criteria:1}),['bar']);
+ assert.deepEqual(views.autoViews({additive:true,geo:'us',criteria:3,groups:4,count:50}),['bar','treemap','donut','sunburst','map','map3d','scatter','lorenz','distribution','boxplot','heatmap','parallel','slope','radar']);
+ assert.deepEqual(views.autoViews({additive:true,geo:null,criteria:1,count:4}),['bar','treemap','donut']);
+ assert.deepEqual(views.autoViews({additive:false,geo:null,criteria:1,count:5}),['bar']);
  const auto=views.autoViews({additive:false,geo:'world',criteria:2});
  assert.deepEqual(views.pickViews(['map','treemap','scatter','nonsense'],auto),['map','scatter']);
  assert.deepEqual(views.pickViews(['treemap'],auto),auto);assert.deepEqual(views.pickViews('auto',auto),auto);
@@ -144,4 +145,28 @@ test('points: lat/lon in several spellings; counties by 5-digit FIPS; regions wi
  assert.equal(views.geoKind([city('A',1,2),city('B',3,4),city('C',5,6)]),'points');
  assert.equal(views.geoKind([{code:'06037',name:'Los Angeles'},{code:'17031',name:'Cook'},{code:'48201',name:'Harris'}]),'us-counties');
  assert.equal(views.geoKind([{code:null,name:'Texas',row:{lat:31,lon:-99}},{code:null,name:'Ohio',row:{lat:40,lon:-82}},{code:null,name:'Utah',row:{lat:39,lon:-111}}]),'us');
+});
+test('percentiles respect order and ties; ranks on another criterion; cumulative share',()=>{
+ const rows=[{n:'a',v:10,w:1},{n:'b',v:20,w:3},{n:'c',v:20,w:2},{n:'d',v:40}].map(row=>({row,name:row.n}));
+ const p=views.percentiles(rows,{key:'v',order:'desc'});
+ assert.deepEqual(rows.map(r=>Math.round(p.get(r.row))),[0,50,50,100]);
+ const pa=views.percentiles(rows,{key:'v',order:'asc'});assert.equal(Math.round(pa.get(rows[0].row)),100);
+ const r=views.ranksOn(rows,{key:'w',order:'desc'});assert.deepEqual(rows.map(x=>r.get(x.row)??null),[3,1,2,null]);
+ const cs=views.cumulativeShare([{value:50},{value:30},{value:20},{value:0}]);
+ assert.deepEqual(cs.map(x=>[x.k,Math.round(x.share)]),[[1,50],[2,80],[3,100]]);
+});
+test('subdivisions of any country: ISO 3166-2 codes pick the country; a template hint names it; loose names match across scripts',()=>{
+ const sub=(code,name)=>({code,name});
+ assert.equal(views.geoKind([sub('CN-GD','Guangdong'),sub('CN-JS','Jiangsu'),sub('CN-SD','Shandong'),sub('FR-IDF','x')]),'admin1:CN');
+ assert.equal(views.geoKind([sub('US-CA','California'),sub('US-TX','Texas'),sub('US-NY','New York')]),'us');
+ assert.equal(views.geoKind([sub(null,'Hokkaido'),sub(null,'Aomori')],'admin1:JP'),'admin1:JP');
+ assert.equal(views.geoKind([sub(null,'a')],'admin1:US'),'us');
+ assert.equal(views.geoKind([sub(null,'a'),sub(null,'b'),sub(null,'c')],'nonsense'),null);
+ assert.equal(views.looseName('Guangdong Province'),views.looseName('guangdong'));
+ assert.equal(views.looseName('广东省'),views.looseName('广东'));
+ assert.equal(views.looseName('Île-de-France'),'iledefrance');
+ const data={kind:'admin1:JP',lookup:new Map([['JP-01','JP-01'],['Q1037393','JP-01'],[views.looseName('北海道'),'JP-01'],[views.looseName('Hokkaido'),'JP-01']])};
+ const key=views.geoKeyOf('admin1:JP',data);
+ assert.equal(key({code:'jp-01',name:''}),'JP-01');assert.equal(key({code:null,name:'北海道'}),'JP-01');assert.equal(key({code:null,name:'Hokkaido Prefecture'}),'JP-01');
+ assert.equal(key({code:null,name:'x',row:{wikidata:'Q1037393'}}),'JP-01');assert.equal(views.geoKeyOf('admin1:JP')({code:null,name:'Hokkaido'}),null);
 });
