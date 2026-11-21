@@ -61,7 +61,7 @@ export function EntityBody({cards,sections}:{cards:Record<string,unknown>[];sect
    case 'trend':return <Trend {...p}/>;case 'position':return <Position {...p}/>;case 'peer_compare':return <PeerCompare {...p}/>;
    case 'radar_profile':return <RadarProfile {...p}/>;case 'location_map':return <LocationMap {...p}/>;case 'relation_graph':return <RelationGraph {...p}/>;
    case 'timeline':return <Timeline {...p}/>;
-   case 'rankings':return <ul className="entity-rankings">{(s.links||[]).map(l=><li key={l.href}><a href={l.href}>{l.title}</a>{l.detail&&<span className="wf-muted"> — {l.detail}</span>}</li>)}</ul>;
+   case 'rankings':return <ul className="entity-rankings">{(s.links||[]).map(l=><li key={l.href}><a href={l.href}><strong>{l.title}</strong></a>{l.ranks?.length?<span className="entity-ranks">{l.ranks.map((x,i)=><span key={i}>{i?' · ':' — '}<a href={x.href}>{x.label}: {x.text}</a></span>)}</span>:l.detail&&<span className="wf-muted"> — {l.detail}</span>}</li>)}</ul>;
    case 'text':return <>{(s.paragraphParts||(s.paragraphs||[]).map(x=>[{text:x}])).map((x,i)=><p key={i}><LinkedText parts={x}/></p>)}</>;
    default:return null;
   }};

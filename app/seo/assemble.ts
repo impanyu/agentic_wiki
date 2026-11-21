@@ -129,7 +129,7 @@ export type EntityPageData={
  // Resolved when the page is assembled, so links appear on old pages as soon as the new page exists.
  links?:Record<string,string>;
 };
-export type PageSection={component:string;title?:string;props?:Record<string,unknown>;paragraphs?:string[];paragraphParts?:Part[][];links?:{href:string;title:string;detail:string}[]};
+export type PageSection={component:string;title?:string;props?:Record<string,unknown>;paragraphs?:string[];paragraphParts?:Part[][];links?:{href:string;title:string;detail:string;ranks?:{label:string;text:string;href:string}[]}[]};
 export type EntityPageModel={title:string;lead:string[];leadParts:Part[][];cards:Record<string,unknown>[];sections:PageSection[];references:{source:string;what:string}[];asOf:string|null;
  description:string;properties:{name:string;value:number|string;unitText?:string}[]};
 
@@ -224,7 +224,10 @@ export function assembleEntityPage(d:EntityPageData,locale='en'):EntityPageModel
  };
  const measure=(k:string)=>{const c=criterionOf(def(k));return {label:c.label,format:c.format,order:c.order,...(c.unit?{unit:c.unit}:{}),...(c.currency?{currency:c.currency}:{}),...(d.metrics[k]?.period?{year:d.metrics[k].period}:{})};};
  const outsideNote=(k:string)=>{const f=d.metrics[k];return 'Among the top '+countText(SHOWN_RANKS,locale)+' '+(d.type.plural||'entities')+'; '+e.name+' is outside them'+(f?.rank&&f.of?' ('+ordinal(f.rank,locale)+' of '+countText(f.of,locale)+')':'')+'.';};
- for(const s of tpl.sections||[]){
+ // Every entity page lists the rankings it takes part in (the platform adds the section when a template leaves it out),
+ // found when the page is assembled, so a new ranking appears on its members' pages at once.
+ const sectionList=[...(tpl.sections||[]),...((tpl.sections||[]).some(x=>x.kind==='rankings')?[]:[{kind:'rankings'} as Section])];
+ for(const s of sectionList){
   switch(s.kind){
    case 'trend':{
     const all=(s.metrics||[]).filter(k=>(d.metrics[k]?.history?.length||0)>1);if(!all.length)break;all.forEach(k=>used.add(k));
@@ -260,8 +263,11 @@ export function assembleEntityPage(d:EntityPageData,locale='en'):EntityPageModel
     break;}
    case 'rankings':{
     if(!d.rankings.length)break;
+    const rankText=(x:{rank:number|null;of:number|null})=>x.rank==null?'not ranked':x.rank>SHOWN_RANKS?'outside the top '+countText(SHOWN_RANKS,locale):ordinal(x.rank,locale)+(x.of?' of '+countText(x.of,locale):'');
+    // Each rank opens the ranking on that criterion (the first criterion is the ranking's default view).
     sections.push({component:'rankings',title:s.title||'Rankings',links:d.rankings.map(r=>({href:rankingPath(r.slug),title:r.title,
-     detail:r.ranks.map(x=>x.label+': '+(x.rank==null?'not ranked':x.rank>SHOWN_RANKS?'outside the top '+countText(SHOWN_RANKS,locale):ordinal(x.rank,locale)+(x.of?' of '+countText(x.of,locale):''))).join(' · ')}))});
+     detail:r.ranks.map(x=>x.label+': '+rankText(x)).join(' · '),
+     ranks:r.ranks.map((x,i)=>({label:x.label,text:rankText(x),href:rankingPath(r.slug)+(i===0?'':'?rank='+encodeURIComponent(x.key))}))}))});
     break;}
    case 'timeline':{const ev=datedAttributes(e.attributes);if(ev.length)sections.push({component:'timeline',title:s.title||'Timeline',props:{events:ev}});break;}
    case 'text':{

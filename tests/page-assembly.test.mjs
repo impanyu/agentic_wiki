@@ -245,3 +245,10 @@ test('links: filled values link to existing pages only; attributes fall back to 
  assert.equal(withBerlin.cards[0].href,'/e/city/berlin');assert.equal(withBerlin.cards[1].href,'/rankings/country-rankings-europe');
  assert.equal(a.partsText(withBerlin.leadParts[0]),withBerlin.lead[0]);
 });
+test('every entity page lists its rankings, even when the template leaves the section out; each rank opens that criterion',()=>{
+ const base=data();
+ const m=a.assembleEntityPage({...base,type:{...base.type,template:{lead:['{name}.'],sections:[{kind:'trend',metrics:['population']}]}}});
+ const r=m.sections[m.sections.length-1];
+ assert.equal(r.component,'rankings');
+ assert.deepEqual(r.links[0].ranks.map(x=>[x.text,x.href]),[['19th of 217','/rankings/country-rankings'],['outside the top 1,000','/rankings/country-rankings?rank=gdp_usd'],['not ranked','/rankings/country-rankings?rank=area_km2']]);
+});
