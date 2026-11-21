@@ -24,10 +24,10 @@ export function proxy(request:NextRequest){
  // Language editions: /<code>/… is the page at /… rendered in that language; /en/… is the bare address.
  const m=/^\/([a-z]{2})(\/.*)?$/.exec(path);
  if(m&&isLocale(m[1])){
-  const url=request.nextUrl.clone();url.pathname=m[2]||'/';
-  if(m[1]===DEFAULT_LOCALE)return NextResponse.redirect(url,308);
+  if(m[1]===DEFAULT_LOCALE){const url=request.nextUrl.clone();url.pathname=m[2]||'/';return NextResponse.redirect(url,308);}
+  // next.config.ts rewrites the path internally; here the request only learns its language.
   const headers=new Headers(request.headers);headers.set('x-rw-locale',m[1]);
-  return NextResponse.rewrite(url,{request:{headers}});
+  return NextResponse.next({request:{headers}});
  }
  // A bare address never inherits a language from the request.
  if(request.headers.has('x-rw-locale')){const headers=new Headers(request.headers);headers.delete('x-rw-locale');return NextResponse.next({request:{headers}});}
