@@ -9,13 +9,19 @@ import {pageAddress} from './dynamic/units';
 import {CornerUpLeft} from 'lucide-react';
 import {Dashboard} from './templates/dashboard';
 import {ComponentBlock} from './workflows/component-block-view';
+import {useAskLink} from './seo/link-context';
+import {askOf,pagePath} from './seo/urls';
 import {chartSchema,validateChartData,chartProblem} from './components-registry/chart-contracts';
 import {parseGoogleMapsUrl,embedPath} from './maps/url';
 import {ImageZoomArea} from './image-viewer';
 import {inlineParts,linkPattern,isSourceLabel,linkLevels,articleImage,articleCredit,type Highlight,type InternalLink} from './internal-links';
 export type {Highlight} from './internal-links';
-export function AnswerText({body,title,summary,labels,sources,highlights,links=[],concepts=[],onJump,onOpen,children,pageId}:{pageId?:string;children?:React.ReactNode;body:string;title:string;summary:string;labels:import('./page-types').AnswerPage['labels'];sources:{title:string;url:string}[];highlights:Highlight[];links?:InternalLink[];concepts?:Highlight[];onJump:(highlight:Highlight)=>void;onOpen:(link:InternalLink)=>void}){
+const SITE_LINK=/\[[^\]]+\]\(\/(?:\?ask=|p\/)[^\s()]*\)/;
+const SITE_LINK_SPLIT=/(\[[^\]]+\]\(\/(?:\?ask=|p\/)[^\s()]*\))/;
+const SITE_LINK_ONE=/^\[([^\]]+)\]\((\/(?:\?ask=|p\/)[^\s()]*)\)$/;
+export function AnswerText({body,title,summary,labels,sources,highlights,links=[],concepts=[],onJump,onOpen,children,pageId,preloadedBlocks}:{preloadedBlocks?:Record<string,Record<string,unknown>>;pageId?:string;children?:React.ReactNode;body:string;title:string;summary:string;labels:import('./page-types').AnswerPage['labels'];sources:{title:string;url:string}[];highlights:Highlight[];links?:InternalLink[];concepts?:Highlight[];onJump:(highlight:Highlight)=>void;onOpen:(link:InternalLink)=>void}){
  const {t,locale}=useUi();
+ const askLink=useAskLink();
 
  // One source number per URL; each occurrence gets its own return anchor.
  const references:{title:string;url:string;occurrences:string[]}[]=[];
@@ -48,13 +54,21 @@ export function AnswerText({body,title,summary,labels,sources,highlights,links=[
    if(active.length){
     // Small inline boxes allow every line to wrap while retaining independently clickable underline tracks.
     const chunks=content.match(/[\p{Script=Latin}\p{Number}]+|[^]/gu)||[];
-    pieces.push(...chunks.map((chunk,j)=><span className="internal-fragment" key={start+'.'+j} style={{paddingBottom:(Math.max(...active.map(s=>levels.get(s.link.id)!))+1)*5+'px'}}><span className={mark?'pending-highlight':undefined} onClick={()=>{if(!window.getSelection()?.toString()){if(mark)onJump(mark.highlight);else onOpen(active[0].link);}}}>{chunk}</span>{active.map(({link})=>{const first=!tabStops.has(link.id);tabStops.add(link.id);return <a className="internal-track" key={link.id} href={pageAddress(link.targetId,link.parameters)} style={{bottom:(Math.max(...active.map(s=>levels.get(s.link.id)!))-levels.get(link.id)!)*5+'px'}} tabIndex={first?0:-1} aria-label={t("Open ")+link.quote+': '+link.targetTitle} title={link.quote+' → '+link.targetTitle} onClick={e=>{e.preventDefault();e.stopPropagation();if(!window.getSelection()?.toString())onOpen(link);}}/>;})}</span>));
+    pieces.push(...chunks.map((chunk,j)=><span className="internal-fragment" key={start+'.'+j} style={{paddingBottom:(Math.max(...active.map(s=>levels.get(s.link.id)!))+1)*5+'px'}}><span className={mark?'pending-highlight':undefined} onClick={()=>{if(!window.getSelection()?.toString()){if(mark)onJump(mark.highlight);else onOpen(active[0].link);}}}>{chunk}</span>{active.map(({link})=>{const first=!tabStops.has(link.id);tabStops.add(link.id);return <a className="internal-track" key={link.id} href={link.parameters&&Object.keys(link.parameters).length?pageAddress(link.targetId,link.parameters):pagePath(link.targetId,link.targetTitle)} style={{bottom:(Math.max(...active.map(s=>levels.get(s.link.id)!))-levels.get(link.id)!)*5+'px'}} tabIndex={first?0:-1} aria-label={t("Open ")+link.quote+': '+link.targetTitle} title={link.quote+' → '+link.targetTitle} onClick={e=>{e.preventDefault();e.stopPropagation();if(!window.getSelection()?.toString())onOpen(link);}}/>;})}</span>));
    }else if(mark)pieces.push(<mark key={start} role="link" tabIndex={0} title={t("Open: ")+mark.highlight.quote} onClick={()=>{if(!window.getSelection()?.toString())onJump(mark.highlight);}} onKeyDown={e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();onJump(mark.highlight);}}}>{content}</mark>);
    else {const concept=suggested.find(s=>s.start<=start&&s.end>=end);if(concept)pieces.push(<span key={start} className="concept-link" role="link" tabIndex={0} title={t("Open: ")+concept.highlight.quote} onClick={()=>{if(!window.getSelection()?.toString())onJump(concept.highlight);}} onKeyDown={e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();onJump(concept.highlight);}}}>{content}</span>);else pieces.push(...numberedCitations(content,id+'.'+start));}
   }
   return <span data-text-id={id} key={id}>{pieces}</span>;
  }
- function inline(value:string,id:string){return inlineParts(value).map((part,i)=>{const key=id+'.'+i;const link=part.match(linkPattern);if(link){const sourceLabel=isSourceLabel(link[1]);return <span key={key}>{!sourceLabel&&text(link[1],key)}{citation(link[2],link[1],key)}</span>;}if(part.startsWith('**')&&part.endsWith('**'))return <strong key={key}>{text(part.slice(2,-2),key)}</strong>;if(part.startsWith('*')&&part.endsWith('*'))return <em key={key}>{text(part.slice(1,-1),key)}</em>;return text(part,key);});}
+ // Links to this site ("[Country Rankings](/?ask=Country%20Rankings)", "[France](/p/…)") are ordinary links;
+ // /?ask= ones point at the existing page when there is one (see seo/link-context).
+ function inline(value:string,id:string):ReactNode{
+  if(!SITE_LINK.test(value))return inlineSegments(value,id);
+  return value.split(SITE_LINK_SPLIT).map((part,i)=>{const m=SITE_LINK_ONE.exec(part);if(!m)return <span key={id+'.s'+i}>{inlineSegments(part,id+'.s'+i)}</span>;
+   const q=askOf(m[2]);const target=q?askLink(q):{href:m[2],rel:undefined};
+   return <a key={id+'.s'+i} className="site-link" href={target.href} rel={target.rel}>{m[1]}</a>;});
+ }
+ function inlineSegments(value:string,id:string){return inlineParts(value).map((part,i)=>{const key=id+'.'+i;const link=part.match(linkPattern);if(link){const sourceLabel=isSourceLabel(link[1]);return <span key={key}>{!sourceLabel&&text(link[1],key)}{citation(link[2],link[1],key)}</span>;}if(part.startsWith('**')&&part.endsWith('**'))return <strong key={key}>{text(part.slice(2,-2),key)}</strong>;if(part.startsWith('*')&&part.endsWith('*'))return <em key={key}>{text(part.slice(1,-1),key)}</em>;return text(part,key);});}
  const richDocument=labels.richBody===body?labels.richContent:undefined;
  const lines=body.split(/\n/);
  const bodyHeadingLines=lines.flatMap((line,i)=>/^(#{1,3}) (.+)$/.test(line)?[i]:[]);
@@ -88,7 +102,7 @@ export function AnswerText({body,title,summary,labels,sources,highlights,links=[
   }
   if(/^```component\s*$/.test(line.trim())){
    const end=lines.findIndex((value,at)=>at>i&&/^```\s*$/.test(value.trim()));
-   if(end>i){blocks.push(<ComponentBlock key={id} code={lines.slice(i+1,end).join('\n')} pageId={pageId||''} title={title}/>);i=end;continue;}
+   if(end>i){blocks.push(<ComponentBlock key={id} code={lines.slice(i+1,end).join('\n')} pageId={pageId||''} title={title} preloaded={preloadedBlocks?.[lines.slice(i+1,end).join('\n')]}/>);i=end;continue;}
   }
   if(heading){blocks.push(heading[1].length===3?<h3 id={'section-'+i} key={id}>{inline(heading[2],id)}</h3>:<h2 id={'section-'+i} key={id}>{inline(heading[2],id)}</h2>);continue;}
   const map=mapLine(line);

@@ -3,7 +3,9 @@ import {isBinding,type Workflow,type RunTrace} from './schema';
 import {describe as statsDescribe,group as statsGroup,histogram as statsHistogram,correlate as statsCorrelate,regress as statsRegress} from './stats';
 // Runs a client action entirely in the browser: pure calculation steps only
 // (validated), no server round trip, no access to data or permissions.
-export async function runClientAction(workflow:Workflow,name:string,input:{state:Record<string,unknown>;values:Record<string,unknown>;event:unknown},page:{id:string;title:string}){
+// io.readFile replaces the browser's Page file fetch (the server-rendered reader page runs the load action on the server).
+export type ClientIo={readFile?:(pageId:string,args:Record<string,unknown>)=>Promise<unknown>};
+export async function runClientAction(workflow:Workflow,name:string,input:{state:Record<string,unknown>;values:Record<string,unknown>;event:unknown},page:{id:string;title:string},io:ClientIo={}){
  let state={...input.state};const trace:RunTrace[]=[];let current:string|undefined=name;
  for(let chain=0;current&&chain<5;chain++){
   const action:Workflow['actions'][string]|undefined=workflow.actions[current];if(!action?.client)throw Error('Action '+current+' does not run in the browser.');
@@ -17,7 +19,7 @@ export async function runClientAction(workflow:Workflow,name:string,input:{state
     if(step.tool==='json.format')return JSON.stringify(args.value??null,null,args.pretty===false?0:2);
     if(step.tool==='csv.parse')return parseCsv(args);
     if(step.tool==='csv.format')return formatCsv(args);
-    if(step.tool==='page_file.read')return readPageFile(page.id,args);
+    if(step.tool==='page_file.read')return io.readFile?io.readFile(page.id,args):readPageFile(page.id,args);
     const stats:Record<string,(a:Record<string,unknown>)=>unknown>={'stats.describe':statsDescribe,'stats.group':statsGroup,'stats.histogram':statsHistogram,'stats.correlate':statsCorrelate,'stats.regress':statsRegress};
     if(stats[step.tool])return stats[step.tool](args);
     throw Error('Unknown client tool '+step.tool);};
@@ -35,7 +37,7 @@ export async function runClientAction(workflow:Workflow,name:string,input:{state
 export const usedRefs=(v:unknown)=>bindingsIn(v).flatMap(stepRefs);
 
 const textOf=(v:unknown)=>typeof v==='string'?v:v&&typeof v==='object'&&typeof (v as {text?:unknown}).text==='string'?(v as {text:string}).text:String(v??'');
-async function parseCsv(a:Record<string,any>){
+export async function parseCsv(a:Record<string,any>){
  const {parse}=await import('csv-parse/browser/esm/sync');const text=textOf(a.text),first=text.split(/\r?\n/,1)[0]||'';
  const delimiter=a.delimiter&&a.delimiter!=='auto'?String(a.delimiter):(['\t',';',','].map(d=>[d,first.split(d).length] as const).sort((x,y)=>y[1]-x[1])[0][1]>1?['\t',';',','].map(d=>[d,first.split(d).length] as const).sort((x,y)=>y[1]-x[1])[0][0]:',');
  return (parse(text,{columns:a.header!==false,delimiter,skip_empty_lines:true,relax_column_count:true,cast:a.cast!==false,bom:true}) as unknown[]).slice(0,100000);

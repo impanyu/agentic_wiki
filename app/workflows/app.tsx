@@ -13,7 +13,21 @@ import './style.css';
 // server (/api/pages/<id>/workflow); bindings are evaluated here for display.
 type Resolved={props:Record<string,any>;visible:boolean};
 function walk(nodes:WorkflowNode[],fn:(n:WorkflowNode)=>void){for(const n of nodes){fn(n);if(n.children)walk(n.children,fn);}}
-function staticResolve(ui:WorkflowNode[]){const map=new Map<WorkflowNode,Resolved>();let dynamic=false;walk(ui,n=>{if(bindingsIn(n.props).length||n.visible!==undefined)dynamic=true;map.set(n,{props:(n.props||{}) as Record<string,any>,visible:true});});return dynamic?null:map;}
+// The first render's props. Without bindings they are the literal props. With preloaded state (the server-rendered
+// page) plain "state.a.b" bindings are substituted synchronously, so the server HTML already shows the data;
+// any other expression leaves resolution to the effect below.
+const STATE_PATH=/^state((?:\.[A-Za-z_$][\w$]*)+)$/;
+function substitute(v:unknown,state:Record<string,unknown>):unknown{
+ if(isBinding(v)){const m=STATE_PATH.exec(String(v.$).trim());if(!m)throw Error('dynamic');return m[1].slice(1).split('.').reduce<unknown>((o,k)=>o&&typeof o==='object'?(o as Record<string,unknown>)[k]:undefined,state);}
+ if(Array.isArray(v))return v.map(x=>substitute(x,state));
+ if(v&&typeof v==='object')return Object.fromEntries(Object.entries(v).map(([k,x])=>[k,substitute(x,state)]));
+ return v;
+}
+function staticResolve(ui:WorkflowNode[],state?:Record<string,unknown>){const map=new Map<WorkflowNode,Resolved>();let dynamic=false;
+ walk(ui,n=>{if(!bindingsIn(n.props).length&&n.visible===undefined){map.set(n,{props:(n.props||{}) as Record<string,any>,visible:true});return;}
+  if(!state){dynamic=true;return;}
+  try{const visible=n.visible===undefined?true:!!substitute(n.visible,state);map.set(n,{props:substitute(n.props||{},state) as Record<string,any>,visible});}catch{dynamic=true;}});
+ return dynamic?null:map;}
 export function WorkflowApp({workflow,pageId,title,writable,draftId,snapshot,renderArticle,preloaded}:{workflow:Workflow;pageId:string;title:string;writable:boolean;draftId?:string;snapshot?:{state:Record<string,unknown>;values:Record<string,unknown>};renderArticle?:()=>ReactNode;preloaded?:Record<string,unknown>}){
  const {locale,t}=useUi();
  // Read through a ref so a translation arriving later does not recreate run (and cancel a scheduled load).
@@ -23,7 +37,7 @@ export function WorkflowApp({workflow,pageId,title,writable,draftId,snapshot,ren
  const [running,setRunning]=useState<Record<string,boolean>>({}),[errors,setErrors]=useState<Record<string,string>>({}),[traces,setTraces]=useState<Record<string,RunTrace[]>>({});
  const [proposals,setProposals]=useState<{actionId:string;request:unknown}[]>([]);
  // Binding-free pages (such as a plain wiki article) render on the first paint.
- const [resolved,setResolved]=useState<Map<WorkflowNode,Resolved>|null>(()=>staticResolve(workflow.ui)),[bindingErrors,setBindingErrors]=useState<string[]>([]);
+ const [resolved,setResolved]=useState<Map<WorkflowNode,Resolved>|null>(()=>staticResolve(workflow.ui,preloaded?{...workflow.state,...preloaded}:undefined)),[bindingErrors,setBindingErrors]=useState<string[]>([]);
  const synced=useRef<Record<string,string>>({}),[ready,setReady]=useState(false);
  const live=useRef({state,values});live.current={state,values};
  // Input defaults become initial values (bindings in defaults are resolved once).

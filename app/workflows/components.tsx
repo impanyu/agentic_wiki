@@ -13,7 +13,8 @@ import dynamic from 'next/dynamic';
 // Rich visualization and media components load their libraries only when a page uses them.
 const loadingViz=()=><div className="wf-viz wf-viz-loading" aria-busy="true"/>;
 const EChart=dynamic(()=>import('./viz/echart'),{ssr:false,loading:loadingViz});
-const Ranking=dynamic(()=>import('./viz/ranking'),{ssr:false,loading:loadingViz});
+// Server-rendered too: the crawlable page (/p/…) ships the full ranking in its HTML; echarts loads in effects.
+const Ranking=dynamic(()=>import('./viz/ranking'),{loading:loadingViz});
 const Scene3D=dynamic(()=>import('./viz/scene3d'),{ssr:false,loading:loadingViz});
 const MediaPlayer=dynamic(()=>import('./viz/media'),{ssr:false,loading:loadingViz});
 const Diagram=dynamic(()=>import('./viz/diagram'),{ssr:false,loading:loadingViz});

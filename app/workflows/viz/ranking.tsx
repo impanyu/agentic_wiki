@@ -2,7 +2,8 @@
 import {useEffect,useMemo,useRef,useState} from 'react';
 import {Search,ArrowDownWideNarrow,ArrowUpNarrowWide} from 'lucide-react';
 import type {VizProps} from './types';
-import {type Criterion,type Entry,type Summary,normalizeCriteria,toEntries,rankEntries,summarize,makeFormatter,shareOf,chartMode,colorScale,groupsOf,equalEarth,equalEarthInvert,escapeHtml,linkParts,askHref,fixAntimeridian} from './ranking-data';
+import {type Criterion,type Entry,type Summary,normalizeCriteria,toEntries,rankEntries,summarize,makeFormatter,shareOf,chartMode,colorScale,groupsOf,equalEarth,equalEarthInvert,escapeHtml,linkParts,fixAntimeridian} from './ranking-data';
+import {useAskLink} from '@/app/seo/link-context';
 import {countryKey} from './world-codes';
 import './viz.css';
 import './ranking.css';
@@ -168,15 +169,17 @@ const PAGE=50;
 
 export default function Ranking({props,setValue,fire,ctx}:VizProps){
  const t=ctx.t,locale=ctx.locale||'en';
+ const askLink=useAskLink();
  const criteria=useMemo(()=>normalizeCriteria(props.criteria),[props.criteria]);
  const nameKey=typeof props.nameKey==='string'&&props.nameKey?props.nameKey:'name';
  const groupKey=typeof props.groupKey==='string'&&props.groupKey?props.groupKey:undefined;
  const entries=useMemo(()=>toEntries(props.rows,nameKey,groupKey),[props.rows,nameKey,groupKey]);
  // ?rank=<criterion key> opens the ranking on that criterion (one ranking page per scope;
  // "countries by GDP" and "countries by population" are the same page on different criteria).
- const fromUrl=typeof location!=='undefined'?new URLSearchParams(location.search).get('rank'):null;
- const initial=criteria.find(c=>c.key===fromUrl)?.key??criteria.find(c=>c.key===props.default)?.key??criteria[0]?.key??'';
+ // Read after mount, so the server-rendered HTML (default criterion) and the first browser render agree.
+ const initial=criteria.find(c=>c.key===props.default)?.key??criteria[0]?.key??'';
  const [critKey,setCritKey]=useState(initial);
+ useEffect(()=>{const fromUrl=new URLSearchParams(location.search).get('rank');if(fromUrl&&criteria.some(c=>c.key===fromUrl))setCritKey(fromUrl);},[criteria]);
  const c=criteria.find(x=>x.key===critKey)??criteria.find(x=>x.key===initial)??criteria[0];
  const height=typeof props.height==='number'&&props.height>=200?Math.min(props.height,1200):420;
  const top=typeof props.top==='number'&&props.top>=1?Math.floor(props.top):20;
@@ -260,7 +263,7 @@ export default function Ranking({props,setValue,fire,ctx}:VizProps){
    <td className="wf-rank-name">
     <div className="wf-rank-entity">
      <Avatar e={e} color={colorOf(e)}/>
-     <a href={askHref(e.question)} onClick={ev=>ev.stopPropagation()}>{e.name}</a>
+     <a href={askLink(e.question).href} rel={askLink(e.question).rel} onClick={ev=>ev.stopPropagation()}>{e.name}</a>
      {e.group&&<span className="wf-rank-chip" style={{['--c' as any]:colorOf(e)}}>{e.group}</span>}
     </div>
    </td>
