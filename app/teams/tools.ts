@@ -1,7 +1,7 @@
 import type {AgentContext} from '@/app/components-registry/registry';
 import {entityDb} from '@/app/entity-db/client';
 import {entityTools,entityToolNames,runEntityTool} from '@/app/entity-db/tools';
-import {listMetrics,normalizeType,createEditor,addRoadmapItem,listRoadmap,updateRoadmapItem,listInbox,triageInbox,type RoadmapKind} from '@/app/entity-db/repo';
+import {listMetrics,normalizeType,retractObservations,createEditor,addRoadmapItem,listRoadmap,updateRoadmapItem,listInbox,triageInbox,type RoadmapKind} from '@/app/entity-db/repo';
 import type {Queryable} from '@/app/entity-db/client';
 import {dataTools,runDataTool} from '@/app/data-tools';
 import {publicSourceTools,listPublicSources,callPublicSource} from '@/app/public-data/service';
@@ -37,10 +37,11 @@ const teamTools={
  triage_queries:tool('triage_queries','Editor: mark inbox queries as read. idsJson: JSON array string of inbox ids. note: the decision (e.g. "planned: ingest every perfume of Chanel" or "out of scope").',{idsJson:string,note:string}),
  record_decision:tool('record_decision','Record how a conflict was resolved — between the brief and the platform rules, between the brief and what the data allows, or between team members — so the reviewer judges the work against it. conflict: what clashed. decision: what was done. why: the reason readers are served best this way.',{conflict:string,decision:string,why:string}),
  set_topic_brief:tool('set_topic_brief','Manager: rewrite the topic brief (what the topic covers and what its pages must offer). The team works from it from the next step on.',{brief:string}),
+ retract_observations:tool('retract_observations','Collector: withdraw observations the team has ruled out, e.g. a metric loaded from a less authoritative or superseded source. Removes every observation of one metric for one entity type whose source starts with source, or (keepSource) every one whose source does NOT start with keepSource; period limits it to one period. Snapshots, ranks and pages update at once. Read the source names with entity_get first, and fix the recipe that loaded them or they return on its next run. Use empty strings for unused fields.',{type:string,metric:string,source:string,keepSource:string,period:string}),
  preview_page:tool('preview_page','Open a page of this site as a reader or crawler sees it (server-rendered HTML, no scripts): returns status, title, the visible text (first 8,000 characters), the number of table rows, charts and links. path: e.g. "/rankings/country-rankings", "/rankings/country-rankings?year=2005", "/e/country/france".',{path:string}),
 };
 const ROLE_TOOLS:Record<Role,string[]>={
- collector:['team_state','coverage','set_entity_schema','save_recipe','run_recipe','close_plan_items'],
+ collector:['team_state','coverage','set_entity_schema','save_recipe','run_recipe','retract_observations','close_plan_items'],
  editor:['team_state','coverage','set_entity_template','save_ranking','save_plan','close_plan_items','missing_pages','read_inbox','triage_queries','record_decision','preview_page'],
  reviewer:['team_state','coverage','preview_page'],
  manager:['team_state','coverage','preview_page','record_decision','set_topic_brief'],
@@ -131,6 +132,7 @@ export async function runTeamTool(role:Role,name:string,args:Record<string,unkno
   case 'save_recipe':{const steps=json(args.stepsJson,'stepsJson');const problems=checkRecipe(parseSteps(steps));if(problems.length)throw Error('Recipe not saved: '+problems.join(' '));
    const r=await saveRecipe(db,{type:String(args.type),name:String(args.name),description:String(args.description||''),steps,schedule:String(args.schedule||''),createdBy:who});
    return {data:{saved:true,type:r.type,name:r.name,steps:r.steps.length,schedule:r.schedule}};}
+  case 'retract_observations':return {data:await retractObservations(db,{type:String(args.type||''),metric:String(args.metric||''),source:String(args.source||'')||undefined,keepSource:String(args.keepSource||'')||undefined,period:String(args.period||'')||undefined})};
   case 'run_recipe':{const r=await getRecipe(db,String(args.type),String(args.name));if(!r)throw Error('No recipe '+args.type+'/'+args.name+'.');return {data:await runRecipe(db,r,signal)};}
   case 'save_ranking':{const def=await saveRankingDef(db,{slug:String(args.slug),title:String(args.title),scope:json(args.scopeJson,'scopeJson'),criteria:String(args.criteria||'').split(','),config:json(args.configJson||'{}','configJson'),topicId});
    // The ranking's view vectors are ready before anyone searches for it (the heartbeat retries a failure).

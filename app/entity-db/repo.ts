@@ -785,3 +785,25 @@ export async function listSources(db:Queryable,topicId:string|null){return (awai
 export async function recordRanking(db:Queryable,{topicId=null,title='',scope={},criteria=[],pageId=null}:{topicId?:string|null;title?:string;scope?:Row;criteria?:string[];pageId?:string|null}){
  return (await db.query('insert into rankings(topic_id,title,scope,criteria,page_id) values ($1::uuid,$2::text,$3::jsonb,$4::text[],$5::text) returning *',[topicId,title,JSON.stringify(scope),criteria,pageId])).rows[0];
 }
+
+// Withdraws observations a team has ruled out (a superseded or less authoritative source): every observation of
+// one metric for one entity type whose source starts with `source`, or — with `keepSource` — every one whose
+// source does NOT start with it. Optional period limits it to one period. Snapshots, ranks and page flags of
+// the affected entities are rebuilt at once. Refuses to remove every value of the metric when keepSource
+// matches nothing (that would empty the metric by mistake).
+export async function retractObservations(db:EntityDb,{type,metric,source,keepSource,period}:{type:string;metric:string;source?:string;keepSource?:string;period?:string}):Promise<{removed:number;entities:number;remaining:number;sourcesLeft:{source:string;n:number}[]}>{
+ const t=normalizeType(type),m=String(metric||'').trim();
+ if(!t||!m)throw Error('type and metric are required.');
+ if(!!source===!!keepSource)throw Error('Give exactly one of source (remove what starts with it) or keepSource (remove everything else).');
+ const where=`o.metric=$1::text and e.type=$2::text and ($3::text is null or o.period=$3::text) and `+(source?`o.source like $4::text || '%'`:`o.source not like $4::text || '%'`);
+ const args=[m,t,period||null,source||keepSource];
+ if(keepSource){
+  const kept=await db.query<{n:number}>(`select count(*)::int n from observations o join entities e on e.id=o.entity_id where o.metric=$1::text and e.type=$2::text and ($3::text is null or o.period=$3::text) and o.source like $4::text || '%'`,args);
+  if(!kept.rows[0]?.n)throw Error(`No ${m} observation of type ${t} has a source starting with "${keepSource}"; nothing would remain. Check the source names with entity_get first.`);
+ }
+ const gone=await db.tx(async q=>(await q.query<{entity_id:string;v:number}>(`delete from observations o using entities e where e.id=o.entity_id and ${where} returning o.entity_id, o.metric_version as v`,args)).rows);
+ const ids=gone.map(r=>String(r.entity_id)),uniq=[...new Set(ids)];
+ await syncLatest(db,uniq,[...new Set(gone.map(r=>Number(r.v)))].map(version=>({key:m,version})));
+ const left=await db.query<{source:string;n:number}>(`select o.source, count(*)::int n from observations o join entities e on e.id=o.entity_id where o.metric=$1::text and e.type=$2::text group by o.source order by n desc limit 20`,[m,t]);
+ return {removed:ids.length,entities:uniq.length,remaining:left.rows.reduce((a,r)=>a+r.n,0),sourcesLeft:left.rows};
+}

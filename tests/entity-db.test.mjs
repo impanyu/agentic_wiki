@@ -422,3 +422,15 @@ test('ranking view texts: the whole ranking and one per criterion, with scope fi
  assert.equal(v[0].text,'Country Rankings in Europe. Ranks every country where region is Europe by CO2 emissions per capita, population.');
  assert.match(v[1].text,/^Country Rankings in Europe by CO2 emissions per capita\. Every country where region is Europe ranked by CO2 emissions per capita \(t CO2e per capita\): Fossil CO2 per person\.$/);
 });
+
+test('retracting a ruled-out source rebuilds the snapshot from what remains; keepSource never empties a metric',async()=>{
+ const {id}=await db.tx(q=>repo.upsertEntity(q,{type:'retract_land',name:'Retractia'}));
+ await repo.recordObservations(db,[{entityId:id,metric:'land_km2',value:500,period:'2025',source:'flags https://x'},{entityId:id,metric:'land_km2',value:480,period:'2024',source:'worldbank:AG.SRF'},{entityId:id,metric:'land_km2',value:470,period:'2023',source:'worldbank:AG.SRF'}]);
+ const snap=async()=>(await db.query('select latest from entities where id=$1::uuid',[id])).rows[0].latest.metrics.land_km2;
+ assert.equal((await snap()).period,'2025');
+ await assert.rejects(repo.retractObservations(db,{type:'retract_land',metric:'land_km2',keepSource:'nosuch'}),/nothing would remain/);
+ await assert.rejects(repo.retractObservations(db,{type:'retract_land',metric:'land_km2'}),/exactly one/);
+ const r=await repo.retractObservations(db,{type:'retract_land',metric:'land_km2',keepSource:'worldbank:'});
+ assert.equal(r.removed,1);assert.equal(r.remaining,2);assert.deepEqual(r.sourcesLeft.map(x=>x.source),['worldbank:AG.SRF']);
+ const s=await snap();assert.equal(s.period,'2024');assert.equal(Number(s.value),480);
+});
