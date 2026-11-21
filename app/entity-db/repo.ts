@@ -10,6 +10,7 @@ const UPSERT_LOCK=724_002;
 const UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const TYPE=/^[a-z][a-z0-9_]{0,40}$/;
 const iso=(d:unknown)=>d instanceof Date?d.toISOString():d==null?null:String(d);
+export function normalizePredicate(t:string){const s=String(t||'').trim().toLowerCase().replace(/[\s-]+/g,'_');if(!TYPE.test(s))throw Error('Invalid relation "'+t+'": use a lower-case name like "brand", "country", "part_of", "located_in".');return s;}
 export function normalizeType(t:string){const s=String(t||'').trim().toLowerCase().replace(/[\s-]+/g,'_');if(!TYPE.test(s))throw Error('Invalid entity type "'+t+'": use a lower-case noun like "country", "city", "football_club".');return s;}
 function stable(v:unknown):string{if(Array.isArray(v))return '['+v.map(stable).join(',')+']';if(v&&typeof v==='object')return '{'+Object.keys(v).filter(k=>(v as Row)[k]!==undefined).sort().map(k=>JSON.stringify(k)+':'+stable((v as Row)[k])).join(',')+'}';return JSON.stringify(v);}
 
@@ -30,9 +31,13 @@ export function normalizeId(key:string,value:unknown):string|null{
 // ───────────── entities: identity resolution and upsert ─────────────
 export type EntityInput={type:string;name:string;aliases?:string[];description?:string;ids?:Record<string,string>;attributes?:Record<string,unknown>;image?:string;pageId?:string;topicId?:string|null};
 export type EntityMapping={type:string;nameColumn:string;idColumns?:Record<string,string>;aliasColumns?:string[];descriptionColumn?:string;imageColumn?:string;
- attributeColumns?:(string|{column:string;key:string})[];metricColumns?:Record<string,{metric:string;unit?:string;period?:string}>;topicId?:string|null};
+ attributeColumns?:(string|{column:string;key:string})[];metricColumns?:Record<string,{metric:string;unit?:string;period?:string}>;
+ relationColumns?:Record<string,RelationColumn>;topicId?:string|null};
+// A column naming another entity: "brand" → Chanel. by: "name" (default) or an id key ("wikidata", "iso3"…) the cell holds;
+// create: make a minimal entity of `type` when no entity matches a name (default true when type is given and by is "name").
+export type RelationColumn={predicate:string;type?:string;by?:string;create?:boolean;period?:string};
 export type Provenance={source:string;retrievedAt?:string|Date};
-export type UpsertResult={rows:number;inserted:number;merged:number;skipped:number;observations:number;idConflicts:number;errors:string[];entityIds:string[]};
+export type UpsertResult={rows:number;inserted:number;merged:number;skipped:number;observations:number;relations:number;unresolved:number;idConflicts:number;errors:string[];entityIds:string[]};
 
 type Match={id:string;ids:Record<string,string>;tsv:string};
 // Identity rule:
@@ -86,12 +91,15 @@ export async function upsertEntities(db:EntityDb,rows:Row[],mapping:EntityMappin
  const type=normalizeType(mapping.type);
  const metricCols=Object.entries(mapping.metricColumns||{}).map(([column,m])=>{const {key}=parseMetricRef(m.metric);return {column,key,unit:m.unit||'',period:m.period||''};});
  const source=String(provenance.source||'').slice(0,500),retrievedAt=iso(provenance.retrievedAt)||new Date().toISOString();
- const out:UpsertResult={rows:rows.length,inserted:0,merged:0,skipped:0,observations:0,idConflicts:0,errors:[],entityIds:[]};
+ const out:UpsertResult={rows:rows.length,inserted:0,merged:0,skipped:0,observations:0,relations:0,unresolved:0,idConflicts:0,errors:[],entityIds:[]};
+ const relCols=Object.entries(mapping.relationColumns||{}).map(([column,r])=>{
+  const t=r.type?normalizeType(r.type):undefined,by=(r.by||'name').trim().toLowerCase();
+  return {column,predicate:normalizePredicate(r.predicate),type:t,by,create:r.create??(!!t&&by==='name'),period:r.period||''};});
  if(metricCols.length)await ensureObservedMetrics(db,metricCols.map(m=>({key:m.key,unit:m.unit})));
  for(let start=0;start<rows.length;start+=250){
   await db.tx(async q=>{
    await q.query('select pg_advisory_xact_lock($1)',[UPSERT_LOCK]);
-   const obs:ObservationInput[]=[];
+   const obs:ObservationInput[]=[];const rels:RelationInput[]=[];
    for(const [i,row] of rows.slice(start,start+250).entries()){
     const name=cellText(row[mapping.nameColumn]);
     if(!name){out.skipped++;continue;}
@@ -106,9 +114,22 @@ export async function upsertEntities(db:EntityDb,rows:Row[],mapping:EntityMappin
      for(const m of metricCols){const value=parseNumber(row[m.column]);if(value==null)continue;
       const period=m.period&&m.period in row?cellText(row[m.period]):m.period;
       obs.push({entityId:r.id,metric:m.key,value,period,source,retrievedAt});}
+     for(const c of relCols){
+      const v=row[c.column];const refs=(Array.isArray(v)?v.map(cellText):cellText(v).split(/\s*[;|]\s*/)).filter(Boolean);
+      const period=c.period&&c.period in row?cellText(row[c.period]):c.period;
+      for(const ref of refs){
+       await q.query('savepoint entity_ref');
+       try{
+        const objectId=await resolveRef(q,ref,{type:c.type,by:c.by,create:c.create});
+        await q.query('release savepoint entity_ref');
+        if(objectId&&objectId!==r.id)rels.push({subjectId:r.id,predicate:c.predicate,objectId,period,source,retrievedAt});else if(!objectId)out.unresolved++;
+       }catch(e){await q.query('rollback to savepoint entity_ref');out.unresolved++;if(out.errors.length<5)out.errors.push('row '+(start+i+1)+' '+c.column+' "'+ref.slice(0,60)+'": '+(e as Error).message);}
+      }
+     }
     }catch(e){await q.query('rollback to savepoint entity_row');out.skipped++;if(out.errors.length<5)out.errors.push('row '+(start+i+1)+' ('+name.slice(0,60)+'): '+(e as Error).message);}
    }
    out.observations+=await writeObservations(q,obs);
+   out.relations+=await writeRelations(q,rels);
   });
  }
  out.entityIds=[...new Set(out.entityIds)];
@@ -213,6 +234,44 @@ async function resolveMetric(q:Queryable,ref:string,version?:number):Promise<Res
  return {column:r.version?`${r.key}_v${r.version}`:r.key,key:r.key,version:def.version,obsVersion:def.kind==='derived'?def.version:0,def};
 }
 
+// ───────────── relations ─────────────
+export type RelationInput={subjectId:string;predicate:string;objectId:string;period?:string;qualifiers?:Row;source?:string;retrievedAt?:string|Date};
+// Every entity a reference names: an entity id, a Wikidata QID, "key:value" for another id, or a name/alias (in `type` when given).
+export async function findRefs(q:Queryable,ref:string,{type,by='name',limit=20}:{type?:string;by?:string;limit?:number}={}):Promise<string[]>{
+ const v=String(ref||'').trim();if(!v)return [];
+ const t=type?normalizeType(type):null;
+ if(UUID.test(v))return (await q.query<{id:string}>('select id from entities where id = $1::uuid',[v])).rows.map(r=>r.id);
+ const kv=/^([a-z][a-z0-9_]{0,40}):(\S.*)$/.exec(v);
+ const key=by!=='name'?by:/^Q\d+$/i.test(v)?'wikidata':kv?kv[1]:null;
+ if(key){
+  const n=normalizeId(key,kv&&by==='name'?kv[2]:v);
+  if(n){const r=await q.query<{id:string}>('select id from entities where ids @> $1::jsonb and ($2::text is null or $3::boolean or type = $2::text) limit $4::int',
+   [JSON.stringify({[key]:n}),t,GLOBAL_ID_KEYS.includes(key as never),limit]);if(r.rows.length||by!=='name')return r.rows.map(x=>x.id);}
+ }
+ return (await q.query<{id:string}>(`select id from entities where name_keys && ent_keys($1::text, '{}'::text[]) and ($2::text is null or type = $2::text)
+  order by (ent_norm(name) = ent_norm($1::text)) desc, created_at limit $3::int`,[v,t,limit])).rows.map(r=>r.id);
+}
+// One entity for a reference; with create (and a type), a name nothing matches becomes a new minimal entity.
+export async function resolveRef(q:Queryable,ref:string,{type,by='name',create=false}:{type?:string;by?:string;create?:boolean}={}):Promise<string|null>{
+ const found=await findRefs(q,ref,{type,by,limit:1});if(found.length)return found[0];
+ if(!create||!type||by!=='name')return null;
+ const name=String(ref).trim();if(!name||UUID.test(name)||/^Q\d+$/i.test(name))return null;
+ return (await upsertEntity(q,{type,name})).id;
+}
+async function writeRelations(q:Queryable,list:RelationInput[]):Promise<number>{
+ const byKey=new Map<string,RelationInput>();
+ for(const r of list){if(!UUID.test(r.subjectId)||!UUID.test(r.objectId)||r.subjectId===r.objectId)continue;const predicate=normalizePredicate(r.predicate);byKey.set([r.subjectId,predicate,r.objectId,r.period||''].join('\u0000'),{...r,predicate});}
+ const rows=[...byKey.values()];if(!rows.length)return 0;
+ await q.query(`insert into relations(subject_id,predicate,object_id,period,qualifiers,source,retrieved_at)
+  select u.s, u.p, u.o, u.t, u.q, u.src, u.at from unnest($1::uuid[], $2::text[], $3::uuid[], $4::text[], $5::jsonb[], $6::text[], $7::timestamptz[]) u(s,p,o,t,q,src,at)
+  on conflict (subject_id, predicate, object_id, period) do update set qualifiers = excluded.qualifiers, source = excluded.source, retrieved_at = excluded.retrieved_at`,
+  [rows.map(r=>r.subjectId),rows.map(r=>r.predicate),rows.map(r=>r.objectId),rows.map(r=>String(r.period||'').slice(0,40)),rows.map(r=>JSON.stringify(r.qualifiers||{})),
+   rows.map(r=>String(r.source||'').slice(0,500)),rows.map(r=>iso(r.retrievedAt)||new Date().toISOString())]);
+ return rows.length;
+}
+// Records relations between entities that already exist (ids). A repeat updates source and time.
+export async function recordRelations(db:EntityDb,list:RelationInput[]):Promise<number>{return db.tx(q=>writeRelations(q,list));}
+
 // ───────────── scope filters ─────────────
 export type Scope={type?:string;topicId?:string;filters?:Record<string,unknown>};
 const OPS:Record<string,string>={'>':'>','>=':'>=','<':'<','<=':'<=','=':'=','==':'=','!=':'<>','<>':'<>'};
@@ -220,7 +279,9 @@ const latestSql=(p:Params,key:string,obsVersion:number,period?:string)=>`select 
  where o.metric = ${p.add(key)}::text and o.metric_version = ${p.add(obsVersion)}::int${period?` and o.period = ${p.add(period)}::text`:''} order by o.entity_id, o.period desc, o.retrieved_at desc`;
 // Filters: {"region":"Asia"} attribute equality (case-insensitive, also matches inside arrays); arrays mean "any of";
 // {"population":{">":1e7}} compares a metric's latest value (or a numeric attribute); ops > >= < <= = != in contains exists;
-// "ids.wikidata" / "id.iso3" match identifiers.
+// "ids.wikidata" / "id.iso3" match identifiers; "rel.brand": "Chanel" keeps entities with that relation to the named entity
+// (any of, for an array); "rel.located_in+": "Europe" follows the relation transitively; "rel.located_in|part_of+" follows
+// any of several relations (a city located_in a country part_of Europe).
 async function scopeSql(q:Queryable,p:Params,scope:Scope,a='e'):Promise<string>{
  const parts:string[]=['true'];
  if(scope.type)parts.push(`${a}.type = ${p.add(normalizeType(scope.type))}::text`);
@@ -232,6 +293,16 @@ async function scopeSql(q:Queryable,p:Params,scope:Scope,a='e'):Promise<string>{
  for(const [rawKey,cond] of entries){
   const key=rawKey.trim();if(!key||key.length>80)throw Error('Invalid filter key "'+rawKey+'".');
   if(key==='type'){parts.push(`${a}.type = ${p.add(normalizeType(String(cond)))}::text`);continue;}
+  const rel=/^rel\.([a-z][a-z0-9_]{0,40}(?:\|[a-z][a-z0-9_]{0,40}){0,4})(\+?)$/.exec(key);
+  if(rel){
+   const refs=(Array.isArray(cond)?cond:[cond]).map(v=>String(v));
+   const ids=[...new Set((await Promise.all(refs.map(v=>findRefs(q,v)))).flat())];
+   if(!ids.length){parts.push('false');continue;}
+   const pr=p.add(rel[1].split('|')),ip=p.add(ids);
+   parts.push(rel[2]?`${a}.id in (with recursive t(id) as (select unnest(${ip}::uuid[]) union select r.subject_id from relations r join t on r.object_id = t.id where r.predicate = any(${pr}::text[])) select id from t where not (id = any(${ip}::uuid[])))`
+    :`${a}.id in (select r.subject_id from relations r where r.predicate = any(${pr}::text[]) and r.object_id = any(${ip}::uuid[]))`);
+   continue;
+  }
   const idKey=/^ids?\.([a-z][a-z0-9_]{0,40})$/.exec(key);
   if(idKey){const vals=(Array.isArray(cond)?cond:[cond]).map(v=>normalizeId(idKey[1],v)).filter(Boolean);parts.push(`${a}.ids->>${p.add(idKey[1])}::text = any(${p.add(vals)}::text[])`);continue;}
   const conds:[string,unknown][]=cond&&typeof cond==='object'&&!Array.isArray(cond)?Object.entries(cond as Row):[[Array.isArray(cond)?'in':'=',cond]];
@@ -436,8 +507,19 @@ export async function getEntity(db:Queryable,idOrName:string,type?:string){
   facts:latest.rows.map((o,i)=>{const col=i<12?table!.metrics[i].column:'';return {metric:o.metric,version:Number(o.metric_version)||undefined,label:o.label||o.metric,unit:o.unit||'',format:o.format||'',kind:o.kind||'observed',
    value:Number(o.value),period:o.period,source:o.source,retrievedAt:iso(o.retrieved_at),
    ...(col&&rankRow?.[col+'_rank']!=null?{rank:rankRow[col+'_rank'],of:table!.metrics[i].count,rankScope:'all '+e.type.replace(/_/g,' ')+' entities, latest values'}:{})};}),
+  relations:await entityRelations(db,e.id),
   history:history.rows.map(h=>({metric:h.metric,version:Number(h.metric_version)||undefined,period:h.period,value:Number(h.value),source:h.source})),
   alternatives:rows.slice(1).map(r=>({id:r.id,name:r.name,type:r.type}))};
+}
+
+// Outgoing relations (Chanel No. 5 → brand → Chanel) and incoming ones grouped by predicate and type (Chanel ← brand ← 212 perfumes).
+export async function entityRelations(db:Queryable,id:string){
+ const out=await db.query(`select r.predicate, r.period, r.source, r.qualifiers, o.id, o.name, o.type from relations r join entities o on o.id = r.object_id
+  where r.subject_id = $1::uuid order by r.predicate, r.period desc, o.name limit 200`,[id]);
+ const inc=await db.query(`select r.predicate, s.type, count(*)::int as n, jsonb_path_query_array(jsonb_agg(jsonb_build_object('id', s.id, 'name', s.name) order by s.name), '$[0 to 9]') as sample
+  from relations r join entities s on s.id = r.subject_id where r.object_id = $1::uuid group by r.predicate, s.type order by n desc, r.predicate limit 50`,[id]);
+ return {outgoing:out.rows.map(r=>({predicate:r.predicate,object:{id:r.id,name:r.name,type:r.type},period:r.period,source:r.source,qualifiers:r.qualifiers||{}})),
+  incoming:inc.rows.map(r=>({predicate:r.predicate,type:r.type,count:Number(r.n),sample:r.sample}))};
 }
 
 // ───────────── embeddings ─────────────

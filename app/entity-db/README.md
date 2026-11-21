@@ -43,6 +43,11 @@ The first `entityDb()` call creates the `vector` extension and the schema. Tests
   Indexes: GIN on `ids`, `attributes`, `name_keys`, `tsv`; HNSW `vector_cosine_ops` on `embedding`.
 - `metrics(key, version, label, unit, description, methodology, sort_order, format, kind, definition, created_by, status, used)` — PK (key, version).
 - `observations(entity_id, metric, metric_version, value, period, source, retrieved_at)` — PK (entity_id, metric, period, source).
+- `relations(subject_id, predicate, object_id, period, qualifiers, source, retrieved_at)` — PK (subject_id, predicate, object_id, period):
+  links between entities ("Chanel No. 5 —brand→ Chanel", "Paris —located_in→ France"). Written by `entity_upsert`
+  `relationColumns` (unknown names become minimal entities of the given type); filtered with `"rel.<predicate>"`,
+  transitively with `"rel.<p>+"` and across several relations with `"rel.<p1>|<p2>+"` (recursive CTE);
+  `entity_get` returns outgoing relations and incoming ones grouped by predicate and type.
   `metric_version` is 0 for observed values, the definition version for derived ones (source `derived:<key>@v<n>`).
 - `rankings`, `sources`, `entity_meta`, `schema_version`.
 

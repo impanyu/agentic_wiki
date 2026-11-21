@@ -34,7 +34,7 @@ test('migrations are versioned and idempotent',async()=>{
  assert.deepEqual(again.applied,[]);assert.equal(again.version,schema.SCHEMA_VERSION);assert.equal(again.embedDim,DIM);
  const v=await db.query('select version from schema_version');assert.equal(v.rows.length,schema.MIGRATIONS.length);
  const t=await db.query("select table_name from information_schema.tables where table_schema='public' order by 1");
- for(const name of ['topics','editors','roadmap_items','inbox','entities','metrics','observations','rankings','sources','schema_version'])assert.ok(t.rows.some(r=>r.table_name===name),name);
+ for(const name of ['topics','editors','roadmap_items','inbox','entities','metrics','observations','rankings','sources','relations','schema_version'])assert.ok(t.rows.some(r=>r.table_name===name),name);
 });
 
 test('identity resolution: QID merge, alias match, types kept apart, conflicting ids',async()=>{
@@ -256,9 +256,9 @@ test('agent tools: entity_upsert from a dataset, entity_search, entity_get, metr
   {Island:'Ilha A',qid:'Q1001',Area:'1,200',Pop:500,Ocean:'Atlantic',Year:2020},{Island:'Ilha B',qid:'Q1002',Area:'800',Pop:900,Ocean:'Pacific',Year:2020},{Island:'Ilha C',qid:'Q1003',Area:'800',Pop:'',Ocean:'Pacific',Year:2020}]});
  assert.equal(tools.entityTools.length,7);
  for(const t of tools.entityTools){assert.deepEqual(t.parameters.required,Object.keys(t.parameters.properties));assert.ok(t.description.includes('xample'),t.name+' has an example');}
- const up=await tools.runEntityTool('entity_upsert',{datasetId:ds.datasetId,type:'Island',nameColumn:'Island',idColumns:'{"wikidata":"qid"}',aliasColumns:'',descriptionColumn:'',attributeColumns:'Ocean=ocean',metricColumns:'{"Area":{"metric":"island_area","unit":"km2","period":"Year"},"Pop":{"metric":"island_pop","unit":"people","period":"2020"}}',source:'',topicId:''},ctx);
+ const up=await tools.runEntityTool('entity_upsert',{datasetId:ds.datasetId,type:'Island',nameColumn:'Island',idColumns:'{"wikidata":"qid"}',aliasColumns:'',descriptionColumn:'',attributeColumns:'Ocean=ocean',metricColumns:'{"Area":{"metric":"island_area","unit":"km2","period":"Year"},"Pop":{"metric":"island_pop","unit":"people","period":"2020"}}',relationColumns:'',source:'',topicId:''},ctx);
  assert.equal(up.data.inserted,3);assert.equal(up.data.observations,5);
- await assert.rejects(()=>tools.runEntityTool('entity_upsert',{datasetId:ds.datasetId,type:'island',nameColumn:'Nope',idColumns:'',aliasColumns:'',descriptionColumn:'',attributeColumns:'',metricColumns:'',source:'',topicId:''},ctx),/not in the dataset/);
+ await assert.rejects(()=>tools.runEntityTool('entity_upsert',{datasetId:ds.datasetId,type:'island',nameColumn:'Nope',idColumns:'',aliasColumns:'',descriptionColumn:'',attributeColumns:'',metricColumns:'',relationColumns:'',source:'',topicId:''},ctx),/not in the dataset/);
  const s=await tools.runEntityTool('entity_search',{query:'',type:'island',filters:'{"ocean":"pacific","island_area":{"<":1000}}',limit:0},ctx);
  assert.deepEqual(s.data.results.map(r=>r.name),['Ilha B','Ilha C']);
  const g=await tools.runEntityTool('entity_get',{entity:'Q1002',type:''},ctx);
@@ -276,4 +276,42 @@ test('agent tools: entity_upsert from a dataset, entity_search, entity_get, metr
  const sm=await tools.runEntityTool('metric_sensitivity',{key:'island_density',version:0},ctx);
  assert.equal(sm.data.scenarios.length,0);assert.match(sm.data.summary,/Not applicable/);
  await assert.rejects(()=>tools.runEntityTool('define_metric',{key:'Bad Key',label:'',unit:'',description:'',methodology:'',order:'',format:'',definition:''},ctx),/Invalid metric key/);
+});
+
+test('relations: upsert links entities (stubs for unknown names, ids), rel filters (direct and transitive), entity_get both directions',async()=>{
+ const ctx={agent:{id:'editor-rel'}};
+ const geo=await datasets.saveDataset('editor-rel',{title:'geo',source:'t',rows:[
+  {name:'Europa',kind:'continent'},
+  {name:'Francia',qid:'Q9142',cont:'Europa'},{name:'Germania',qid:'Q9183',cont:'Europa'},
+  {name:'Lutetia',country:'Q9142'},{name:'Lugdunum',country:'Q9142'},{name:'Colonia',country:'Q9183'}]});
+ const up=async(rows,args)=>{const d=await datasets.saveDataset('editor-rel',{title:'x',source:'t',rows});return (await tools.runEntityTool('entity_upsert',{datasetId:d.datasetId,idColumns:'',aliasColumns:'',descriptionColumn:'',attributeColumns:'',metricColumns:'',relationColumns:'',source:'geo-src',topicId:'',...args},ctx)).data;};
+ const all=(await datasets.loadDataset('editor-rel',geo.datasetId)).rows;
+ await up(all.slice(0,1),{type:'continent',nameColumn:'name'});
+ const c=await up(all.slice(1,3),{type:'nation',nameColumn:'name',idColumns:'{"wikidata":"qid"}',relationColumns:'{"cont":{"predicate":"part_of","type":"continent"}}'});
+ assert.equal(c.relations,2);assert.equal(c.unresolved,0);
+ const t=await up(all.slice(3),{type:'town',nameColumn:'name',relationColumns:'{"country":{"predicate":"located_in","type":"nation","by":"wikidata"}}'});
+ assert.equal(t.relations,3);
+ // Unknown brand names become minimal entities; several in one cell; create:false skips.
+ const p=await up([{name:'Fleur Une',brand:'Maison X'},{name:'Fleur Deux',brand:'Maison X; Maison Y'},{name:'Fleur Trois',brand:'Nobody'}],
+  {type:'scent',nameColumn:'name',relationColumns:'{"brand":{"predicate":"brand","type":"maison"}}'});
+ assert.equal(p.relations,4);assert.equal((await repo.hybridSearch(db,{type:'maison'})).results.length,3);
+ const q=await up([{name:'Fleur Quatre',brand:'Unknown House'}],{type:'scent',nameColumn:'name',relationColumns:'{"brand":{"predicate":"brand","type":"maison","create":false}}'});
+ assert.equal(q.relations,0);assert.equal(q.unresolved,1);
+ const names=async(type,filters)=>(await tools.runEntityTool('entity_search',{query:'',type,filters:JSON.stringify(filters),limit:0},ctx)).data.results.map(r=>r.name).sort();
+ assert.deepEqual(await names('scent',{'rel.brand':'Maison X'}),['Fleur Deux','Fleur Une']);
+ assert.deepEqual(await names('scent',{'rel.brand':['Maison Y','Nobody']}),['Fleur Deux','Fleur Trois']);
+ assert.deepEqual(await names('town',{'rel.located_in':'Q9142'}),['Lugdunum','Lutetia']);
+ assert.deepEqual(await names('town',{'rel.located_in':'Europa'}),[]);
+ assert.deepEqual(await names('town',{'rel.located_in+':'Europa'}),[]);// different predicates: part_of is not followed
+ assert.deepEqual(await names('',{'rel.part_of+':'Europa'}),['Francia','Germania']);
+ assert.deepEqual(await names('town',{'rel.located_in|part_of+':'Europa'}),['Colonia','Lugdunum','Lutetia']);
+ assert.deepEqual(await names('',{'rel.located_in|part_of':'Q9183'}),['Colonia']);
+ assert.deepEqual(await names('town',{'rel.located_in':'Nowhere'}),[]);
+ const f=(await tools.runEntityTool('entity_get',{entity:'Q9142',type:''},ctx)).data;
+ assert.deepEqual(f.relations.outgoing.map(r=>[r.predicate,r.object.name,r.source]),[['part_of','Europa','geo-src']]);
+ assert.deepEqual(f.relations.incoming.map(r=>[r.predicate,r.type,r.count,r.sample.map(x=>x.name)]),[['located_in','town',2,['Lugdunum','Lutetia']]]);
+ await assert.rejects(()=>up([{name:'a',b:'c'}],{type:'scent',nameColumn:'name',relationColumns:'{"b":{"type":"maison"}}'}),/needs \{"predicate"/);
+ // Repeats update instead of duplicating.
+ await up(all.slice(3,4),{type:'town',nameColumn:'name',relationColumns:'{"country":{"predicate":"located_in","type":"nation","by":"wikidata"}}'});
+ assert.equal(Number((await db.query("select count(*) n from relations where predicate='located_in'")).rows[0].n),3);
 });

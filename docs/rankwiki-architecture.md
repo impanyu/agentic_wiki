@@ -53,6 +53,10 @@ The goal is one page per entity and one ranking page per entity type (plus sub-s
   metrics), template, the authoritative membership source (e.g. every country from the UN
   list, every perfume from a fragrance catalog) and recipes that bulk-load all members.
   Pages and the type's ranking page then exist for every member at once.
+- **Relations are a table of their own** (`relations`: subject, predicate, object, period,
+  source, time): brand, manufacturer, country, located_in, part_of, member_of… They define
+  scopes ("every perfume of Chanel", "every city in Europe" by following located_in|part_of)
+  and fill the "related entities" parts of entity pages in both directions.
 - **Search and URLs**: the router resolves a query to an entity or a ranking page with
   `entity_search` (names, aliases, embeddings); generation is needed only when the DB has no
   match, and then the result is a new entity or type, not a free-floating page.

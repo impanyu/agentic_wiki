@@ -99,6 +99,16 @@ export const MIGRATIONS:Migration[]=[
     url text not null, kind text not null default '', notes text not null default '', last_ok_at timestamptz, created_at timestamptz not null default now())`,
   "create unique index if not exists sources_topic_url on sources(coalesce(topic_id::text, ''), url)",
  ]},
+ // Relations between entities: one row per (subject, predicate, object, period), with its source.
+ // "Chanel No. 5 —brand→ Chanel", "Paris —country→ France", "France —part_of→ Europe".
+ {version:2,name:'entity relations',statements:()=>[
+  `create table if not exists relations(subject_id uuid not null references entities(id) on delete cascade, predicate text not null,
+    object_id uuid not null references entities(id) on delete cascade, period text not null default '', qualifiers jsonb not null default '{}'::jsonb,
+    source text not null default '', retrieved_at timestamptz not null default now(), primary key (subject_id, predicate, object_id, period),
+    check (subject_id <> object_id))`,
+  'create index if not exists relations_object on relations(object_id, predicate)',
+  'create index if not exists relations_predicate on relations(predicate)',
+ ]},
 ];
 export const SCHEMA_VERSION=MIGRATIONS[MIGRATIONS.length-1].version;
 
