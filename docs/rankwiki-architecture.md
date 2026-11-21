@@ -25,6 +25,38 @@ public edition (`PUBLIC_EDITION`): every page is public and read-only, built fro
   Entity DB (PostgreSQL+pgvector)   LLM layer (routes to free model services)
 ```
 
+## 0. Scale: a page for every entity, a ranking for every entity type
+
+The goal is one page per entity and one ranking page per entity type (plus sub-scopes such as
+"University Rankings in Asia"). That is tens of millions of entities (Wikidata alone has
+~110M items; products add far more), so pages cannot each be a hand-written agent article:
+
+- **A page is a view of the entity DB, not a stored article.** Every entity row has a URL
+  (`/e/<type>/<slug>`) the moment it exists. The page is rendered on request from the entity
+  record with its entity-type template (designed once per type by the topic's collector and
+  editor: which attributes go in the card, which observations become charts, which rankings
+  the entity appears in). Facts, numbers, charts and ranking positions are always current
+  because they are read from the DB, never copied into page text.
+- **Ranking pages are live queries.** A ranking page stores its scope (type + filters), its
+  criteria (metric keys) and its short text; the ranking component reads `metric_table`
+  through an API instead of a frozen CSV. When collectors refresh data, every ranking that
+  uses it is updated with no regeneration.
+- **Prose is tiered by demand and importance**, which keeps LLM cost bounded:
+  - tier 0 (all entities): template page only, with a one-line generated description
+    (free model, batch);
+  - tier 1 (entities with traffic, router queries, or high importance such as many Wikipedia
+    sitelinks): a lead and a few sections written by the editor from the dossier;
+  - tier 2 (the most important or most asked): full section-by-section article (below),
+    reviewed.
+  Editors promote entities between tiers from their roadmap; the router promotes on demand.
+- **Entity types come first.** A topic team's first job is the type: schema (attributes,
+  metrics), template, the authoritative membership source (e.g. every country from the UN
+  list, every perfume from a fragrance catalog) and recipes that bulk-load all members.
+  Pages and the type's ranking page then exist for every member at once.
+- **Search and URLs**: the router resolves a query to an entity or a ranking page with
+  `entity_search` (names, aliases, embeddings); generation is needed only when the DB has no
+  match, and then the result is a new entity or type, not a free-floating page.
+
 ## 1. Agents
 
 ### Router — the manager
@@ -333,6 +365,8 @@ The same data that renders pages is served to other agents, read-only and public
 - Data tools (`app/data-tools`) and public sources (`app/public-data`).
 
 ## 6. Rollout
+0. DB-backed pages: entity route rendered from the entity record + type template; ranking
+   component reading metric_table live; tiered prose.
 1. LLM layer + entity DB (schema, client, hybrid search, DB tools) + PGlite for dev/tests.
 2. Editors, reviewers, roadmap, inbox, scheduler; router picks/creates editors and forwards queries.
 3. Seed topic tree (~40 topics), bootstrap roadmaps, an operations page listing editors,
