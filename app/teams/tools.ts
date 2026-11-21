@@ -6,13 +6,13 @@ import type {Queryable} from '@/app/entity-db/client';
 import {dataTools,runDataTool} from '@/app/data-tools';
 import {publicSourceTools,listPublicSources,callPublicSource} from '@/app/public-data/service';
 import {siteUrl} from '@/app/site';
-import {saveEntityType,getEntityType,listEntityTypes,saveRankingDef,listRankingDefs,saveRecipe,getRecipe,listRecipes} from './config';
+import {saveEntityType,getEntityType,listEntityTypes,saveRankingDef,listRankingDefs,saveRecipe,getRecipe,listRecipes,topicBrief,recordDecision,setTopicBrief} from './config';
 import {runRecipe,parseSteps,RECIPE_TOOLS} from './recipes';
 // Tools of a topic team. Everyone explores with the public sources, data tools and entity database;
 // the collector writes schemas and recipes and runs them, the editor writes templates and ranking
 // definitions, the reviewer reads everything and opens rendered pages. Strict schemas: every property
 // is required; JSON values are passed as JSON strings; "" means not given.
-export type Role='editor'|'collector'|'reviewer';
+export type Role='editor'|'collector'|'reviewer'|'manager';
 const tool=(name:string,description:string,properties:Record<string,unknown>)=>({type:'function' as const,name,description,strict:true,parameters:{type:'object',additionalProperties:false,properties,required:Object.keys(properties)}});
 const string={type:'string'},integer={type:'integer'};
 const FORMAT='Format: docs/rankwiki-templates.md (also returned by team_state as "formats").';
@@ -29,18 +29,21 @@ const teamTools={
  close_plan_items:tool('close_plan_items','Mark plan items done or cancelled (editor: any item; collector: ingest/refresh items it has completed). idsJson: JSON array string of item ids. status: done | cancelled. note: what was done or why not.',{idsJson:string,status:string,note:string}),
  read_inbox:tool('read_inbox','Editor: readers\' queries the router could not serve and sent to this topic (no page and no data yet), newest first, with how often each was asked. Turn the worthwhile ones into plan items (save_plan), then mark them read with triage_queries.',{limit:integer}),
  triage_queries:tool('triage_queries','Editor: mark inbox queries as read. idsJson: JSON array string of inbox ids. note: the decision (e.g. "planned: ingest every perfume of Chanel" or "out of scope").',{idsJson:string,note:string}),
+ record_decision:tool('record_decision','Record how a conflict was resolved — between the brief and the platform rules, between the brief and what the data allows, or between team members — so the reviewer judges the work against it. conflict: what clashed. decision: what was done. why: the reason readers are served best this way.',{conflict:string,decision:string,why:string}),
+ set_topic_brief:tool('set_topic_brief','Manager: rewrite the topic brief (what the topic covers and what its pages must offer). The team works from it from the next step on.',{brief:string}),
  preview_page:tool('preview_page','Open a page of this site as a reader or crawler sees it (server-rendered HTML, no scripts): returns status, title, the visible text (first 8,000 characters), the number of table rows, charts and links. path: e.g. "/rankings/country-rankings", "/rankings/country-rankings?year=2005", "/e/country/france".',{path:string}),
 };
 const ROLE_TOOLS:Record<Role,string[]>={
  collector:['team_state','coverage','set_entity_schema','save_recipe','run_recipe','close_plan_items'],
- editor:['team_state','coverage','set_entity_template','save_ranking','save_plan','close_plan_items','read_inbox','triage_queries','preview_page'],
+ editor:['team_state','coverage','set_entity_template','save_ranking','save_plan','close_plan_items','read_inbox','triage_queries','record_decision','preview_page'],
  reviewer:['team_state','coverage','preview_page'],
+ manager:['team_state','coverage','preview_page','record_decision','set_topic_brief'],
 };
 // Data tools without save_data (that writes Page files); the reviewer reads, never writes.
 const EXPLORE=[...publicSourceTools,...dataTools.filter(t=>t.name!=='save_data')];
 const ENTITY_READ=['entity_search','entity_get','metric_table','metric_sensitivity'];
 export function teamToolDefs(role:Role){
- const entity=entityTools.filter(t=>role==='reviewer'?ENTITY_READ.includes(t.name):role==='editor'?[...ENTITY_READ,'define_metric','compute_metric'].includes(t.name):true);
+ const entity=entityTools.filter(t=>role==='reviewer'||role==='manager'?ENTITY_READ.includes(t.name):role==='editor'?[...ENTITY_READ,'define_metric','compute_metric'].includes(t.name):true);
  return [...EXPLORE,...entity,...ROLE_TOOLS[role].map(n=>teamTools[n as keyof typeof teamTools])];
 }
 
@@ -60,6 +63,7 @@ async function teamState(type:string,topicId:string|null){
   from observations o join entities e on e.id=o.entity_id left join metrics m on m.key=o.metric and m.version=1
   where $1::text is null or e.type=$1::text group by o.metric, m.label, m.unit, m.kind order by o.metric limit 200`,[type?normalizeType(type):null])).rows;
  return {
+  topic:topicId?await topicBrief(db,topicId):null,
   types:types.map(t=>({...t,entities:counts.get(t.type)??0})),
   untypedEntities:[...counts].filter(([t])=>!types.some(x=>x.type===t)).map(([t,n])=>({type:t,entities:n})),
   rankings:await listRankingDefs(db,{type:type||undefined,topicId:type?undefined:topicId}),
@@ -132,6 +136,8 @@ export async function runTeamTool(role:Role,name:string,args:Record<string,unkno
   case 'triage_queries':{const editorId=await topicEditorId(db,topicId);if(!editorId)return {data:{updated:0}};
    const ids=json(args.idsJson,'idsJson');if(!Array.isArray(ids))throw Error('idsJson: a list of ids.');
    return {data:{updated:await triageInbox(db,editorId,ids.map(String),String(args.note||'').slice(0,500))}};}
+  case 'record_decision':{if(!topicId)throw Error('No topic.');return {data:await recordDecision(db,topicId,{by:role,conflict:String(args.conflict||'').slice(0,1000),decision:String(args.decision||'').slice(0,1000),why:String(args.why||'').slice(0,1000)})};}
+  case 'set_topic_brief':{if(!topicId)throw Error('No topic.');const b=String(args.brief||'').trim();if(b.length<40)throw Error('Write the whole brief.');await setTopicBrief(db,topicId,b);return {data:{saved:true}};}
   case 'preview_page':return {data:await previewPage(String(args.path))};
  }
  if(entityToolNames.includes(name))return runEntityTool(name,args,ctx,signal);

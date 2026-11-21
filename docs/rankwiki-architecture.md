@@ -109,6 +109,23 @@ Text on pages is assembled by programs: data-to-text sentence patterns from the 
 the most populous U.S. state, with 39.4 million people (2025).", ranks, changes, comparisons),
 "About this ranking" from the metric definitions and sources, references from the sources table.
 
+### Governance: conflicts are resolved inside the system
+After delivery no programmer is in the loop, so the agents resolve conflicts themselves, by level:
+1. **Platform rules are hard constraints** enforced in code (title format, base units, criteria per
+   ranking ≤ 12, the 1,000 cap…). Agents cannot change them and do not argue about them.
+2. **The editor decides** when the brief clashes with the rules or with what the data allows (e.g.
+   split measures over two rankings), and records the decision (conflict, decision, why) on the topic.
+   The reviewer judges against the rules, the brief and these recorded decisions; it objects to a
+   decision only when it serves readers badly, and says what would be better.
+3. **The manager arbitrates** (the router in its manager role: it keeps the topic tree, writes briefs,
+   creates teams). When the reviewer still rejects work after the fix rounds, the manager examines the
+   evidence, rules on each disputed issue (reviewer right → what the team must do; or work acceptable),
+   records the rulings as decisions and may rewrite the brief. Rulings bind the whole team; the team
+   applies them once and the reviewer re-reviews bound by them.
+4. **Platform defects** (the renderer showing something wrong that no template controls) are reported
+   by the reviewer with owner "platform": they never block the team's publication and go to the human
+   operators' issue list — agents do not write code. Teams work around them meanwhile.
+
 ### Collectors — data rules, executed automatically
 A collector writes rules, not data: the schema of each entity type (attributes, metrics in base
 units, relations, identifiers), the sources and recipes that fetch them, the membership lists

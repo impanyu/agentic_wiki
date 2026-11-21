@@ -107,3 +107,21 @@ export async function listTeamRuns(db:Queryable,topicId?:string|null,limit=50){
 export async function teamRunCalls(db:Queryable,id:string){
  return (await db.query('select calls from team_runs where id=$1::uuid',[id])).rows[0]?.calls??[];
 }
+
+// ───────────── topic brief and decisions ─────────────
+// The brief (topics.description) says what the topic covers; decisions (topics.scope.decisions) record how the
+// team resolved conflicts between the brief, the platform rules and the data — the reviewer judges against
+// the rules and these decisions; the manager's rulings are decisions too and bind the team.
+export type Decision={at:string;by:string;conflict:string;decision:string;why:string};
+export async function topicBrief(db:Queryable,topicId:string){
+ const r=(await db.query('select name, description, scope from topics where id=$1::uuid',[topicId])).rows[0];
+ return {name:String(r?.name||''),brief:String(r?.description||''),decisions:((obj(r?.scope).decisions as Decision[])||[])};
+}
+export async function recordDecision(db:Queryable,topicId:string,d:Omit<Decision,'at'>){
+ const entry={...d,at:new Date().toISOString()};
+ await db.query(`update topics set scope=jsonb_set(scope,'{decisions}',coalesce(scope->'decisions','[]'::jsonb)||jsonb_build_array($2::jsonb)), updated_at=now() where id=$1::uuid`,[topicId,JSON.stringify(entry)]);
+ return entry;
+}
+export async function setTopicBrief(db:Queryable,topicId:string,brief:string){
+ await db.query('update topics set description=$2::text, updated_at=now() where id=$1::uuid',[topicId,brief.slice(0,8000)]);
+}
