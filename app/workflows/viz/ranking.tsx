@@ -2,15 +2,15 @@
 import {useEffect,useMemo,useRef,useState} from 'react';
 import {Search,ArrowDownWideNarrow,ArrowUpNarrowWide} from 'lucide-react';
 import type {VizProps} from './types';
-import {type Criterion,type Entry,type Summary,normalizeCriteria,toEntries,rankEntries,summarize,makeFormatter,shareOf,chartMode,colorScale,groupsOf,equalEarth,equalEarthInvert,escapeHtml,linkParts,fixAntimeridian} from './ranking-data';
-import {useAskLink} from '@/app/seo/link-context';
+import {type Criterion,type Entry,type Summary,normalizeCriteria,toEntries,rankEntries,summarize,makeFormatter,shareOf,chartMode,colorScale,groupsOf,equalEarth,equalEarthInvert,escapeHtml,linkParts,fixAntimeridian,parseNumber} from './ranking-data';
+import {useAskLink,useRankingView} from '@/app/seo/link-context';
 import {countryKey} from './world-codes';
 import './viz.css';
 import './ranking.css';
 
 type ECharts=typeof import('echarts');
 type Chart=ReturnType<ECharts['init']>;
-type Fmt=(n:number|null)=>string;
+import {FONT,PALETTE,MAP_COLORS,MAP_BOTTOM,MAP_ASPECT,MEDAL,errMessage,rgba,gradient,NEG,clip,tooltipHtml,TOOLTIP,barOption,columnOption,chartKey,type Fmt} from './ranking-chart';
 
 // Same prebuilt bundle as the echart component, so the page shares one echarts instance.
 let echartsP:Promise<ECharts>|null=null;
@@ -37,76 +37,6 @@ const loadWorld=()=>worldP??=Promise.all([
  return names;
 }).catch(e=>{worldP=null;throw e;});
 
-const FONT='Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif';
-const PALETTE=['#4f7cff','#22c3a6','#ff8a4c','#a46bff','#f2c94c','#ef5da8','#2bb3e0','#7bd389'];
-const MAP_COLORS=['#e8efff','#b9cdff','#7d9dff','#4f7cff','#2f4fd6','#1e2f86'];
-const MAP_BOTTOM=44,MAP_ASPECT=2.28;
-const MEDAL=['#e8a400','#8d99ab','#c0773a'];
-const errMessage=(e:unknown)=>e instanceof Error?e.message:String(e);
-const rgba=(hex:string,a:number)=>{const n=parseInt(hex.slice(1),16);return `rgba(${n>>16&255},${n>>8&255},${n&255},${a})`;};
-const gradient=(hex:string,reverse=false)=>({type:'linear',x:0,y:0,x2:1,y2:0,colorStops:[{offset:0,color:reverse?hex:rgba(hex,.55)},{offset:1,color:reverse?rgba(hex,.55):hex}]});
-const NEG='#f43f5e';
-const clip=(s:string,n:number)=>s.length>n?s.slice(0,n-1)+'…':s;
-
-function tooltipHtml(e:Entry,c:Criterion,fmt:Fmt,rankLabel:string){
- return `<div style="font-family:${FONT};min-width:140px"><div style="font-weight:600;font-size:13px;color:#0f172a">${e.rank!=null?`<span style="color:#4f7cff">#${e.rank}</span> · `:''}${escapeHtml(e.name)}</div>`+
-  `<div style="color:#64748b;font-size:11px;margin-top:4px">${escapeHtml(c.label)}${c.year?' · '+escapeHtml(c.year):''}</div>`+
-  `<div style="font-weight:700;font-size:15px;color:#0f172a;margin-top:2px">${escapeHtml(e.value==null?rankLabel:fmt(e.value))}</div></div>`;
-}
-const TOOLTIP={trigger:'item',confine:true,renderMode:'html',backgroundColor:'#fff',borderWidth:0,padding:[10,12],extraCssText:'border-radius:12px;box-shadow:0 12px 32px -8px rgba(15,23,42,.22),0 2px 6px rgba(15,23,42,.06);'};
-
-// Horizontal bars, rank 1 on top; ranks sit in medal pills on the category axis.
-function barOption(o:{shown:Entry[];c:Criterion;fmt:Fmt;axisFmt:Fmt;colorOf:(e:Entry)=>string;window?:number;compact?:boolean;noData:string}){
- const {shown,c,fmt,axisFmt,colorOf}=o;
- const pill=(bg:string,fg:string)=>({backgroundColor:bg,color:fg,borderRadius:9,padding:[3,0,2,0],width:22,align:'center',fontSize:10,fontWeight:700});
- const zoom=o.window&&shown.length>o.window;
- return {
-  textStyle:{fontFamily:FONT},animationDuration:900,animationDurationUpdate:750,animationEasing:'cubicOut',animationEasingUpdate:'cubicInOut',
-  aria:{enabled:true},
-  grid:{left:4,right:o.compact?52:72,top:6,bottom:6,containLabel:true},
-  tooltip:{...TOOLTIP,formatter:(p:any)=>{const e=shown[p.dataIndex];return e?tooltipHtml(e,c,fmt,o.noData):'';}},
-  xAxis:{type:'value',...(shown.some(e=>e.value!<0)?{min:(v:{min:number;max:number})=>v.min-(v.max-v.min)*.16}:{}),splitNumber:4,axisLabel:{show:!o.compact,hideOverlap:true,color:'#94a3b8',fontSize:10,formatter:(v:number)=>axisFmt(v)},splitLine:{show:!o.compact,lineStyle:{color:'#eef1f6',type:'dashed'}},axisLine:{show:false},axisTick:{show:false}},
-  yAxis:{type:'category',inverse:true,data:shown.map((_,i)=>String(i)),axisLine:{show:false},axisTick:{show:false},
-   axisLabel:{color:'#334155',fontSize:o.compact?11:12,margin:10,
-    formatter:(v:string)=>{const e=shown[Number(v)];if(!e)return '';const r=e.rank??0;return `{${r>=1&&r<=3?'m'+r:'r'}|${r}}  {n|${clip(e.name,o.compact?14:20).replace(/[{}|]/g,'')}}`;},
-    rich:{r:pill('#f1f5f9','#475569'),m1:pill(MEDAL[0],'#fff'),m2:pill(MEDAL[1],'#fff'),m3:pill(MEDAL[2],'#fff'),n:{color:'#1e293b',fontSize:o.compact?11:12,fontWeight:500}}}},
-  dataZoom:zoom?[
-   {type:'inside',yAxisIndex:0,filterMode:'none',startValue:0,endValue:o.window!-1,zoomOnMouseWheel:false,moveOnMouseWheel:false,moveOnMouseMove:true},
-   {type:'slider',yAxisIndex:0,filterMode:'none',startValue:0,endValue:o.window!-1,right:4,width:8,showDetail:false,brushSelect:false,zoomLock:true,borderColor:'transparent',backgroundColor:'#f1f5f9',fillerColor:'rgba(79,124,255,.35)',handleSize:0,moveHandleSize:0,showDataShadow:false}]:[],
-  series:[{id:'rank',type:'bar',barMaxWidth:o.compact?14:20,barCategoryGap:'34%',showBackground:true,backgroundStyle:{color:'rgba(148,163,184,.08)',borderRadius:8},
-   data:shown.map(e=>{const neg=e.value!<0;return {value:e.value,name:e.name,itemStyle:{color:gradient(neg?NEG:colorOf(e),neg),borderRadius:neg?[8,0,0,8]:[0,8,8,0]},label:{position:neg?'left':'right'}};}),
-   label:{show:true,position:'right',distance:6,color:'#334155',fontSize:11,fontWeight:600,formatter:(p:any)=>fmt(p.value)},
-   emphasis:{focus:'none',itemStyle:{shadowBlur:14,shadowColor:'rgba(79,124,255,.35)'}},
-   animationDelay:(i:number)=>Math.min(i,30)*22,universalTransition:true}],
- };
-}
-
-// Vertical bars (columns), rank 1 on the left: the plot under the leaderboard.
-function columnOption(o:{shown:Entry[];c:Criterion;fmt:Fmt;axisFmt:Fmt;window?:number;noData:string}){
- const {shown,c,fmt,axisFmt}=o;
- const zoom=o.window&&shown.length>o.window;
- const colors=(e:Entry)=>{const r=e.rank??0;const top=r>=1&&r<=3?MEDAL[r-1]:'#4f7cff';const neg=e.value!<0;const base=neg?NEG:top;
-  return {type:'linear',x:0,y:0,x2:0,y2:1,colorStops:[{offset:0,color:base},{offset:1,color:rgba(base,.35)}]};};
- const rotate=shown.length>12&&!zoom?40:zoom?40:0;
- return {
-  textStyle:{fontFamily:FONT},animationDuration:900,animationDurationUpdate:750,animationEasing:'cubicOut',animationEasingUpdate:'cubicInOut',aria:{enabled:true},
-  grid:{left:8,right:16,top:28,bottom:zoom?44:12,containLabel:true},
-  tooltip:{...TOOLTIP,formatter:(p:any)=>{const e=shown[p.dataIndex];return e?tooltipHtml(e,c,fmt,o.noData):'';}},
-  xAxis:{type:'category',data:shown.map((_,i)=>String(i)),axisLine:{lineStyle:{color:'#e2e8f0'}},axisTick:{show:false},
-   axisLabel:{interval:0,rotate,color:'#475569',fontSize:11,margin:10,hideOverlap:false,
-    formatter:(v:string)=>{const e=shown[Number(v)];return e?clip(e.name,rotate?16:12):'';}}},
-  yAxis:{type:'value',splitNumber:4,axisLabel:{color:'#94a3b8',fontSize:10,formatter:(v:number)=>axisFmt(v)},splitLine:{lineStyle:{color:'#eef1f6',type:'dashed'}},axisLine:{show:false},axisTick:{show:false}},
-  dataZoom:zoom?[
-   {type:'inside',xAxisIndex:0,filterMode:'none',startValue:0,endValue:o.window!-1,zoomOnMouseWheel:false,moveOnMouseWheel:true,moveOnMouseMove:true},
-   {type:'slider',xAxisIndex:0,filterMode:'none',startValue:0,endValue:o.window!-1,bottom:6,height:10,showDetail:false,brushSelect:false,zoomLock:true,borderColor:'transparent',backgroundColor:'#f1f5f9',fillerColor:'rgba(79,124,255,.35)',handleSize:0,moveHandleSize:0,showDataShadow:false}]:[],
-  series:[{id:'rank',type:'bar',barMaxWidth:34,barCategoryGap:'28%',
-   data:shown.map(e=>({value:e.value,name:e.name,itemStyle:{color:colors(e),borderRadius:e.value!<0?[0,0,6,6]:[6,6,0,0]}})),
-   label:{show:shown.length<=24&&!zoom,position:'top',distance:4,color:'#334155',fontSize:10,fontWeight:600,formatter:(p:any)=>axisFmt(p.value)},
-   emphasis:{focus:'none',itemStyle:{shadowBlur:14,shadowColor:'rgba(79,124,255,.35)'}},
-   animationDelay:(i:number)=>Math.min(i,40)*18,universalTransition:true}],
- };
-}
-
 function mapOption(o:{ranked:Entry[];c:Criterion;fmt:Fmt;names:Map<string,string>;noData:string}){
  const {c,fmt}=o;const seen=new Set<string>();const data:any[]=[];
  const scale=colorScale(o.ranked.map(e=>e.value!));
@@ -129,7 +59,8 @@ textStyle:{color:'#64748b',fontSize:11},formatter:(v:number)=>fmt(real(v)),
 
 // One ECharts instance in a resizable box; the shimmer shows until the chart has an option.
 // With aspect (width/height), the box is never taller than the drawing needs (the world map).
-function ChartBox({option,height,label,aspect,extra=0,onClick,onChart}:{option:Record<string,unknown>|null;height:number;label:string;aspect?:number;extra?:number;onClick?:(p:any)=>void;onChart?:(c:Chart|null)=>void}){
+// svg: the same chart rendered on the server, shown until the interactive chart is ready.
+function ChartBox({option,height,label,aspect,extra=0,onClick,onChart,svg}:{option:Record<string,unknown>|null;height:number;label:string;aspect?:number;extra?:number;onClick?:(p:any)=>void;onChart?:(c:Chart|null)=>void;svg?:string}){
  const box=useRef<HTMLDivElement>(null);const chart=useRef<Chart|null>(null);const outer=useRef<HTMLDivElement>(null);
  const [width,setWidth]=useState(0);
  useEffect(()=>{if(!aspect||!outer.current)return;const el=outer.current;const ro=new ResizeObserver(()=>setWidth(el.clientWidth));ro.observe(el);setWidth(el.clientWidth);return ()=>ro.disconnect();},[aspect]);
@@ -153,7 +84,7 @@ function ChartBox({option,height,label,aspect,extra=0,onClick,onChart}:{option:R
  },[option,ready]);
  return <div ref={outer} className="wf-rank-chartbox" style={{height:h}}>
   <div ref={box} className="wf-echart-canvas" role="img" aria-label={label}/>
-  {(!ready||!option)&&!error&&<div className="wf-viz-loading wf-rank-shimmer" aria-busy="true"/>}
+  {(!ready||!option)&&!error&&(svg?<div className="wf-rank-svg" role="img" aria-label={label} dangerouslySetInnerHTML={{__html:svg}}/>:<div className="wf-viz-loading wf-rank-shimmer" aria-busy="true"/>)}
   {error&&<div className="wf-rank-notice" role="alert">{error}</div>}
  </div>;
 }
@@ -165,7 +96,7 @@ function Avatar({e,color}:{e:Entry;color:string}){
   :<span className="wf-rank-avatar wf-rank-initial" style={{background:rgba(color,.14),color}}>{Array.from(e.name)[0]?.toUpperCase()}</span>;
 }
 
-const PAGE=50;
+const PAGE=50,ROW_CAP=1000;
 
 export default function Ranking({props,setValue,fire,ctx}:VizProps){
  const t=ctx.t,locale=ctx.locale||'en';
@@ -176,8 +107,10 @@ export default function Ranking({props,setValue,fire,ctx}:VizProps){
  const entries=useMemo(()=>toEntries(props.rows,nameKey,groupKey),[props.rows,nameKey,groupKey]);
  // ?rank=<criterion key> opens the ranking on that criterion (one ranking page per scope;
  // "countries by GDP" and "countries by population" are the same page on different criteria).
- // Read after mount, so the server-rendered HTML (default criterion) and the first browser render agree.
- const initial=criteria.find(c=>c.key===props.default)?.key??criteria[0]?.key??'';
+ // On the crawlable page the server passes it (view.rank) so the HTML is sorted by it; in the app view
+ // it is read after mount, so the server-rendered HTML and the first browser render agree.
+ const view=useRankingView();
+ const initial=criteria.find(c=>c.key===view.rank)?.key??criteria.find(c=>c.key===props.default)?.key??criteria[0]?.key??'';
  const [critKey,setCritKey]=useState(initial);
  useEffect(()=>{const fromUrl=new URLSearchParams(location.search).get('rank');if(fromUrl&&criteria.some(c=>c.key===fromUrl))setCritKey(fromUrl);},[criteria]);
  const c=criteria.find(x=>x.key===critKey)??criteria.find(x=>x.key===initial)??criteria[0];
@@ -212,9 +145,13 @@ export default function Ranking({props,setValue,fire,ctx}:VizProps){
  const inGroup=(e:Entry)=>!group||e.group===group;
  const chartRanked=useMemo(()=>ranked.filter(e=>!group||e.group===group),[ranked,group]);
  const noData=t('No data');
+ // Every other criterion is a column too, so all the ranking's figures are in the page (and its HTML).
+ const others=useMemo(()=>c?criteria.filter(x=>x.key!==c.key):[],[criteria,c]);
+ const otherFmt=useMemo(()=>new Map(others.map(x=>[x.key,makeFormatter(x,entries.map(e=>parseNumber(e.row[x.key])).filter((v):v is number=>v!=null),locale)])),[others,entries,locale]);
+ const cols=5+others.length;
 
  const pick=(e:Entry|undefined)=>{if(e)fire('select',e.row);};
- const choose=(key:string)=>{if(key===critKey)return;setCritKey(key);setValue(key);fire('change',key);try{const u=new URL(location.href);u.searchParams.set('rank',key);history.replaceState(history.state,'',u);}catch{}};
+ const choose=(key:string)=>{if(key===critKey)return;setCritKey(key);setValue(key);fire('change',key);view.onRank?.(key);try{const u=new URL(location.href);u.searchParams.set('rank',key);history.replaceState(history.state,'',u);}catch{}};
 
  // Bar chart: the top N, or every entity with a scroll window.
  const barShown=allBars?chartRanked:chartRanked.slice(0,top);
@@ -246,9 +183,10 @@ export default function Ranking({props,setValue,fire,ctx}:VizProps){
  useEffect(()=>{if(tableWrap.current)tableWrap.current.scrollTop=0;},[critKey,group,q]);
  const match=(e:Entry)=>inGroup(e)&&(!q||e.name.toLowerCase().includes(q));
  const tRanked=ranked.filter(match),tMissing=missing.filter(match);
- const limit=expanded?Infinity:PAGE;
- const showRanked=tRanked.slice(0,limit),showMissing=tMissing.slice(0,Math.max(0,limit-showRanked.length));
- const hidden=tRanked.length+tMissing.length-showRanked.length-showMissing.length;
+ // The first PAGE rows show; up to ROW_CAP more are in the page but hidden until "Show all".
+ const limit=expanded?Infinity:PAGE,cap=expanded?Infinity:ROW_CAP;
+ const showRanked=tRanked.slice(0,cap),showMissing=tMissing.slice(0,Math.max(0,cap-showRanked.length));
+ const hidden=Math.max(0,tRanked.length+tMissing.length-limit);
 
  if(!c)return <figure className="wf-viz wf-rank"><div className="wf-rank-empty">{t('No criteria to rank by.')}</div></figure>;
  const title=typeof props.title==='string'?props.title:'',subtitle=typeof props.subtitle==='string'?props.subtitle:'',source=typeof props.source==='string'?props.source:'';
@@ -257,7 +195,7 @@ export default function Ranking({props,setValue,fire,ctx}:VizProps){
 
  const row=(e:Entry,i:number)=>{
   const share=shareOf(e,summary,locale);const medal=e.rank!=null&&e.rank<=3?e.rank:0;
-  return <tr key={e.index} className={(e.rank==null?'wf-rank-nodata ':'')+(medal?'wf-rank-top':'')} style={{['--d' as any]:Math.min(i,24)*18+'ms'}}
+  return <tr key={e.index} hidden={i>=limit} className={(e.rank==null?'wf-rank-nodata ':'')+(medal?'wf-rank-top':'')} style={{['--d' as any]:Math.min(i,24)*18+'ms'}}
    onClick={()=>pick(e)} onMouseEnter={()=>hover(e,true)} onMouseLeave={()=>hover(e,false)}>
    <td className="wf-rank-pos">{e.rank==null?<span className="wf-rank-dash">—</span>:<span className={'wf-rank-badge'+(medal?' m'+medal:'')}>{e.rank}</span>}</td>
    <td className="wf-rank-name">
@@ -270,6 +208,7 @@ export default function Ranking({props,setValue,fire,ctx}:VizProps){
    <td className="wf-rank-val">{e.value==null?<span className="wf-rank-dash">{noData}</span>:fmt(e.value)}</td>
    <td className="wf-rank-barcell" aria-hidden="true">{e.value!=null&&<span className="wf-rank-track"><i style={{width:Math.max(1.5,Math.abs(e.value)/maxAbs*100)+'%',background:e.value<0?`linear-gradient(90deg,${rgba(NEG,.45)},${NEG})`:`linear-gradient(90deg,${rgba(colorOf(e),.45)},${colorOf(e)})`}}/></span>}</td>
    <td className="wf-rank-share">{share?share.kind==='share'?share.text:t('Top {pct}',{pct:share.text}):''}</td>
+   {others.map(x=>{const v=parseNumber(e.row[x.key]);return <td key={x.key} className="wf-rank-other">{v==null?'—':otherFmt.get(x.key)!(v)}</td>;})}
   </tr>;
  };
 
@@ -302,12 +241,15 @@ export default function Ranking({props,setValue,fire,ctx}:VizProps){
      <th className="wf-rank-pos">{t('Rank')}</th><th className="wf-rank-name">{t('Name')}</th>
      <th className="wf-rank-val">{c.label}</th><th className="wf-rank-barcell" aria-hidden="true"/>
      <th className="wf-rank-share">{summary.aggregate==='sum'&&summary.min>=0?t('Share'):t('Percentile')}</th>
+     {others.map(x=><th key={x.key} className="wf-rank-other" title={t('Rank by')+' '+x.label}>{view.rankHref
+      ?<a href={view.rankHref(x.key)} onClick={ev=>{ev.preventDefault();choose(x.key);}}>{x.label}</a>
+      :<button type="button" onClick={()=>choose(x.key)}>{x.label}</button>}</th>)}
     </tr></thead>
     <tbody key={c.key+'|'+(group??'')}>
      {showRanked.map(row)}
-     {showMissing.length>0&&<tr className="wf-rank-sep"><td colSpan={5}>{noData} · {tMissing.length.toLocaleString(locale)}</td></tr>}
+     {showMissing.length>0&&<tr className="wf-rank-sep"><td colSpan={cols}>{noData} · {tMissing.length.toLocaleString(locale)}</td></tr>}
      {showMissing.map((e,i)=>row(e,showRanked.length+i))}
-     {!showRanked.length&&!showMissing.length&&<tr className="wf-rank-sep"><td colSpan={5}>{t('No matches')}</td></tr>}
+     {!showRanked.length&&!showMissing.length&&<tr className="wf-rank-sep"><td colSpan={cols}>{t('No matches')}</td></tr>}
     </tbody>
    </table>
   </div>
@@ -321,7 +263,7 @@ export default function Ranking({props,setValue,fire,ctx}:VizProps){
      <button type="button" role="radio" aria-checked={!allBars} className={!allBars?'on':''} onClick={()=>setAllBars(false)}>{t('Top {n}',{n:top})}</button>
      <button type="button" role="radio" aria-checked={allBars} className={allBars?'on':''} onClick={()=>setAllBars(true)}>{t('All {n}',{n:chartRanked.length})}</button>
     </div>}</div>
-    {barShown.length?<ChartBox option={barOpt} height={barHeight} label={c.label} onClick={p=>pick(barShown[p.dataIndex])} onChart={ch=>{charts.current.bar=ch;}}/>:<div className="wf-rank-empty">{noData}</div>}
+    {barShown.length?<ChartBox option={barOpt} height={barHeight} label={c.label} svg={!allBars&&!group?view.charts?.[chartKey(criteria.map(x=>x.key),c.key)]:undefined} onClick={p=>pick(barShown[p.dataIndex])} onChart={ch=>{charts.current.bar=ch;}}/>:<div className="wf-rank-empty">{noData}</div>}
    </>}
    {mode==='map'&&<div className="wf-rank-mapgrid">
     <ChartBox option={mapOpt} height={height} aspect={MAP_ASPECT} extra={MAP_BOTTOM+6} label={c.label} onClick={p=>pick(byKey.get(p.name))} onChart={ch=>{charts.current.map=ch;}}/>

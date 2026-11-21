@@ -10,3 +10,10 @@ export function useAskLink(){
  const targets=useContext(AskTargets);
  return (question:string)=>{const href=targets?.[questionKey(question)];return href?{href,rel:undefined}:{href:askPath(question),rel:'nofollow'};};
 }
+// The crawlable page's view of its rankings: the criterion in the address (?rank=, read on the
+// server so the HTML is already sorted by it), the address of each criterion's view (so the
+// column headers are real links), and each ranking chart pre-rendered as SVG (by chartKey).
+// onRank: the reader page follows a criterion switch (its title names the criterion).
+export type RankingViewValue={rank?:string;rankHref?:(key:string)=>string;charts?:Record<string,string>;onRank?:(key:string)=>void};
+export const RankingView=createContext<RankingViewValue>({});
+export const useRankingView=()=>useContext(RankingView);

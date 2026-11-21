@@ -172,3 +172,12 @@
 .wf-rank .wf-rank-chart{margin-top:18px}
 .wf-rank .wf-rank-charttools{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:4px 8px 6px}
 .wf-rank .wf-rank-charttitle{font-size:13px;font-weight:600;color:#334155}
+
+/* Other criteria as columns: every figure is in the page; the header switches the ranking to it. */
+.wf-rank-table .wf-rank-other{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap;color:#475569;font-size:12.5px}
+.wf-rank-table th.wf-rank-other a,.wf-rank-table th.wf-rank-other button{all:unset;cursor:pointer;color:inherit;border-bottom:1px dashed #cbd5e1}
+.wf-rank-table th.wf-rank-other a:hover,.wf-rank-table th.wf-rank-other button:hover{color:#4f7cff;border-bottom-color:#4f7cff}
+@media (max-width:760px){.wf-rank-table .wf-rank-other{display:none}}
+/* The server-rendered chart (SVG) until the interactive one is ready. */
+.wf-rank-svg{position:absolute;inset:0}
+.wf-rank-svg svg{width:100%;height:100%;display:block}

@@ -69,13 +69,15 @@ export async function resolveQuestions(questions:string[]):Promise<Record<string
 }
 
 // ───────────── sitemap ─────────────
-export const SITEMAP_SIZE=45_000;
+// Pages per sitemap file; a ranking page adds one URL per extra criterion (at most 8), so a file stays under 50,000 URLs.
+export const SITEMAP_SIZE=5_000;
 const listSql=`FROM pages p WHERE p.visibility='public' AND p.kind<>'dynamic' AND ${editionPageSql('p')} AND NOT EXISTS(SELECT 1 FROM page_aliases a WHERE a.id=p.id)`;
 export async function countSitemapPages():Promise<number>{
  return Number((await database().prepare(`SELECT count(*) n ${listSql}`).first<{n:number}>())?.n||0);
 }
-export async function sitemapPages(part:number):Promise<{id:string;title:string;updatedAt:string}[]>{
- const r=await database().prepare(`SELECT p.id,p.title,COALESCE(p.updated_at,p.created_at) updatedAt ${listSql} ORDER BY p.created_at,p.id LIMIT ? OFFSET ?`)
-  .bind(SITEMAP_SIZE,part*SITEMAP_SIZE).all<{id:string;title:string;updatedAt:string}>();
+// body only for ranking pages (their criteria become ?rank= URLs).
+export async function sitemapPages(part:number):Promise<{id:string;title:string;updatedAt:string;body:string|null}[]>{
+ const r=await database().prepare(`SELECT p.id,p.title,COALESCE(p.updated_at,p.created_at) updatedAt,CASE WHEN json_extract(p.labels,'$.templateId')='ranking-v1' THEN p.body END body ${listSql} ORDER BY p.created_at,p.id LIMIT ? OFFSET ?`)
+  .bind(SITEMAP_SIZE,part*SITEMAP_SIZE).all<{id:string;title:string;updatedAt:string;body:string|null}>();
  return r.results;
 }
