@@ -40,8 +40,31 @@ async function candidates(query:string):Promise<Candidate[]>{
  return out;
 }
 
+// Fast path, no model (milliseconds): the query is a published ranking's title or an entity's name or alias.
+async function exactMatch(q:string):Promise<string|null>{
+ const db=await entityDb();
+ const r=await db.query<{slug:string}>(`select slug from rankings where slug is not null and status='published' and (lower(title)=lower($1::text) or slug=$2::text) limit 1`,[q,slugify(q)]);
+ if(r.rows[0])return '/rankings/'+r.rows[0].slug;
+ // "France", "法国", "France (country)": a name or alias among types whose pages are published.
+ const m=/^(.*?)\s*\(([^)]+)\)\s*$/.exec(q);const name=(m?m[1]:q).trim(),hint=m?m[2].trim().toLowerCase().replace(/\s+/g,'_'):null;
+ const e=await db.query<{type:string;name:string}>(`select e.type,e.name from entities e join entity_types t on t.type=e.type and t.status='published' and t.template <> '{}'::jsonb
+  where e.name_keys && ent_keys($1::text,'{}'::text[]) and ($2::text is null or e.type=$2::text) order by (ent_norm(e.name)=ent_norm($1::text)) desc, e.created_at limit 2`,[name,hint]);
+ // Two different entities share the name: let the router judge (e.g. Georgia the country and the state).
+ if(e.rows.length===1||(e.rows.length>1&&hint))return '/e/'+encodeURIComponent(e.rows[0].type)+'/'+encodeURIComponent(slugify(e.rows[0].name));
+ return null;
+}
+// Routed queries are remembered for a few hours: the same question opens its page at once the next time.
+const CACHE_MS=6*3600_000,CACHE_MAX=20_000;
+const cache=new Map<string,{href:string|null;at:number}>();
+const cacheKey=(q:string)=>q.normalize('NFKC').toLowerCase().replace(/\s+/g,' ').trim();
+function remember(q:string,href:string|null){if(cache.size>=CACHE_MAX)cache.delete(cache.keys().next().value!);cache.set(cacheKey(q),{href,at:Date.now()});}
 export async function routeToDatabase(query:string,signal?:AbortSignal):Promise<{href:string;reason:string}|null>{
  const q=String(query||'').trim().slice(0,500);if(!q)return null;
+ const hit=cache.get(cacheKey(q));if(hit&&Date.now()-hit.at<CACHE_MS)return hit.href?{href:hit.href,reason:'cached'}:null;
+ const exact=await exactMatch(q).catch(()=>null);if(exact){remember(q,exact);return {href:exact,reason:'exact name'};}
+ const routed=await judge(q,signal);remember(q,routed?.href??null);return routed;
+}
+async function judge(q:string,signal?:AbortSignal):Promise<{href:string;reason:string}|null>{
  const list=await candidates(q);if(!list.length)return null;
  const ids=list.map(c=>c.id);
  const schema={type:'object',additionalProperties:false,required:['choice','criterion','year','confidence','reason'],properties:{

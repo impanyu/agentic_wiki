@@ -25,6 +25,16 @@ public edition (`PUBLIC_EDITION`): every page is public and read-only, built fro
   Entity DB (PostgreSQL+pgvector)   LLM layer (routes to free model services)
 ```
 
+## The first principle: readers find the page they want, fast
+
+Every part serves this. Editors plan pages ahead of demand (every entity, every useful ranking and
+sub-ranking, every criterion view) and from readers' unserved queries, so the page exists before it
+is asked for. The router answers in milliseconds whenever it can — an exact name, alias or ranking
+title, or a query routed before (cached) — and calls a model only for open questions, whose answer is
+then cached too. Search vectors are prepared ahead (on save, and by the heartbeat), never at query
+time. Pages link readers onward (an entity to its rankings and related entities, a ranking to every
+member and its sibling rankings). Next: search suggestions as the reader types.
+
 ## 0. Scale: a page for every entity, a ranking for every entity type
 
 The goal is one page per entity and one ranking page per entity type (plus sub-scopes such as
