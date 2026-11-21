@@ -32,6 +32,7 @@ import {pageAddress,inputQuery,type ConversionInput} from './dynamic/units';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { HomePage } from './home';
+import type { FeaturedRanking } from '@/app/entity-db/pages';
 import { ArrowLeft, ArrowRight, Highlighter, Check, Globe2, Layers, LoaderCircle, LockKeyhole, GitFork, Trash2, Printer, ImagePlus, X as CloseIcon } from 'lucide-react';
 import {ContextIndex} from './context-index/view';
 import {ContextFiles} from './context-files/panel';
@@ -55,10 +56,11 @@ async function readResponse(response: Response) {
   return result;
 }
 
-export default function Workspace({ user, signIn, signOut }: {
+export default function Workspace({ user, signIn, signOut, featured=[] }: {
   user: { name: string; id: string } | null;
   signIn: string;
   signOut: string;
+  featured?: FeaturedRanking[];
 }) {
 
 
@@ -495,7 +497,7 @@ export default function Workspace({ user, signIn, signOut }: {
 
         <div className="saved-note">{draft ? t(busy?'Draft · Not saved yet':'Incomplete draft · Not saved') : t('Saved {date} · {count} questions linked',{date:new Date(visiblePage.createdAt).toLocaleDateString(locale),count:visiblePage.questionCount})}</div>
         </div>
-      </article></MapPreference.Provider> : !busy && <HomePage onOpen={card=>void (card.generating?watchGeneration(card.id,card.title):openInternal({id:'home:'+card.id,targetId:card.id,targetTitle:card.title,quote:card.title,segments:[]}))}/>}
+      </article></MapPreference.Provider> : !busy && <HomePage featured={featured} onOpen={card=>void (card.generating?watchGeneration(card.id,card.title):openInternal({id:'home:'+card.id,targetId:card.id,targetTitle:card.title,quote:card.title,segments:[]}))}/>}
     </main>
   </div></UiContext.Provider>;
 }

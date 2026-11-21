@@ -742,5 +742,10 @@
   "Drag to rotate · Click, then scroll to zoom": "拖动旋转 · 点击后滚动缩放",
   "Search any entity, rank any category.": "搜索任何实体，排名任何类别。",
   "Type a thing (a country, a phone, a perfume…) or a category (countries, smartphones, perfumes…) and press Enter.": "输入一个事物（一个国家、一款手机、一款香水……）或一个类别（国家、智能手机、香水……），然后按 Enter。",
-  "Search an entity or a ranking — e.g. Countries, iPhone 17, Perfumes": "搜索实体或排名——例如：国家、iPhone 17、香水"
+  "Search an entity or a ranking — e.g. Countries, iPhone 17, Perfumes": "搜索实体或排名——例如：国家、iPhone 17、香水",
+  "Live rankings from public data": "基于公开数据的实时排名",
+  "Search any entity.": "搜索任何实体。",
+  "Rank any category.": "排名任何类别。",
+  "Explore rankings": "浏览排名",
+  "By": "按"
 }

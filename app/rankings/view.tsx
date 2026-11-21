@@ -1,6 +1,6 @@
 'use client';
 import {useMemo,useState,type ReactNode} from 'react';
-import {Layers,ArrowRight} from 'lucide-react';
+import {Layers,ArrowRight,Trophy} from 'lucide-react';
 import {UiContext,usePageUi,useUi} from '@/app/i18n/client';
 import {SITE_NAME,PUBLIC_EDITION} from '@/app/edition';
 import {AskTargets,RankingView} from '@/app/seo/link-context';
@@ -38,7 +38,7 @@ function useVizCtx():VizProps['ctx']{
 const noop=()=>{};
 
 // The ranking with its title: a criterion or period switch retitles the page and its address (as /p does).
-export function RankingBody({title:initialTitle,baseTitle,titles,basePath,defaultRank,rank,period:initialPeriod,charts,props,lead}:{title:string;baseTitle:string;titles:Record<string,string>;basePath:string;defaultRank:string;
+export function RankingBody({kicker,title:initialTitle,baseTitle,titles,basePath,defaultRank,rank,period:initialPeriod,charts,props,lead}:{kicker?:string;title:string;baseTitle:string;titles:Record<string,string>;basePath:string;defaultRank:string;
  rank?:string;period?:string;charts:Record<string,string>;props:Record<string,unknown>;lead:string|null}){
  const ctx=useVizCtx();
  const [title,setTitle]=useState(initialTitle);
@@ -48,7 +48,7 @@ export function RankingBody({title:initialTitle,baseTitle,titles,basePath,defaul
  const view={rank,charts,period:initialPeriod,rankHref:(key:string)=>key===defaultRank?basePath:basePath+'?rank='+encodeURIComponent(key),
   onRank:(key:string)=>retitle({...state,rank:key}),onPeriod:(p:string)=>retitle({...state,period:p})};
  return <RankingView.Provider value={view}>
-  <header className="wiki-heading"><h1>{title}</h1>{lead&&<p className="lead">{lead}</p>}</header>
+  <header className="wiki-heading db-hero">{kicker&&<span className="db-kicker"><Trophy size={13} aria-hidden="true"/>{kicker}</span>}<h1>{title}</h1>{lead&&<p className="lead">{lead}</p>}</header>
   <Ranking props={props} setValue={noop} fire={noop} ctx={ctx}/>
  </RankingView.Provider>;
 }
@@ -61,7 +61,7 @@ export function EntityBody({cards,sections}:{cards:Record<string,unknown>[];sect
    case 'trend':return <Trend {...p}/>;case 'position':return <Position {...p}/>;case 'peer_compare':return <PeerCompare {...p}/>;
    case 'radar_profile':return <RadarProfile {...p}/>;case 'location_map':return <LocationMap {...p}/>;case 'relation_graph':return <RelationGraph {...p}/>;
    case 'timeline':return <Timeline {...p}/>;
-   case 'rankings':return <ul className="entity-rankings">{(s.links||[]).map(l=><li key={l.href}><a href={l.href}><strong>{l.title}</strong></a>{l.ranks?.length?<span className="entity-ranks">{l.ranks.map((x,i)=><span key={i}>{i?' · ':' — '}<a href={x.href}>{x.label}: {x.text}</a></span>)}</span>:l.detail&&<span className="wf-muted"> — {l.detail}</span>}</li>)}</ul>;
+   case 'rankings':return <ul className="entity-rankings">{(s.links||[]).map(l=><li key={l.href}><a className="er-title" href={l.href}><Trophy size={15} aria-hidden="true"/><strong>{l.title}</strong></a>{l.ranks?.length?<span className="entity-ranks">{l.ranks.map((x,i)=><a key={i} className={'er-chip'+(/^(1st|2nd|3rd)\b/.test(x.text)?' top':'')} href={x.href}><span>{x.label}</span><b>{x.text}</b></a>)}</span>:l.detail&&<span className="wf-muted er-detail">{l.detail}</span>}</li>)}</ul>;
    case 'text':return <>{(s.paragraphParts||(s.paragraphs||[]).map(x=>[{text:x}])).map((x,i)=><p key={i}><LinkedText parts={x}/></p>)}</>;
    default:return null;
   }};

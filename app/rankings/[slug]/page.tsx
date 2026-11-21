@@ -70,8 +70,7 @@ export default async function RankingPage(props:Props){
  return <>
   <script type="application/ld+json" dangerouslySetInnerHTML={{__html:jsonLd(ld)}}/>
   <DbShell askTargets={askTargets} className="answer template-ranking-v1">
-   <div className="page-meta"><span>Ranking</span>{input.def.status==='draft'&&<span> · Draft</span>}</div>
-   <RankingBody title={name} baseTitle={model.title} titles={titles} basePath={base} defaultRank={block.defaultKey} rank={criterion?.key} period={period} charts={charts} props={rprops} lead={model.lead}/>
+   <RankingBody kicker={'Ranking'+(input.def.status==='draft'?' · Draft':'')} title={name} baseTitle={model.title} titles={titles} basePath={base} defaultRank={block.defaultKey} rank={criterion?.key} period={period} charts={charts} props={rprops} lead={model.lead}/>
    <p className="data-twin-files"><a href={base+'/data.csv'} download>Download the data (CSV)</a></p>
    {model.about.length>0&&<section aria-labelledby="about-ranking"><h2 id="about-ranking">About this ranking</h2><ul>{model.about.map((x,i)=><li key={i}>{x}</li>)}</ul></section>}
    {model.related.length>0&&<section aria-labelledby="related-rankings"><h2 id="related-rankings">Related rankings</h2><ul>{model.related.map(r=><li key={r.href}><a href={r.href}>{r.title}</a></li>)}</ul></section>}

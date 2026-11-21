@@ -1,6 +1,7 @@
 import {PUBLIC_EDITION} from './edition';
 import type { Metadata } from "next";
 import "./globals.css";
+import "./rankwiki-theme.css";
 
 export const metadata: Metadata = {
   title: PUBLIC_EDITION?"RankWiki · Search any entity, rank any category":"AgenticWiKi · A question is an address",

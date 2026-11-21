@@ -1,7 +1,7 @@
 import type {Queryable,Row} from './client';
 import {getEntity,metricTable,hybridSearch,RANK_LIMIT} from './repo';
 import {slugify,questionKey} from '@/app/seo/urls';
-import {entityPath,rankingPath,defaultTemplate,mentionKey,type MetricInfo,type MetricFact,type EntityPageData,type Template,type RankingDef,type RankingPageInput,type Point} from '@/app/seo/assemble';
+import {formatMetric,entityPath,rankingPath,defaultTemplate,mentionKey,type MetricInfo,type MetricFact,type EntityPageData,type Template,type RankingDef,type RankingPageInput,type Point} from '@/app/seo/assemble';
 // Reads for the database-driven pages (/rankings/<slug>, /e/<type>/<slug>), the sitemap and link
 // resolution. Read-only; everything a page shows comes from here, assembled by app/seo/assemble.ts.
 const iso=(d:unknown)=>d instanceof Date?d.toISOString():d==null?null:String(d);
@@ -200,4 +200,27 @@ export async function resolveNamedTargets(db:Queryable,questions:string[]):Promi
 export async function withPages(db:Queryable,ids:string[]):Promise<Set<string>>{
  const list=[...new Set(ids.filter(x=>/^[0-9a-f-]{36}$/i.test(x)))];if(!list.length)return new Set();
  return new Set((await db.query<{id:string}>('select id from entities where has_page and id = any($1::uuid[])',[list])).rows.map(r=>String(r.id)));
+}
+
+// The home page's showcase: published rankings (whole types first, then sub-scopes, newest first), each
+// with its leading criterion, its criteria and its top three (linked when they have a page).
+export type FeaturedRanking={slug:string;href:string;title:string;criterion:string;criteria:string[];more:number;
+ top:{rank:number;name:string;href:string|null;value:string}[]};
+export async function featuredRankings(db:Queryable,limit=12):Promise<FeaturedRanking[]>{
+ const defs=(await db.query(`select * from rankings where slug is not null and status='published' and array_length(criteria,1)>0
+  order by (coalesce(scope->'filters','{}'::jsonb) = '{}'::jsonb) desc, updated_at desc limit $1::int`,[limit])).rows.map(rankingRow);
+ const out:FeaturedRanking[]=[];
+ for(const def of defs){
+  const lead=String(def.config?.default||def.criteria[0]);const infos=await metricInfos(db,def.criteria.map(c=>c.split('@')[0]));
+  const info=infos[lead.split('@')[0]];
+  const t=await metricTable(db,{type:def.scope.type,filters:def.scope.filters,metrics:[lead],limit:3}).catch(()=>null);
+  const col=t?.metrics[0]?.column;
+  const rows=(t?.rows||[]).filter(r=>typeof r.rank==='number').slice(0,3);
+  const pages=await withPages(db,rows.map(r=>String(r.entity_id)));
+  out.push({slug:def.slug,href:rankingPath(def.slug),title:def.title,criterion:info?.label||lead,
+   criteria:def.criteria.slice(0,4).map(c=>infos[c.split('@')[0]]?.label||c),more:Math.max(0,def.criteria.length-4),
+   top:rows.map(r=>({rank:Number(r.rank),name:String(r.name),href:pages.has(String(r.entity_id))?entityPath(String(r.type),String(r.name)):null,
+    value:info&&col&&typeof r[col]==='number'?formatMetric(info,r[col] as number):col&&r[col]!=null?String(r[col]):''}))});
+ }
+ return out;
 }
