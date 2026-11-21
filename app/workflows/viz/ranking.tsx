@@ -83,7 +83,8 @@ export default function Ranking({props,setValue,fire,ctx}:VizProps){
  const [allBars,setAllBars]=useState(false);
  const [query,setQuery]=useState('');
  const [group,setGroup]=useState<string|null>(null);
- const [expanded,setExpanded]=useState(false);
+ // Soft paging: every listed row is in the page (and its HTML); the reader reveals them PAGE at a time.
+ const [shown,setShown]=useState(PAGE);
  const [geoError,setGeoError]=useState('');
  const charts=useRef<Record<string,Chart|null>>({});
  const tableWrap=useRef<HTMLDivElement>(null);
@@ -156,13 +157,15 @@ export default function Ranking({props,setValue,fire,ctx}:VizProps){
  // Table: every entity; search and group filters keep the overall ranks.
  const q=query.trim().toLowerCase();
  // A new criterion or filter starts the list from the top.
- useEffect(()=>{if(tableWrap.current)tableWrap.current.scrollTop=0;},[critKey,group,q]);
+ useEffect(()=>{if(tableWrap.current)tableWrap.current.scrollTop=0;setShown(PAGE);},[critKey,group,q]);
  const match=(e:Entry)=>inGroup(e)&&(!q||e.name.toLowerCase().includes(q));
  const tRanked=ranked.filter(match),tMissing=missing.filter(match);
- // The first PAGE rows show; up to ROW_CAP more are in the page but hidden until "Show all".
- const limit=expanded?Infinity:PAGE,cap=expanded?Infinity:ROW_CAP;
+ // A page lists at most ROW_CAP rows (the top of the ranking; the data file has all). The first `shown`
+ // are visible, the rest are in the HTML but hidden until the reader asks for more.
+ const limit=shown,cap=ROW_CAP;
  const showRanked=tRanked.slice(0,cap),showMissing=tMissing.slice(0,Math.max(0,cap-showRanked.length));
- const hidden=Math.max(0,tRanked.length+tMissing.length-limit);
+ const listed=showRanked.length+showMissing.length,total=tRanked.length+tMissing.length;
+ const hidden=Math.max(0,listed-limit);
 
  if(!c)return <figure className="wf-viz wf-rank"><div className="wf-rank-empty">{t('No criteria to rank by.')}</div></figure>;
  const title=typeof props.title==='string'?props.title:'',subtitle=typeof props.subtitle==='string'?props.subtitle:'',source=typeof props.source==='string'?props.source:'';
@@ -229,8 +232,11 @@ export default function Ranking({props,setValue,fire,ctx}:VizProps){
     </tbody>
    </table>
   </div>
-  {(hidden>0||expanded&&tRanked.length+tMissing.length>PAGE)&&<div className="wf-rank-more">
-   <button type="button" onClick={()=>setExpanded(x=>!x)}>{hidden>0?t('Show all {count}',{count:(tRanked.length+tMissing.length).toLocaleString(locale)}):t('Show fewer')}</button>
+  {(hidden>0||shown>PAGE||total>listed)&&<div className="wf-rank-more">
+   {hidden>0&&<button type="button" onClick={()=>setShown(n=>n+PAGE)}>{t('Show {count} more',{count:Math.min(PAGE,hidden).toLocaleString(locale)})}</button>}
+   {hidden>PAGE&&<button type="button" onClick={()=>setShown(ROW_CAP)}>{t('Show all {count}',{count:listed.toLocaleString(locale)})}</button>}
+   {hidden===0&&shown>PAGE&&<button type="button" onClick={()=>{setShown(PAGE);tableWrap.current?.scrollIntoView({block:'nearest'});}}>{t('Show fewer')}</button>}
+   {total>listed&&<span className="wf-rank-capnote">{t('Top {listed} of {total}; the data file has every row.',{listed:listed.toLocaleString(locale),total:total.toLocaleString(locale)})}</span>}
   </div>}
   {views.length>0&&<div className={'wf-rank-chart '+active}>
    <div className="wf-rank-charttools">

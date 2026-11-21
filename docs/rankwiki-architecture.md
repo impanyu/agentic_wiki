@@ -93,21 +93,33 @@ reader watches. In addition the router owns the **topic tree**:
   by the router into sub-topics; their entities and roadmap items move with the scope.
 - **Forward every query** to the chosen editor's inbox (with whether a page was served).
 
-### Editors — topic owners (editors-in-chief, not page writers)
-Pages are rendered by the platform from the entity DB and per-type templates (section 0), so
-an editor does not write pages. Its output is configuration and a little text — the parts that
-need judgment:
-1. **Type design**: for each entity type of its domain, the template (card fields, charts,
-   section plan) — once per type, revised from reviewer feedback and reader queries.
-2. **Ranking design**: which rankings exist (scope and sub-scopes such as "Men's Perfume
+### Editors — topic owners (planners and template designers, never page writers)
+Generating a page involves no agent. Pages, their text and their references are assembled by
+programs from the entity DB and the templates; an editor's work is upstream:
+1. **Templates**: for each entity type of its domain, the entity-page template (card fields,
+   charts and views, section plan, the sentence patterns the text is assembled from) and the
+   ranking-page template — once per type, revised from reviewer feedback and reader queries.
+2. **Ranking definitions**: which rankings exist (scope and sub-scopes such as "Men's Perfume
    Rankings"), the universe and eligibility threshold, dedupe rules for variants, criteria and
-   default, derived/composite metrics with public methodology and sensitivity checks.
-3. **Text data cannot express**: leads and narrative sections for tier 1–2 entities, the
-   "About this ranking" note.
-4. **Priorities**: the roadmap — what to collect, which rankings to add, which entities to
-   promote to a higher prose tier — driven by router-forwarded queries and coverage gaps.
-5. **Judgment calls on data**: conflicting sources, identity (same entity or not), outliers;
-   routine collection and formats stay with the collector.
+   default, views, derived/composite metrics with public methodology and sensitivity checks.
+3. **The plan (roadmap)**: which entities should have pages, which categories should be ranked,
+   which data to collect next — continuously revised from router-forwarded queries and coverage gaps.
+4. **Judgment calls on data**: conflicting sources, identity (same entity or not), outliers.
+Text on pages is assembled by programs: data-to-text sentence patterns from the template ("X is
+the most populous U.S. state, with 39.4 million people (2025).", ranks, changes, comparisons),
+"About this ranking" from the metric definitions and sources, references from the sources table.
+
+### Collectors — data rules, executed automatically
+A collector writes rules, not data: the schema of each entity type (attributes, metrics in base
+units, relations, identifiers), the sources and recipes that fetch them, the membership lists
+that define each type's universe, and the identity rules that decide which records are the same
+entity. The crawler executes the recipes on schedule and populates the database without an agent.
+
+### Ranking pages: at most 1,000 rows each
+A ranking page lists at most 1,000 entities, all in its HTML (search engines get the whole list
+at once); readers see them in soft pages of 50 ("Show 50 more", "Show all"). A larger universe is
+cut at the top 1,000 (the data file has every row) or split into sub-rankings.
+
 Because page writing is gone, one editor covers a domain of related types (Countries &
 regions, Perfume & beauty, Phones & electronics, Universities…): tens to a couple hundred
 editors, not thousands. For simple types (one authoritative source, no subjective ranking) a
@@ -187,30 +199,17 @@ So: per topic **editor** + **reviewer** + **collector** (created by the router);
 the **recipe library** (platform building blocks + type recipes), the **crawler** with
 per-source budgets, and the **entity DB**.
 
-### How an editor composes a page (replaces the one-shot generator)
-Today a page is written in one agent run: a few searches and reads, then the whole article in
-one final answer (median 5 model calls, ~3.7K output tokens), under the instruction "match
-length to the question" — which is why pages come out short. Editors instead work in stages,
-from the entity database outwards:
-
-1. **Dossier** — collect what the DB already knows about the entity or scope (attributes,
-   observations with periods and sources, related entities, existing rankings and positions).
-2. **Gap filling** — compare the dossier with the template's required fields and sections
-   for this entity type; structured data that is missing or stale becomes a data request
-   (served by existing recipes or a collector agent); the editor itself reads primary documents for narrative facts, writing
-   every fact back to the DB with source and retrieval time before it is used on a page.
-3. **Outline** — the entity-type template gives the section plan (e.g. a country: geography,
-   history, politics, economy, demographics, culture, infrastructure, rankings; a company:
-   business, products, history, leadership, financials, competitors, rankings) with a target
-   depth set by the entity's importance and the evidence available — major entities get long,
-   comprehensive articles; minor ones stay proportionate but never thin.
-4. **Section drafting** — each section is written in its own model call from its slice of the
-   dossier and sources (parallel where possible), so length is not capped by one answer and
-   every paragraph is grounded; components (stats cards, charts from observations, ranking
-   positions) are generated from DB queries, not typed by hand.
-5. **Assembly and checks** — lead, infobox, sections, references (each citation = a source
-   row), "data as of" stamps; automated checks (coverage, numbers vs. DB, links), then the
-   reviewer.
+### How a page is assembled (no agent at page time)
+1. **Resolve**: the router maps the query to an entity, a ranking (and criterion), or a type.
+2. **Read**: the entity's row with its `latest` snapshot, relations and history; for a ranking,
+   metric_table over its scope (≤1,000 rows).
+3. **Assemble** with the type's template: card, charts and ranking views (chosen from the data),
+   text from the template's sentence patterns filled with values, ranks, changes and comparisons,
+   references from the sources of the facts shown, "data as of" stamps.
+4. **Render** on the server with data twins, JSON-LD and data-file links; cache until the data
+   changes.
+When the DB has no data for a query, the router hands it to the type's team (collector rules run,
+the editor's plan is updated) and a provisional page is shown until the data arrives.
 
 ### Freshness, completeness and authority (editor duties)
 - **Every fact is dated and cited**: observations and attributes keep source, period and
