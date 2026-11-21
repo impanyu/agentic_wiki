@@ -1,6 +1,10 @@
 import {entityDb} from '@/app/entity-db/client';
 import {addRoadmapItem,listRoadmap} from '@/app/entity-db/repo';
-import {listRecipes,getEntityType,type Recipe} from './config';
+import {listRecipes,getEntityType,embedRankings,type Recipe} from './config';
+import {embedPending} from '@/app/entity-db/repo';
+import {getEmbedder,setEmbedder} from '@/app/entity-db/embeddings';
+import {storedEmbedDim} from '@/app/entity-db/schema';
+import {embedder as llmEmbedder} from '@/app/llm';
 import {runRecipe} from './recipes';
 import {topicEditorId} from './tools';
 // The crawler's schedule: every minute (the live-agent heartbeat) it runs recipes whose schedule is due, one at
@@ -35,4 +39,15 @@ async function reportFailure(r:Recipe,result:{steps?:{id:string;ok:boolean;error
  await addRoadmapItem(db,{editorId,kind:'refresh',title,priority:85,origin:'review',
   spec:{recipe:r.name,type:r.type,failedStep:failed?.id,error:failed?.error||result.error||null,drift:result.drift||null,
    advice:'The source may have changed (redesign, moved URL, renamed fields). Inspect a sample page or response again, fix the steps, save_recipe, run_recipe, then close this item.'}});
+}
+
+// Search vectors are prepared ahead of queries: on save, and here on the heartbeat for anything still missing
+// (entities loaded by recipes, rankings whose embedding failed at save time).
+let embedding=false;
+export async function fillVectors(){
+ if(embedding)return;embedding=true;
+ try{const db=await entityDb();if(!getEmbedder())setEmbedder(t=>llmEmbedder()(t));const e=getEmbedder();if(!e)return;
+  await embedRankings(db,e,await storedEmbedDim(db),20);
+  await embedPending(db,1000);
+ }catch(err){console.warn('vectors: fill failed',(err as Error).message);}finally{embedding=false;}
 }

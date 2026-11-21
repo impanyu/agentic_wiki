@@ -8,6 +8,11 @@ import {publicSourceTools,listPublicSources,callPublicSource} from '@/app/public
 import {siteUrl} from '@/app/site';
 import {saveEntityType,getEntityType,listEntityTypes,saveRankingDef,listRankingDefs,saveRecipe,getRecipe,listRecipes,topicBrief,recordDecision,setTopicBrief} from './config';
 import {runRecipe,parseSteps,checkRecipe,RECIPE_TOOLS} from './recipes';
+import {embedRankings} from './config';
+import {getEmbedder,setEmbedder} from '@/app/entity-db/embeddings';
+import {storedEmbedDim} from '@/app/entity-db/schema';
+import {embedder as llmEmbedder} from '@/app/llm';
+async function embedNow(rankingId:string){const db=await entityDb();if(!getEmbedder())setEmbedder(t=>llmEmbedder()(t));const e=getEmbedder();if(e)await embedRankings(db,e,await storedEmbedDim(db),1,rankingId);}
 // Tools of a topic team. Everyone explores with the public sources, data tools and entity database;
 // the collector writes schemas and recipes and runs them, the editor writes templates and ranking
 // definitions, the reviewer reads everything and opens rendered pages. Strict schemas: every property
@@ -126,7 +131,10 @@ export async function runTeamTool(role:Role,name:string,args:Record<string,unkno
    const r=await saveRecipe(db,{type:String(args.type),name:String(args.name),description:String(args.description||''),steps,schedule:String(args.schedule||''),createdBy:who});
    return {data:{saved:true,type:r.type,name:r.name,steps:r.steps.length,schedule:r.schedule}};}
   case 'run_recipe':{const r=await getRecipe(db,String(args.type),String(args.name));if(!r)throw Error('No recipe '+args.type+'/'+args.name+'.');return {data:await runRecipe(db,r,signal)};}
-  case 'save_ranking':return {data:await saveRankingDef(db,{slug:String(args.slug),title:String(args.title),scope:json(args.scopeJson,'scopeJson'),criteria:String(args.criteria||'').split(','),config:json(args.configJson||'{}','configJson'),topicId})};
+  case 'save_ranking':{const def=await saveRankingDef(db,{slug:String(args.slug),title:String(args.title),scope:json(args.scopeJson,'scopeJson'),criteria:String(args.criteria||'').split(','),config:json(args.configJson||'{}','configJson'),topicId});
+   // The ranking's view vectors are ready before anyone searches for it (the heartbeat retries a failure).
+   await embedNow(def.id).catch(e=>console.warn('ranking vectors deferred',(e as Error).message));
+   return {data:def};}
   case 'save_plan':{
    const editorId=await topicEditorId(db,topicId);if(!editorId)throw Error('No topic.');
    const items=json(args.itemsJson,'itemsJson');if(!Array.isArray(items)||!items.length||items.length>50)throw Error('itemsJson: a list of 1–50 items.');

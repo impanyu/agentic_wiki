@@ -55,7 +55,7 @@ export async function saveRankingDef(db:Queryable,input:{slug:string;title:strin
   on conflict (slug) where slug is not null do update set title=excluded.title, topic_id=coalesce(excluded.topic_id,rankings.topic_id), scope=excluded.scope, criteria=excluded.criteria,
    config=excluded.config, status=coalesce($7::text,rankings.status), updated_at=now() returning *`,
   [slug,title,input.topicId||null,JSON.stringify(scope),criteria,JSON.stringify(config),input.status||null]);
- // Its view vectors no longer describe it: rebuilt on the router's next need.
+ // Its view vectors no longer describe it: save_ranking embeds it again right away.
  await db.query('delete from ranking_vectors where ranking_id=$1::uuid',[r.rows[0].id]);
  return rankRow(r.rows[0]);
 }
@@ -129,7 +129,7 @@ export async function setTopicBrief(db:Queryable,topicId:string,brief:string){
 }
 
 // Embeds ranking views that have no vector yet: the ranking as a whole and one per criterion. Saving a ranking
-// clears its vectors (they are rebuilt on the router's next need).
+// replaces its vectors at once (save_ranking); the heartbeat fills any that failed.
 export function rankingViewTexts(r:{title:string;scope:Row;criteria:string[]},metrics:Map<string,{label:string;unit:string;description:string}>){
  const type=String(obj(r.scope).type||'entity').replace(/_/g,' ');const filters=obj(obj(r.scope).filters);
  const where=Object.keys(filters).length?' where '+Object.entries(filters).map(([k,v])=>k.replace(/_/g,' ')+' is '+(typeof v==='object'?JSON.stringify(v):String(v))).join(', '):'';
@@ -139,9 +139,10 @@ export function rankingViewTexts(r:{title:string;scope:Row;criteria:string[]},me
   out.push({criterion:k,text:r.title+' by '+m.label+'. Every '+type+where+' ranked by '+m.label+(m.unit?' ('+m.unit+')':'')+(m.description?': '+m.description.slice(0,200).replace(/[.\s]+$/,''):'')+'.'});}
  return out;
 }
-export async function embedRankings(db:Queryable,embed:(texts:string[])=>Promise<number[][]>,dim:number,limit=50){
+// onlyId: embed just that ranking (right after it is saved).
+export async function embedRankings(db:Queryable,embed:(texts:string[])=>Promise<number[][]>,dim:number,limit=50,onlyId?:string){
  const rows=(await db.query<{id:string;title:string;scope:Row;criteria:string[]}>(`select r.id,r.title,r.scope,r.criteria from rankings r
-  where r.slug is not null and not exists (select 1 from ranking_vectors v where v.ranking_id=r.id) limit $1::int`,[limit])).rows;
+  where r.slug is not null and ($2::uuid is null or r.id=$2::uuid) and not exists (select 1 from ranking_vectors v where v.ranking_id=r.id) limit $1::int`,[limit,onlyId||null])).rows;
  if(!rows.length)return 0;
  const metrics=new Map((await db.query<{key:string;label:string;unit:string;description:string}>('select distinct on (key) key,label,unit,description from metrics order by key,version desc')).rows.map(r=>[r.key,r]));
  for(const r of rows){

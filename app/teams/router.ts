@@ -5,7 +5,6 @@ import {storedEmbedDim} from '@/app/entity-db/schema';
 import {embedder as llmEmbedder,respond} from '@/app/llm';
 import {output} from '@/app/api/ask/ai';
 import {slugify} from '@/app/seo/urls';
-import {embedRankings} from './config';
 import {topicEditorId} from './tools';
 // The router's database step (public edition): find candidates by meaning — published rankings by vector
 // similarity to their title, scope and criteria; entities by hybrid search (vector + words + names) among types
@@ -25,7 +24,6 @@ async function candidates(query:string):Promise<Candidate[]>{
  let rows:{slug:string;title:string;criteria:string[];config:Record<string,unknown>;criterion:string}[]=[];
  if(embed){
   const dim=await storedEmbedDim(db);
-  await embedRankings(db,embed,dim).catch(e=>console.warn('router: ranking embeddings failed',(e as Error).message));
   const v=(await embed([query]))[0];
   if(v?.length===dim)rows=(await db.query<typeof rows[number]>(`select slug,title,criteria,config,criterion from (
     select distinct on (r.id) r.slug,r.title,r.criteria,r.config,x.criterion,x.d from (select ranking_id,criterion,embedding <=> $1::vector as d from ranking_vectors order by embedding <=> $1::vector limit 40) x
