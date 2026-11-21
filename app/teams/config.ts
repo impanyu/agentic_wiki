@@ -53,8 +53,10 @@ export async function saveRankingDef(db:Queryable,input:{slug:string;title:strin
  const config=obj(input.config);if(config.default&&!criteria.includes(String(config.default)))throw Error('config.default must be one of the criteria.');
  const r=await db.query(`insert into rankings(slug,title,topic_id,scope,criteria,config,status) values ($1::text,$2::text,$3::uuid,$4::jsonb,$5::text[],$6::jsonb,coalesce($7::text,'draft'))
   on conflict (slug) where slug is not null do update set title=excluded.title, topic_id=coalesce(excluded.topic_id,rankings.topic_id), scope=excluded.scope, criteria=excluded.criteria,
-   config=excluded.config, status=coalesce($7::text,rankings.status), embedding=null, updated_at=now() returning *`,
+   config=excluded.config, status=coalesce($7::text,rankings.status), updated_at=now() returning *`,
   [slug,title,input.topicId||null,JSON.stringify(scope),criteria,JSON.stringify(config),input.status||null]);
+ // Its view vectors no longer describe it: rebuilt on the router's next need.
+ await db.query('delete from ranking_vectors where ranking_id=$1::uuid',[r.rows[0].id]);
  return rankRow(r.rows[0]);
 }
 export async function getRankingDef(db:Queryable,slug:string):Promise<RankingDef|null>{
@@ -126,14 +128,27 @@ export async function setTopicBrief(db:Queryable,topicId:string,brief:string){
  await db.query('update topics set description=$2::text, updated_at=now() where id=$1::uuid',[topicId,brief.slice(0,8000)]);
 }
 
-// Embeds rankings that have no vector yet (title, scope and criteria labels), for the router's search by meaning.
-export async function embedRankings(db:Queryable,embed:(texts:string[])=>Promise<number[][]>,dim:number,limit=200){
- const rows=(await db.query<{id:string;title:string;scope:Row;criteria:string[]}>('select id,title,scope,criteria from rankings where slug is not null and embedding is null limit $1::int',[limit])).rows;
+// Embeds ranking views that have no vector yet: the ranking as a whole and one per criterion. Saving a ranking
+// clears its vectors (they are rebuilt on the router's next need).
+export function rankingViewTexts(r:{title:string;scope:Row;criteria:string[]},metrics:Map<string,{label:string;unit:string;description:string}>){
+ const type=String(obj(r.scope).type||'entity').replace(/_/g,' ');const filters=obj(obj(r.scope).filters);
+ const where=Object.keys(filters).length?' where '+Object.entries(filters).map(([k,v])=>k.replace(/_/g,' ')+' is '+(typeof v==='object'?JSON.stringify(v):String(v))).join(', '):'';
+ const info=(k:string)=>metrics.get(k.split('@')[0])??{label:k.replace(/_/g,' '),unit:'',description:''};
+ const out=[{criterion:'',text:r.title+'. Ranks every '+type+where+' by '+r.criteria.map(k=>info(k).label).join(', ')+'.'}];
+ for(const k of r.criteria){const m=info(k);
+  out.push({criterion:k,text:r.title+' by '+m.label+'. Every '+type+where+' ranked by '+m.label+(m.unit?' ('+m.unit+')':'')+(m.description?': '+m.description.slice(0,200).replace(/[.\s]+$/,''):'')+'.'});}
+ return out;
+}
+export async function embedRankings(db:Queryable,embed:(texts:string[])=>Promise<number[][]>,dim:number,limit=50){
+ const rows=(await db.query<{id:string;title:string;scope:Row;criteria:string[]}>(`select r.id,r.title,r.scope,r.criteria from rankings r
+  where r.slug is not null and not exists (select 1 from ranking_vectors v where v.ranking_id=r.id) limit $1::int`,[limit])).rows;
  if(!rows.length)return 0;
- const labels=new Map((await db.query<{key:string;label:string}>('select distinct on (key) key,label from metrics order by key,version desc')).rows.map(r=>[r.key,r.label]));
- const texts=rows.map(r=>[r.title,'ranks every '+String(obj(r.scope).type||'entity').replace(/_/g,' ')+(Object.keys(obj(obj(r.scope).filters)).length?' where '+JSON.stringify(obj(r.scope).filters):''),
-  'by '+(r.criteria||[]).map(k=>labels.get(k.split('@')[0])||k).join(', ')].join('. '));
- const vecs=await embed(texts);
- for(const [i,r] of rows.entries()){const v=vecs[i];if(!Array.isArray(v)||v.length!==dim)continue;await db.query('update rankings set embedding=$2::vector where id=$1::uuid',[r.id,'['+v.join(',')+']']);}
+ const metrics=new Map((await db.query<{key:string;label:string;unit:string;description:string}>('select distinct on (key) key,label,unit,description from metrics order by key,version desc')).rows.map(r=>[r.key,r]));
+ for(const r of rows){
+  const views=rankingViewTexts(r,metrics);const vecs=await embed(views.map(v=>v.text));
+  for(const [i,v] of views.entries()){const e=vecs[i];if(!Array.isArray(e)||e.length!==dim)continue;
+   await db.query(`insert into ranking_vectors(ranking_id,criterion,text,embedding) values ($1::uuid,$2::text,$3::text,$4::vector)
+    on conflict (ranking_id,criterion) do update set text=excluded.text, embedding=excluded.embedding, created_at=now()`,[r.id,v.criterion,v.text,'['+e.join(',')+']']);}
+ }
  return rows.length;
 }

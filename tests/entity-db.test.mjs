@@ -415,3 +415,10 @@ test('team config: entity type templates validated and merged; ranking definitio
  await teams.logTeamCall(db,run,{tool:'team_state'});await teams.finishTeamRun(db,run,{status:'done',summary:'ok'});
  const runs=await teams.listTeamRuns(db);assert.equal(runs[0].calls,1);assert.equal(runs[0].status,'done');
 });
+test('ranking view texts: the whole ranking and one per criterion, with scope filters',()=>{
+ const metrics=new Map([['co2_pc',{label:'CO2 emissions per capita',unit:'t CO2e per capita',description:'Fossil CO2 per person.'}]]);
+ const v=teams.rankingViewTexts({title:'Country Rankings in Europe',scope:{type:'country',filters:{region:'Europe'}},criteria:['co2_pc','population']},metrics);
+ assert.deepEqual(v.map(x=>x.criterion),['','co2_pc','population']);
+ assert.equal(v[0].text,'Country Rankings in Europe. Ranks every country where region is Europe by CO2 emissions per capita, population.');
+ assert.match(v[1].text,/^Country Rankings in Europe by CO2 emissions per capita\. Every country where region is Europe ranked by CO2 emissions per capita \(t CO2e per capita\): Fossil CO2 per person\.$/);
+});

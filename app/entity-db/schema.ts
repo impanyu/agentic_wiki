@@ -143,6 +143,13 @@ export const MIGRATIONS:Migration[]=[
   `alter table rankings add column if not exists embedding vector(${dim})`,
   'create index if not exists rankings_embedding on rankings using hnsw (embedding vector_cosine_ops)',
  ]},
+ // One vector per ranking view: the ranking as a whole (criterion '') and each criterion ("Country Rankings by
+ // CO2 emissions per capita"), so a query about one measure finds that view directly.
+ {version:6,name:'ranking view vectors',statements:dim=>[
+  `create table if not exists ranking_vectors(ranking_id uuid not null references rankings(id) on delete cascade, criterion text not null default '',
+    text text not null, embedding vector(${dim}) not null, created_at timestamptz not null default now(), primary key (ranking_id, criterion))`,
+  'create index if not exists ranking_vectors_embedding on ranking_vectors using hnsw (embedding vector_cosine_ops)',
+ ]},
 ];
 export const SCHEMA_VERSION=MIGRATIONS[MIGRATIONS.length-1].version;
 
