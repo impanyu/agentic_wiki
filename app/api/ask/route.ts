@@ -79,6 +79,11 @@ async function routeAnswer(request:Request,actor:Awaited<ReturnType<typeof getAc
    await database().batch(legacy.results.map(p=>database().prepare("UPDATE pages SET language=? WHERE id=? AND language='und'").bind(languages.get(p.id)!,p.id)));
   }
   const context:AgentContext={userId:uid,ownerId:uid,language,visibility:PUBLIC_EDITION?'public':'private',sourceDocument:sourceDocument||undefined};
+  // Public edition: pages built from the database (rankings, entities) answer first, found by meaning and
+  // chosen by the router model; the older agent-written pages are matched after them.
+  if(PUBLIC_EDITION&&!fork&&!image&&!sourceDocument){const {routeToDatabase}=await import('@/app/teams/router');
+   const r=await routeToDatabase(routingQuestion,request.signal).catch(e=>{console.warn('db route failed',(e as Error).message);return null;});
+   if(r)return respond({redirect:r.href,destination:routingQuestion});}
   const rootRouter=await spawnAgent('root-routing',context.ownerId);
   const rootRoute=await resolveRootRoute(routingQuestion,vector,language,uid,rootRouter,request.signal,!!fork,fromPage);
   const requested=rootRoute.intent;
@@ -128,8 +133,7 @@ async function routeAnswer(request:Request,actor:Awaited<ReturnType<typeof getAc
   // Public edition: no page is generated on the fly. A ranking or entity in the database answers the query
   // (its page is rendered from templates); otherwise the reader is told honestly and the query goes to the
   // closest topic's editor for the next plan.
-  if(PUBLIC_EDITION&&!fork&&!image){const {routeToDatabase}=await import('@/app/teams/router');const r=await routeToDatabase(destination,language);
-   if('href' in r)return respond({redirect:r.href,destination});return respond({error:r.message,notAvailable:true},404);}
+  if(PUBLIC_EDITION&&!fork&&!image){const {recordUnserved}=await import('@/app/teams/router');return respond({error:await recordUnserved(destination,language),notAvailable:true},404);}
   // One generator owns artifact selection after a routing miss.
   const visibility=(PUBLIC_EDITION?'public':'private') as 'public'|'private';
   const keyBytes=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(JSON.stringify([language,destinationKey,uid])));

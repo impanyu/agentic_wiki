@@ -6,8 +6,8 @@ import type {AnswerPage} from '@/app/page-types';
 import {editionPageSql} from '@/app/edition';
 export function database(){if(!env.DB)throw new Error('The answer database is not available. Please try again later.');return env.DB;}
 export function aiKey(){return (env as unknown as Record<string,string>).OPENAI_API_KEY || process.env.OPENAI_API_KEY || '';}
-// Topic teams' editors, reviewers and the manager make the decisions every page depends on: the stronger model.
-export function model(role=''){const settings=env as unknown as Record<string,string>;if(/generation|coding|composer|coder|^(comments|page):|^team-(editor|review|manager)/.test(role))return settings.OPENAI_AGENT_MODEL||process.env.OPENAI_AGENT_MODEL||'gpt-5.6-terra';return settings.OPENAI_MODEL || process.env.OPENAI_MODEL || 'gpt-5.4-mini';}
+// Topic teams (editors, reviewers, the manager and, while we evaluate quality, collectors) use the stronger model.
+export function model(role=''){const settings=env as unknown as Record<string,string>;if(/generation|coding|composer|coder|^(comments|page):|^team-(editor|review|manager|collector)/.test(role))return settings.OPENAI_AGENT_MODEL||process.env.OPENAI_AGENT_MODEL||'gpt-5.6-terra';return settings.OPENAI_MODEL || process.env.OPENAI_MODEL || 'gpt-5.4-mini';}
 export function normalize(text:string){return text.normalize('NFKC').trim().replace(/\s+/g,' ').toLocaleLowerCase('en-US');}
 export type Row={id:string;kind:'static'|'dynamic';dynamic_config:string|null;language:string;labels:string;owner_id:string;question:string;title:string;summary:string;body:string;category:string;sources:string;visibility:'public'|'private';created_at:string;updated_at:string|null;checked_at:string|null;question_count:number;public_write:number};
 export async function getPage(id:string,userId:string):Promise<AnswerPage|null>{

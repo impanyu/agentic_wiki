@@ -74,7 +74,7 @@ async function ask(role:Role,agent:Agent,topicId:string,instructions:string,task
  try{
   const result=await askAgent(agent,RULES+'\n\n'+instructions,task,schema,undefined,undefined,[],{
    // Decisions (editor, reviewer, manager) use the premium class (commercial budget, free fallback); collecting uses the agent chain.
-   llmClass:role==='collector'?'agent':'premium',timeoutMs:40*60_000,maxRounds:budget.rounds,
+   llmClass:'premium',timeoutMs:40*60_000,maxRounds:budget.rounds,
    // A verdict must rest on evidence gathered in this review.
    ...(role==='reviewer'?{validateFinal:async()=>calls<6?'Check with your tools before deciding (coverage, preview_page of every ranking and several entity pages, spot checks against the source); then return the verdict.':undefined}:{}),
    // A collector's report is accepted only when the data refreshes by itself (no recipe problems for the topic's types).

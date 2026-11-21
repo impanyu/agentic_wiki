@@ -138,6 +138,11 @@ export const MIGRATIONS:Migration[]=[
     calls jsonb not null default '[]'::jsonb, cost_usd numeric not null default 0, started_at timestamptz not null default now(), finished_at timestamptz)`,
   'create index if not exists team_runs_topic on team_runs(topic_id, started_at desc)',
  ]},
+ // Rankings are found by meaning too: the router compares a query with each ranking's title, scope and criteria.
+ {version:5,name:'ranking embeddings',statements:dim=>[
+  `alter table rankings add column if not exists embedding vector(${dim})`,
+  'create index if not exists rankings_embedding on rankings using hnsw (embedding vector_cosine_ops)',
+ ]},
 ];
 export const SCHEMA_VERSION=MIGRATIONS[MIGRATIONS.length-1].version;
 
