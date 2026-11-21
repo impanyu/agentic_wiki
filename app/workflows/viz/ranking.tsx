@@ -194,7 +194,7 @@ export default function Ranking({props,setValue,fire,ctx}:VizProps){
    <td className="wf-rank-name">
     <div className="wf-rank-entity">
      <Avatar e={e} color={colorOf(e)}/>
-     <a href={askLink(e.question).href} rel={askLink(e.question).rel} onClick={ev=>ev.stopPropagation()}>{e.name}</a>
+     {(()=>{const l=askLink(e.question);return l.href?<a href={l.href} rel={l.rel} onClick={ev=>ev.stopPropagation()}>{e.name}</a>:<span>{e.name}</span>;})()}
      {e.group&&<span className="wf-rank-chip" style={{['--c' as any]:colorOf(e)}}>{e.group}</span>}
     </div>
    </td>

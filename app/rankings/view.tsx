@@ -62,11 +62,15 @@ export function EntityBody({cards,sections}:{cards:Record<string,unknown>[];sect
    case 'radar_profile':return <RadarProfile {...p}/>;case 'location_map':return <LocationMap {...p}/>;case 'relation_graph':return <RelationGraph {...p}/>;
    case 'timeline':return <Timeline {...p}/>;
    case 'rankings':return <ul className="entity-rankings">{(s.links||[]).map(l=><li key={l.href}><a href={l.href}>{l.title}</a>{l.detail&&<span className="wf-muted"> — {l.detail}</span>}</li>)}</ul>;
-   case 'text':return <>{(s.paragraphs||[]).map((x,i)=><p key={i}>{x}</p>)}</>;
+   case 'text':return <>{(s.paragraphParts||(s.paragraphs||[]).map(x=>[{text:x}])).map((x,i)=><p key={i}><LinkedText parts={x}/></p>)}</>;
    default:return null;
   }};
  return <>
   {cards.length>0&&<StatCards props={{items:cards}} setValue={noop} fire={noop} ctx={ctx}/>}
   {sections.map((s,i)=><section key={i} className="entity-section" aria-label={s.title||undefined}>{s.title&&<h2 id={'section-'+i}>{s.title}</h2>}{viz(s)}</section>)}
  </>;
+}
+// Assembled text with links to the pages it mentions.
+export function LinkedText({parts}:{parts:{text:string;href?:string}[]}){
+ return <>{parts.map((p,i)=>p.href?<a key={i} href={p.href}>{p.text}</a>:<span key={i}>{p.text}</span>)}</>;
 }

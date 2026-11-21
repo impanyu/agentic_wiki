@@ -1,7 +1,7 @@
 import type {Queryable,Row} from './client';
 import {getEntity,metricTable,hybridSearch,RANK_LIMIT} from './repo';
 import {slugify,questionKey} from '@/app/seo/urls';
-import {entityPath,rankingPath,defaultTemplate,type MetricInfo,type MetricFact,type EntityPageData,type Template,type RankingDef,type RankingPageInput,type Point} from '@/app/seo/assemble';
+import {entityPath,rankingPath,defaultTemplate,mentionKey,type MetricInfo,type MetricFact,type EntityPageData,type Template,type RankingDef,type RankingPageInput,type Point} from '@/app/seo/assemble';
 // Reads for the database-driven pages (/rankings/<slug>, /e/<type>/<slug>), the sitemap and link
 // resolution. Read-only; everything a page shows comes from here, assembled by app/seo/assemble.ts.
 const iso=(d:unknown)=>d instanceof Date?d.toISOString():d==null?null:String(d);
@@ -114,7 +114,21 @@ export async function loadEntityPage(db:Queryable,type:string,slug:string):Promi
   for(const m of t.metrics)data.peers[m.key]=t.rows.filter(r=>typeof r[m.column]==='number'&&Number(r[m.column+'_rank'])<=RANK_LIMIT).map(r=>({name:String(r.name),type:String(r.type),value:Number(r[m.column])}));
  }
  data.rankings=await entityRankings(db,data,metrics);
+ // Links: every name the page mentions (attribute values, related entities) that has a page of its own.
+ const names=[...Object.values(e.attributes||{}).filter((v):v is string=>typeof v==='string'&&v.length>1&&v.length<=80&&!/^https?:/i.test(v)),
+  ...relations.outgoing.map(r=>r.name),...relations.incoming.flatMap(g=>g.sample.map(x=>x.name))];
+ data.links=await resolveMentions(db,names,e.id);
  return {data,canonical:found.canonical,updatedAt:iso(snap?.updated_at)};
+}
+// {mentionKey(name) → page path} for the names that have an entity page (a type with a template), the page
+// itself excluded; an exact name wins over an alias. Resolved at render time, so links stay two-way: a new page
+// is linked from every page that mentions it the next time those pages are rendered.
+export async function resolveMentions(db:Queryable,names:string[],selfId?:string):Promise<Record<string,string>>{
+ const list=[...new Set(names.map(n=>String(n||'').trim()).filter(n=>n&&n.length<=120))].slice(0,400);if(!list.length)return {};
+ const r=await db.query<{k:string;type:string;name:string}>(`select distinct on (n.k) n.k, e.type, e.name from unnest($1::text[]) n(k)
+  join entities e on e.name_keys && ent_keys(n.k,'{}'::text[]) join entity_types t on t.type=e.type and t.template <> '{}'::jsonb
+  where ($2::uuid is null or e.id <> $2::uuid) order by n.k, (ent_norm(e.name)=ent_norm(n.k)) desc, e.created_at`,[list,selfId||null]);
+ return Object.fromEntries(r.rows.map(x=>[mentionKey(x.k),entityPath(x.type,x.name)]));
 }
 // Every ranking definition whose scope contains the entity, with its rank on each criterion.
 async function entityRankings(db:Queryable,d:EntityPageData,metrics:Record<string,MetricFact>){
@@ -127,14 +141,14 @@ async function entityRankings(db:Queryable,d:EntityPageData,metrics:Record<strin
   const crit=r.criteria.slice(0,12);if(!crit.length)continue;
   const label=(c:string)=>labels[c.split('@')[0]]?.label||c;
   if(!Object.keys(r.scope.filters||{}).length){
-   out.push({slug:r.slug,title:r.title,ranks:crit.map(c=>{const f=metrics[c.replace(/@\d+$/,'')];return {key:c.replace('@','_v'),label:label(c),rank:f?.rank??null,of:f?.of??null};})});
+   out.push({slug:r.slug,title:r.title,filters:{},ranks:crit.map(c=>{const f=metrics[c.replace(/@\d+$/,'')];return {key:c.replace('@','_v'),label:label(c),rank:f?.rank??null,of:f?.of??null};})});
    continue;
   }
   try{
    const t=await metricTable(db,{type:r.scope.type,filters:r.scope.filters,metrics:crit,period:'latest'});
    const row=t.rows.find(x=>x.entity_id===d.entity.id);
    if(!row){const s=await hybridSearch(db,{query:d.entity.name,type:r.scope.type,filters:r.scope.filters,limit:10});if(!s.results.some(x=>x.id===d.entity.id))continue;}
-   out.push({slug:r.slug,title:r.title,ranks:t.metrics.map(m=>({key:m.column,label:m.label,rank:row&&typeof row[m.column+'_rank']==='number'?Number(row[m.column+'_rank']):!row&&metrics[m.key]?RANK_LIMIT+1:null,of:m.count||null}))});
+   out.push({slug:r.slug,title:r.title,filters:r.scope.filters||{},ranks:t.metrics.map(m=>({key:m.column,label:m.label,rank:row&&typeof row[m.column+'_rank']==='number'?Number(row[m.column+'_rank']):!row&&metrics[m.key]?RANK_LIMIT+1:null,of:m.count||null}))});
   }catch(e){console.warn('entity page: ranking scope failed',r.slug,(e as Error).message);}
  }
  return out;

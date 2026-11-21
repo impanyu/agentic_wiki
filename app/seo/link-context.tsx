@@ -6,9 +6,11 @@ import {askPath,questionKey} from './urls';
 // the others keep /?ask= (which generates a page) with rel="nofollow", and robots.txt keeps
 // crawlers out of /?ask= so no crawler ever triggers generation.
 export const AskTargets=createContext<Record<string,string>|null>(null);
+// On database pages (targets given) a name without a page of its own is plain text (href null): nothing is generated
+// on the fly; the page appears — and the link with it — once the topic's team creates it.
 export function useAskLink(){
  const targets=useContext(AskTargets);
- return (question:string)=>{const href=targets?.[questionKey(question)];return href?{href,rel:undefined}:{href:askPath(question),rel:'nofollow'};};
+ return (question:string):{href:string|null;rel?:string}=>{const href=targets?.[questionKey(question)];return href?{href,rel:undefined}:targets?{href:null}:{href:askPath(question),rel:'nofollow'};};
 }
 // The crawlable page's view of its rankings: the criterion in the address (?rank=, read on the
 // server so the HTML is already sorted by it), the address of each criterion's view (so the

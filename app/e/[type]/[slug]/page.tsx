@@ -9,7 +9,7 @@ import {assembleEntityPage,entityPath} from '@/app/seo/assemble';
 import {jsonLd} from '@/app/seo/structured-data';
 import {questionKey,slugify} from '@/app/seo/urls';
 import {linkParts} from '@/app/workflows/viz/ranking-data';
-import {DbShell,EntityBody} from '@/app/rankings/view';
+import {DbShell,EntityBody,LinkedText} from '@/app/rankings/view';
 // /e/<type>/<slug>: one entity's page, rendered from its row in the entity database with its type's
 // template (entity_types.template, or a default built from the entity's metrics). No agent at page time:
 // sentences are template patterns filled with values, the card and charts are platform components.
@@ -54,7 +54,7 @@ export default async function EntityPage(props:Props){
   <script type="application/ld+json" dangerouslySetInnerHTML={{__html:jsonLd(ld)}}/>
   <DbShell askTargets={askTargets} className="answer template-wiki-v1 template-entity-v1">
    <div className="page-meta"><span>{d.type.label.charAt(0).toUpperCase()+d.type.label.slice(1)}</span></div>
-   <header className="wiki-heading"><h1>{model.title}</h1>{model.lead.length>0&&<p className="lead">{model.lead.join(' ')}</p>}</header>
+   <header className="wiki-heading"><h1>{model.title}</h1>{model.lead.length>0&&<p className="lead">{model.leadParts.map((s,i)=><span key={i}>{i?' ':''}<LinkedText parts={s}/></span>)}</p>}</header>
    <EntityBody cards={model.cards} sections={model.sections}/>
    {model.references.length>0&&<section className="sources" aria-labelledby="references"><h2 id="references">References</h2><ol>
     {model.references.map((r,i)=><li key={i} id={'source-'+(i+1)}><div className="source-entry"><span className="source-title">{linkParts(r.source).map((p,j)=>p.href?<a key={j} href={p.href} target="_blank" rel="noopener noreferrer">{p.text}</a>:<span key={j}>{p.text}</span>)}</span>{r.what&&<span className="wf-muted"> — {r.what}</span>}</div></li>)}

@@ -150,6 +150,18 @@ period "all"): readers rank any period (?year=2005, its own crawlable title and 
 latest value of each entity, and the time views plot every period — values over time, rank over
 time (bump chart) and a bar race played through the years.
 
+### Links between pages: resolved at render time, so always two-way
+Pages are assembled when they are requested, and so are their links. While assembling, every name
+the page mentions — attribute values, related entities (outgoing and incoming relations), ranking
+members, peers — is looked up in the database; when it has a page the text links to it, otherwise it
+stays plain text. A value with no page of its own may lead to the sub-ranking scoped to it
+("Europe & Central Asia" → Country Rankings in Europe & Central Asia); ranks lead to the ranking's
+criterion view. Because nothing is stored, links are two-way without rewriting anything: when Paris
+gets a page, Paris links to France and France's "capital: Paris" links to Paris the next time either
+is rendered (a page cache, when added, is invalidated for the pages that mention the new entity).
+Nothing is generated on the fly: a name without a page is not a link. Mentioned entities without
+pages are the editor's best planning signal (missing_pages: by type, most-mentioned first).
+
 ### Rankings stop at 1,000
 Every ranking ranks at most the top 1,000 entities on each criterion; nobody reads past that.
 The page's rows are the union of each criterion's top 1,000 (ranks computed over the whole scope,

@@ -69,7 +69,7 @@ export function AnswerText({body,title,summary,labels,sources,highlights,links=[
   if(!SITE_LINK.test(value))return inlineSegments(value,id);
   return value.split(SITE_LINK_SPLIT).map((part,i)=>{const m=SITE_LINK_ONE.exec(part);if(!m)return <span key={id+'.s'+i}>{inlineSegments(part,id+'.s'+i)}</span>;
    const q=askOf(m[2]);const target=q?askLink(q):{href:m[2],rel:undefined};
-   return <a key={id+'.s'+i} className="site-link" href={target.href} rel={target.rel}>{m[1]}</a>;});
+   return target.href?<a key={id+'.s'+i} className="site-link" href={target.href} rel={target.rel}>{m[1]}</a>:<span key={id+'.s'+i}>{m[1]}</span>;});
  }
  function inlineSegments(value:string,id:string){return inlineParts(value).map((part,i)=>{const key=id+'.'+i;const link=part.match(linkPattern);if(link){const sourceLabel=isSourceLabel(link[1]);return <span key={key}>{!sourceLabel&&text(link[1],key)}{citation(link[2],link[1],key)}</span>;}if(part.startsWith('**')&&part.endsWith('**'))return <strong key={key}>{text(part.slice(2,-2),key)}</strong>;if(part.startsWith('*')&&part.endsWith('*'))return <em key={key}>{text(part.slice(1,-1),key)}</em>;return text(part,key);});}
  const richDocument=labels.richBody===body?labels.richContent:undefined;

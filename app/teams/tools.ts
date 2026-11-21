@@ -32,6 +32,7 @@ const teamTools={
  save_ranking:tool('save_ranking','Editor: save a ranking definition (create or update by slug). Rendered at /rankings/<slug> from the entity database. title: "<scope as a singular noun> Rankings" (never "Top…", no criterion). scopeJson: {"type": "...", "filters": {...}} (filters as for entity_search, e.g. {"region":"Europe & Central Asia"}). criteria: comma list of metric keys (1–12, must have data). configJson: {"default": key, "views": "auto", "period": "all", "group": attribute, "lead": pattern, "about": [patterns], "related": [slugs]}. '+FORMAT,{slug:string,title:string,scopeJson:string,criteria:string,configJson:string}),
  save_plan:tool('save_plan','Editor: add items to the topic plan (roadmap) — what the team does next. kind: "ranking" (a ranking to create or extend), "entity_pages" (a set of entities that must have pages, e.g. every country, or the cities over 1 million), "ingest" (entities or data the collector must collect next — the collector works from these), "refresh" (data to update on a cadence). Decide from the topic\'s scope, coverage gaps and readers\' queries (read_inbox). itemsJson: JSON array string of {kind, title, spec: object with the details (type, filters, metrics, sources, why), priority 0–100, cadence: "" | daily | weekly | monthly | yearly}.',{itemsJson:string}),
  close_plan_items:tool('close_plan_items','Mark plan items done or cancelled (editor: any item; collector: ingest/refresh items it has completed). idsJson: JSON array string of item ids. status: done | cancelled. note: what was done or why not.',{idsJson:string,status:string,note:string}),
+ missing_pages:tool('missing_pages','Editor: entities that other pages mention (as related entities: capital, brand, located in…) but that have no page yet, because their type has no published template or has not been collected — grouped by type with how often they are mentioned and the most-mentioned names. Each new page here is linked from every page that mentions it at once. Plan them (save_plan: "ingest" for the collector, then a template) by how much they connect. type: "" for all types.',{type:string}),
  read_inbox:tool('read_inbox','Editor: readers\' queries the router could not serve and sent to this topic (no page and no data yet), newest first, with how often each was asked. Turn the worthwhile ones into plan items (save_plan), then mark them read with triage_queries.',{limit:integer}),
  triage_queries:tool('triage_queries','Editor: mark inbox queries as read. idsJson: JSON array string of inbox ids. note: the decision (e.g. "planned: ingest every perfume of Chanel" or "out of scope").',{idsJson:string,note:string}),
  record_decision:tool('record_decision','Record how a conflict was resolved — between the brief and the platform rules, between the brief and what the data allows, or between team members — so the reviewer judges the work against it. conflict: what clashed. decision: what was done. why: the reason readers are served best this way.',{conflict:string,decision:string,why:string}),
@@ -40,7 +41,7 @@ const teamTools={
 };
 const ROLE_TOOLS:Record<Role,string[]>={
  collector:['team_state','coverage','set_entity_schema','save_recipe','run_recipe','close_plan_items'],
- editor:['team_state','coverage','set_entity_template','save_ranking','save_plan','close_plan_items','read_inbox','triage_queries','record_decision','preview_page'],
+ editor:['team_state','coverage','set_entity_template','save_ranking','save_plan','close_plan_items','missing_pages','read_inbox','triage_queries','record_decision','preview_page'],
  reviewer:['team_state','coverage','preview_page'],
  manager:['team_state','coverage','preview_page','record_decision','set_topic_brief'],
 };
@@ -148,6 +149,13 @@ export async function runTeamTool(role:Role,name:string,args:Record<string,unkno
    let n=0;for(const id of ids.map(String)){const it=mine.get(id);if(!it)continue;if(role==='collector'&&!['ingest','refresh'].includes(it.kind))continue;
     await updateRoadmapItem(db,id,{status:it.cadence&&status==='done'?'pending':status,spec:{...it.spec,lastNote:String(args.note||'').slice(0,1000),lastDoneBy:role}});n++;}
    return {data:{updated:n}};}
+  case 'missing_pages':{
+   const t=String(args.type||'').trim();
+   const r=await db.query<{type:string;entities:number;mentions:number;top:unknown}>(`with m as (select e.id,e.type,e.name,count(r.subject_id)::int n from entities e
+     join relations r on r.object_id=e.id left join entity_types t on t.type=e.type
+     where (t.type is null or t.template='{}'::jsonb or t.status<>'published') and ($1::text='' or e.type=$1::text) group by e.id,e.type,e.name)
+    select type, count(*)::int entities, sum(n)::int mentions, (array_agg(name||' ('||n||')' order by n desc))[1:15] top from m group by type order by mentions desc limit 20`,[t?normalizeType(t):'']);
+   return {data:{types:r.rows,note:'Mentions count relations pointing at these entities from pages that exist. Types listed here have no published page template yet.'}};}
   case 'read_inbox':{const editorId=await topicEditorId(db,topicId);if(!editorId)return {data:{queries:[]}};
    const q=await listInbox(db,editorId,{limit:Math.min(200,Number(args.limit)||50)});
    const counts=new Map<string,number>();for(const e of q){const k=e.query.toLowerCase().trim();counts.set(k,(counts.get(k)||0)+1);}

@@ -82,7 +82,7 @@ const data=(over={})=>({entity:{id:'e1',name:'Germany',type:'country',descriptio
  rankings:[{slug:'country-rankings',title:'Country Rankings',ranks:[{key:'population',label:'Population',rank:19,of:217},{key:'gdp_usd',label:'GDP',rank:1200,of:2000},{key:'area_km2',label:'Area',rank:null,of:217}]}],...over});
 
 test('entity page: lead, card, sections in template order, references, as-of stamp',()=>{
- const m=a.assembleEntityPage(data());
+ const m=a.assembleEntityPage(data({links:{berlin:'/e/city/berlin',munich:'/e/city/munich',hamburg:'/e/city/hamburg'}}));
  assert.equal(m.title,'Germany');
  assert.deepEqual(m.lead,['Germany is a country in Europe & Central Asia.','It is 19th of 217 by population.'],'GDP rank outside the top 1,000 drops its sentence; alternatives pick the first that fills');
  assert.deepEqual(m.cards.map(c=>c.label),['Population','GDP','Missing metric'].slice(0,2).concat(['Capital','Region']));
@@ -231,4 +231,17 @@ test('lead: type labels read as common nouns; a sentence repeating facts already
   '{name} is a {type.label} with a population of {metric.population} ({period.population}), ranked {rank.population} of {of.population} by population.','It lies in {attr.region}.']}}};
  const lead=a.assembleEntityPage(d).lead;
  assert.equal(lead.length,2);assert.match(lead[0],/^Germany is a country\./);assert.equal(lead[1],'It lies in Europe & Central Asia.');
+});
+test('links: filled values link to existing pages only; attributes fall back to the sub-ranking scoped to them; ranks link to the ranking view',()=>{
+ const base=data();
+ const d={...base,type:{...base.type,template:{lead:['{name}\'s capital is {rel.capital}; it lies in {attr.region} and is {rank.population} by population.'],card:['rel.capital','attr.region']}},
+  rankings:[...base.rankings,{slug:'country-rankings-europe',title:'Country Rankings in Europe & Central Asia',filters:{region:'Europe & Central Asia'},ranks:[]}]};
+ const without=a.assembleEntityPage(d);
+ assert.deepEqual(without.leadParts[0].filter(p=>p.href).map(p=>[p.text,p.href]),[['Europe & Central Asia','/rankings/country-rankings-europe'],['19th','/rankings/country-rankings']]);
+ assert.equal(without.cards[0].href,undefined,'no page for Berlin yet: plain text');
+ // Once Berlin has a page, the same page links to it — no change to the page itself.
+ const withBerlin=a.assembleEntityPage({...d,links:{berlin:'/e/city/berlin'}});
+ assert.deepEqual(withBerlin.leadParts[0].find(p=>p.text==='Berlin'),{text:'Berlin',href:'/e/city/berlin'});
+ assert.equal(withBerlin.cards[0].href,'/e/city/berlin');assert.equal(withBerlin.cards[1].href,'/rankings/country-rankings-europe');
+ assert.equal(a.partsText(withBerlin.leadParts[0]),withBerlin.lead[0]);
 });

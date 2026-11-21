@@ -30,7 +30,7 @@ const medal=(rank:number|null)=>rank!=null&&rank>=1&&rank<=3?' m'+rank:'';
 function EntityLink({name,href}:{name:string;href?:string|null}){
  const ask=useAskLink();
  if(href)return /^https:/i.test(href)?<a href={href} target="_blank" rel="noopener noreferrer">{name}</a>:<a href={href}>{name}</a>;
- const l=ask(name);return <a href={l.href} rel={l.rel}>{name}</a>;
+ const l=ask(name);return l.href?<a href={l.href} rel={l.rel}>{name}</a>:<span>{name}</span>;
 }
 
 // ───────────── stat_cards ─────────────

@@ -94,13 +94,28 @@ export function fill(pattern:string,values:Record<string,string>):string|null{
  const s=String(pattern||'').replace(PLACEHOLDER,(_m,k:string)=>{const v=values[k];if(v==null||v===''){missing=true;return '';}return v;});
  return missing||!s.trim()?null:s.trim();
 }
+// Text with links: a sentence as parts, each filled value linking to the page of what it names when one exists.
+export type Part={text:string;href?:string};
+export function fillParts(pattern:string,values:Record<string,string>,hrefs:Record<string,string>={}):Part[]|null{
+ const parts:Part[]=[];let last=0,missing=false;const src=String(pattern||'');
+ for(const m of src.matchAll(PLACEHOLDER)){const v=values[m[1]];if(v==null||v===''){missing=true;break;}
+  if(m.index!>last)parts.push({text:src.slice(last,m.index)});parts.push(hrefs[m[1]]?{text:v,href:hrefs[m[1]]}:{text:v});last=m.index!+m[0].length;}
+ if(missing)return null;if(last<src.length)parts.push({text:src.slice(last)});
+ const text=parts.map(p=>p.text).join('').trim();if(!text)return null;
+ // Trim like fill(): leading/trailing whitespace of the sentence.
+ if(parts.length){parts[0]={...parts[0],text:parts[0].text.replace(/^\s+/,'')};const l=parts.length-1;parts[l]={...parts[l],text:parts[l].text.replace(/\s+$/,'')};}
+ return parts.filter(p=>p.text);
+}
+export const partsText=(parts:Part[])=>parts.map(p=>p.text).join('');
+// The key mentions are resolved by (names, aliases): case and spacing ignored.
+export const mentionKey=(name:string)=>String(name||'').normalize('NFKC').toLowerCase().replace(/\s+/g,' ').trim();
 export const fillAll=(patterns:unknown,values:Record<string,string>):string[]=>(Array.isArray(patterns)?patterns:typeof patterns==='string'?[patterns]:[]).map(p=>typeof p==='string'?fill(p,values):null).filter((s):s is string=>!!s);
 
 // ───────────── entity pages ─────────────
 export type Section={kind:string;title?:string;metrics?:string[];metric?:string;sentences?:string[]};
 export type Template={lead?:(string|string[])[];card?:string[];sections?:Section[]};
 export type EntityRelations={outgoing:{predicate:string;name:string;type:string;source?:string}[];incoming:{predicate:string;type:string;count:number;sample:{name:string}[]}[]};
-export type EntityRankingRef={slug:string;title:string;ranks:{key:string;label:string;rank:number|null;of:number|null}[]};
+export type EntityRankingRef={slug:string;title:string;filters?:Record<string,unknown>;ranks:{key:string;label:string;rank:number|null;of:number|null}[]};
 export type EntityPageData={
  entity:{id:string;name:string;type:string;description:string;aliases:string[];ids:Record<string,string>;attributes:Record<string,unknown>;image?:string|null};
  type:{label:string;plural:string;template:Template|null};
@@ -110,9 +125,12 @@ export type EntityPageData={
  // Latest values of every peer (the top 1,000 of the type) for the metrics position/peer_compare/radar name.
  peers:Record<string,{name:string;type?:string;value:number}[]>;
  rankings:EntityRankingRef[];
+ // Pages that exist for names this page mentions (attribute values, related entities): mentionKey(name) → path.
+ // Resolved when the page is assembled, so links appear on old pages as soon as the new page exists.
+ links?:Record<string,string>;
 };
-export type PageSection={component:string;title?:string;props?:Record<string,unknown>;paragraphs?:string[];links?:{href:string;title:string;detail:string}[]};
-export type EntityPageModel={title:string;lead:string[];cards:Record<string,unknown>[];sections:PageSection[];references:{source:string;what:string}[];asOf:string|null;
+export type PageSection={component:string;title?:string;props?:Record<string,unknown>;paragraphs?:string[];paragraphParts?:Part[][];links?:{href:string;title:string;detail:string}[]};
+export type EntityPageModel={title:string;lead:string[];leadParts:Part[][];cards:Record<string,unknown>[];sections:PageSection[];references:{source:string;what:string}[];asOf:string|null;
  description:string;properties:{name:string;value:number|string;unitText?:string}[]};
 
 const LOCATION_KEYS=['iso3','iso2','code','iso_3166_2','region_code','fips'];
@@ -151,10 +169,10 @@ export function defaultTemplate(d:EntityPageData):Template{
 // A sentence whose facts (the metric, rank, attribute… values it names; name and type do not count) were all
 // stated by an earlier sentence is dropped, so two patterns never repeat the same fact.
 const facts=(pattern:string)=>[...pattern.matchAll(PLACEHOLDER)].map(m=>m[1]).filter(k=>k!=='name'&&!k.startsWith('type.')).map(k=>k.replace(/^(metric|period|rank|of|change)\./,''));
-function leadSentences(patterns:unknown[],values:Record<string,string>):string[]{
+function leadSentences(patterns:unknown[],values:Record<string,string>,hrefs:Record<string,string>={}):Part[][]{
  const said=new Set<string>();
  return patterns.flatMap(p=>{const alts=Array.isArray(p)?p:[p];
-  for(const a of alts){if(typeof a!=='string')continue;const s=fill(a,values);if(!s)continue;
+  for(const a of alts){if(typeof a!=='string')continue;const s=fillParts(a,values,hrefs);if(!s)continue;
    const f=facts(a);if(f.length&&f.every(k=>said.has(k)))return [];f.forEach(k=>said.add(k));return [s];}
   return [];});
 }
@@ -171,14 +189,23 @@ export function assembleEntityPage(d:EntityPageData,locale='en'):EntityPageModel
  const e=d.entity;const tpl:Template=d.type.template&&(d.type.template.lead||d.type.template.card||d.type.template.sections)?d.type.template:defaultTemplate(d);
  const relMap:Record<string,{name:string}[]>={};for(const r of d.relations.outgoing)(relMap[r.predicate]??=[]).push({name:r.name});
  const values=entityValues({name:e.name,typeLabel:d.type.label||humanize(e.type).toLowerCase(),typePlural:d.type.plural,metrics:d.metrics,defs:d.defs,attributes:e.attributes,relations:relMap,locale});
+ // Where each filled value leads: attributes and related entities to their pages (when they exist), ranks to the ranking view.
+ const links=d.links||{};const pageOf=(name:string)=>links[mentionKey(name)];
+ const hrefs:Record<string,string>={};
+ // An attribute value without a page of its own can still lead to the sub-ranking scoped to it ("Europe & Central Asia" →
+ // Country Rankings in Europe & Central Asia).
+ const scopedRanking=(k:string,t:string)=>{const r=d.rankings.find(x=>{const f=x.filters?.[k];return typeof f==='string'&&f.toLowerCase()===t.toLowerCase();});return r?rankingPath(r.slug):undefined;};
+ for(const [k,v] of Object.entries(e.attributes||{})){const t=scalarText(v);const h=t&&(pageOf(t)||scopedRanking(k,t));if(h)hrefs['attr.'+k]=h;}
+ for(const [p,list] of Object.entries(relMap)){const h=list?.[0]&&pageOf(list[0].name);if(h)hrefs['rel.'+p]=h;}
+ for(const k of Object.keys(d.metrics)){const r=d.rankings.find(x=>x.ranks.some(y=>y.key===k));if(r){const h=rankingPath(r.slug)+(r.ranks[0]?.key===k?'':'?rank='+encodeURIComponent(k));hrefs['rank.'+k]=h;hrefs['of.'+k]=h;}}
  const def=(k:string):MetricInfo=>d.defs[k]||{key:k,label:humanize(k),unit:'',order:'desc',format:''};
  const used=new Set<string>();const relUsed=new Set<string>();
  const firstRanking=(k:string)=>d.rankings.find(r=>r.ranks.some(x=>x.key===k));
  // Card
  const cards:Record<string,unknown>[]=[];
  for(const item of tpl.card||[]){
-  if(item.startsWith('attr.')){const k=item.slice(5),s=scalarText(e.attributes?.[k]);if(s)cards.push({label:humanize(k),value:s});continue;}
-  if(item.startsWith('rel.')){const p=item.slice(4),r=d.relations.outgoing.find(x=>x.predicate===p);if(r){relUsed.add(p);cards.push({label:humanize(p),value:r.name,href:entityPath(r.type,r.name)});}continue;}
+  if(item.startsWith('attr.')){const k=item.slice(5),s=scalarText(e.attributes?.[k]);if(s){const h=pageOf(s)||scopedRanking(k,s);cards.push({label:humanize(k),value:s,...(h?{href:h}:{})});}continue;}
+  if(item.startsWith('rel.')){const p=item.slice(4),r=d.relations.outgoing.find(x=>x.predicate===p);if(r){relUsed.add(p);const h=pageOf(r.name);cards.push({label:humanize(p),value:r.name,...(h?{href:h}:{})});}continue;}
   const k=item.startsWith('metric.')?item.slice(7):item;const f=d.metrics[k];
   if(!f){const s=scalarText(e.attributes?.[k]);if(s)cards.push({label:humanize(k),value:s});continue;}
   used.add(k);const c=criterionOf(def(k));const r=firstRanking(k);const outside=f.rank!=null&&f.rank>SHOWN_RANKS;
@@ -225,8 +252,9 @@ export function assembleEntityPage(d:EntityPageData,locale='en'):EntityPageModel
     break;}
    case 'location_map':{const loc=locationOf(e);if(loc)sections.push({component:'location_map',title:s.title||'Location',props:loc});break;}
    case 'relations':{
-    const rels=[...d.relations.outgoing.map(r=>({predicate:humanize(r.predicate),name:r.name,type:r.type,href:entityPath(r.type,r.name)})),
-     ...d.relations.incoming.flatMap(g=>g.sample.map(x=>({predicate:humanize(g.predicate)+' of',name:x.name,type:g.type,href:entityPath(g.type,x.name)})))];
+    const link=(name:string)=>{const h=pageOf(name);return h?{href:h}:{};};
+    const rels=[...d.relations.outgoing.map(r=>({predicate:humanize(r.predicate),name:r.name,type:r.type,...link(r.name)})),
+     ...d.relations.incoming.flatMap(g=>g.sample.map(x=>({predicate:humanize(g.predicate)+' of',name:x.name,type:g.type,...link(x.name)})))];
     if(!rels.length)break;d.relations.outgoing.forEach(r=>relUsed.add(r.predicate));
     sections.push({component:'relation_graph',title:s.title||'Related',props:{center:{name:e.name},relations:rels.slice(0,80)}});
     break;}
@@ -237,14 +265,15 @@ export function assembleEntityPage(d:EntityPageData,locale='en'):EntityPageModel
     break;}
    case 'timeline':{const ev=datedAttributes(e.attributes);if(ev.length)sections.push({component:'timeline',title:s.title||'Timeline',props:{events:ev}});break;}
    case 'text':{
-    const paragraphs=fillAll(s.sentences,values);if(!paragraphs.length)break;
+    const sentenceParts=(Array.isArray(s.sentences)?s.sentences:[]).map(p=>typeof p==='string'?fillParts(p,values,hrefs):null).filter((x):x is Part[]=>!!x);
+    const paragraphs=sentenceParts.map(partsText);if(!paragraphs.length)break;
     for(const p of s.sentences||[])for(const m of String(p).matchAll(PLACEHOLDER)){const [ns,k]=m[1].split('.');if(k&&['metric','period','rank','of','change'].includes(ns)&&d.metrics[k])used.add(k);}
-    sections.push({component:'text',title:s.title,paragraphs:[paragraphs.join(' ')]});
+    sections.push({component:'text',title:s.title,paragraphs:[paragraphs.join(' ')],paragraphParts:[sentenceParts.flatMap((x,i)=>i?[{text:' '},...x]:x)]});
     break;}
    default:break;// unknown kinds are ignored
   }
  }
- const lead=leadSentences(tpl.lead||[],values);
+ const leadParts=leadSentences(tpl.lead||[],values,hrefs);const lead=leadParts.map(partsText);
  for(const p of (tpl.lead||[]).flat())for(const m of String(p).matchAll(PLACEHOLDER)){const [ns,k]=m[1].split('.');if(k&&d.metrics[k]&&ns!=='attr'&&ns!=='rel')used.add(k);}
  // References: the sources of the facts shown, each with what it supports.
  const bySource=new Map<string,Set<string>>();
@@ -256,7 +285,7 @@ export function assembleEntityPage(d:EntityPageData,locale='en'):EntityPageModel
  const properties:EntityPageModel["properties"]=Object.entries(d.metrics).map(([k,f])=>{const c=criterionOf(def(k));return {name:c.label,value:f.value,...(def(k).unit?{unitText:def(k).unit}:{})};});
  for(const [k,v] of Object.entries(e.attributes||{})){const s=scalarText(v);if(s&&s.length<200)properties.push({name:humanize(k),value:s});}
  const description=(lead.join(' ')||e.description||e.name).slice(0,300);
- return {title:e.name,lead,cards,sections,references,asOf:stamps.length?stamps[stamps.length-1]:null,description,properties};
+ return {title:e.name,lead,leadParts,cards,sections,references,asOf:stamps.length?stamps[stamps.length-1]:null,description,properties};
 }
 
 // ───────────── ranking pages ─────────────
