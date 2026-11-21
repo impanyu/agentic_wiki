@@ -118,10 +118,14 @@ entity. The crawler executes the recipes on schedule and populates the database 
 ### Rankings stop at 1,000
 Every ranking ranks at most the top 1,000 entities on each criterion; nobody reads past that.
 The page's rows are the union of each criterion's top 1,000 (ranks computed over the whole scope,
-so they are exact), all in the HTML; readers see them in soft pages of 50. Completeness therefore
-means every entity that could place in the top 1,000 is in the DB — the long tail need not be
-collected for rankings. Entities outside the top 1,000 keep their entity pages ("outside the top
-1,000").
+so they are exact), all in the HTML; readers see them in soft pages of 50. The cap limits what is
+shown, never what is collected: collection aims at the whole universe, because each criterion has
+a different top 1,000, editors add criteria and composite metrics over time (today's long tail can
+lead tomorrow's ranking), and every entity has its own page. The minimum bar is that every entity
+that could place in the top 1,000 on any criterion is in the DB; types with bulk sources (catalogs,
+dumps, list APIs) are collected in full, costly page-by-page types first to that bar and then
+toward the tail by priority. Entities outside the top 1,000 keep their entity pages ("outside the
+top 1,000").
 
 Because page writing is gone, one editor covers a domain of related types (Countries &
 regions, Perfume & beauty, Phones & electronics, Universities…): tens to a couple hundred
