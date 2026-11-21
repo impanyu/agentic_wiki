@@ -15,6 +15,16 @@ const loadingViz=()=><div className="wf-viz wf-viz-loading" aria-busy="true"/>;
 const EChart=dynamic(()=>import('./viz/echart'),{ssr:false,loading:loadingViz});
 // Server-rendered too: the crawlable page (/p/…) ships the full ranking in its HTML; echarts loads in effects.
 const Ranking=dynamic(()=>import('./viz/ranking'),{loading:loadingViz});
+// Entity-page components, server-rendered as well: the React/SVG ones ship complete in the HTML; the ECharts
+// ones ship a summary and a fallback drawing and load echarts in effects.
+const StatCards=dynamic(()=>import('./viz/entity-viz').then(m=>m.StatCards),{loading:loadingViz});
+const Position=dynamic(()=>import('./viz/entity-viz').then(m=>m.Position),{loading:loadingViz});
+const PeerCompare=dynamic(()=>import('./viz/entity-viz').then(m=>m.PeerCompare),{loading:loadingViz});
+const EntityTimeline=dynamic(()=>import('./viz/entity-viz').then(m=>m.Timeline),{loading:loadingViz});
+const Trend=dynamic(()=>import('./viz/entity-charts').then(m=>m.Trend),{loading:loadingViz});
+const RadarProfile=dynamic(()=>import('./viz/entity-charts').then(m=>m.RadarProfile),{loading:loadingViz});
+const LocationMap=dynamic(()=>import('./viz/entity-charts').then(m=>m.LocationMap),{loading:loadingViz});
+const RelationGraph=dynamic(()=>import('./viz/entity-charts').then(m=>m.RelationGraph),{loading:loadingViz});
 const Scene3D=dynamic(()=>import('./viz/scene3d'),{ssr:false,loading:loadingViz});
 const MediaPlayer=dynamic(()=>import('./viz/media'),{ssr:false,loading:loadingViz});
 const Diagram=dynamic(()=>import('./viz/diagram'),{ssr:false,loading:loadingViz});
@@ -169,7 +179,8 @@ export function renderComponent(p:ComponentProps):ReactNode{
   case 'key_value':return <dl className="wf-kv" style={{gridTemplateColumns:`repeat(${Math.min(3,Number(props.columns)||1)},minmax(0,auto) minmax(0,1fr))`}}>{(asList(props.items)).map((it:any,i:number)=><Fragment key={i}><dt>{it.label}</dt><dd>{fmt(it.value,it.format,ctx.locale)}</dd></Fragment>)}</dl>;
   case 'progress_bar':{const v=Math.max(0,Math.min(100,num(props.value)??0));return <div className={'wf-progress tone-'+(props.tone||'info')}>{props.label&&<span>{props.label} <b>{Math.round(v)}%</b></span>}<div role="progressbar" aria-valuenow={v} aria-valuemin={0} aria-valuemax={100}><i style={{width:v+'%'}}/></div></div>;}
   case 'gauge':return <Gauge {...p}/>;
-  case 'timeline':return <ol className="wf-timeline">{(asList(props.items)).map((it:any,i:number)=><li key={i} className={'tone-'+(it.tone||'info')}><time>{it.time}</time><strong>{it.title}</strong>{it.text&&<p>{it.text}</p>}</li>)}</ol>;
+  // events [{date,label,detail,href}]; the older items [{time,title,text,tone}] still render.
+  case 'timeline':return <EntityTimeline props={props} setValue={setValue} fire={fire} ctx={ctx}/>;
   case 'steps':return <ol className="wf-steps">{(asList(props.items)).map((it:any,i:number)=><li key={i} className={'st-'+(it.status||'pending')}><span className="dot">{it.status==='done'?'✓':it.status==='error'?'!':i+1}</span><div><strong>{it.title}</strong>{it.text&&<p className="wf-muted">{it.text}</p>}</div></li>)}</ol>;
   case 'image':{const src=mediaUrl(props.src,ctx.pageId);return src?<figure className="wf-image"><img src={src} alt={props.alt||props.caption||''} style={{objectFit:props.fit||'contain',height:props.height?Number(props.height):undefined}}/>{props.caption&&<figcaption>{props.caption}</figcaption>}</figure>:<p className="wf-muted">{ctx.t('Image unavailable.')}</p>;}
   case 'gallery':return <Gallery {...p}/>;
@@ -178,6 +189,13 @@ export function renderComponent(p:ComponentProps):ReactNode{
   case 'code':return <CodeBlock props={props} setValue={setValue} fire={fire} ctx={ctx}/>;
   case 'echart':return <EChart props={props} setValue={setValue} fire={fire} ctx={ctx}/>;
   case 'ranking':return <Ranking props={props} setValue={setValue} fire={fire} ctx={ctx}/>;
+  case 'stat_cards':return <StatCards props={props} setValue={setValue} fire={fire} ctx={ctx}/>;
+  case 'trend':return <Trend props={props} setValue={setValue} fire={fire} ctx={ctx}/>;
+  case 'position':return <Position props={props} setValue={setValue} fire={fire} ctx={ctx}/>;
+  case 'radar_profile':return <RadarProfile props={props} setValue={setValue} fire={fire} ctx={ctx}/>;
+  case 'peer_compare':return <PeerCompare props={props} setValue={setValue} fire={fire} ctx={ctx}/>;
+  case 'location_map':return <LocationMap props={props} setValue={setValue} fire={fire} ctx={ctx}/>;
+  case 'relation_graph':return <RelationGraph props={props} setValue={setValue} fire={fire} ctx={ctx}/>;
   case 'scene3d':return <Scene3D props={props} setValue={setValue} fire={fire} ctx={ctx}/>;
   case 'diagram':return <Diagram props={props} setValue={setValue} fire={fire} ctx={ctx}/>;
   case 'math':return <MathBlock props={props} setValue={setValue} fire={fire} ctx={ctx}/>;
