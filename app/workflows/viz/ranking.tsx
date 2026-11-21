@@ -1,8 +1,8 @@
 'use client';
 import {useEffect,useMemo,useRef,useState} from 'react';
-import {Search,ArrowDownWideNarrow,ArrowUpNarrowWide,ChartColumn,LayoutGrid,ChartPie,Sun,Map as MapIcon,Box,ChartScatter,TrendingUp,ChartNoAxesColumn,SquareSplitVertical,Grid3x3,ChartSpline,ArrowDownUp,Radar,type LucideIcon} from 'lucide-react';
+import {Search,ArrowDownWideNarrow,ArrowUpNarrowWide,ChartColumn,LayoutGrid,ChartPie,Sun,Map as MapIcon,Box,ChartScatter,TrendingUp,ChartNoAxesColumn,SquareSplitVertical,Grid3x3,ChartSpline,ArrowDownUp,Radar,ChartLine,ListOrdered,Play,type LucideIcon} from 'lucide-react';
 import type {VizProps} from './types';
-import {type Entry,type Summary,normalizeCriteria,toEntries,rankEntries,summarize,makeFormatter,shareOf,groupsOf,linkParts,parseNumber} from './ranking-data';
+import {type Entry,type Summary,normalizeCriteria,toEntries,rankEntries,summarize,makeFormatter,shareOf,groupsOf,linkParts,parseNumber,periodKeyOf,rowPeriods,rowsAt,seriesOf,LATEST} from './ranking-data';
 import {useAskLink,useRankingView} from '@/app/seo/link-context';
 import {geoKind,geoKeyOf,registerGeo,baseRegion,pointOf,geoAspect,type GeoData} from './ranking-geo';
 import './viz.css';
@@ -44,7 +44,8 @@ function ChartBox({option,height,label,aspect,extra=0,onClick,onChart,svg,gl}:{o
  },[]);
  useEffect(()=>{
   const c=chart.current;if(!c||c.isDisposed()||!option)return;
-  try{c.setOption(option as any,{replaceMerge:['series','dataZoom','visualMap']});setError('');}catch(e){setError(errMessage(e));}
+  // A timeline option (baseOption + options per period, the bar race) replaces the chart; others merge.
+  try{c.setOption(option as any,'baseOption' in option?{notMerge:true}:{replaceMerge:['series','dataZoom','visualMap']});setError('');}catch(e){setError(errMessage(e));}
  },[option,ready]);
  return <div ref={outer} className="wf-rank-chartbox" style={{height:h}}>
   <div ref={box} className="wf-echart-canvas" role="img" aria-label={label}/>
@@ -61,7 +62,8 @@ function Avatar({e,color}:{e:Entry;color:string}){
 }
 
 const PAGE=50,ROW_CAP=1000;
-const VIEW_ICONS:Record<RankingViewKind,LucideIcon>={bar:ChartColumn,treemap:LayoutGrid,donut:ChartPie,sunburst:Sun,map:MapIcon,map3d:Box,scatter:ChartScatter,
+const replaceUrl=(u:URL)=>window.history.replaceState(window.history.state,'',u);
+const VIEW_ICONS:Record<RankingViewKind,LucideIcon>={bar:ChartColumn,trend:ChartLine,bump:ListOrdered,race:Play,treemap:LayoutGrid,donut:ChartPie,sunburst:Sun,map:MapIcon,map3d:Box,scatter:ChartScatter,
  lorenz:TrendingUp,distribution:ChartNoAxesColumn,boxplot:SquareSplitVertical,heatmap:Grid3x3,parallel:ChartSpline,slope:ArrowDownUp,radar:Radar};
 
 export default function Ranking({props,setValue,fire,ctx}:VizProps){
@@ -70,16 +72,26 @@ export default function Ranking({props,setValue,fire,ctx}:VizProps){
  const criteria=useMemo(()=>normalizeCriteria(props.criteria),[props.criteria]);
  const nameKey=typeof props.nameKey==='string'&&props.nameKey?props.nameKey:'name';
  const groupKey=typeof props.groupKey==='string'&&props.groupKey?props.groupKey:undefined;
- const entries=useMemo(()=>toEntries(props.rows,nameKey,groupKey),[props.rows,nameKey,groupKey]);
  // ?rank=<criterion key> opens the ranking on that criterion (one ranking page per scope;
  // "countries by GDP" and "countries by population" are the same page on different criteria).
  // On the crawlable page the server passes it (view.rank) so the HTML is sorted by it; in the app view
  // it is read after mount, so the server-rendered HTML and the first browser render agree.
  const view=useRankingView();
+ // Time: rows in long form (one per entity and period) let the reader rank any period (?year=) or the latest
+ // value of each entity; the time views plot every period.
+ const periodKey=useMemo(()=>periodKeyOf(props.rows,nameKey,props.periodKey),[props.rows,nameKey,props.periodKey]);
+ const periods=useMemo(()=>periodKey?rowPeriods(props.rows,periodKey):[],[props.rows,periodKey]);
+ const initialPeriod=view.period&&periods.includes(view.period)?view.period:typeof props.period==='string'&&periods.includes(props.period)?props.period:LATEST;
+ const [period,setPeriod]=useState(initialPeriod);
+ useEffect(()=>{const y=new URLSearchParams(location.search).get('year');if(y&&periods.includes(y))setPeriod(y);},[periods]);
+ const flatRows=useMemo(()=>periodKey?rowsAt(props.rows,{nameKey,periodKey,period,keys:criteria.map(x=>x.key)}):props.rows,[props.rows,periodKey,nameKey,period,criteria]);
+ const entries=useMemo(()=>toEntries(flatRows,nameKey,groupKey),[flatRows,nameKey,groupKey]);
  const initial=criteria.find(c=>c.key===view.rank)?.key??criteria.find(c=>c.key===props.default)?.key??criteria[0]?.key??'';
  const [critKey,setCritKey]=useState(initial);
  useEffect(()=>{const fromUrl=new URLSearchParams(location.search).get('rank');if(fromUrl&&criteria.some(c=>c.key===fromUrl))setCritKey(fromUrl);},[criteria]);
  const c=criteria.find(x=>x.key===critKey)??criteria.find(x=>x.key===initial)??criteria[0];
+ const timeSeries=useMemo(()=>periodKey&&c&&periods.length>1?{periods:[...periods].reverse(),series:seriesOf(props.rows,{nameKey,periodKey,key:c.key})}:null,[periodKey,c,periods,props.rows,nameKey]);
+ const choosePeriod=(p:string)=>{setPeriod(p);view.onPeriod?.(p);try{const u=new URL(location.href);if(p===LATEST)u.searchParams.delete('year');else u.searchParams.set('year',p);replaceUrl(u);}catch{}};
  const height=typeof props.height==='number'&&props.height>=200?Math.min(props.height,1200):420;
  const top=typeof props.top==='number'&&props.top>=1?Math.floor(props.top):20;
  const [allBars,setAllBars]=useState(false);
@@ -119,9 +131,9 @@ export default function Ranking({props,setValue,fire,ctx}:VizProps){
  const additive=summary.aggregate==='sum'&&summary.min>=0&&ranked.length>1;
  const views=useMemo<RankingViewKind[]>(()=>{
   if(props.chart==='none')return [];
-  const v=pickViews(props.views,autoViews({additive,geo,criteria:criteria.length,groups:groups.length,count:ranked.length}));
+  const v=pickViews(props.views,autoViews({additive,geo,criteria:criteria.length,groups:groups.length,count:ranked.length,periods:periods.length}));
   return props.chart==='map'&&v.includes('map')?['map',...v.filter(x=>x!=='map')]:v;
- },[props.chart,props.views,additive,geo,criteria.length,groups.length,ranked.length]);
+ },[props.chart,props.views,additive,geo,criteria.length,groups.length,ranked.length,periods.length]);
  const [viewKind,setViewKind]=useState<RankingViewKind|null>(null);
  const active:RankingViewKind=viewKind&&views.includes(viewKind)?viewKind:views[0]??'bar';
  const mapView=active==='map'||active==='map3d';
@@ -142,11 +154,11 @@ export default function Ranking({props,setValue,fire,ctx}:VizProps){
  const barHeight=Math.min(height,380);
  const columnWindow=30;
  // One shared builder for every view (the server uses it too, for the SVG of the first view).
- const opt=useMemo(()=>c?viewOption({view:active,c,criteria,entries,ranked:chartRanked,missing,fmt,axisFmt,locale,top,allBars,window:columnWindow,other:yC,
+ const opt=useMemo(()=>c?viewOption({view:active,c,criteria,entries,ranked:chartRanked,missing,history:timeSeries,fmt,axisFmt,locale,top,allBars,window:columnWindow,other:yC,
   geo:geo&&geoData?{kind:geo,map:geoData.name,names:geoData.names,keyOf,pointOf:e=>pointOf(e.row),aspectScale:geoData.aspectScale}:null,
   labels:{others:t('Others'),noData,topHold:(k,pct)=>t('Top {k} hold {pct}',{k,pct}),entities:t('Entities by rank'),count:t('count'),median:t('Median')}}):null,
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  [active,c,criteria,chartRanked,missing,entries,allBars,top,fmt,axisFmt,geo,geoData,keyOf,yC,locale,noData]);
+  [active,c,criteria,chartRanked,missing,entries,timeSeries,allBars,top,fmt,axisFmt,geo,geoData,keyOf,yC,locale,noData]);
  const byKey=useMemo(()=>{const m=new Map<string,Entry>();for(const e of ranked){const k=keyOf(e);if(k&&!m.has(k))m.set(k,e);}return m;},[ranked,keyOf]);
  const hover=(e:Entry|null,on:boolean)=>{
   if(!e||e.value==null)return;const type=on?'highlight':'downplay';const ch=charts.current[active];
@@ -200,13 +212,15 @@ export default function Ranking({props,setValue,fire,ctx}:VizProps){
     {subtitle&&<p className="wf-rank-subtitle">{subtitle}</p>}
    </div>
    <div className="wf-rank-picker">
+    {periods.length>1&&<label className="wf-rank-select wf-rank-period"><span>{t('Year')}</span><select value={period} onChange={ev=>choosePeriod(ev.target.value)}>
+     <option value={LATEST}>{t('Latest')}</option>{periods.map(p=><option key={p} value={p}>{p}</option>)}</select></label>}
     {criteria.length>1&&(pills
      ?<div className="wf-rank-pills" role="radiogroup" aria-label={t('Rank by')}>{criteria.map(x=><button key={x.key} type="button" role="radio" aria-checked={x.key===c.key} className={x.key===c.key?'on':''} onClick={()=>choose(x.key)}>{x.label}</button>)}</div>
      :<label className="wf-rank-select"><span>{t('Rank by')}</span><select value={c.key} onChange={ev=>choose(ev.target.value)}>{criteria.map(x=><option key={x.key} value={x.key}>{x.label}</option>)}</select></label>)}
    </div>
   </header>
   <div className="wf-rank-meta">
-   <span className="wf-rank-crit">{c.label}{c.unit&&c.format!=='percent'&&c.format!=='currency'?<span className="wf-rank-unit"> · {c.unit}</span>:null}{c.year?<span className="wf-rank-unit"> · {c.year}</span>:null}</span>
+   <span className="wf-rank-crit">{c.label}{c.unit&&c.format!=='percent'&&c.format!=='currency'?<span className="wf-rank-unit"> · {c.unit}</span>:null}{period!==LATEST?<span className="wf-rank-unit"> · {period}</span>:c.year?<span className="wf-rank-unit"> · {c.year}</span>:null}</span>
    <span className="wf-rank-order">{c.order==='asc'?<ArrowUpNarrowWide size={13}/>:<ArrowDownWideNarrow size={13}/>}{c.order==='asc'?t('Lowest ranks first'):t('Highest ranks first')}</span>
    {c.description&&<span className="wf-rank-desc">{c.description}</span>}
   </div>

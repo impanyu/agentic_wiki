@@ -397,6 +397,7 @@ export type MetricTable={metrics:MetricColumn[];rows:Row[];period:string};
 export const RANK_LIMIT=1000;
 export async function metricTable(db:Queryable,{type,topicId,filters,metrics,period='latest',limit=RANK_LIMIT}:{type?:string;topicId?:string;filters?:Record<string,unknown>;metrics:string[];period?:string;limit?:number}):Promise<MetricTable>{
  if(!metrics.length)throw Error('Name at least one metric.');if(metrics.length>12)throw Error('At most 12 metrics per table.');
+ if(period==='all')return metricHistoryTable(db,{type,topicId,filters,metrics,limit});
  const resolved:ResolvedMetric[]=[];for(const m of metrics)resolved.push(await resolveMetric(db,m));
  const per=period&&period!=='latest'?String(period):'';
  const p=new Params();const where=await scopeSql(db,p,{type,topicId,filters});
@@ -534,6 +535,25 @@ export async function entityRelations(db:Queryable,id:string){
   from relations r join entities s on s.id = r.subject_id where r.object_id = $1::uuid group by r.predicate, s.type order by n desc, r.predicate limit 50`,[id]);
  return {outgoing:out.rows.map(r=>({predicate:r.predicate,object:{id:r.id,name:r.name,type:r.type},period:r.period,source:r.source,qualifiers:r.qualifiers||{}})),
   incoming:inc.rows.map(r=>({predicate:r.predicate,type:r.type,count:Number(r.n),sample:r.sample}))};
+}
+
+// Every period, in long form: one row per entity and period (entity_id, name, type, [wikidata], period, then
+// <m> and <m>_source per metric) for the entities a latest table would list. The ranking component ranks any
+// period from it and draws the time views.
+async function metricHistoryTable(db:Queryable,{type,topicId,filters,metrics,limit}:{type?:string;topicId?:string;filters?:Record<string,unknown>;metrics:string[];limit:number}):Promise<MetricTable>{
+ const latest=await metricTable(db,{type,topicId,filters,metrics,period:'latest',limit});
+ const ids=latest.rows.map(r=>String(r.entity_id));if(!ids.length)return {...latest,period:'all',rows:[]};
+ const resolved:ResolvedMetric[]=[];for(const m of metrics)resolved.push(await resolveMetric(db,m));
+ const base=new Map(latest.rows.map(r=>[String(r.entity_id),{entity_id:r.entity_id,name:r.name,type:r.type,...(r.wikidata?{wikidata:r.wikidata}:{})}]));
+ const out=new Map<string,Row>();
+ for(const m of resolved){
+  const r=await db.query(`select distinct on (o.entity_id, o.period) o.entity_id, o.period, o.value, o.source from observations o
+   where o.entity_id = any($1::uuid[]) and o.metric = $2::text and o.metric_version = $3::int and o.period <> '' order by o.entity_id, o.period, o.retrieved_at desc`,[ids,m.key,m.obsVersion]);
+  for(const x of r.rows){const id=String(x.entity_id),k=id+'\u0000'+x.period;let row=out.get(k);if(!row){row={...base.get(id)!,period:String(x.period)};out.set(k,row);}
+   row[m.column]=Number(x.value);row[m.column+'_source']=x.source;}
+ }
+ const rows=[...out.values()].sort((a,b)=>String(a.name).localeCompare(String(b.name))||String(a.period).localeCompare(String(b.period)));
+ return {...latest,period:'all',rows};
 }
 
 // ───────────── latest snapshot ─────────────

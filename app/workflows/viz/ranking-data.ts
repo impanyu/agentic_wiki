@@ -160,3 +160,50 @@ export function fixAntimeridian(geometry:{type:string;coordinates:any}):{type:st
  });
  return geometry.type==='Polygon'?{...geometry,coordinates:fixed[0]}:geometry.type==='MultiPolygon'?{...geometry,coordinates:fixed}:geometry;
 }
+
+// ───────────── time ─────────────
+// A ranking's rows may be in long form: one row per entity and period ({name, period: "2019", population…}).
+// The reader then picks a period, or "latest" (each entity's most recent value of each criterion).
+export const LATEST='latest';
+const periodText=(v:unknown)=>typeof v==='number'&&Number.isFinite(v)?String(v):typeof v==='string'?v.trim():'';
+export const comparePeriods=(a:string,b:string)=>{const x=Number(a),y=Number(b);return Number.isFinite(x)&&Number.isFinite(y)&&a!==''&&b!==''?x-y:a.localeCompare(b);};
+// The period column, when the rows are in long form (an explicit key, else "period" or "year" with entities repeating).
+export function periodKeyOf(rows:unknown,nameKey='name',explicit?:unknown):string|null{
+ const list=Array.isArray(rows)?rows.filter(isObj):[];if(list.length<2)return null;
+ const candidates=typeof explicit==='string'&&explicit?[explicit]:['period','year'];
+ for(const k of candidates){
+  if(!list.some(r=>periodText(r[k])))continue;
+  if(typeof explicit==='string'&&explicit)return k;
+  const names=new Set<string>();let repeat=false;for(const r of list){const n=text(r[nameKey]);if(names.has(n)){repeat=true;break;}names.add(n);}
+  if(repeat)return k;
+ }
+ return null;
+}
+// Distinct periods, newest first.
+export function rowPeriods(rows:unknown,key:string):string[]{
+ const s=new Set<string>();for(const r of Array.isArray(rows)?rows:[])if(isObj(r)){const p=periodText(r[key]);if(p)s.add(p);}
+ return [...s].sort((a,b)=>comparePeriods(b,a));
+}
+// One row per entity for a period: the entity's row of that period, or — for "latest" — each criterion's most
+// recent value. Each row records the period of each value in __period.<key>.
+export function rowsAt(rows:unknown,o:{nameKey:string;periodKey:string;period:string;keys:string[]}):Obj[]{
+ const by=new Map<string,Obj[]>();
+ for(const r of Array.isArray(rows)?rows:[]){if(!isObj(r))continue;const n=text(r[o.nameKey]);if(!n)continue;let l=by.get(n);if(!l){l=[];by.set(n,l);}l.push(r);}
+ const out:Obj[]=[];
+ for(const list of by.values()){
+  list.sort((a,b)=>comparePeriods(periodText(b[o.periodKey]),periodText(a[o.periodKey])));
+  if(o.period!==LATEST){const r=list.find(x=>periodText(x[o.periodKey])===o.period);out.push(r?{...r,...Object.fromEntries(o.keys.map(k=>['__period.'+k,o.period]))}:{...list[0],...Object.fromEntries(o.keys.map(k=>[k,null]))});continue;}
+  const row:Obj={...list[0]};
+  for(const k of o.keys){const r=list.find(x=>parseNumber(x[k])!=null);row[k]=r?r[k]:null;if(r)row['__period.'+k]=periodText(r[o.periodKey]);}
+  out.push(row);
+ }
+ return out;
+}
+// Values of one criterion over time for each entity: name → [[period, value]…] oldest first.
+export function seriesOf(rows:unknown,o:{nameKey:string;periodKey:string;key:string}):Map<string,[string,number][]>{
+ const m=new Map<string,[string,number][]>();
+ for(const r of Array.isArray(rows)?rows:[]){if(!isObj(r))continue;const n=text(r[o.nameKey]),p=periodText(r[o.periodKey]),v=parseNumber(r[o.key]);if(!n||!p||v==null)continue;
+  let l=m.get(n);if(!l){l=[];m.set(n,l);}l.push([p,v]);}
+ for(const l of m.values())l.sort((a,b)=>comparePeriods(a[0],b[0]));
+ return m;
+}

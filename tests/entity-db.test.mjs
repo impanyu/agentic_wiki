@@ -378,3 +378,12 @@ test('metric_table stops at a rank limit: rows are the union of each metric\'s t
  assert.equal(t.rows.find(r=>r.name==='Lim 11').lim_b_rank,1);assert.equal(t.rows.find(r=>r.name==='Lim 11').lim_a_rank,12);
  assert.equal((await repo.metricTable(db,{type:'limtest',metrics:['lim_a']})).rows.length,12);
 });
+test('metric_table period "all": long form, one row per entity and period',async()=>{
+ const ctx={agent:{id:'editor-hist'}};
+ const rows=[];for(const [n,base] of [['Hist A',10],['Hist B',20]])for(const y of [2020,2021,2022])rows.push({name:n,year:String(y),v:String(base+y-2020)});
+ const d=await datasets.saveDataset('editor-hist',{title:'h',source:'t',rows});
+ await tools.runEntityTool('entity_upsert',{datasetId:d.datasetId,type:'histtest',nameColumn:'name',idColumns:'',aliasColumns:'',descriptionColumn:'',attributeColumns:'',
+  metricColumns:'{"v":{"metric":"hist_v","period":"year"}}',relationColumns:'',source:'s',topicId:''},ctx);
+ const t=await repo.metricTable(db,{type:'histtest',metrics:['hist_v'],period:'all'});
+ assert.equal(t.period,'all');assert.deepEqual(t.rows.map(r=>[r.name,r.period,r.hist_v]),[['Hist A','2020',10],['Hist A','2021',11],['Hist A','2022',12],['Hist B','2020',20],['Hist B','2021',21],['Hist B','2022',22]]);
+});

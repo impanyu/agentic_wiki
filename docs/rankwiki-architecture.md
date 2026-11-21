@@ -115,6 +115,14 @@ units, relations, identifiers), the sources and recipes that fetch them, the mem
 that define each type's universe, and the identity rules that decide which records are the same
 entity. The crawler executes the recipes on schedule and populates the database without an agent.
 
+### Time
+Facts are stored per period (observations carry period, source and retrieval time), and collectors
+collect the full history a source offers (e.g. every World Bank year since 1960), not only the
+latest value. A ranking's data comes in long form (one row per entity and period; metric_table
+period "all"): readers rank any period (?year=2005, its own crawlable title and address) or the
+latest value of each entity, and the time views plot every period — values over time, rank over
+time (bump chart) and a bar race played through the years.
+
 ### Rankings stop at 1,000
 Every ranking ranks at most the top 1,000 entities on each criterion; nobody reads past that.
 The page's rows are the union of each criterion's top 1,000 (ranks computed over the whole scope,

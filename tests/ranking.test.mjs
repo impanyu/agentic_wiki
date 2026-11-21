@@ -170,3 +170,14 @@ test('subdivisions of any country: ISO 3166-2 codes pick the country; a template
  assert.equal(key({code:'jp-01',name:''}),'JP-01');assert.equal(key({code:null,name:'北海道'}),'JP-01');assert.equal(key({code:null,name:'Hokkaido Prefecture'}),'JP-01');
  assert.equal(key({code:null,name:'x',row:{wikidata:'Q1037393'}}),'JP-01');assert.equal(views.geoKeyOf('admin1:JP')({code:null,name:'Hokkaido'}),null);
 });
+test('time: long-form rows give periods, a row per entity for any period or the latest value of each criterion, and series',()=>{
+ const rows=[{name:'A',year:2020,pop:1,gdp:5},{name:'A',year:2021,pop:2,gdp:null},{name:'B',year:2020,pop:3,gdp:6},{name:'B',year:2021,pop:4}];
+ assert.equal(m.periodKeyOf(rows),'year');assert.equal(m.periodKeyOf([{name:'A',year:2020},{name:'B',year:2021}]),null);
+ assert.deepEqual(m.rowPeriods(rows,'year'),['2021','2020']);
+ const latest=m.rowsAt(rows,{nameKey:'name',periodKey:'year',period:'latest',keys:['pop','gdp']});
+ assert.deepEqual(latest.map(r=>[r.name,r.pop,r.gdp,r['__period.gdp']]),[['A',2,5,'2020'],['B',4,6,'2020']]);
+ const y2020=m.rowsAt(rows,{nameKey:'name',periodKey:'year',period:'2020',keys:['pop']});assert.deepEqual(y2020.map(r=>[r.name,r.pop]),[['A',1],['B',3]]);
+ assert.deepEqual([...m.seriesOf(rows,{nameKey:'name',periodKey:'year',key:'pop'})],[['A',[['2020',1],['2021',2]]],['B',[['2020',3],['2021',4]]]]);
+ const r=views.ranksByPeriod({periods:['2020','2021'],series:new Map([['A',[['2020',1],['2021',5]]],['B',[['2020',3],['2021',4]]]])},'desc');
+ assert.deepEqual([r.get('2020').get('A'),r.get('2021').get('A')],[2,1]);
+});

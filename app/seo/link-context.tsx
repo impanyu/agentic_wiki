@@ -14,6 +14,7 @@ export function useAskLink(){
 // server so the HTML is already sorted by it), the address of each criterion's view (so the
 // column headers are real links), and each ranking chart pre-rendered as SVG (by chartKey).
 // onRank: the reader page follows a criterion switch (its title names the criterion).
-export type RankingViewValue={rank?:string;rankHref?:(key:string)=>string;charts?:Record<string,string>;onRank?:(key:string)=>void};
+// period/onPeriod: the period in the address (?year=) and the reader's switch to another.
+export type RankingViewValue={rank?:string;rankHref?:(key:string)=>string;charts?:Record<string,string>;onRank?:(key:string)=>void;period?:string;onPeriod?:(period:string)=>void};
 export const RankingView=createContext<RankingViewValue>({});
 export const useRankingView=()=>useContext(RankingView);

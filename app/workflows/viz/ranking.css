@@ -205,3 +205,5 @@
 .wf-rank .wf-rank-views button svg{flex:none}
 .wf-rank .wf-rank-chart{border-top:1px solid var(--rk-line);margin-top:10px;padding-top:12px}
 @media (max-width:640px){.wf-rank .wf-rank-views{flex-wrap:nowrap;overflow-x:auto;max-width:100%;padding-bottom:4px}.wf-rank .wf-rank-views button{flex:none}}
+.wf-rank-picker{display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:flex-end}
+.wf-rank .wf-rank-period select{min-width:110px}

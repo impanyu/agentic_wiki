@@ -4,7 +4,7 @@ import {notFound,permanentRedirect} from 'next/navigation';
 import {SITE_NAME} from '@/app/edition';
 import {siteUrl} from '@/app/site';
 import {loadPublicPage,preloadBlocks,linkedQuestions,resolveQuestions} from '@/app/seo/server';
-import {rankingBlocks,rankCriterion,rankingChartSvgs} from '@/app/seo/ranking-views';
+import {rankingBlocks,rankCriterion,rankingChartSvgs,blockPeriods} from '@/app/seo/ranking-views';
 import {structuredData,jsonLd} from '@/app/seo/structured-data';
 import {Reader} from '@/app/seo/reader';
 import {pagePath,slugify} from '@/app/seo/urls';
@@ -27,6 +27,9 @@ async function view(props:Props){
  const [{id},q]=await Promise.all([props.params,props.searchParams]);
  const data=await load(decode(id));if(!data)return null;
  const rank=one(q.rank),c=rankCriterion(data.blocks,rank);
+ // ?year=<period>: the ranking as of that period (rows in long form); unknown periods redirect.
+ const year=one(q.year),periods=new Set(data.blocks.flatMap(b=>blockPeriods(b,data.preloaded[b.code])));
+ const period=year&&periods.has(year)?year:undefined;
  const isDefault=!!c&&data.blocks.some(b=>b.defaultKey===c.key);
  const criterion=c&&!isDefault?c:null;
  const base=pagePath(data.page.id,data.page.title);
@@ -34,8 +37,9 @@ async function view(props:Props){
  const defaults=new Set(data.blocks.map(b=>b.defaultKey));
  const titleFor=(key:string,label:string)=>defaults.has(key)?data.page.title:zh?`${data.page.title}（按${label}）`:`${data.page.title} by ${label}`;
  const titles=Object.fromEntries(data.blocks.flatMap(b=>b.criteria.map(x=>[x.key,titleFor(x.key,x.label)])));
- const name=criterion?titleFor(criterion.key,criterion.label):data.page.title;
- return {...data,rank,criterion,base,path:criterion?base+'?rank='+encodeURIComponent(criterion.key):base,name,titles};
+ const name=(criterion?titleFor(criterion.key,criterion.label):data.page.title)+(period?(zh?`（${period}年）`:` (${period})`):'');
+ const params=[criterion?'rank='+encodeURIComponent(criterion.key):'',period?'year='+encodeURIComponent(period):''].filter(Boolean).join('&');
+ return {...data,rank,criterion,base,path:params?base+'?'+params:base,name,titles,year,period};
 }
 export async function generateMetadata(props:Props):Promise<Metadata>{
  const v=await view(props);if(!v)return {title:SITE_NAME,robots:{index:false}};
@@ -50,13 +54,13 @@ export async function generateMetadata(props:Props):Promise<Metadata>{
 }
 export default async function PublicPage(props:Props){
  const {id,slug}=await props.params;const v=await view(props);if(!v)notFound();
- const {page,preloaded,askTargets,blocks,rank,criterion,base,path,name,titles}=v;
+ const {page,preloaded,askTargets,blocks,rank,criterion,base,path,name,titles,year,period}=v;
  // One address per page and view: an old id, another slug, an unknown or default ?rank= redirects.
- if(page.id!==decode(id)||decode(slug?.[0]||'')!==slugify(page.title)||(slug?.length||0)>1||(rank!==undefined&&!criterion))permanentRedirect(path);
+ if(page.id!==decode(id)||decode(slug?.[0]||'')!==slugify(page.title)||(slug?.length||0)>1||(rank!==undefined&&!criterion)||(year!==undefined&&!period))permanentRedirect(path);
  const origin=siteUrl();
- const charts=await rankingChartSvgs(blocks,preloaded,criterion?.key,page.language&&page.language!=='und'?page.language:'en');
+ const charts=await rankingChartSvgs(blocks,preloaded,criterion?.key,page.language&&page.language!=='und'?page.language:'en',period);
  return <>
-  <script type="application/ld+json" dangerouslySetInnerHTML={{__html:jsonLd(structuredData(page,origin+path,blocks,preloaded,askTargets,origin,criterion?.key,name))}}/>
-  <Reader page={page} title={name} titles={titles} preloaded={preloaded} askTargets={askTargets} rank={criterion?.key} basePath={base} defaultRanks={blocks.map(b=>b.defaultKey)} charts={charts}/>
+  <script type="application/ld+json" dangerouslySetInnerHTML={{__html:jsonLd(structuredData(page,origin+path,blocks,preloaded,askTargets,origin,criterion?.key,name,period))}}/>
+  <Reader page={page} title={name} titles={titles} period={period} preloaded={preloaded} askTargets={askTargets} rank={criterion?.key} basePath={base} defaultRanks={blocks.map(b=>b.defaultKey)} charts={charts}/>
  </>;
 }

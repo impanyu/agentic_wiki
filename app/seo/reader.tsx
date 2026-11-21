@@ -12,12 +12,16 @@ import {pagePath} from './urls';
 // search engines and readers receive. Interactive parts (criterion picker, chart) hydrate in the browser.
 // title: the page title, or "<title> by <criterion>" on a ?rank= view; rank/basePath/defaultRanks/charts: see RankingView.
 // titles: the title of each criterion's view (key → title), so a switch in the browser retitles the page.
-export function Reader({page,title:initialTitle,titles,preloaded,askTargets,rank,basePath,defaultRanks,charts}:{page:AnswerPage;title:string;titles:Record<string,string>;preloaded:Record<string,Record<string,unknown>>;askTargets:Record<string,string>;rank?:string;basePath:string;defaultRanks:string[];charts:Record<string,string>}){
+export function Reader({page,title:initialTitle,titles,preloaded,askTargets,rank,basePath,defaultRanks,charts,period:initialPeriod}:{period?:string;page:AnswerPage;title:string;titles:Record<string,string>;preloaded:Record<string,Record<string,unknown>>;askTargets:Record<string,string>;rank?:string;basePath:string;defaultRanks:string[];charts:Record<string,string>}){
  const ui=usePageUi(page.language||'en'),{t,locale}=ui;
  const rtl=['ar','he','fa','ur','ps','dv','yi'].includes(page.language);
+ // The title names the criterion and the period in view; switches in the browser retitle the page.
  const [title,setTitle]=useState(initialTitle);
- const rankingView={rank,charts,rankHref:(key:string)=>defaultRanks.includes(key)?basePath:basePath+'?rank='+encodeURIComponent(key),
-  onRank:(key:string)=>{const next=titles[key]||page.title;setTitle(next);document.title=next+' · '+SITE_NAME;}};
+ const [state,setState]=useState<{rank?:string;period?:string}>({rank,period:initialPeriod});
+ const retitle=(next:{rank?:string;period?:string})=>{setState(next);const base=(next.rank&&titles[next.rank])||page.title;
+  const p=next.period&&next.period!=='latest'?(/^zh/.test(page.language||'')?`（${next.period}年）`:` (${next.period})`):'';setTitle(base+p);document.title=base+p+' · '+SITE_NAME;};
+ const rankingView={rank,charts,period:initialPeriod,rankHref:(key:string)=>defaultRanks.includes(key)?basePath:basePath+'?rank='+encodeURIComponent(key),
+  onRank:(key:string)=>retitle({...state,rank:key}),onPeriod:(p:string)=>retitle({...state,period:p})};
  return <UiContext.Provider value={ui}><AskTargets.Provider value={askTargets}><RankingView.Provider value={rankingView}><div className="browser-shell" lang={locale}>
   <header className="browser-toolbar">
    <a className="browser-brand" href="/" title={t('Home')} aria-label={SITE_NAME}><Layers size={22} aria-hidden="true"/><span>{SITE_NAME}</span></a>

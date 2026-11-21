@@ -80,12 +80,14 @@ export const chartKey=(criteria:string[],criterion:string)=>criteria.join(',')+'
 // The views a ranking can show under its leaderboard. "auto" picks by the data: share views only for
 // quantities that add up (population, GDP, sales — not rates or averages), maps when the entities are
 // countries or U.S. states, a scatter when there is a second criterion.
-export const RANKING_VIEWS=['bar','treemap','donut','sunburst','map','map3d','scatter','lorenz','distribution','boxplot','heatmap','parallel','slope','radar'] as const;
+export const RANKING_VIEWS=['bar','trend','bump','race','treemap','donut','sunburst','map','map3d','scatter','lorenz','distribution','boxplot','heatmap','parallel','slope','radar'] as const;
 export type RankingViewKind=typeof RANKING_VIEWS[number];
 // What each view needs: share views (treemap, donut, sunburst, lorenz) a quantity that adds up; sunburst and
 // boxplot groups; maps a geography; scatter and slope a second criterion; heatmap, parallel and radar three.
-export function autoViews(o:{additive:boolean;geo:GeoKind|null;criteria:number;groups?:number;count?:number}):RankingViewKind[]{
+// periods: how many periods the data covers; with 3 or more, the time views (trend, bump, race) follow the bars.
+export function autoViews(o:{additive:boolean;geo:GeoKind|null;criteria:number;groups?:number;count?:number;periods?:number}):RankingViewKind[]{
  const n=o.count??Infinity,g=o.groups??0,v:RankingViewKind[]=['bar'];
+ if((o.periods??0)>=3)v.push('trend','bump','race');
  if(o.additive)v.push('treemap','donut');
  if(o.additive&&g>=2)v.push('sunburst');
  if(o.geo)v.push('map','map3d');
@@ -98,10 +100,10 @@ export function autoViews(o:{additive:boolean;geo:GeoKind|null;criteria:number;g
  if(o.criteria>=3)v.push('radar');
  return v;
 }
-export const VIEW_LABELS:Record<RankingViewKind,string>={bar:'Bars',treemap:'Treemap',donut:'Donut',sunburst:'Sunburst',map:'Map',map3d:'3D map',scatter:'Scatter',
+export const VIEW_LABELS:Record<RankingViewKind,string>={bar:'Bars',trend:'Over time',bump:'Rank over time',race:'Race',treemap:'Treemap',donut:'Donut',sunburst:'Sunburst',map:'Map',map3d:'3D map',scatter:'Scatter',
  lorenz:'Concentration',distribution:'Distribution',boxplot:'By group',heatmap:'Heatmap',parallel:'Parallel',slope:'Rank shift',radar:'Radar'};
 // Box heights per view (px); maps size themselves by aspect.
-export const VIEW_HEIGHT:Partial<Record<RankingViewKind,number>>={treemap:440,donut:360,sunburst:460,map3d:480,scatter:440,lorenz:380,distribution:360,boxplot:400,heatmap:560,parallel:440,slope:560,radar:440};
+export const VIEW_HEIGHT:Partial<Record<RankingViewKind,number>>={trend:440,bump:480,race:520,treemap:440,donut:360,sunburst:460,map3d:480,scatter:440,lorenz:380,distribution:360,boxplot:400,heatmap:560,parallel:440,slope:560,radar:440};
 export function pickViews(raw:unknown,auto:RankingViewKind[]):RankingViewKind[]{
  if(!Array.isArray(raw))return auto;
  const asked=raw.filter((v):v is RankingViewKind=>RANKING_VIEWS.includes(v as RankingViewKind));
@@ -370,7 +372,9 @@ export function sunburstOption(o:{ranked:Entry[];c:Criterion;fmt:Fmt;othersLabel
 
 // ───────────── one entry point for the browser and the server ─────────────
 export type ViewGeo={kind:GeoKind;map:string;names:Map<string,string>;keyOf:(e:Entry)=>string|null;pointOf:(e:Entry)=>[number,number]|null;aspectScale?:number};
-export type ViewInput={view:RankingViewKind;c:Criterion;criteria:Criterion[];entries:{row:Row;name:string}[];ranked:Entry[];missing:Entry[];
+// history: the criterion's values over time (name → [[period, value]…], oldest first) with every period, oldest first.
+export type ViewHistory={periods:string[];series:Map<string,[string,number][]>};
+export type ViewInput={view:RankingViewKind;c:Criterion;criteria:Criterion[];entries:{row:Row;name:string}[];ranked:Entry[];missing:Entry[];history?:ViewHistory|null;
  fmt:Fmt;axisFmt:Fmt;locale:string;top:number;allBars?:boolean;window?:number;other?:Criterion;geo?:ViewGeo|null;
  labels:{others:string;noData:string;topHold:(k:number,pct:string)=>string;entities:string;count:string;median:string}};
 // The ECharts option of one view, or null when the data cannot draw it (or the map is not loaded yet).
@@ -378,6 +382,9 @@ export function viewOption(i:ViewInput):Record<string,unknown>|null{
  const {c,ranked,fmt,axisFmt,labels}=i;
  switch(i.view){
   case 'bar':{const shown=i.allBars?ranked:ranked.slice(0,i.top);return shown.length?columnOption({shown,c,fmt,axisFmt,window:i.allBars?i.window:undefined,noData:labels.noData}):null;}
+  case 'trend':return i.history?trendOption({ranked,c,history:i.history,axisFmt,fmt}):null;
+  case 'bump':return i.history?bumpOption({ranked,c,history:i.history}):null;
+  case 'race':return i.history?raceOption({c,history:i.history,fmt,axisFmt}):null;
   case 'treemap':return treemapOption({ranked,c,fmt,othersLabel:labels.others,noData:labels.noData});
   case 'donut':return donutOption({ranked,c,fmt,othersLabel:labels.others,noData:labels.noData});
   case 'sunburst':return sunburstOption({ranked,c,fmt,othersLabel:labels.others});
@@ -395,4 +402,63 @@ export function viewOption(i:ViewInput):Record<string,unknown>|null{
   case 'radar':return radarOption({ranked,entries:i.entries,criteria:i.criteria});
  }
  return null;
+}
+
+// ───────────── time views ─────────────
+const LINE_COLORS=[...MEDAL,'#4f7cff','#22c3a6','#a46bff','#ef5da8','#2bb3e0','#7bd389','#ff8a4c','#64748b'];
+// Values over time of the top 10 (in the period in view).
+export function trendOption(o:{ranked:Entry[];c:Criterion;history:ViewHistory;fmt:Fmt;axisFmt:Fmt;limit?:number}){
+ const top=o.ranked.slice(0,o.limit??10).filter(e=>o.history.series.has(e.name));if(!top.length)return null;
+ const vs=top.flatMap(e=>o.history.series.get(e.name)!.map(x=>x[1]));const log=vs.length>2&&Math.min(...vs)>0&&Math.max(...vs)/Math.min(...vs)>=1000;
+ return {textStyle:{fontFamily:FONT},aria:{enabled:true},grid:{left:48,right:120,top:20,bottom:36,containLabel:true},
+  tooltip:{...TOOLTIP,trigger:'axis',order:'valueDesc',valueFormatter:(v:number)=>o.fmt(v)},
+  xAxis:{type:'category',data:o.history.periods,boundaryGap:false,...AXIS,axisLabel:{...AXIS.axisLabel,color:'#64748b'}},
+  yAxis:{type:log?'log':'value',...AXIS,axisLabel:{...AXIS.axisLabel,formatter:(v:number)=>o.axisFmt(v)},scale:true},
+  series:top.map((e,i)=>{const m=new Map(o.history.series.get(e.name));return {type:'line',name:e.name,showSymbol:false,smooth:.2,connectNulls:true,
+   data:o.history.periods.map(p=>m.get(p)??null),lineStyle:{width:i<3?2.6:1.6,color:LINE_COLORS[i]},itemStyle:{color:LINE_COLORS[i]},
+   endLabel:{show:true,formatter:'{a}',color:LINE_COLORS[i],fontSize:10.5,fontWeight:600},emphasis:{focus:'series'}};})};
+}
+// Competition ranks of every entity in every period.
+export function ranksByPeriod(history:ViewHistory,order:'asc'|'desc'):Map<string,Map<string,number>>{
+ const out=new Map<string,Map<string,number>>();
+ for(const p of history.periods){
+  const vs:[string,number][]=[];for(const [n,l] of history.series){const x=l.find(y=>y[0]===p);if(x)vs.push([n,x[1]]);}
+  vs.sort((a,b)=>order==='asc'?a[1]-b[1]:b[1]-a[1]);
+  const m=new Map<string,number>();vs.forEach(([n,v],i)=>m.set(n,i&&vs[i-1][1]===v?m.get(vs[i-1][0])!:i+1));out.set(p,m);
+ }
+ return out;
+}
+// Bump chart: the rank of the top 10 (in the period in view) in every period.
+export function bumpOption(o:{ranked:Entry[];c:Criterion;history:ViewHistory;limit?:number}){
+ const top=o.ranked.slice(0,o.limit??10).filter(e=>o.history.series.has(e.name));if(!top.length)return null;
+ const ranks=ranksByPeriod(o.history,o.c.order);
+ const maxRank=Math.max(10,...top.flatMap(e=>o.history.periods.map(p=>ranks.get(p)!.get(e.name)??0)));
+ return {textStyle:{fontFamily:FONT},aria:{enabled:true},grid:{left:40,right:140,top:20,bottom:36,containLabel:true},
+  tooltip:{...TOOLTIP,trigger:'item',formatter:(p:any)=>`<div style="font-family:${FONT}"><b>${escapeHtml(p.seriesName)}</b><div style="color:#64748b;font-size:11px">${escapeHtml(String(p.name))}: #${p.value}</div></div>`},
+  xAxis:{type:'category',data:o.history.periods,boundaryGap:false,...AXIS,axisLabel:{...AXIS.axisLabel,color:'#64748b'}},
+  yAxis:{type:'value',inverse:true,min:1,max:Math.min(maxRank,40),interval:Math.max(1,Math.ceil(Math.min(maxRank,40)/10)),...AXIS,axisLabel:{...AXIS.axisLabel,formatter:'#{value}'}},
+  series:top.map((e,i)=>({type:'line',name:e.name,smooth:.25,connectNulls:false,symbol:'circle',symbolSize:7,
+   data:o.history.periods.map(p=>ranks.get(p)!.get(e.name)??null),lineStyle:{width:i<3?3:2,color:LINE_COLORS[i]},itemStyle:{color:LINE_COLORS[i]},
+   endLabel:{show:true,formatter:'{a}',color:LINE_COLORS[i],fontSize:10.5,fontWeight:600},emphasis:{focus:'series'}}))};
+}
+// Bar chart race: the top 12 in each period, played through time (timeline with play button).
+export function raceOption(o:{c:Criterion;history:ViewHistory;fmt:Fmt;axisFmt:Fmt;show?:number}){
+ const periods=o.history.periods;if(periods.length<2)return null;const show=o.show??12;
+ const ranks=ranksByPeriod(o.history,o.c.order);
+ const names=[...new Set(periods.flatMap(p=>[...ranks.get(p)!].filter(([,r])=>r<=show).map(([n])=>n)))];if(!names.length)return null;
+ const color=new Map(names.map((n,i)=>[n,PALETTE[i%PALETTE.length]]));
+ const valueAt=(n:string,p:string)=>o.history.series.get(n)?.find(x=>x[0]===p)?.[1]??null;
+ return {baseOption:{textStyle:{fontFamily:FONT},aria:{enabled:true},
+   timeline:{axisType:'category',data:periods,autoPlay:false,playInterval:900,currentIndex:periods.length-1,bottom:6,left:40,right:40,
+    label:{color:'#64748b',fontSize:10},lineStyle:{color:'#cbd5e1'},checkpointStyle:{color:'#4f7cff',borderColor:'#fff'},controlStyle:{color:'#4f7cff',borderColor:'#4f7cff'},progress:{lineStyle:{color:'#4f7cff'},itemStyle:{color:'#4f7cff'}}},
+   grid:{left:8,right:80,top:16,bottom:70,containLabel:true},
+   xAxis:{type:'value',max:'dataMax',...AXIS,axisLabel:{...AXIS.axisLabel,formatter:(v:number)=>o.axisFmt(v)}},
+   yAxis:{type:'category',inverse:true,max:show-1,data:names,animationDuration:300,animationDurationUpdate:300,axisLabel:{color:'#334155',fontSize:11.5},axisLine:{show:false},axisTick:{show:false}},
+   tooltip:{...TOOLTIP,trigger:'item',formatter:(p:any)=>`<div style="font-family:${FONT}"><b>${escapeHtml(p.name)}</b><div>${escapeHtml(o.fmt(p.value))}</div></div>`},
+   animationDuration:0,animationDurationUpdate:800,animationEasing:'linear',animationEasingUpdate:'linear',
+   series:[{type:'bar',realtimeSort:true,seriesLayoutBy:'column',barMaxWidth:26,itemStyle:{borderRadius:[0,6,6,0]},
+    label:{show:true,position:'right',valueAnimation:true,color:'#334155',fontSize:11,formatter:(p:any)=>o.axisFmt(p.value)}}],
+   graphic:[{type:'text',right:40,bottom:80,z:100,style:{text:periods[periods.length-1],font:'700 44px Inter, system-ui, sans-serif',fill:'rgba(15,23,42,.14)'}}]},
+  options:periods.map(p=>({series:[{type:'bar',data:names.map(n=>{const v=valueAt(n,p);return {value:v??0,itemStyle:{color:color.get(n)}};})}],
+   graphic:[{type:'text',right:40,bottom:80,z:100,style:{text:p,font:'700 44px Inter, system-ui, sans-serif',fill:'rgba(15,23,42,.14)'}}]}))};
 }
