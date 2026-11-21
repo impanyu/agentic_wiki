@@ -48,8 +48,10 @@ async function readResponse(response: Response) {
   if (!response.headers.get('content-type')?.includes('application/json')) {
     throw new Error('The server returned an unexpected response. Please try opening the page again.');
   }
-  const result = await response.json() as {page:AnswerPage;reused?:boolean;question?:string;error?:string};
+  const result = await response.json() as {page:AnswerPage;reused?:boolean;question?:string;error?:string;redirect?:string};
   if (!response.ok) throw new Error(result.error || 'Could not open this answer. Please try again.');
+  // The router answered with a page rendered from the database (/rankings/…, /e/…): open it.
+  if (typeof result.redirect==='string'&&result.redirect.startsWith('/')) { window.location.assign(result.redirect); return new Promise<never>(()=>{}); }
   return result;
 }
 

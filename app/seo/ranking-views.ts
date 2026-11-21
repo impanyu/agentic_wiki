@@ -102,3 +102,10 @@ export async function rankingChartSvgs(blocks:RankingBlock[],preloaded:Record<st
  return out;
 }
 const MAP_EXTRA=50;
+// A ranking given directly as component props (the database-driven /rankings/<slug> pages) as a block, so
+// the helpers above (criteria, periods, ranked view, chart SVG) work on it: its state is {rows}.
+export function propsRankingBlock(props:Record<string,unknown>,code='db-ranking'):RankingBlock|null{
+ const criteria=normalizeCriteria(props.criteria);if(!criteria.length)return null;
+ const def=typeof props.default==='string'&&criteria.some(c=>c.key===props.default)?props.default:criteria[0].key;
+ return {code,props:{...props,rows:{$:'state.rows'}},criteria,defaultKey:def,rowsKey:'rows'};
+}

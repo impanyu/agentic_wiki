@@ -115,6 +115,29 @@ export const MIGRATIONS:Migration[]=[
  {version:3,name:'entity latest snapshot',statements:()=>[
   "alter table entities add column if not exists latest jsonb not null default '{}'::jsonb",
  ]},
+ // Topic teams' configuration (written by agents through tools, read by the page renderer and the crawler):
+ // entity_types: an editor's template and a collector's schema per entity type; rankings gain a public slug and
+ // their definition; recipes: a collector's declarative fetch-and-load rules, run without an agent;
+ // team_runs: what each agent of a team did, for the operations page.
+ {version:4,name:'topic team configuration',statements:()=>[
+  `create table if not exists entity_types(type text primary key, topic_id uuid references topics(id) on delete set null,
+    label text not null default '', plural text not null default '', description text not null default '',
+    schema jsonb not null default '{}'::jsonb, template jsonb not null default '{}'::jsonb,
+    status text not null default 'draft' check (status in ('draft','published')), updated_by text not null default '', ${audit})`,
+  "alter table rankings add column if not exists slug text",
+  "alter table rankings add column if not exists config jsonb not null default '{}'::jsonb",
+  "alter table rankings add column if not exists status text not null default 'draft'",
+  "alter table rankings add column if not exists updated_at timestamptz not null default now()",
+  'create unique index if not exists rankings_slug on rankings(slug) where slug is not null',
+  `create table if not exists recipes(id uuid primary key default gen_random_uuid(), type text not null, name text not null,
+    description text not null default '', steps jsonb not null default '[]'::jsonb, schedule text not null default '',
+    status text not null default 'active' check (status in ('active','paused','failed')), created_by text not null default '',
+    last_run_at timestamptz, last_result jsonb, ${audit}, unique (type, name))`,
+  `create table if not exists team_runs(id uuid primary key default gen_random_uuid(), topic_id uuid references topics(id) on delete cascade,
+    role text not null, task text not null default '', status text not null default 'running', summary text not null default '',
+    calls jsonb not null default '[]'::jsonb, cost_usd numeric not null default 0, started_at timestamptz not null default now(), finished_at timestamptz)`,
+  'create index if not exists team_runs_topic on team_runs(topic_id, started_at desc)',
+ ]},
 ];
 export const SCHEMA_VERSION=MIGRATIONS[MIGRATIONS.length-1].version;
 

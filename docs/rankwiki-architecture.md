@@ -223,8 +223,12 @@ per-source budgets, and the **entity DB**.
    references from the sources of the facts shown, "data as of" stamps.
 4. **Render** on the server with data twins, JSON-LD and data-file links; cache until the data
    changes.
-When the DB has no data for a query, the router hands it to the type's team (collector rules run,
-the editor's plan is updated) and a provisional page is shown until the data arrives.
+When nothing answers a query — no page, no entity or ranking in the DB — the router says so honestly
+(no page is generated on the fly) and records the query in the inbox of the closest topic's editor.
+The editor decides in its next planning pass whether it belongs in the plan; the collector then
+collects the entities and data, and the pages appear from the templates. Agents make decisions
+(plans, templates, ranking definitions, schemas, recipes, reviews); everything routine — collecting by
+recipe, assembling and rendering pages — is programs, so pages scale to tens of millions at no model cost.
 
 ### Freshness, completeness and authority (editor duties)
 - **Every fact is dated and cited**: observations and attributes keep source, period and

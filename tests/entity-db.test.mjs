@@ -387,3 +387,31 @@ test('metric_table period "all": long form, one row per entity and period',async
  const t=await repo.metricTable(db,{type:'histtest',metrics:['hist_v'],period:'all'});
  assert.equal(t.period,'all');assert.deepEqual(t.rows.map(r=>[r.name,r.period,r.hist_v]),[['Hist A','2020',10],['Hist A','2021',11],['Hist A','2022',12],['Hist B','2020',20],['Hist B','2021',21],['Hist B','2022',22]]);
 });
+
+// Topic team configuration (app/teams/config.ts) on the same database.
+{
+ let js=ts.transpileModule(readFileSync(new URL('../app/teams/config.ts',import.meta.url),'utf8'),{compilerOptions:{module:ts.ModuleKind.ESNext,target:ts.ScriptTarget.ES2022}}).outputText;
+ js=js.replace(/(from\s*)(['"])@\/app\/entity-db\/(client|repo)\2/g,(m,pre,q,f)=>`${pre}'./${f}.mjs'`);
+ writeFileSync(new URL('teams-config.mjs',out),js);
+}
+const teams=await import(new URL('teams-config.mjs',out));
+test('team config: entity type templates validated and merged; ranking definitions checked; recipes; team runs',async()=>{
+ await assert.rejects(()=>teams.saveEntityType(db,{type:'realm',template:{sections:[{kind:'nonsense'}]},updatedBy:'t'}),/Unknown section kind/);
+ const t1=await teams.saveEntityType(db,{type:'Realm',label:'realm',plural:'realms',schema:{identity:{ids:['iso3']}},updatedBy:'collector'});
+ const t2=await teams.saveEntityType(db,{type:'realm',template:{lead:['{name} is a realm.'],card:['realm_gdp'],sections:[{kind:'trend',metrics:['realm_gdp']}]},updatedBy:'editor'});
+ assert.equal(t1.type,'realm');assert.deepEqual(t2.schema,{identity:{ids:['iso3']}});assert.equal(t2.label,'realm');assert.equal(t2.template.lead[0],'{name} is a realm.');assert.equal(t2.status,'draft');
+ await assert.rejects(()=>teams.saveRankingDef(db,{slug:'Bad Slug',title:'Realm Rankings',scope:{type:'realm'},criteria:['realm_gdp'],config:{}}),/slug/);
+ await assert.rejects(()=>teams.saveRankingDef(db,{slug:'top-realms',title:'Top realms by GDP',scope:{type:'realm'},criteria:['realm_gdp'],config:{}}),/Rankings/);
+ await assert.rejects(()=>teams.saveRankingDef(db,{slug:'realm-rankings',title:'Realm Rankings',scope:{type:'realm'},criteria:['no_such_metric'],config:{}}),/Unknown metrics: no_such_metric/);
+ const r=await teams.saveRankingDef(db,{slug:'realm-rankings',title:'Realm Rankings',scope:{type:'Realm',filters:{}},criteria:['realm_gdp','realm_area'],config:{default:'realm_gdp',period:'all'}});
+ assert.equal(r.scope.type,'realm');assert.deepEqual(r.criteria,['realm_gdp','realm_area']);
+ await teams.saveRankingDef(db,{slug:'realm-rankings',title:'Realm Rankings',scope:{type:'realm'},criteria:['realm_area'],config:{}});
+ assert.deepEqual((await teams.getRankingDef(db,'realm-rankings')).criteria,['realm_area']);
+ assert.equal((await teams.listRankingDefs(db,{type:'realm'})).length,1);
+ await teams.setStatus(db,'ranking','realm-rankings','published');assert.equal((await teams.getRankingDef(db,'realm-rankings')).status,'published');
+ const rc=await teams.saveRecipe(db,{type:'realm',name:'wb-gdp',steps:[{id:'a',tool:'fetch_data',args:{}}],schedule:'monthly',createdBy:'collector'});
+ await teams.recordRecipeRun(db,rc.id,false,{ok:false});assert.equal((await teams.getRecipe(db,'realm','wb-gdp')).status,'failed');
+ const run=await teams.startTeamRun(db,{topicId:null,role:'editor',task:'plan'});
+ await teams.logTeamCall(db,run,{tool:'team_state'});await teams.finishTeamRun(db,run,{status:'done',summary:'ok'});
+ const runs=await teams.listTeamRuns(db);assert.equal(runs[0].calls,1);assert.equal(runs[0].status,'done');
+});

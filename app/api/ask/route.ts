@@ -125,6 +125,11 @@ async function routeAnswer(request:Request,actor:Awaited<ReturnType<typeof getAc
   let matched=fork?null:rootRoute.pageId;
   if(matched&&sourceDocument&&(await getPage(matched,uid))?.kind!=='static')matched=null;
   if(matched){const page=await resolvePage(matched);if(!page)return respond({error:'This page is no longer accessible. Please try again.'},404);await remember(page.id,page);const updated=await refreshMatchedPage(page,destination,requested?.fresh||false,uid,router);return respond({page:updated,reused:true,destination});}
+  // Public edition: no page is generated on the fly. A ranking or entity in the database answers the query
+  // (its page is rendered from templates); otherwise the reader is told honestly and the query goes to the
+  // closest topic's editor for the next plan.
+  if(PUBLIC_EDITION&&!fork&&!image){const {routeToDatabase}=await import('@/app/teams/router');const r=await routeToDatabase(destination,language);
+   if('href' in r)return respond({redirect:r.href,destination});return respond({error:r.message,notAvailable:true},404);}
   // One generator owns artifact selection after a routing miss.
   const visibility=(PUBLIC_EDITION?'public':'private') as 'public'|'private';
   const keyBytes=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(JSON.stringify([language,destinationKey,uid])));

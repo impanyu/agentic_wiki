@@ -8,7 +8,8 @@ import type {AnswerPage} from '@/app/page-types';
 import {pagePath,askOf,questionKey} from './urls';
 // Server side of the crawlable pages: loads a public page as an anonymous reader, runs the
 // load action of each ```component block (reading its Page files from storage) so the ranking
-// is in the HTML, resolves /?ask= links to existing pages, and lists pages for the sitemap.
+// is in the HTML, resolves /?ask= links to existing pages (agent-written pages first, then the
+// entity database's rankings and entities), and lists pages for the sitemap.
 const READER='seo-reader';// an id no user has: only public pages are visible
 const MAX_FILE=4*1024*1024;
 
@@ -65,6 +66,12 @@ export async function resolveQuestions(questions:string[]):Promise<Record<string
    AND NOT EXISTS(SELECT 1 FROM page_aliases a WHERE a.id=p.id) ORDER BY p.created_at`).bind(...chunk,...chunk).all<{id:string;title:string;question:string}>();
   for(const r of rows.results){const path=pagePath(r.id,r.title);for(const k of [questionKey(r.title),questionKey(r.question||'')])if(k&&chunk.includes(k)&&!out[k])out[k]=path;}
  }
+ // The rest: a ranking or an entity of the entity database with that name has its own page (/rankings/…, /e/…).
+ const rest=keys.filter(k=>!out[k]);
+ if(rest.length)try{
+  const [{entityDb},{resolveNamedTargets}]=await Promise.all([import('@/app/entity-db/client'),import('@/app/entity-db/pages')]);
+  Object.assign(out,await resolveNamedTargets(await entityDb(),rest));
+ }catch(e){console.warn('seo: entity database links unavailable',(e as Error).message);}
  return out;
 }
 
