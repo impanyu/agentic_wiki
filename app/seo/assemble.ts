@@ -71,7 +71,9 @@ export const humanize=(k:string)=>{const s=k.replace(/[_.]+/g,' ').trim();return
 export type EntityValuesInput={name:string;typeLabel:string;typePlural?:string;metrics:Record<string,MetricFact>;defs:Record<string,MetricInfo>;attributes:Record<string,unknown>;relations:Record<string,{name:string}[]>;locale?:string};
 // Every value a template may name, as display text: name, type.label, metric./period./rank./of./change., attr., rel.
 export function entityValues(x:EntityValuesInput):Record<string,string>{
- const locale=x.locale||'en';const out:Record<string,string>={name:x.name,'type.label':x.typeLabel};
+ // In sentences a type is a common noun: "a country", not "a Country" (acronyms such as "NBA team" keep their capitals).
+ const lower=(t:string)=>t.replace(/\b([A-Z])([a-z]+)\b/g,(_m,a:string,b:string)=>a.toLowerCase()+b);
+ const locale=x.locale||'en';const out:Record<string,string>={name:x.name,'type.label':lower(x.typeLabel)};
  if(x.typePlural)out['type.plural']=x.typePlural;
  for(const [key,f] of Object.entries(x.metrics)){
   if(!f||!Number.isFinite(f.value))continue;const d=x.defs[key]||{key,label:key,unit:'',order:'desc',format:''};
@@ -146,8 +148,15 @@ export function defaultTemplate(d:EntityPageData):Template{
 }
 // Lead: one sentence per pattern, dropped when a value is missing; an element may also be a list of
 // alternatives (the first that can be filled wins), e.g. a sentence with a rank and one without.
+// A sentence whose facts (the metric, rank, attribute… values it names; name and type do not count) were all
+// stated by an earlier sentence is dropped, so two patterns never repeat the same fact.
+const facts=(pattern:string)=>[...pattern.matchAll(PLACEHOLDER)].map(m=>m[1]).filter(k=>k!=='name'&&!k.startsWith('type.')).map(k=>k.replace(/^(metric|period|rank|of|change)\./,''));
 function leadSentences(patterns:unknown[],values:Record<string,string>):string[]{
- return patterns.flatMap(p=>{const alts=Array.isArray(p)?p:[p];for(const a of alts){const s=typeof a==='string'?fill(a,values):null;if(s)return [s];}return [];});
+ const said=new Set<string>();
+ return patterns.flatMap(p=>{const alts=Array.isArray(p)?p:[p];
+  for(const a of alts){if(typeof a!=='string')continue;const s=fill(a,values);if(!s)continue;
+   const f=facts(a);if(f.length&&f.every(k=>said.has(k)))return [];f.forEach(k=>said.add(k));return [s];}
+  return [];});
 }
 // Trend series. Two series in one unit whose sizes differ by 50× or more (GDP and GDP per capita) get an axis
 // each: the trend component draws two axes for two units, so they are told apart by their labels (currency and

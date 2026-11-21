@@ -225,3 +225,10 @@ test('a trend section naming metrics in different units becomes one chart per un
  assert.equal(trends.length,2);
  assert.deepEqual(trends.map(t=>[t.props.unit??t.props.currency,t.props.series.map(x=>x.label)]),[['people',['Population']],['USD',['GDP']]]);
 });
+test('lead: type labels read as common nouns; a sentence repeating facts already stated is dropped',()=>{
+ const base=data();
+ const d={...base,type:{...base.type,label:'Country',template:{lead:['{name} is a {type.label}. Its population is {metric.population} ({period.population}), {rank.population} of {of.population}.',
+  '{name} is a {type.label} with a population of {metric.population} ({period.population}), ranked {rank.population} of {of.population} by population.','It lies in {attr.region}.']}}};
+ const lead=a.assembleEntityPage(d).lead;
+ assert.equal(lead.length,2);assert.match(lead[0],/^Germany is a country\./);assert.equal(lead[1],'It lies in Europe & Central Asia.');
+});
