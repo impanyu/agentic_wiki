@@ -470,3 +470,14 @@ html[data-print=report] .voice-input{display:none!important}
 .template-ranking-v1 .wiki-body ul{font-size:14px;color:#334155}
 .template-ranking-v1 .sources,.template-ranking-v1 .saved-note{margin-left:0;font-size:13px}
 .answer.template-ranking-v1{max-width:1100px}
+
+/* Data twin: a chart's numbers as a collapsed table, plus its data files (server-rendered). */
+.data-twin{margin:6px 0 18px;font-size:13px}
+.data-twin summary{cursor:pointer;color:#64748b;font-weight:600;font-size:12.5px;padding:4px 0;width:max-content}
+.data-twin summary:hover{color:#1d4ed8}
+.data-twin-scroll{max-height:420px;overflow:auto;border:1px solid #e7ebf3;border-radius:10px;margin-top:6px}
+.data-twin table{border-collapse:collapse;width:100%;font-variant-numeric:tabular-nums}
+.data-twin th{position:sticky;top:0;background:#f8fafc;text-align:left;font-weight:600;color:#475569;padding:6px 10px;border-bottom:1px solid #e7ebf3;white-space:nowrap}
+.data-twin td{padding:5px 10px;border-bottom:1px solid #f2f4f8;color:#1e293b;white-space:nowrap}
+.data-twin-files{margin:4px 0 0;display:flex;flex-wrap:wrap;gap:12px}
+.data-twin-files a{font-size:12.5px;color:#4f7cff}

@@ -61,6 +61,23 @@ The goal is one page per entity and one ranking page per entity type (plus sub-s
   `entity_search` (names, aliases, embeddings); generation is needed only when the DB has no
   match, and then the result is a new entity or type, not a free-floating page.
 
+### Pages for search engines and AI crawlers
+- The AI search crawlers (GPTBot / OAI-SearchBot for ChatGPT, ClaudeBot and Brave's index for
+  Claude, PerplexityBot, and in China Bocha, which serves DeepSeek's web search) do not run
+  JavaScript; Googlebot (also Gemini) and Applebot do, with delays and budgets. So every page is
+  rendered on the server (/p/<id>/<slug>), and every visualization has a **data twin** in the
+  HTML: the leaderboard (all rows, all criteria) for a ranking, a collapsed table under every
+  other chart, schema.org JSON-LD, and links to the raw data files (/data/<page>/<file>.csv).
+  Interactive and 3D views may be browser-only; the data never is.
+- Each ranking criterion has its own crawlable address (?rank=<key>); the sitemap lists them all.
+- Rendering is templated: agents supply data and configuration (criteria, views, template), never
+  page markup. Visualizations are generic platform components chosen from the data (share views
+  only for quantities that add up; maps for regions — countries, U.S. states, U.S. counties — or
+  for anything with coordinates).
+- Units: facts are stored in base units (USD not million USD, people, km2); the import converts
+  scale words and imperial units (app/entity-db/units.ts). Currencies are never converted into
+  each other implicitly.
+
 ## 1. Agents
 
 ### Router — the manager

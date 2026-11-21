@@ -1,6 +1,7 @@
 import type {EntityDb,Queryable,Row} from './client';
 import {GLOBAL_ID_KEYS,storedEmbedDim} from './schema';
 import {getEmbedder,toVector,entityText} from './embeddings';
+import {normalizeUnit} from './units';
 import {METRIC_KEY,DENOMINATORS,parseDefinition,parseMetricRef,evaluateDefinition,competitionRanks,type DerivedDefinition,type EvalData,type Point} from './metrics';
 // Repository for the entity database. Every function takes the database (or a transaction) first.
 // All SQL is parameterised: user values only ever travel as $n parameters.
@@ -37,7 +38,7 @@ export type EntityMapping={type:string;nameColumn:string;idColumns?:Record<strin
 // create: make a minimal entity of `type` when no entity matches a name (default true when type is given and by is "name").
 export type RelationColumn={predicate:string;type?:string;by?:string;create?:boolean;period?:string};
 export type Provenance={source:string;retrievedAt?:string|Date};
-export type UpsertResult={rows:number;inserted:number;merged:number;skipped:number;observations:number;relations:number;unresolved:number;idConflicts:number;errors:string[];entityIds:string[]};
+export type UpsertResult={rows:number;inserted:number;merged:number;skipped:number;observations:number;relations:number;unresolved:number;idConflicts:number;errors:string[];entityIds:string[];units:{column:string;from:string;to:string;factor:number}[]};
 
 type Match={id:string;ids:Record<string,string>;tsv:string};
 // Identity rule:
@@ -89,9 +90,10 @@ const cellText=(v:unknown)=>v==null?'':typeof v==='object'?JSON.stringify(v):Str
 // A bad row is skipped (savepoint) and reported, never aborting the batch.
 export async function upsertEntities(db:EntityDb,rows:Row[],mapping:EntityMapping,provenance:Provenance):Promise<UpsertResult>{
  const type=normalizeType(mapping.type);
- const metricCols=Object.entries(mapping.metricColumns||{}).map(([column,m])=>{const {key}=parseMetricRef(m.metric);return {column,key,unit:m.unit||'',period:m.period||''};});
+ // Values are stored in base units: "million USD" → USD ×1e6, "sq mi" → km2, "万人" → people ×1e4 (see units.ts).
+ const metricCols=Object.entries(mapping.metricColumns||{}).map(([column,m])=>{const {key}=parseMetricRef(m.metric);const u=normalizeUnit(m.unit||'');return {column,key,unit:u.unit,factor:u.factor,from:m.unit||'',period:m.period||''};});
  const source=String(provenance.source||'').slice(0,500),retrievedAt=iso(provenance.retrievedAt)||new Date().toISOString();
- const out:UpsertResult={rows:rows.length,inserted:0,merged:0,skipped:0,observations:0,relations:0,unresolved:0,idConflicts:0,errors:[],entityIds:[]};
+ const out:UpsertResult={rows:rows.length,inserted:0,merged:0,skipped:0,observations:0,relations:0,unresolved:0,idConflicts:0,errors:[],entityIds:[],units:metricCols.filter(m=>m.factor!==1||m.unit!==m.from).map(m=>({column:m.column,from:m.from,to:m.unit,factor:m.factor}))};
  const relCols=Object.entries(mapping.relationColumns||{}).map(([column,r])=>{
   const t=r.type?normalizeType(r.type):undefined,by=(r.by||'name').trim().toLowerCase();
   return {column,predicate:normalizePredicate(r.predicate),type:t,by,create:r.create??(!!t&&by==='name'),period:r.period||''};});
@@ -111,7 +113,7 @@ export async function upsertEntities(db:EntityDb,rows:Row[],mapping:EntityMappin
      const r=await upsertEntity(q,{type,name,aliases,ids,attributes,description:mapping.descriptionColumn?cellText(row[mapping.descriptionColumn]):'',image:mapping.imageColumn?cellText(row[mapping.imageColumn]):'',topicId:mapping.topicId});
      await q.query('release savepoint entity_row');
      out[r.action]++;out.idConflicts+=r.idConflicts;out.entityIds.push(r.id);
-     for(const m of metricCols){const value=parseNumber(row[m.column]);if(value==null)continue;
+     for(const m of metricCols){const raw=parseNumber(row[m.column]);if(raw==null)continue;const value=raw*m.factor;
       const period=m.period&&m.period in row?cellText(row[m.period]):m.period;
       obs.push({entityId:r.id,metric:m.key,value,period,source,retrievedAt});}
      for(const c of relCols){

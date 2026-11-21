@@ -4,13 +4,13 @@ import {Search,ArrowDownWideNarrow,ArrowUpNarrowWide} from 'lucide-react';
 import type {VizProps} from './types';
 import {type Entry,type Summary,normalizeCriteria,toEntries,rankEntries,summarize,makeFormatter,shareOf,groupsOf,linkParts,parseNumber} from './ranking-data';
 import {useAskLink,useRankingView} from '@/app/seo/link-context';
-import {geoKind,geoKeyOf,registerGeo,GEO_ASPECT,type GeoData} from './ranking-geo';
+import {geoKind,geoKeyOf,registerGeo,baseRegion,pointOf,GEO_ASPECT,type GeoData} from './ranking-geo';
 import './viz.css';
 import './ranking.css';
 
 type ECharts=typeof import('echarts');
 type Chart=ReturnType<ECharts['init']>;
-import {PALETTE,MAP_BOTTOM,errMessage,rgba,NEG,columnOption,treemapOption,donutOption,choroplethOption,heightMapOption,scatterOption,autoViews,pickViews,chartKey,type RankingViewKind} from './ranking-chart';
+import {PALETTE,MAP_BOTTOM,errMessage,rgba,NEG,columnOption,treemapOption,donutOption,choroplethOption,heightMapOption,pointMapOption,pointColumnsOption,scatterOption,autoViews,pickViews,chartKey,type RankingViewKind} from './ranking-chart';
 
 // Same prebuilt bundle as the echart component, so the page shares one echarts instance.
 let echartsP:Promise<ECharts>|null=null;
@@ -143,8 +143,12 @@ export default function Ranking({props,setValue,fire,ctx}:VizProps){
    case 'bar':return barShown.length?columnOption({shown:barShown,c,fmt,axisFmt,window:allBars?columnWindow:undefined,noData}):null;
    case 'treemap':return treemapOption({ranked:chartRanked,c,fmt,othersLabel:t('Others'),noData});
    case 'donut':return donutOption({ranked:chartRanked,c,fmt,othersLabel:t('Others'),noData});
-   case 'map':return geo&&geoData?.kind===geo?choroplethOption({ranked,c,fmt,kind:geo,map:geoData.name,keyOf,names:geoData.names,noData}):null;
-   case 'map3d':return geo&&geoData?.kind===geo?heightMapOption({ranked,c,fmt,kind:geo,map:geoData.name,keyOf,names:geoData.names,noData}):null;
+   case 'map':case 'map3d':{
+    if(!geo||geoData?.kind!==baseRegion(geo))return null;
+    const g={ranked,c,fmt,map:geoData.name,noData};
+    if(geo==='points')return active==='map'?pointMapOption({...g,pointOf:e=>pointOf(e.row)}):pointColumnsOption({...g,pointOf:e=>pointOf(e.row)});
+    return active==='map'?choroplethOption({...g,kind:geo,keyOf,names:geoData.names}):heightMapOption({...g,kind:geo,keyOf,names:geoData.names});
+   }
    case 'scatter':{if(!yC)return null;const yv=entries.map(e=>parseNumber(e.row[yC.key])).filter((v):v is number=>v!=null);
     return scatterOption({entries:[...ranked,...missing],x:c,y:yC,fx:axisFmt,fy:makeFormatter(yC,yv,locale,{unit:false,compact:true}),value:(row,k)=>parseNumber(row[k])});}
   }

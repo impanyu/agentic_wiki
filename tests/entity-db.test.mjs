@@ -9,7 +9,7 @@ export const datasetScope=ctx=>ctx.agent?.id||ctx.userId||'anonymous';
 export async function loadDataset(scope,id){const d=store.get(scope+'/'+id);if(!d)throw Error('Unknown dataset '+id);return d;}
 export async function saveDataset(scope,input){const id='ds_test'+String(++n).padStart(8,'0');const rows=input.rows;const columns=input.columns||[...new Set(rows.flatMap(r=>Object.keys(r)))];store.set(scope+'/'+id,{id,title:input.title,source:input.source,columns,rows,notes:input.notes});return {datasetId:id,title:input.title,source:input.source,rowCount:rows.length,columns:columns.map(name=>({name})),preview:rows.slice(0,8),notes:input.notes};}
 `);
-for(const f of ['client','schema','metrics','embeddings','repo','tools']){
+for(const f of ['client','schema','metrics','embeddings','units','repo','tools']){
  let js=ts.transpileModule(readFileSync(new URL(`../app/entity-db/${f}.ts`,import.meta.url),'utf8'),{compilerOptions:{module:ts.ModuleKind.ESNext,target:ts.ScriptTarget.ES2022}}).outputText;
  js=js.replace(/(from\s*|import\()\s*(['"])([^'"]+)\2/g,(m,pre,q,spec)=>stubs[spec]?`${pre}'${stubs[spec]}'`:spec.startsWith('./')?`${pre}'${spec}.mjs'`:m);
  writeFileSync(new URL(f+'.mjs',out),js);
@@ -344,4 +344,26 @@ test('latest snapshot: values, ranks over the type, relations; kept current on w
  a=await latest('Mons A');assert.deepEqual([a.metrics.stars.value,a.metrics.stars.rank,a.metrics.stars.of,a.metrics.stars.source],[3,1,1,'attribute:stars']);
  assert.equal(a.metrics.peak_height.rank,2);// other ranks kept
  assert.equal((await db.query("select attributes->>'stars' s from entities where name='Mons A'")).rows[0].s,'3');
+});
+
+test('units: values are stored in base units; the conversion is reported',async()=>{
+ const units=await import(new URL('units.mjs',out)).catch(()=>null);
+ const d=await datasets.saveDataset('editor-units',{title:'gdp',source:'t',rows:[{name:'Atlantis',gdp:'2,500,000',area:'100'}]});
+ const r=(await tools.runEntityTool('entity_upsert',{datasetId:d.datasetId,type:'realm',nameColumn:'name',idColumns:'',aliasColumns:'',descriptionColumn:'',attributeColumns:'',
+  metricColumns:'{"gdp":{"metric":"realm_gdp","unit":"million USD","period":"2024"},"area":{"metric":"realm_area","unit":"sq mi","period":"2024"}}',relationColumns:'',source:'s',topicId:''},{agent:{id:'editor-units'}})).data;
+ assert.deepEqual(r.units.map(u=>[u.column,u.to,u.factor]),[['gdp','USD',1e6],['area','km2',2.589988110336]]);
+ const v=Object.fromEntries((await db.query("select o.metric, o.value from observations o join entities e on e.id=o.entity_id where e.name='Atlantis'")).rows.map(x=>[x.metric,Number(x.value)]));
+ assert.equal(v.realm_gdp,2.5e12);assert.ok(Math.abs(v.realm_area-258.9988110336)<1e-6);
+ assert.equal((await repo.getMetric(db,'realm_gdp')).unit,'USD');
+});
+test('normalizeUnit: scale words, Chinese scales, currencies, imperial → SI, unknown units unchanged',async()=>{
+ const {normalizeUnit:n}=await import(new URL('units.mjs',out));
+ assert.deepEqual([n('million USD').unit,n('million USD').factor],['USD',1e6]);
+ assert.deepEqual([n('US$ bn').unit,n('US$ bn').factor],['USD',1e9]);
+ assert.deepEqual([n('亿元人民币').unit,n('亿元人民币').factor],['CNY',1e8]);
+ assert.deepEqual([n('百万美元').unit,n('百万美元').factor],['USD',1e6]);
+ assert.deepEqual([n('万人').unit,n('万人').factor],['people',1e4]);
+ assert.deepEqual([n('hectares').unit,n('hectares').factor],['km2',0.01]);
+ assert.deepEqual(n('years'),{unit:'years',factor:1,changed:false});
+ assert.deepEqual(n('%'),{unit:'%',factor:1,changed:false});
 });

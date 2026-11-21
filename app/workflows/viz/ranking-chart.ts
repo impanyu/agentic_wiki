@@ -175,3 +175,42 @@ export function scatterOption(o:{entries:{name:string;row:Record<string,unknown>
    label:{show:true,position:'top',distance:6,fontSize:10,color:'#334155',formatter:(p:any)=>top.has(p.data.name)?p.data.name:''},labelLayout:{hideOverlap:true},
    data:pts.map(p=>({name:p.e.name,value:[p.x,p.y]}))}]};
 }
+// ───────────── point maps: entities with coordinates ─────────────
+type Located={e:Entry;p:[number,number]};
+// The points' extent, padded, as [[west, north], [east, south]] (ECharts boundingCoords).
+function bounds(pts:Located[]):[[number,number],[number,number]]{
+ const xs=pts.map(p=>p.p[0]),ys=pts.map(p=>p.p[1]);
+ let w=Math.min(...xs),e=Math.max(...xs),s=Math.min(...ys),n=Math.max(...ys);
+ const px=Math.max(2,(e-w)*.08),py=Math.max(2,(n-s)*.12);w-=px;e+=px;s-=py;n+=py;
+ return [[Math.max(-180,w),Math.min(85,n)],[Math.min(180,e),Math.max(-60,s)]];
+}
+// Bubbles on the world map, sized by value (area ∝ value), the top 3 in medal colors, the top 10 labelled.
+export function pointMapOption(o:{ranked:Entry[];c:Criterion;fmt:Fmt;map:string;pointOf:(e:Entry)=>[number,number]|null;noData:string}){
+ const pts=o.ranked.map(e=>({e,p:o.pointOf(e)})).filter((x):x is Located=>!!x.p);
+ const max=Math.max(...pts.map(x=>Math.abs(x.e.value!)),1);
+ return {textStyle:{fontFamily:FONT},aria:{enabled:true},
+  tooltip:{...TOOLTIP,formatter:(p:any)=>p.data?.entry?tooltipHtml(p.data.entry,o.c,o.fmt,o.noData):escapeHtml(p.name)},
+  geo:{map:o.map,roam:true,projection:{project:equalEarth,unproject:equalEarthInvert},boundingCoords:pts.length?bounds(pts):undefined,
+   left:8,right:8,top:8,bottom:8,silent:true,itemStyle:{areaColor:'#eef1f6',borderColor:'#fff',borderWidth:.6},emphasis:{disabled:true}},
+  series:[{type:'scatter',coordinateSystem:'geo',
+   data:pts.map(x=>({name:x.e.name,value:[x.p[0],x.p[1],x.e.value],entry:x.e,
+    itemStyle:{color:x.e.rank!=null&&x.e.rank<=3?MEDAL[x.e.rank-1]:'rgba(79,124,255,.6)',borderColor:'#fff',borderWidth:1}})),
+   symbolSize:(v:number[])=>4+30*Math.sqrt(Math.abs(v[2])/max),
+   label:{show:true,position:'right',fontSize:10,color:'#334155',formatter:(p:any)=>p.data.entry?.rank!=null&&p.data.entry.rank<=10?p.name:''},labelLayout:{hideOverlap:true},
+   emphasis:{scale:1.4,itemStyle:{color:'#ff8a4c'}}}]};
+}
+// 3D columns standing on the map at each point, height ∝ √value (echarts-gl geo3D + bar3D).
+export function pointColumnsOption(o:{ranked:Entry[];c:Criterion;fmt:Fmt;map:string;pointOf:(e:Entry)=>[number,number]|null;noData:string}){
+ const pts=o.ranked.map(e=>({e,p:o.pointOf(e)})).filter((x):x is Located=>!!x.p);
+ const max=Math.max(...pts.map(x=>Math.abs(x.e.value!)),1);
+ const b=pts.length?bounds(pts):undefined;
+ return {textStyle:{fontFamily:FONT},
+  tooltip:{...TOOLTIP,formatter:(p:any)=>{const e=pts[p.dataIndex]?.e;return e?tooltipHtml(e,o.c,o.fmt,o.noData):'';}},
+  visualMap:[{show:false,min:1,max:31,dimension:2,inRange:{color:o.c.order==='asc'?[...MAP_COLORS].reverse():MAP_COLORS.slice(2)}}],
+  geo3D:{map:o.map,boundingCoords:b,boxWidth:200,boxDepth:100,regionHeight:.6,shading:'color',
+   light:{main:{intensity:1.2,shadow:true,alpha:45,beta:30},ambient:{intensity:.55}},
+   viewControl:{distance:125,alpha:48,beta:0,minAlpha:10,maxAlpha:85},itemStyle:{color:'#d3dbe8',borderWidth:.6,borderColor:'#ffffff'},silent:true,groundPlane:{show:false}},
+  series:[{type:'bar3D',coordinateSystem:'geo3D',shading:'lambert',barSize:1.6,minHeight:.2,
+   data:pts.map(x=>({name:x.e.name,value:[x.p[0],x.p[1],1+30*Math.sqrt(Math.abs(x.e.value!)/max)]})),
+   bevelSize:.3,label:{show:false},emphasis:{label:{show:false},itemStyle:{color:'#ff8a4c'}}}]};
+}

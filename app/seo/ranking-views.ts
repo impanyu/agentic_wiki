@@ -1,7 +1,7 @@
 import {blockWorkflow} from '@/app/workflows/component-block';
 import {normalizeCriteria,toEntries,rankEntries,makeFormatter,summarize,parseNumber,type Criterion} from '@/app/workflows/viz/ranking-data';
-import {columnOption,treemapOption,donutOption,choroplethOption,scatterOption,autoViews,pickViews,chartKey,type RankingViewKind} from '@/app/workflows/viz/ranking-chart';
-import {geoKind,geoKeyOf,registerGeo,GEO_ASPECT} from '@/app/workflows/viz/ranking-geo';
+import {columnOption,treemapOption,donutOption,choroplethOption,pointMapOption,scatterOption,autoViews,pickViews,chartKey,type RankingViewKind} from '@/app/workflows/viz/ranking-chart';
+import {geoKind,geoKeyOf,registerGeo,pointOf,GEO_ASPECT} from '@/app/workflows/viz/ranking-geo';
 // The rankings on a page as the server sees them: their criteria (for ?rank= views, titles and the
 // sitemap) and their rows (from the preloaded block state), and the bar chart of a view rendered to
 // SVG with ECharts' server-side renderer — the same option the browser draws on its canvas.
@@ -73,7 +73,10 @@ export async function rankingChartSvgs(blocks:RankingBlock[],preloaded:Record<st
    else if(first==='scatter'){const y=b.criteria.find(x=>x.key!==c.key);if(y){const yv=[...ranked,...missing].map(e=>parseNumber(e.row[y.key])).filter((v):v is number=>v!=null);
     option=scatterOption({entries:[...ranked,...missing],x:c,y,fx:axisFmt,fy:makeFormatter(y,yv,locale,{unit:false,compact:true}),value:(row,k)=>parseNumber(row[k])});h=440;}}
    else if(first==='map'){const nameKey=typeof b.props.nameKey==='string'&&b.props.nameKey?b.props.nameKey:'name';const kind=geoKind(toEntries(blockRows(b,state),nameKey));
-    if(kind){const g=await registerGeo(echarts as never,kind);option=choroplethOption({ranked,c,fmt,kind,map:g.name,keyOf:geoKeyOf(kind),names:g.names,noData:labels.noData});h=Math.round(w/GEO_ASPECT[kind])+MAP_EXTRA;}}
+    if(kind){const g=await registerGeo(echarts as never,kind);
+     option=kind==='points'?pointMapOption({ranked,c,fmt,map:g.name,pointOf:e=>pointOf(e.row),noData:labels.noData})
+      :choroplethOption({ranked,c,fmt,kind,map:g.name,keyOf:geoKeyOf(kind),names:g.names,noData:labels.noData});
+     h=Math.round(w/GEO_ASPECT[kind])+MAP_EXTRA;}}
    if(!option)continue;
    const chart=echarts.init(null as unknown as HTMLElement,undefined,{renderer:'svg',ssr:true,width:w,height:h});
    try{chart.setOption({...option,animation:false} as never);

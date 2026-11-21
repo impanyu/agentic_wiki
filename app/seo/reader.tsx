@@ -31,7 +31,7 @@ export function Reader({page,title:initialTitle,titles,preloaded,askTargets,rank
    <article className={'answer template-'+(page.labels.templateId||'wiki-v1')} lang={page.language==='und'?undefined:page.language} dir={rtl?'rtl':'ltr'}>
     <div className="page-meta"><span>{page.category}</span></div>
     <AnswerText pageId={page.id} sources={page.sources} labels={page.labels} title={title} summary={page.summary} body={page.body}
-     highlights={[]} concepts={[]} links={page.links||[]} preloadedBlocks={preloaded}
+     highlights={[]} concepts={[]} links={page.links||[]} preloadedBlocks={preloaded} dataTwins
      onOpen={link=>{location.assign(pagePath(link.targetId,link.targetTitle));}} onJump={()=>{}}/>
    </article>
   </main>

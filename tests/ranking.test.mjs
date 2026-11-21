@@ -135,3 +135,13 @@ test('views: share views only for additive quantities, maps only for geographic 
  assert.deepEqual(views.pickViews(['map','treemap','scatter','nonsense'],auto),['map','scatter']);
  assert.deepEqual(views.pickViews(['treemap'],auto),auto);assert.deepEqual(views.pickViews('auto',auto),auto);
 });
+test('points: lat/lon in several spellings; counties by 5-digit FIPS; regions win over points',()=>{
+ assert.deepEqual(views.pointOf({lat:35.68,lon:139.69}),[139.69,35.68]);
+ assert.deepEqual(views.pointOf({latitude:'-23.5',longitude:'-46.6'}),[-46.6,-23.5]);
+ assert.deepEqual(views.pointOf({coordinates:'40.71, -74.01'}),[-74.01,40.71]);
+ assert.equal(views.pointOf({lat:95,lon:0}),null);assert.equal(views.pointOf({}),null);
+ const city=(name,lat,lon)=>({code:null,name,row:{lat,lon}});
+ assert.equal(views.geoKind([city('A',1,2),city('B',3,4),city('C',5,6)]),'points');
+ assert.equal(views.geoKind([{code:'06037',name:'Los Angeles'},{code:'17031',name:'Cook'},{code:'48201',name:'Harris'}]),'us-counties');
+ assert.equal(views.geoKind([{code:null,name:'Texas',row:{lat:31,lon:-99}},{code:null,name:'Ohio',row:{lat:40,lon:-82}},{code:null,name:'Utah',row:{lat:39,lon:-111}}]),'us');
+});
