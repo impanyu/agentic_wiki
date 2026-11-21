@@ -43,6 +43,11 @@ The first `entityDb()` call creates the `vector` extension and the schema. Tests
   Indexes: GIN on `ids`, `attributes`, `name_keys`, `tsv`; HNSW `vector_cosine_ops` on `embedding`.
 - `metrics(key, version, label, unit, description, methodology, sort_order, format, kind, definition, created_by, status, used)` — PK (key, version).
 - `observations(entity_id, metric, metric_version, value, period, source, retrieved_at)` — PK (entity_id, metric, period, source).
+- `entities.latest` — derived snapshot `{metrics:{<key>:{value,period,source,retrievedAt,rank,of}}, relations:{<predicate>:[{id,name}]}}`
+  so a page renders from one row. Kept current by every write (`syncLatest`: values of the touched entities, ranks of the
+  touched metrics over the whole type, same competition ranks as `metric_table`); `rebuildLatest` recreates it. Never a source.
+  Rule for collectors: numbers → observations (even if not ranked yet), links → relations, codes → ids, text → attributes;
+  `promote_attribute` moves a numeric attribute into observations later.
 - `relations(subject_id, predicate, object_id, period, qualifiers, source, retrieved_at)` — PK (subject_id, predicate, object_id, period):
   links between entities ("Chanel No. 5 —brand→ Chanel", "Paris —located_in→ France"). Written by `entity_upsert`
   `relationColumns` (unknown names become minimal entities of the given type); filtered with `"rel.<predicate>"`,

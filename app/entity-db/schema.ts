@@ -109,6 +109,12 @@ export const MIGRATIONS:Migration[]=[
   'create index if not exists relations_object on relations(object_id, predicate)',
   'create index if not exists relations_predicate on relations(predicate)',
  ]},
+ // Snapshot of each entity's latest metric values (with rank among its type) and outgoing relations, derived from
+ // observations and relations and kept current on every write, so a page is rendered from one row. Never a source:
+ // rebuildLatest() recreates it. {metrics:{population:{value,period,source,retrievedAt,rank,of}}, relations:{brand:[{id,name}]}}
+ {version:3,name:'entity latest snapshot',statements:()=>[
+  "alter table entities add column if not exists latest jsonb not null default '{}'::jsonb",
+ ]},
 ];
 export const SCHEMA_VERSION=MIGRATIONS[MIGRATIONS.length-1].version;
 

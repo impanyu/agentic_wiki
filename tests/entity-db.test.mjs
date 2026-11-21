@@ -254,7 +254,7 @@ test('agent tools: entity_upsert from a dataset, entity_search, entity_get, metr
  const ctx={userId:'u1',language:'en',ownerId:'u1',visibility:'public',agent:{id:'editor-1'}};
  const ds=await datasets.saveDataset('editor-1',{title:'Islands',source:'https://example.org/islands',rows:[
   {Island:'Ilha A',qid:'Q1001',Area:'1,200',Pop:500,Ocean:'Atlantic',Year:2020},{Island:'Ilha B',qid:'Q1002',Area:'800',Pop:900,Ocean:'Pacific',Year:2020},{Island:'Ilha C',qid:'Q1003',Area:'800',Pop:'',Ocean:'Pacific',Year:2020}]});
- assert.equal(tools.entityTools.length,7);
+ assert.equal(tools.entityTools.length,8);
  for(const t of tools.entityTools){assert.deepEqual(t.parameters.required,Object.keys(t.parameters.properties));assert.ok(t.description.includes('xample'),t.name+' has an example');}
  const up=await tools.runEntityTool('entity_upsert',{datasetId:ds.datasetId,type:'Island',nameColumn:'Island',idColumns:'{"wikidata":"qid"}',aliasColumns:'',descriptionColumn:'',attributeColumns:'Ocean=ocean',metricColumns:'{"Area":{"metric":"island_area","unit":"km2","period":"Year"},"Pop":{"metric":"island_pop","unit":"people","period":"2020"}}',relationColumns:'',source:'',topicId:''},ctx);
  assert.equal(up.data.inserted,3);assert.equal(up.data.observations,5);
@@ -314,4 +314,34 @@ test('relations: upsert links entities (stubs for unknown names, ids), rel filte
  // Repeats update instead of duplicating.
  await up(all.slice(3,4),{type:'town',nameColumn:'name',relationColumns:'{"country":{"predicate":"located_in","type":"nation","by":"wikidata"}}'});
  assert.equal(Number((await db.query("select count(*) n from relations where predicate='located_in'")).rows[0].n),3);
+});
+
+test('latest snapshot: values, ranks over the type, relations; kept current on writes; rebuild; promote_attribute',async()=>{
+ const ctx={agent:{id:'editor-snap'}};
+ const d=await datasets.saveDataset('editor-snap',{title:'peaks',source:'t',rows:[
+  {name:'Mons A',h:'4800',y:2020,range:'Alpi',stars:'3'},{name:'Mons B',h:'4500',y:2020,range:'Alpi',stars:'x'},{name:'Mons C',h:'4500',y:2020,range:'Pyrenaei'}]});
+ await tools.runEntityTool('entity_upsert',{datasetId:d.datasetId,type:'peak',nameColumn:'name',idColumns:'',aliasColumns:'',descriptionColumn:'',attributeColumns:'stars',
+  metricColumns:'{"h":{"metric":"peak_height","unit":"m","period":"y"}}',relationColumns:'{"range":{"predicate":"range","type":"mountain_range"}}',source:'peak-src',topicId:''},ctx);
+ const latest=async name=>(await db.query("select latest from entities where type='peak' and name=$1",[name])).rows[0].latest;
+ let a=await latest('Mons A'),c=await latest('Mons C');
+ assert.deepEqual([a.metrics.peak_height.value,a.metrics.peak_height.period,a.metrics.peak_height.source,a.metrics.peak_height.rank,a.metrics.peak_height.of],[4800,'2020','peak-src',1,3]);
+ assert.equal(c.metrics.peak_height.rank,2);// tie with B
+ assert.deepEqual(a.relations.range.map(x=>x.name),['Alpi']);
+ // A newer value for C moves the others' ranks too.
+ const cId=(await db.query("select id from entities where name='Mons C'")).rows[0].id;
+ await repo.recordObservations(db,[{entityId:cId,metric:'peak_height',value:4900,period:'2024',source:'survey'}]);
+ a=await latest('Mons A');c=await latest('Mons C');
+ assert.equal(c.metrics.peak_height.value,4900);assert.equal(c.metrics.peak_height.rank,1);assert.equal(a.metrics.peak_height.rank,2);assert.equal((await latest('Mons B')).metrics.peak_height.rank,3);
+ // Same ranks as metric_table.
+ const t=await repo.metricTable(db,{type:'peak',metrics:['peak_height']});
+ for(const r of t.rows)assert.equal((await latest(r.name)).metrics.peak_height.rank,r.peak_height_rank);
+ // Rebuild from scratch gives the same snapshot.
+ const before=await latest('Mons B');await db.query("update entities set latest='{}'::jsonb where type='peak'");
+ assert.deepEqual(await repo.rebuildLatest(db,{type:'peak'}),{entities:3});assert.deepEqual(await latest('Mons B'),before);
+ // promote_attribute: numeric attribute → metric with ranks; non-numbers skipped; attribute kept.
+ const p=await tools.runEntityTool('promote_attribute',{type:'peak',attribute:'stars',metric:'',unit:'stars',period:'',source:''},ctx);
+ assert.deepEqual([p.data.metric,p.data.withAttribute,p.data.promoted,p.data.skipped],['stars',2,1,1]);
+ a=await latest('Mons A');assert.deepEqual([a.metrics.stars.value,a.metrics.stars.rank,a.metrics.stars.of,a.metrics.stars.source],[3,1,1,'attribute:stars']);
+ assert.equal(a.metrics.peak_height.rank,2);// other ranks kept
+ assert.equal((await db.query("select attributes->>'stars' s from entities where name='Mons A'")).rows[0].s,'3');
 });

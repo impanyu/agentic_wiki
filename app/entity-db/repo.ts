@@ -133,6 +133,7 @@ export async function upsertEntities(db:EntityDb,rows:Row[],mapping:EntityMappin
   });
  }
  out.entityIds=[...new Set(out.entityIds)];
+ await syncLatest(db,out.entityIds,metricCols.map(m=>({key:m.key,version:0})));
  return out;
 }
 
@@ -153,7 +154,9 @@ async function writeObservations(q:Queryable,list:ObservationInput[]):Promise<nu
 export async function recordObservations(db:EntityDb,list:ObservationInput[]):Promise<number>{
  const keys=[...new Set(list.map(o=>parseMetricRef(o.metric).key))];
  await ensureObservedMetrics(db,keys.map(key=>({key,unit:''})));
- return db.tx(q=>writeObservations(q,list));
+ const n=await db.tx(q=>writeObservations(q,list));
+ await syncLatest(db,list.map(o=>o.entityId),[...new Set(list.map(o=>parseMetricRef(o.metric).key+'\u0000'+(o.metricVersion||0)))].map(k=>{const [key,v]=k.split('\u0000');return {key,version:Number(v)};}));
+ return n;
 }
 async function ensureObservedMetrics(db:Queryable,list:{key:string;unit:string}[]){
  for(const m of list){if(!METRIC_KEY.test(m.key))throw Error('Invalid metric key "'+m.key+'".');
@@ -270,7 +273,11 @@ async function writeRelations(q:Queryable,list:RelationInput[]):Promise<number>{
  return rows.length;
 }
 // Records relations between entities that already exist (ids). A repeat updates source and time.
-export async function recordRelations(db:EntityDb,list:RelationInput[]):Promise<number>{return db.tx(q=>writeRelations(q,list));}
+export async function recordRelations(db:EntityDb,list:RelationInput[]):Promise<number>{
+ const n=await db.tx(q=>writeRelations(q,list));
+ await syncLatest(db,list.map(r=>r.subjectId),[]);
+ return n;
+}
 
 // ───────────── scope filters ─────────────
 export type Scope={type?:string;topicId?:string;filters?:Record<string,unknown>};
@@ -448,6 +455,7 @@ export async function computeDerivedMetric(db:EntityDb,key:string,version?:numbe
   await q.query('update metrics set used = true, updated_at = now() where key = $1::text and version = $2::int',[m.key,m.version]);
   return n;
  });
+ await syncLatest(db,[...entities.keys()],[{key:m.key,version:m.version}]);
  const ranks=competitionRanks(values,m.order);
  const top=[...ranks].sort((a,b)=>a[1]-b[1]).slice(0,10).map(([id,rank])=>({rank,name:entities.get(id),value:Math.round(values.get(id)!.value*1e6)/1e6}));
  return {key:m.key,version:m.version,status:m.status,source,period:per||'latest',inScope:entities.size,computed:written,skipped:entities.size-values.size,top};
@@ -520,6 +528,74 @@ export async function entityRelations(db:Queryable,id:string){
   from relations r join entities s on s.id = r.subject_id where r.object_id = $1::uuid group by r.predicate, s.type order by n desc, r.predicate limit 50`,[id]);
  return {outgoing:out.rows.map(r=>({predicate:r.predicate,object:{id:r.id,name:r.name,type:r.type},period:r.period,source:r.source,qualifiers:r.qualifiers||{}})),
   incoming:inc.rows.map(r=>({predicate:r.predicate,type:r.type,count:Number(r.n),sample:r.sample}))};
+}
+
+// ───────────── latest snapshot ─────────────
+// entities.latest = {metrics:{<key> or <key>@<version>:{value,period,source,retrievedAt,rank,of}}, relations:{<predicate>:[{id,name}]}}.
+// Values and relations are rebuilt for the given entities; ranks are recomputed over the whole type for the given metrics
+// (a new value moves other entities' ranks too) with the same competition ranking metric_table uses.
+const SNAPSHOT_REL_LIMIT=20;
+const metricSlot=(key:string,version:number)=>version?`${key}@${version}`:key;
+export async function refreshLatestValues(q:Queryable,entityIds:string[]):Promise<number>{
+ const ids=[...new Set(entityIds.filter(id=>UUID.test(id)))];if(!ids.length)return 0;
+ await q.query(`with ids as (select unnest($1::uuid[]) as id),
+  v as (select distinct on (o.entity_id, o.metric, o.metric_version) o.entity_id, o.metric, o.metric_version, o.value, o.period, o.source, o.retrieved_at
+   from observations o where o.entity_id = any($1::uuid[]) order by o.entity_id, o.metric, o.metric_version, o.period desc, o.retrieved_at desc),
+  m as (select v.entity_id, jsonb_object_agg(case when v.metric_version = 0 then v.metric else v.metric || '@' || v.metric_version end,
+    coalesce(e.latest->'metrics'->(case when v.metric_version = 0 then v.metric else v.metric || '@' || v.metric_version end), '{}'::jsonb)
+    || jsonb_build_object('value', v.value, 'period', v.period, 'source', v.source, 'retrievedAt', v.retrieved_at)) as j
+   from v join entities e on e.id = v.entity_id group by v.entity_id),
+  rp as (select r.subject_id, r.predicate, jsonb_path_query_array(jsonb_agg(jsonb_build_object('id', o.id, 'name', o.name) order by r.period desc, o.name), '$[0 to ${SNAPSHOT_REL_LIMIT-1}]') as objs
+   from relations r join entities o on o.id = r.object_id where r.subject_id = any($1::uuid[]) group by r.subject_id, r.predicate),
+  rl as (select subject_id, jsonb_object_agg(predicate, objs) as j from rp group by subject_id)
+  update entities e set latest = jsonb_build_object('metrics', coalesce(m.j, '{}'::jsonb), 'relations', coalesce(rl.j, '{}'::jsonb))
+  from ids left join m on m.entity_id = ids.id left join rl on rl.subject_id = ids.id where e.id = ids.id`,[ids]);
+ return ids.length;
+}
+export async function refreshLatestRanks(q:Queryable,type:string,metric:{key:string;version:number}):Promise<number>{
+ const def=metric.version?await getMetric(q,metric.key,metric.version):(await q.query('select sort_order from metrics where key = $1::text order by version desc limit 1',[metric.key])).rows[0];
+ const order=(def as {order?:string;sort_order?:string}|undefined)?.order||(def as {sort_order?:string}|undefined)?.sort_order||'desc';
+ const slot=metricSlot(metric.key,metric.version);
+ await q.query(`with v as (select distinct on (o.entity_id) o.entity_id, o.value from observations o join entities e on e.id = o.entity_id
+   where e.type = $1::text and o.metric = $2::text and o.metric_version = $3::int order by o.entity_id, o.period desc, o.retrieved_at desc),
+  rk as (select entity_id, rank() over (order by value ${order==='asc'?'asc':'desc'}) as rk, count(*) over () as n from v)
+  update entities e set latest = jsonb_set(e.latest, array['metrics', $4::text], (e.latest->'metrics'->$4::text) || jsonb_build_object('rank', rk.rk, 'of', rk.n))
+  from rk where e.id = rk.entity_id and e.latest->'metrics' ? $4::text`,[type,metric.key,metric.version,slot]);
+ return 1;
+}
+// Keeps the snapshot current after a write: values/relations of the touched entities, ranks of the touched metrics in their types.
+export async function syncLatest(db:Queryable,entityIds:string[],metrics:{key:string;version:number}[]):Promise<void>{
+ const ids=[...new Set(entityIds.filter(id=>UUID.test(id)))];if(!ids.length)return;
+ for(let i=0;i<ids.length;i+=1000)await refreshLatestValues(db,ids.slice(i,i+1000));
+ if(!metrics.length)return;
+ const types=(await db.query<{type:string}>('select distinct type from entities where id = any($1::uuid[])',[ids])).rows.map(r=>r.type);
+ for(const t of types)for(const m of metrics)await refreshLatestRanks(db,t,m);
+}
+// Recreates every snapshot (or one type's) from observations and relations.
+export async function rebuildLatest(db:Queryable,{type}:{type?:string}={}):Promise<{entities:number}>{
+ const t=type?normalizeType(type):null;
+ const ids=(await db.query<{id:string}>('select id from entities where $1::text is null or type = $1::text',[t])).rows.map(r=>r.id);
+ for(let i=0;i<ids.length;i+=1000)await refreshLatestValues(db,ids.slice(i,i+1000));
+ const pairs=(await db.query<{type:string;metric:string;v:number}>(`select distinct e.type, o.metric, o.metric_version as v from observations o join entities e on e.id = o.entity_id
+  where $1::text is null or e.type = $1::text`,[t])).rows;
+ for(const p of pairs)await refreshLatestRanks(db,p.type,{key:p.metric,version:Number(p.v)});
+ return {entities:ids.length};
+}
+
+// ───────────── promote an attribute to a metric ─────────────
+// Copies a numeric attribute of every entity of a type into observations (the attribute itself stays), so it can be
+// ranked, filtered by value and charted. Values are parsed like dataset cells ("1,234" → 1234); others are counted as skipped.
+export async function promoteAttribute(db:EntityDb,{type,attribute,metric,unit='',period='',source=''}:{type:string;attribute:string;metric?:string;unit?:string;period?:string;source?:string}){
+ const t=normalizeType(type);const attr=String(attribute||'').trim();if(!attr||attr.length>80)throw Error('Name the attribute to promote.');
+ const key=parseMetricRef(metric||attr.toLowerCase().replace(/[^a-z0-9_]+/g,'_').replace(/^_+|_+$/g,'')).key;
+ const rows=(await db.query<{id:string;v:unknown;p:unknown}>(`select id, attributes->$2::text as v, attributes->$3::text as p from entities where type = $1::text and attributes ? $2::text`,[t,attr,period])).rows;
+ const list:ObservationInput[]=[];let skipped=0;
+ for(const r of rows){const value=parseNumber(r.v);if(value==null){skipped++;continue;}
+  const per=period&&r.p!=null&&typeof r.p!=='object'?String(r.p):/^\d{4}$/.test(period)?period:'';
+  list.push({entityId:r.id,metric:key,value,period:per,source:source||`attribute:${attr}`});}
+ await ensureObservedMetrics(db,[{key,unit}]);
+ const n=list.length?await recordObservations(db,list):0;
+ return {type:t,attribute:attr,metric:key,withAttribute:rows.length,promoted:n,skipped};
 }
 
 // ───────────── embeddings ─────────────
