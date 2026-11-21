@@ -252,3 +252,14 @@ test('every entity page lists its rankings, even when the template leaves the se
  assert.equal(r.component,'rankings');
  assert.deepEqual(r.links[0].ranks.map(x=>[x.text,x.href]),[['19th of 217','/rankings/country-rankings'],['outside the top 1,000','/rankings/country-rankings?rank=gdp_usd'],['not ranked','/rankings/country-rankings?rank=area_km2']]);
 });
+test('related entities link by id, so a shared name never links to the wrong page',()=>{
+ const base=data();
+ const d={...base,type:{...base.type,template:{lead:['It borders {rel.borders}.'],card:['rel.borders']}},
+  relations:{outgoing:[{id:'id-ga-state',predicate:'borders',name:'Georgia',type:'us_state'}],incoming:[]},
+  links:{georgia:'/e/country/georgia'},entityLinks:{'id-ga-state':'/e/us_state/georgia'}};
+ const m=a.assembleEntityPage(d);
+ assert.deepEqual(m.leadParts[0].find(p=>p.text==='Georgia'),{text:'Georgia',href:'/e/us_state/georgia'});
+ assert.equal(m.cards[0].href,'/e/us_state/georgia');
+ const noPage=a.assembleEntityPage({...d,entityLinks:{}});
+ assert.equal(noPage.cards[0].href,undefined,'the state has no page: no link, never the country of the same name');
+});

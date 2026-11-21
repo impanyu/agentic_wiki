@@ -102,8 +102,8 @@ export async function loadEntityPage(db:Queryable,type:string,slug:string):Promi
   metrics[k]={value:f.value,period:String(f.period||''),source:f.source||undefined,retrievedAt:f.retrievedAt,rank,of,history};
  }
  const defs=await metricInfos(db,Object.keys(metrics));
- const relations={outgoing:e.relations.outgoing.map((r:Row)=>({predicate:String(r.predicate),name:String(obj(r.object).name),type:String(obj(r.object).type),source:String(r.source||'')})),
-  incoming:e.relations.incoming.map((r:Row)=>({predicate:String(r.predicate),type:String(r.type),count:Number(r.count),sample:(Array.isArray(r.sample)?r.sample:[]).map((x:Row)=>({name:String(x.name)}))}))};
+ const relations={outgoing:e.relations.outgoing.map((r:Row)=>({id:String(obj(r.object).id),predicate:String(r.predicate),name:String(obj(r.object).name),type:String(obj(r.object).type),source:String(r.source||'')})),
+  incoming:e.relations.incoming.map((r:Row)=>({predicate:String(r.predicate),type:String(r.type),count:Number(r.count),sample:(Array.isArray(r.sample)?r.sample:[]).map((x:Row)=>({id:String(x.id),name:String(x.name)}))}))};
  const data:EntityPageData={entity:{id:e.id,name:e.name,type:e.type,description:e.description,aliases:e.aliases,ids:e.ids,attributes:e.attributes,image:e.image},
   type:{label:typeInfo.label,plural:typeInfo.plural,template:typeInfo.template},defs,metrics,relations,peers:{},rankings:[]};
  // Peers: every entity of the type ranked in the top 1,000 on the metrics the position, peer and radar sections show.
@@ -114,11 +114,16 @@ export async function loadEntityPage(db:Queryable,type:string,slug:string):Promi
   for(const m of t.metrics)data.peers[m.key]=t.rows.filter(r=>typeof r[m.column]==='number'&&Number(r[m.column+'_rank'])<=RANK_LIMIT).map(r=>({name:String(r.name),type:String(r.type),value:Number(r[m.column])}));
  }
  data.rankings=await entityRankings(db,data,metrics);
- // Links: every name the page mentions (attribute values, related entities) that has a page of its own.
- const names=[...Object.values(e.attributes||{}).filter((v):v is string=>typeof v==='string'&&v.length>1&&v.length<=80&&!/^https?:/i.test(v)),
-  ...relations.outgoing.map(r=>r.name),...relations.incoming.flatMap(g=>g.sample.map(x=>x.name))];
- data.links=await resolveMentions(db,names,e.id);
+ // Links: related entities by their id (exact, even when names are shared), attribute values by name or alias.
+ data.entityLinks=await resolveEntityIds(db,[...relations.outgoing.map(r=>r.id),...relations.incoming.flatMap(g=>g.sample.map(x=>x.id))],e.id);
+ data.links=await resolveMentions(db,Object.values(e.attributes||{}).filter((v):v is string=>typeof v==='string'&&v.length>1&&v.length<=80&&!/^https?:/i.test(v)),e.id);
  return {data,canonical:found.canonical,updatedAt:iso(snap?.updated_at)};
+}
+// {entity id → page path} for the related entities that have a page (their type has a template).
+export async function resolveEntityIds(db:Queryable,ids:string[],selfId?:string):Promise<Record<string,string>>{
+ const list=[...new Set(ids.filter(x=>/^[0-9a-f-]{36}$/i.test(x)&&x!==selfId))].slice(0,800);if(!list.length)return {};
+ const r=await db.query<{id:string;type:string;name:string}>(`select e.id,e.type,e.name from entities e join entity_types t on t.type=e.type and t.template <> '{}'::jsonb where e.id = any($1::uuid[])`,[list]);
+ return Object.fromEntries(r.rows.map(x=>[String(x.id),entityPath(x.type,x.name)]));
 }
 // {mentionKey(name) → page path} for the names that have an entity page (a type with a template), the page
 // itself excluded; an exact name wins over an alias. Resolved at render time, so links stay two-way: a new page

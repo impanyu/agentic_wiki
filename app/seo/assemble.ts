@@ -114,7 +114,7 @@ export const fillAll=(patterns:unknown,values:Record<string,string>):string[]=>(
 // ───────────── entity pages ─────────────
 export type Section={kind:string;title?:string;metrics?:string[];metric?:string;sentences?:string[]};
 export type Template={lead?:(string|string[])[];card?:string[];sections?:Section[]};
-export type EntityRelations={outgoing:{predicate:string;name:string;type:string;source?:string}[];incoming:{predicate:string;type:string;count:number;sample:{name:string}[]}[]};
+export type EntityRelations={outgoing:{id?:string;predicate:string;name:string;type:string;source?:string}[];incoming:{predicate:string;type:string;count:number;sample:{id?:string;name:string}[]}[]};
 export type EntityRankingRef={slug:string;title:string;filters?:Record<string,unknown>;ranks:{key:string;label:string;rank:number|null;of:number|null}[]};
 export type EntityPageData={
  entity:{id:string;name:string;type:string;description:string;aliases:string[];ids:Record<string,string>;attributes:Record<string,unknown>;image?:string|null};
@@ -128,6 +128,8 @@ export type EntityPageData={
  // Pages that exist for names this page mentions (attribute values, related entities): mentionKey(name) → path.
  // Resolved when the page is assembled, so links appear on old pages as soon as the new page exists.
  links?:Record<string,string>;
+ // Pages of related entities by entity id (relations know exactly which entity they point to).
+ entityLinks?:Record<string,string>;
 };
 export type PageSection={component:string;title?:string;props?:Record<string,unknown>;paragraphs?:string[];paragraphParts?:Part[][];links?:{href:string;title:string;detail:string;ranks?:{label:string;text:string;href:string}[]}[]};
 export type EntityPageModel={title:string;lead:string[];leadParts:Part[][];cards:Record<string,unknown>[];sections:PageSection[];references:{source:string;what:string}[];asOf:string|null;
@@ -187,16 +189,18 @@ function trendSeries(list:{c:Criterion;points:Point[]}[]){
 }
 export function assembleEntityPage(d:EntityPageData,locale='en'):EntityPageModel{
  const e=d.entity;const tpl:Template=d.type.template&&(d.type.template.lead||d.type.template.card||d.type.template.sections)?d.type.template:defaultTemplate(d);
- const relMap:Record<string,{name:string}[]>={};for(const r of d.relations.outgoing)(relMap[r.predicate]??=[]).push({name:r.name});
+ const relMap:Record<string,{id?:string;name:string}[]>={};for(const r of d.relations.outgoing)(relMap[r.predicate]??=[]).push({id:r.id,name:r.name});
  const values=entityValues({name:e.name,typeLabel:d.type.label||humanize(e.type).toLowerCase(),typePlural:d.type.plural,metrics:d.metrics,defs:d.defs,attributes:e.attributes,relations:relMap,locale});
  // Where each filled value leads: attributes and related entities to their pages (when they exist), ranks to the ranking view.
- const links=d.links||{};const pageOf=(name:string)=>links[mentionKey(name)];
+ const links=d.links||{},idLinks=d.entityLinks||{};const pageOf=(name:string)=>links[mentionKey(name)];
+ // A related entity: by its id when known (exact), else by name.
+ const pageOfRel=(r:{id?:string;name:string})=>r.id?idLinks[r.id]:pageOf(r.name);
  const hrefs:Record<string,string>={};
  // An attribute value without a page of its own can still lead to the sub-ranking scoped to it ("Europe & Central Asia" →
  // Country Rankings in Europe & Central Asia).
  const scopedRanking=(k:string,t:string)=>{const r=d.rankings.find(x=>{const f=x.filters?.[k];return typeof f==='string'&&f.toLowerCase()===t.toLowerCase();});return r?rankingPath(r.slug):undefined;};
  for(const [k,v] of Object.entries(e.attributes||{})){const t=scalarText(v);const h=t&&(pageOf(t)||scopedRanking(k,t));if(h)hrefs['attr.'+k]=h;}
- for(const [p,list] of Object.entries(relMap)){const h=list?.[0]&&pageOf(list[0].name);if(h)hrefs['rel.'+p]=h;}
+ for(const [p,list] of Object.entries(relMap)){const h=list?.[0]&&pageOfRel(list[0]);if(h)hrefs['rel.'+p]=h;}
  for(const k of Object.keys(d.metrics)){const r=d.rankings.find(x=>x.ranks.some(y=>y.key===k));if(r){const h=rankingPath(r.slug)+(r.ranks[0]?.key===k?'':'?rank='+encodeURIComponent(k));hrefs['rank.'+k]=h;hrefs['of.'+k]=h;}}
  const def=(k:string):MetricInfo=>d.defs[k]||{key:k,label:humanize(k),unit:'',order:'desc',format:''};
  const used=new Set<string>();const relUsed=new Set<string>();
@@ -205,7 +209,7 @@ export function assembleEntityPage(d:EntityPageData,locale='en'):EntityPageModel
  const cards:Record<string,unknown>[]=[];
  for(const item of tpl.card||[]){
   if(item.startsWith('attr.')){const k=item.slice(5),s=scalarText(e.attributes?.[k]);if(s){const h=pageOf(s)||scopedRanking(k,s);cards.push({label:humanize(k),value:s,...(h?{href:h}:{})});}continue;}
-  if(item.startsWith('rel.')){const p=item.slice(4),r=d.relations.outgoing.find(x=>x.predicate===p);if(r){relUsed.add(p);const h=pageOf(r.name);cards.push({label:humanize(p),value:r.name,...(h?{href:h}:{})});}continue;}
+  if(item.startsWith('rel.')){const p=item.slice(4),r=d.relations.outgoing.find(x=>x.predicate===p);if(r){relUsed.add(p);const h=pageOfRel(r);cards.push({label:humanize(p),value:r.name,...(h?{href:h}:{})});}continue;}
   const k=item.startsWith('metric.')?item.slice(7):item;const f=d.metrics[k];
   if(!f){const s=scalarText(e.attributes?.[k]);if(s)cards.push({label:humanize(k),value:s});continue;}
   used.add(k);const c=criterionOf(def(k));const r=firstRanking(k);const outside=f.rank!=null&&f.rank>SHOWN_RANKS;
@@ -255,9 +259,9 @@ export function assembleEntityPage(d:EntityPageData,locale='en'):EntityPageModel
     break;}
    case 'location_map':{const loc=locationOf(e);if(loc)sections.push({component:'location_map',title:s.title||'Location',props:loc});break;}
    case 'relations':{
-    const link=(name:string)=>{const h=pageOf(name);return h?{href:h}:{};};
-    const rels=[...d.relations.outgoing.map(r=>({predicate:humanize(r.predicate),name:r.name,type:r.type,...link(r.name)})),
-     ...d.relations.incoming.flatMap(g=>g.sample.map(x=>({predicate:humanize(g.predicate)+' of',name:x.name,type:g.type,...link(x.name)})))];
+    const link=(r:{id?:string;name:string})=>{const h=pageOfRel(r);return h?{href:h}:{};};
+    const rels=[...d.relations.outgoing.map(r=>({predicate:humanize(r.predicate),name:r.name,type:r.type,...link(r)})),
+     ...d.relations.incoming.flatMap(g=>g.sample.map(x=>({predicate:humanize(g.predicate)+' of',name:x.name,type:g.type,...link(x)})))];
     if(!rels.length)break;d.relations.outgoing.forEach(r=>relUsed.add(r.predicate));
     sections.push({component:'relation_graph',title:s.title||'Related',props:{center:{name:e.name},relations:rels.slice(0,80)}});
     break;}
