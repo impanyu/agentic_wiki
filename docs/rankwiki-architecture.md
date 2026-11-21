@@ -115,10 +115,13 @@ units, relations, identifiers), the sources and recipes that fetch them, the mem
 that define each type's universe, and the identity rules that decide which records are the same
 entity. The crawler executes the recipes on schedule and populates the database without an agent.
 
-### Ranking pages: at most 1,000 rows each
-A ranking page lists at most 1,000 entities, all in its HTML (search engines get the whole list
-at once); readers see them in soft pages of 50 ("Show 50 more", "Show all"). A larger universe is
-cut at the top 1,000 (the data file has every row) or split into sub-rankings.
+### Rankings stop at 1,000
+Every ranking ranks at most the top 1,000 entities on each criterion; nobody reads past that.
+The page's rows are the union of each criterion's top 1,000 (ranks computed over the whole scope,
+so they are exact), all in the HTML; readers see them in soft pages of 50. Completeness therefore
+means every entity that could place in the top 1,000 is in the DB — the long tail need not be
+collected for rankings. Entities outside the top 1,000 keep their entity pages ("outside the top
+1,000").
 
 Because page writing is gone, one editor covers a domain of related types (Countries &
 regions, Perfume & beauty, Phones & electronics, Universities…): tens to a couple hundred

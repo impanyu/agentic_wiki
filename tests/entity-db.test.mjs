@@ -367,3 +367,14 @@ test('normalizeUnit: scale words, Chinese scales, currencies, imperial → SI, u
  assert.deepEqual(n('years'),{unit:'years',factor:1,changed:false});
  assert.deepEqual(n('%'),{unit:'%',factor:1,changed:false});
 });
+test('metric_table stops at a rank limit: rows are the union of each metric\'s top N, with exact ranks',async()=>{
+ const ctx={agent:{id:'editor-limit'}};
+ const rows=Array.from({length:12},(_,i)=>({name:'Lim '+i,a:String(100-i),b:String(i)}));
+ const d=await datasets.saveDataset('editor-limit',{title:'lim',source:'t',rows});
+ await tools.runEntityTool('entity_upsert',{datasetId:d.datasetId,type:'limtest',nameColumn:'name',idColumns:'',aliasColumns:'',descriptionColumn:'',attributeColumns:'',
+  metricColumns:'{"a":{"metric":"lim_a","period":"2024"},"b":{"metric":"lim_b","period":"2024"}}',relationColumns:'',source:'s',topicId:''},ctx);
+ const t=await repo.metricTable(db,{type:'limtest',metrics:['lim_a','lim_b'],limit:3});
+ assert.deepEqual(t.rows.map(r=>r.name).sort(),['Lim 0','Lim 1','Lim 10','Lim 11','Lim 2','Lim 9'].sort());
+ assert.equal(t.rows.find(r=>r.name==='Lim 11').lim_b_rank,1);assert.equal(t.rows.find(r=>r.name==='Lim 11').lim_a_rank,12);
+ assert.equal((await repo.metricTable(db,{type:'limtest',metrics:['lim_a']})).rows.length,12);
+});

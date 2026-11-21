@@ -392,7 +392,10 @@ export type MetricTable={metrics:MetricColumn[];rows:Row[];period:string};
 // value for the given period), its period and source, and its competition rank among the scope
 // (ties share a rank; entities without a value have no rank). Rows are ordered by the first metric.
 // Derived metrics resolve to their published (else latest) version, or "key@N" for a specific one.
-export async function metricTable(db:Queryable,{type,topicId,filters,metrics,period='latest'}:{type?:string;topicId?:string;filters?:Record<string,unknown>;metrics:string[];period?:string}):Promise<MetricTable>{
+// Rankings stop at RANK_LIMIT: rows are the entities ranked within the top RANK_LIMIT on at least one of the
+// metrics (ranks are computed over the whole scope, so every listed rank is exact).
+export const RANK_LIMIT=1000;
+export async function metricTable(db:Queryable,{type,topicId,filters,metrics,period='latest',limit=RANK_LIMIT}:{type?:string;topicId?:string;filters?:Record<string,unknown>;metrics:string[];period?:string;limit?:number}):Promise<MetricTable>{
  if(!metrics.length)throw Error('Name at least one metric.');if(metrics.length>12)throw Error('At most 12 metrics per table.');
  const resolved:ResolvedMetric[]=[];for(const m of metrics)resolved.push(await resolveMetric(db,m));
  const per=period&&period!=='latest'?String(period):'';
@@ -412,7 +415,8 @@ export async function metricTable(db:Queryable,{type,topicId,filters,metrics,per
   if(!row){row={rank:null,entity_id:id,name:x.name,type:x.type};const wd=(x.ids as Row)?.wikidata;if(wd)row.wikidata=wd;rows.set(id,row);}
   const c=String(x.col);row[c]=Number(x.value);row[c+'_rank']=Number(x.rnk);row[c+'_period']=x.period;row[c+'_source']=x.source;counts.set(c,Number(x.cnt));}
  const first=resolved[0].column;
- const list=[...rows.values()].map(row=>{for(const m of resolved)if(!(m.column in row)){row[m.column]=null;row[m.column+'_rank']=null;row[m.column+'_period']=null;row[m.column+'_source']=null;}row.rank=row[first+'_rank'];return row;});
+ let list=[...rows.values()].map(row=>{for(const m of resolved)if(!(m.column in row)){row[m.column]=null;row[m.column+'_rank']=null;row[m.column+'_period']=null;row[m.column+'_source']=null;}row.rank=row[first+'_rank'];return row;});
+ if(limit>0)list=list.filter(row=>resolved.some(m=>{const r=row[m.column+'_rank'];return typeof r==='number'&&r<=limit;}));
  list.sort((a,b)=>(a.rank==null?1e15:Number(a.rank))-(b.rank==null?1e15:Number(b.rank))||String(a.name).localeCompare(String(b.name)));
  return {period:per||'latest',rows:list,metrics:resolved.map(m=>({column:m.column,key:m.key,version:m.version,kind:m.def?.kind||'observed',label:m.def?.label||m.key,unit:m.def?.unit||'',order:m.def?.order||'desc',format:m.def?.format||'',status:m.def?.status||'published',methodology:m.def?.methodology||'',count:counts.get(m.column)||0}))};
 }

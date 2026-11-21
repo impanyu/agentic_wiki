@@ -160,10 +160,10 @@ export default function Ranking({props,setValue,fire,ctx}:VizProps){
  useEffect(()=>{if(tableWrap.current)tableWrap.current.scrollTop=0;setShown(PAGE);},[critKey,group,q]);
  const match=(e:Entry)=>inGroup(e)&&(!q||e.name.toLowerCase().includes(q));
  const tRanked=ranked.filter(match),tMissing=missing.filter(match);
- // A page lists at most ROW_CAP rows (the top of the ranking; the data file has all). The first `shown`
+ // A ranking stops at ROW_CAP: the top 1,000 on the criterion in view. The first `shown`
  // are visible, the rest are in the HTML but hidden until the reader asks for more.
  const limit=shown,cap=ROW_CAP;
- const showRanked=tRanked.slice(0,cap),showMissing=tMissing.slice(0,Math.max(0,cap-showRanked.length));
+ const showRanked=tRanked.filter(e=>e.rank!=null&&e.rank<=cap).slice(0,cap),showMissing=tRanked.length>=cap?[]:tMissing.slice(0,Math.max(0,cap-showRanked.length));
  const listed=showRanked.length+showMissing.length,total=tRanked.length+tMissing.length;
  const hidden=Math.max(0,listed-limit);
 
@@ -236,7 +236,7 @@ export default function Ranking({props,setValue,fire,ctx}:VizProps){
    {hidden>0&&<button type="button" onClick={()=>setShown(n=>n+PAGE)}>{t('Show {count} more',{count:Math.min(PAGE,hidden).toLocaleString(locale)})}</button>}
    {hidden>PAGE&&<button type="button" onClick={()=>setShown(ROW_CAP)}>{t('Show all {count}',{count:listed.toLocaleString(locale)})}</button>}
    {hidden===0&&shown>PAGE&&<button type="button" onClick={()=>{setShown(PAGE);tableWrap.current?.scrollIntoView({block:'nearest'});}}>{t('Show fewer')}</button>}
-   {total>listed&&<span className="wf-rank-capnote">{t('Top {listed} of {total}; the data file has every row.',{listed:listed.toLocaleString(locale),total:total.toLocaleString(locale)})}</span>}
+   {total>listed&&<span className="wf-rank-capnote">{t('Rankings list the top {n}.',{n:cap.toLocaleString(locale)})}</span>}
   </div>}
   {views.length>0&&<div className={'wf-rank-chart '+active}>
    <div className="wf-rank-charttools">
