@@ -206,9 +206,10 @@ export async function withPages(db:Queryable,ids:string[]):Promise<Set<string>>{
 // with its leading criterion, its criteria and its top three (linked when they have a page).
 export type FeaturedRanking={slug:string;href:string;title:string;criterion:string;criteria:string[];more:number;
  top:{rank:number;name:string;href:string|null;value:string}[]};
-export async function featuredRankings(db:Queryable,limit=12):Promise<FeaturedRanking[]>{
+export async function featuredRankings(db:Queryable,limit=12,topicIds?:string[]):Promise<FeaturedRanking[]>{
  const defs=(await db.query(`select * from rankings where slug is not null and status='published' and array_length(criteria,1)>0
-  order by (coalesce(scope->'filters','{}'::jsonb) = '{}'::jsonb) desc, updated_at desc limit $1::int`,[limit])).rows.map(rankingRow);
+  and ($2::uuid[] is null or topic_id = any($2::uuid[]))
+  order by (coalesce(scope->'filters','{}'::jsonb) = '{}'::jsonb) desc, updated_at desc limit $1::int`,[limit,topicIds??null])).rows.map(rankingRow);
  const out:FeaturedRanking[]=[];
  for(const def of defs){
   const lead=String(def.config?.default||def.criteria[0]);const infos=await metricInfos(db,def.criteria.map(c=>c.split('@')[0]));
@@ -223,4 +224,42 @@ export async function featuredRankings(db:Queryable,limit=12):Promise<FeaturedRa
     value:info&&col&&typeof r[col]==='number'?formatMetric(info,r[col] as number):col&&r[col]!=null?String(r[col]):''}))});
  }
  return out;
+}
+
+// ───────────── topic navigation ─────────────
+// The topic tree as readers browse it: each topic with what it and its descendants publish. Topics with nothing
+// published anywhere below them are left out, so every tile leads somewhere.
+export type TopicNode={id:string;parentId:string|null;slug:string;name:string;description:string;rankings:number;types:number;pages:number;href:string};
+export type TopicNav={topic:TopicNode|null;trail:TopicNode[];children:(TopicNode&{sub:{slug:string;name:string;href:string}[]})[];
+ rankings:FeaturedRanking[];types:{type:string;label:string;plural:string;pages:number;href:string|null}[]};
+export const topicPath=(slug:string)=>'/topics/'+encodeURIComponent(slug);
+export async function topicTree(db:Queryable):Promise<TopicNode[]>{
+ const r=await db.query(`with recursive t as (select id, parent_id, slug, name, description from topics where status <> 'archived'),
+  sub(root, id) as (select id, id from t union all select s.root, t.id from sub s join t on t.parent_id = s.id),
+  pages as (select type, count(*)::int n from entities where has_page group by type),
+  own as (select t.id,
+   (select count(*)::int from rankings r where r.topic_id = t.id and r.status = 'published' and r.slug is not null) rk,
+   (select count(*)::int from entity_types et where et.topic_id = t.id and et.status = 'published') ty,
+   (select coalesce(sum(p.n),0)::int from entity_types et join pages p on p.type = et.type where et.topic_id = t.id and et.status = 'published') pg from t)
+  select t.id, t.parent_id, t.slug, t.name, t.description, sum(own.rk)::int rankings, sum(own.ty)::int types, sum(own.pg)::int pages
+  from t join sub on sub.root = t.id join own on own.id = sub.id group by t.id, t.parent_id, t.slug, t.name, t.description order by t.name`);
+ return r.rows.map(x=>({id:String(x.id),parentId:x.parent_id?String(x.parent_id):null,slug:String(x.slug),name:String(x.name),description:String(x.description||''),
+  rankings:Number(x.rankings),types:Number(x.types),pages:Number(x.pages),href:topicPath(String(x.slug))})).filter(x=>x.rankings+x.types>0);
+}
+export async function loadTopicNav(db:Queryable,slug:string|null):Promise<TopicNav|null>{
+ const tree=await topicTree(db);const byId=new Map(tree.map(x=>[x.id,x]));
+ const topic=slug?tree.find(x=>x.slug===slug)??null:null;if(slug&&!topic)return null;
+ const trail:TopicNode[]=[];for(let p=topic?.parentId?byId.get(topic.parentId):undefined;p&&trail.length<12;p=p.parentId?byId.get(p.parentId):undefined)trail.unshift(p);
+ // A topic whose parent has nothing published is shown at the top level.
+ const parentOf=(x:TopicNode)=>x.parentId&&byId.has(x.parentId)?x.parentId:null;
+ const kids=(id:string|null)=>tree.filter(x=>parentOf(x)===id);
+ const children=kids(topic?.id??null).map(c=>({...c,sub:kids(c.id).slice(0,6).map(k=>({slug:k.slug,name:k.name,href:k.href}))}));
+ if(!topic)return {topic:null,trail:[],children,rankings:[],types:[]};
+ const subtree:string[]=[];const walk=(id:string)=>{subtree.push(id);for(const k of tree)if(k.parentId===id)walk(k.id);};walk(topic.id);
+ // A topic lists its own rankings in full; with subtopics, the leading rankings of the whole branch.
+ const rankings=await featuredRankings(db,children.length?12:120,children.length?subtree:[topic.id]);
+ const tr=await db.query(`select et.type, et.label, et.plural, (select count(*)::int from entities e where e.type = et.type and e.has_page) n,
+   (select r.slug from rankings r where r.status = 'published' and r.slug is not null and r.scope->>'type' = et.type order by (coalesce(r.scope->'filters','{}'::jsonb) = '{}'::jsonb) desc, r.updated_at desc limit 1) rk
+  from entity_types et where et.topic_id = $1::uuid and et.status = 'published' order by et.label`,[topic.id]);
+ return {topic,trail,children,rankings,types:tr.rows.map(x=>({type:String(x.type),label:String(x.label||x.type),plural:String(x.plural||x.label||x.type),pages:Number(x.n),href:x.rk?rankingPath(String(x.rk)):null}))};
 }

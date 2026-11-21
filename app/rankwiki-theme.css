@@ -156,9 +156,9 @@ html,body{background:var(--rw-bg)}
 .rw-home{max-width:1180px;margin:0 auto;padding:clamp(36px,9vh,96px) 0 48px}
 .rw-hero{text-align:center;padding:0 12px;animation:rw-rise .6s cubic-bezier(.2,.7,.2,1) both}
 .rw-kicker{display:inline-flex;align-items:center;gap:7px;padding:6px 13px;border-radius:999px;font-size:12.5px;font-weight:700;color:var(--rw-accent-ink);background:var(--rw-accent-soft);border:1px solid rgba(129,140,248,.30)}
-.rw-hero h1{margin:20px 0 16px;font-size:clamp(40px,7.2vw,80px);font-weight:850;line-height:1;letter-spacing:-.05em;color:var(--rw-ink)}
+.rw-hero h1{margin:0 0 10px;font-size:clamp(52px,9vw,104px);font-weight:900;line-height:1;letter-spacing:-.055em;color:var(--rw-ink)}
 .rw-hero h1 em{font-style:normal;background:var(--rw-grad);-webkit-background-clip:text;background-clip:text;color:transparent;filter:drop-shadow(0 8px 30px rgba(139,92,246,.25))}
-.rw-hero p{max-width:640px;margin:0 auto;font-size:16.5px;line-height:1.65;color:var(--rw-muted)}
+.rw-hero p{margin:0 auto;font-size:clamp(15px,1.6vw,18px);font-weight:600;letter-spacing:.22em;text-transform:uppercase;color:var(--rw-muted)}
 .rw-explore{margin-top:clamp(40px,8vh,72px)}
 .rw-explore h2{display:flex;align-items:center;gap:10px;margin:0 0 16px;font-size:21px;font-weight:800;letter-spacing:-.02em;color:var(--rw-ink)}
 .rw-explore h2 svg{padding:6px;box-sizing:content-box;border-radius:10px;color:#d97706;background:var(--rw-gold-bg)}
@@ -220,7 +220,7 @@ html,body{background:var(--rw-bg)}
  .wf-rank-podium-medal{width:28px;height:28px;font-size:13px}.p1 .wf-rank-podium-medal{width:34px;height:34px;font-size:15px}
  .wf-rank-podium-share{display:none}
  .rw-home{padding-top:26px}
- .rw-hero h1{font-size:42px}
+ .rw-hero h1{font-size:56px}
  .rw-hero p{font-size:15px}
  .rw-grid{grid-template-columns:minmax(0,1fr);gap:12px}
  .rw-card{padding:18px 14px 14px;border-radius:22px}
@@ -314,3 +314,48 @@ html,body{background:var(--rw-bg)}
 [data-theme=dark] .wf-ev-tl-dot{background:#0f1424}
 [data-theme=dark] .wf-ev-tl-date{color:#a5b4fc}
 [data-theme=dark] .wf-viz-loading{background:linear-gradient(90deg,rgba(148,163,184,.06),rgba(148,163,184,.12),rgba(148,163,184,.06));background-size:200% 100%}
+
+/* Topic navigation: tiles that open the next level of the tree, breadcrumbs, entity-page kinds */
+.rw-topics{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:14px}
+.rw-topic{position:relative;display:flex;gap:14px;align-items:flex-start;padding:18px;border-radius:24px;background:var(--rw-surface);border:1px solid var(--rw-border);box-shadow:var(--rw-shadow);
+ overflow:hidden;isolation:isolate;transition:transform .2s,box-shadow .2s;animation:rw-rise .5s cubic-bezier(.2,.7,.2,1) both;animation-delay:var(--d,0ms)}
+.rw-topic::after{content:"";position:absolute;z-index:-1;right:-40px;bottom:-60px;width:180px;height:180px;border-radius:50%;background:hsl(var(--h) 85% 60%);opacity:.12;filter:blur(24px);transition:opacity .2s}
+.rw-topic:hover{transform:translateY(-3px);box-shadow:var(--rw-shadow-lift)}
+.rw-topic:hover::after{opacity:.24}
+.rw-topic-icon{flex:none;display:grid;place-items:center;width:48px;height:48px;border-radius:15px;font-size:22px;font-weight:850;color:#fff;
+ background:linear-gradient(135deg,hsl(var(--h) 85% 62%),hsl(calc(var(--h) + 40) 80% 52%));box-shadow:0 10px 22px -10px hsl(var(--h) 80% 45%)}
+.rw-topic-body{min-width:0;display:flex;flex-direction:column;gap:6px}
+.rw-topic h3{display:flex;align-items:center;gap:4px;margin:0;font-size:17px;font-weight:800;letter-spacing:-.02em;color:var(--rw-ink)}
+.rw-topic h3 svg{color:var(--rw-soft);transition:transform .2s,color .2s}
+.rw-topic:hover h3 svg{transform:translateX(3px);color:var(--rw-violet)}
+.rw-topic p{margin:0;font-size:13px;line-height:1.5;color:var(--rw-muted);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.rw-topic-stats{display:flex;flex-wrap:wrap;gap:10px;font-size:12px;font-weight:600;color:var(--rw-muted)}
+.rw-topic-stats span{display:inline-flex;align-items:center;gap:4px}
+.rw-topic-sub{display:flex;flex-wrap:wrap;gap:6px;margin-top:2px}
+.rw-topic-sub a{position:relative;z-index:2;padding:3px 9px;border-radius:999px;font-size:12px;font-weight:600;text-decoration:none;color:var(--rw-text);background:var(--rw-surface-3);border:1px solid var(--rw-border)}
+.rw-topic-sub a:hover{color:var(--rw-accent-ink);border-color:rgba(129,140,248,.5)}
+.rw-types{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:10px}
+.rw-type{display:flex;align-items:center;gap:10px;padding:14px 16px;border-radius:18px;text-decoration:none;background:var(--rw-surface);border:1px solid var(--rw-border);box-shadow:var(--rw-shadow);color:var(--rw-ink);transition:transform .2s,box-shadow .2s}
+.rw-type strong{flex:1;font-size:15px}
+.rw-type span{font-size:12.5px;color:var(--rw-muted);font-variant-numeric:tabular-nums}
+.rw-type svg{color:var(--rw-soft)}
+a.rw-type:hover{transform:translateY(-2px);box-shadow:var(--rw-shadow-lift)}
+.rw-crumbs{margin:22px 0 -8px}
+.rw-crumbs ol{list-style:none;display:flex;flex-wrap:wrap;align-items:center;gap:4px;margin:0;padding:0;font-size:13px}
+.rw-crumbs li{display:inline-flex;align-items:center;gap:4px;color:var(--rw-muted)}
+.rw-crumbs li+li::before{content:"›";color:var(--rw-soft);margin:0 2px}
+.browser-shell .rw-crumbs a{color:var(--rw-muted);text-decoration:none}
+.browser-shell .rw-crumbs a:hover{color:var(--rw-accent-ink)}
+.rw-crumbs li[aria-current]{color:var(--rw-ink);font-weight:600}
+.answer .rw-hero-stats{display:flex;flex-wrap:wrap;gap:8px 18px;margin:16px 0 0;font-size:14px;color:var(--rw-muted)}
+.answer .rw-hero-stats b{font-size:20px;font-weight:850;color:var(--rw-ink);margin-right:4px;font-variant-numeric:tabular-nums}
+.template-topic-v1{max-width:1180px;margin:0 auto}
+.template-topic-v1 .rw-explore{margin-top:34px}
+@media (max-width:650px){.rw-topics{grid-template-columns:minmax(0,1fr)}.rw-topic{padding:15px;border-radius:20px}.rw-topic-icon{width:42px;height:42px;font-size:19px;border-radius:13px}}
+/* Inside an article the browsing blocks keep their own type (no serif headings or paragraph spacing). */
+.answer .rw-explore h2{font-family:var(--rw-font);font-size:21px;font-weight:800;letter-spacing:-.02em;border:0;padding:0;margin:0 0 16px;line-height:1.3}
+.answer .rw-card h3,.answer .rw-topic h3{font-family:var(--rw-font);border:0;padding:0}
+.answer .rw-card-crit{margin:-6px 0 0;line-height:1.4}
+.answer .rw-topic p{margin:0;line-height:1.5}
+.answer .rw-podium li,.answer .rw-card footer span{line-height:1.3}
+.answer .rw-podium{margin:0;padding:0}

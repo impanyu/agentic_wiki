@@ -661,6 +661,15 @@ export async function getTopic(db:Queryable,idOrSlug:string):Promise<Topic|null>
  const r=UUID.test(idOrSlug)?await db.query('select * from topics where id=$1::uuid',[idOrSlug]):await db.query('select * from topics where slug=$1::text',[idOrSlug]);
  return r.rows[0]?topicRow(r.rows[0]):null;
 }
+// Moves a topic under another (or to the top level with null); refuses a move that would make a cycle.
+export async function setTopicParent(db:Queryable,topicId:string,parentId:string|null):Promise<void>{
+ if(parentId){
+  if(parentId===topicId)throw Error('A topic cannot be its own parent.');
+  const up=await db.query(`with recursive a(id,parent_id) as (select id,parent_id from topics where id=$1::uuid union all select t.id,t.parent_id from topics t join a on t.id=a.parent_id) select 1 from a where id=$2::uuid limit 1`,[parentId,topicId]);
+  if(up.rows.length)throw Error('That move would put a topic inside itself.');
+ }
+ await db.query('update topics set parent_id=$2::uuid where id=$1::uuid',[topicId,parentId]);
+}
 export async function listChildTopics(db:Queryable,parentId:string|null):Promise<Topic[]>{
  return (await db.query("select * from topics where parent_id is not distinct from $1::uuid and status <> 'archived' order by name",[parentId])).rows.map(topicRow);
 }

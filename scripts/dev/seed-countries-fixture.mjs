@@ -97,6 +97,11 @@ export async function seed(db){
   if(ex)await db.query('update rankings set title=$2::text, scope=$3::jsonb, criteria=$4::text[], config=$5::jsonb, status=$6::text, updated_at=now() where id=$1::uuid',[ex.id,r.title,JSON.stringify(r.scope),r.criteria,JSON.stringify(r.config),r.status]);
   else await db.query('insert into rankings(slug,title,scope,criteria,config,status) values ($1::text,$2::text,$3::jsonb,$4::text[],$5::jsonb,$6::text)',[r.slug,r.title,JSON.stringify(r.scope),r.criteria,JSON.stringify(r.config),r.status]);
  }
+ // The topic tree: Geography › Countries, owning the country type and its rankings.
+ const geo=await repo.getTopic(db,'geography')??await repo.createTopic(db,{slug:'geography',name:'Geography',description:'Places of the world.'});
+ const countries=await repo.getTopic(db,'countries')??await repo.createTopic(db,{slug:'countries',name:'Countries',description:'Sovereign states compared.',parentId:geo.id});
+ await db.query("update entity_types set topic_id=$1::uuid where type='country'",[countries.id]);
+ await db.query('update rankings set topic_id=$1::uuid where slug is not null',[countries.id]);
  // The template is in place now: decide which entities get a page.
  await repo.refreshPages(db);
  return {countries:ids.size,observations:obs.length,relations:rels.length};

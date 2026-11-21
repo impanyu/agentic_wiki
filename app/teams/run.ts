@@ -1,7 +1,7 @@
 import type {AgentContext} from '@/app/components-registry/registry';
 import {spawnAgent,askAgent,type Agent} from '@/app/agents/runtime';
 import {entityDb} from '@/app/entity-db/client';
-import {createTopic,getTopic} from '@/app/entity-db/repo';
+import {createTopic,getTopic,setTopicParent} from '@/app/entity-db/repo';
 import {teamToolDefs,runTeamTool,coverage,type Role} from './tools';
 import {startTeamRun,logTeamCall,finishTeamRun,listRankingDefs,listEntityTypes,setStatus} from './config';
 // One pass of a topic team: the editor plans, the collector builds the data (schemas, recipes, runs),
@@ -41,6 +41,10 @@ const MANAGER=`You are the manager of RankWiki's topic teams (you keep the topic
 const RULING_SCHEMA={type:'object',additionalProperties:false,required:['rulings','briefChanged','summary'],properties:{
  rulings:{type:'array',items:{type:'object',additionalProperties:false,required:['issue','ruling','teamMust'],properties:{issue:{type:'string'},ruling:{type:'string',enum:['reviewer_right','work_acceptable']},teamMust:{type:'string'}}}},
  briefChanged:{type:'boolean'},summary:{type:'string'}}};
+const PLACE=`You are the manager of RankWiki's topic tree, the navigation readers browse from the home page down to every ranking (like a portal: broad subjects, then narrower ones). Place this topic in the tree: give the path of ancestor topics from the top level down to its direct parent. Reuse existing topics wherever they fit (same slug); create a new ancestor only when no existing one fits. Top-level topics are broad, lasting reader subjects (e.g. Geography, Economy, Society, Science, Technology, Health, Sports, Arts & entertainment, Business, Education, Nature, Transport); keep the path short (1–2 ancestors) and names plain. An empty path keeps the topic at the top level — only for a topic that is itself such a broad subject.`;
+const PLACE_SCHEMA={type:'object',additionalProperties:false,required:['path','summary'],properties:{
+ path:{type:'array',maxItems:3,items:{type:'object',additionalProperties:false,required:['slug','name','description'],properties:{slug:{type:'string'},name:{type:'string'},description:{type:'string'}}}},
+ summary:{type:'string'}}};
 const EDITOR_PLAN=`You are the editor of this topic team: you plan what the topic covers and design how its pages look; you never write pages. Plan the topic from the brief: the entity types, the universe of each (the authoritative membership list and its expected size), the rankings (a main ranking per type and useful sub-rankings — by region, group, category — each with 3–8 criteria readers compare these entities by), and the data each needs (metric keys in snake_case, labels, base units, sources, whether history exists). Check what the public sources actually offer (list_public_sources, call_public_source with small requests) before planning a metric. Read readers' unserved queries (read_inbox) and plan what they need when it fits the topic (triage_queries with your decision). Check missing_pages: entities your pages already mention (capitals, brands, members…) that have no page yet — each one, once created, is linked from every page that mentions it, so plan the most-mentioned first. Plan pages ahead of demand: readers should find every page they are likely to look for, and every page should lead them to more. Write the plan with save_plan: "ingest" items for every entity set and data the collector must collect (spec: type, universe source, metrics with sources, history), "ranking" items for each ranking, "entity_pages" items for the entity sets that must have pages, "refresh" items with a cadence for data that changes. Return the plan.`;
 const COLLECTOR=`You are the collector of this topic team: you decide what the data looks like and how it is collected, as rules the crawler runs without you. Work from the plan's open "ingest" and "refresh" items (team_state → plan) and close each one when its data is loaded and its recipe saved (close_plan_items with a note). For each entity type in the plan:
 1. Find the authoritative universe and load it first (names, standard ids, attributes such as region/group, relations), excluding aggregates.
@@ -94,6 +98,25 @@ async function ask(role:Role,agent:Agent,topicId:string,instructions:string,task
  }catch(e){await finishTeamRun(db,runId,{status:'failed',summary:(e as Error).message});log({event:'agent_failed',role,error:(e as Error).message});throw e;}
 }
 
+// The manager places a topic in the navigation tree (once: a topic that already has a parent stays where it is).
+export async function placeTopic(slug:string,log:Log=()=>{}):Promise<{placed:boolean;path?:string[];summary?:string}>{
+ const db=await entityDb();const topic=await getTopic(db,slug);if(!topic)throw Error('No topic '+slug+'.');
+ if(topic.parentId||topic.slug==='general')return {placed:false};
+ const tree=(await db.query<{slug:string;name:string;parent:string|null}>(`select t.slug,t.name,p.slug as parent from topics t left join topics p on p.id=t.parent_id where t.status<>'archived' and t.slug<>'general' order by t.slug`)).rows;
+ const manager=await spawnAgent('team-manager',OWNER);
+ const r=await ask('manager',manager,topic.id,PLACE,{topic:{slug:topic.slug,name:topic.name,description:topic.description.slice(0,1500)},tree,step:'place'},PLACE_SCHEMA,log,{rounds:6,calls:8}) as {path:{slug:string;name:string;description:string}[];summary:string};
+ let parent:string|null=null;const names:string[]=[];
+ for(const p of r.path.slice(0,3)){
+  if(!p.slug||!p.name)continue;
+  const node:Awaited<ReturnType<typeof createTopic>>=await getTopic(db,p.slug)??await createTopic(db,{slug:p.slug,name:p.name,description:p.description,parentId:parent});
+  if(node.id===topic.id)break;
+  if(parent&&node.parentId!==parent&&!node.parentId)await setTopicParent(db,node.id,parent);
+  parent=node.id;names.push(node.name);
+ }
+ if(parent)await setTopicParent(db,topic.id,parent);
+ log({event:'topic_placed',path:names,summary:r.summary});
+ return {placed:!!parent,path:names,summary:r.summary};
+}
 export async function runTopicTeam({slug,name,brief,maxFixRounds=2,log=()=>{}}:{slug:string;name:string;brief:string;maxFixRounds?:number;log?:Log}){
  const db=await entityDb();
  const topic=await getTopic(db,slug)??await createTopic(db,{slug,name,description:brief});
@@ -144,6 +167,8 @@ export async function runTopicTeam({slug,name,brief,maxFixRounds=2,log=()=>{}}:{
   for(const r of await listRankingDefs(db,{topicId:topic.id}))await setStatus(db,'ranking',r.slug,'published');
   for(const t of await listEntityTypes(db,topic.id))await setStatus(db,'type',t.type,'published');
  }
+ // A newly published topic gets its place in the navigation tree.
+ if(verdict.approved||!teamIssues().length)await placeTopic(slug,log).catch(e=>log({event:'topic_place_failed',error:(e as Error).message}));
  log({event:'team_finished',approved:verdict.approved});
  return {topic:topic.slug,plan,collected,built,fixRounds:rounds,ruling,verdict,platformIssues};
 }

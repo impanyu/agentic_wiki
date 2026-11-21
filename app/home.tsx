@@ -1,39 +1,28 @@
 'use client';
 import {PUBLIC_EDITION} from './edition';
 import {useCallback,useEffect,useRef,useState} from 'react';
-import {Clock3,LoaderCircle,AppWindow,FileText,X,Bot,Trophy,ArrowUpRight,Sparkles} from 'lucide-react';
+import {Clock3,LoaderCircle,AppWindow,FileText,X,Bot} from 'lucide-react';
 import {useUi} from '@/app/i18n/client';
 import type {HomeCard,CardStatus} from '@/app/api/home/route';
-import type {FeaturedRanking} from '@/app/entity-db/pages';
+import type {FeaturedRanking,TopicNav} from '@/app/entity-db/pages';
+import {TopicGrid,RankingGrid} from './explore';
 
 // The home page: recently visited pages and the newest public pages, as cards.
-export function HomePage({onOpen,revision=0,featured=[]}:{onOpen:(card:HomeCard)=>void;revision?:number;featured?:FeaturedRanking[]}){
+export function HomePage({onOpen,revision=0,featured=[],topics=[]}:{onOpen:(card:HomeCard)=>void;revision?:number;featured?:FeaturedRanking[];topics?:TopicNav['children']}){
  const {t,locale}=useUi();
- if(PUBLIC_EDITION)return <PublicHome featured={featured}/>;
+ if(PUBLIC_EDITION)return <PublicHome featured={featured} topics={topics}/>;
  return <HistoryHome onOpen={onOpen} revision={revision}/>;
 }
-// The public edition's front page: what the site is, then every published ranking with its leaders.
-function PublicHome({featured}:{featured:FeaturedRanking[]}){
+// The public edition's front page: the name, the topic tree's first level, and the published rankings.
+function PublicHome({featured,topics}:{featured:FeaturedRanking[];topics:TopicNav['children']}){
  const {t}=useUi();
  return <div className="rw-home">
   <section className="rw-hero">
-   <span className="rw-kicker"><Sparkles size={14} aria-hidden="true"/>{t('Live rankings from public data')}</span>
-   <h1>{t('Search any entity.')}<br/><em>{t('Rank any category.')}</em></h1>
-   <p>{t('Type a thing (a country, a phone, a perfume…) or a category (countries, smartphones, perfumes…) and press Enter.')}</p>
+   <h1><em>RankWiki</em></h1>
+   <p>{t('Rank anything.')}</p>
   </section>
-  {featured.length>0&&<section className="rw-explore" aria-labelledby="rw-explore-title">
-   <h2 id="rw-explore-title"><Trophy size={18} aria-hidden="true"/>{t('Explore rankings')}</h2>
-   <div className="rw-grid">{featured.map((r,i)=><article key={r.slug} className="rw-card" style={{['--d' as string]:i*40+'ms'}}>
-    <a className="rw-card-link" href={r.href} aria-label={r.title}/>
-    <header><h3>{r.title}</h3><ArrowUpRight size={18} aria-hidden="true"/></header>
-    <p className="rw-card-crit">{t('By')} {r.criterion}</p>
-    <ol className="rw-podium">{r.top.map(x=><li key={x.rank+x.name} className={'m'+x.rank}>
-     <span className="rw-medal">{x.rank}</span>
-     {x.href?<a href={x.href}>{x.name}</a>:<span className="rw-name">{x.name}</span>}
-     <span className="rw-val">{x.value}</span></li>)}</ol>
-    <footer>{r.criteria.map(c=><span key={c}>{c}</span>)}{r.more>0&&<span className="rw-more">+{r.more}</span>}</footer>
-   </article>)}</div>
-  </section>}
+  <TopicGrid topics={topics}/>
+  <RankingGrid rankings={featured}/>
  </div>;
 }
 function HistoryHome({onOpen,revision=0}:{onOpen:(card:HomeCard)=>void;revision?:number}){
