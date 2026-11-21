@@ -590,9 +590,19 @@ export async function refreshLatestRanks(q:Queryable,type:string,metric:{key:str
  return 1;
 }
 // Keeps the snapshot current after a write: values/relations of the touched entities, ranks of the touched metrics in their types.
+// Recomputes has_page for some entities (ids) or a whole type: the type has a page template and the entity has at
+// least template.page.minMetrics metrics with data (default 1). Entities of types without a template have no page.
+export async function refreshPages(db:Queryable,{type,ids}:{type?:string;ids?:string[]}={}):Promise<void>{
+ const list=ids?[...new Set(ids.filter(id=>UUID.test(id)))]:null;if(list&&!list.length)return;
+ const t=type?normalizeType(type):null;
+ await db.query(`update entities e set has_page = coalesce((
+   select t.template <> '{}'::jsonb and (select count(distinct o.metric) from observations o where o.entity_id=e.id) >= greatest(1, coalesce((t.template->'page'->>'minMetrics')::int,1))
+   from entity_types t where t.type=e.type), false)
+  where ($1::text is null or e.type=$1::text) and ($2::uuid[] is null or e.id = any($2::uuid[]))`,[t,list]);
+}
 export async function syncLatest(db:Queryable,entityIds:string[],metrics:{key:string;version:number}[]):Promise<void>{
  const ids=[...new Set(entityIds.filter(id=>UUID.test(id)))];if(!ids.length)return;
- for(let i=0;i<ids.length;i+=1000)await refreshLatestValues(db,ids.slice(i,i+1000));
+ for(let i=0;i<ids.length;i+=1000){await refreshLatestValues(db,ids.slice(i,i+1000));await refreshPages(db,{ids:ids.slice(i,i+1000)});}
  if(!metrics.length)return;
  const types=(await db.query<{type:string}>('select distinct type from entities where id = any($1::uuid[])',[ids])).rows.map(r=>r.type);
  for(const t of types)for(const m of metrics)await refreshLatestRanks(db,t,m);

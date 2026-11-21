@@ -97,6 +97,8 @@ export async function seed(db){
   if(ex)await db.query('update rankings set title=$2::text, scope=$3::jsonb, criteria=$4::text[], config=$5::jsonb, status=$6::text, updated_at=now() where id=$1::uuid',[ex.id,r.title,JSON.stringify(r.scope),r.criteria,JSON.stringify(r.config),r.status]);
   else await db.query('insert into rankings(slug,title,scope,criteria,config,status) values ($1::text,$2::text,$3::jsonb,$4::text[],$5::jsonb,$6::text)',[r.slug,r.title,JSON.stringify(r.scope),r.criteria,JSON.stringify(r.config),r.status]);
  }
+ // The template is in place now: decide which entities get a page.
+ await repo.refreshPages(db);
  return {countries:ids.size,observations:obs.length,relations:rels.length};
 }
 

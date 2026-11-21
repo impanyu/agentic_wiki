@@ -43,7 +43,7 @@ export async function findEntityBySlug(db:Queryable,type:string,slug:string):Pro
  const s=slugify(slug);const words=s.split('-').filter(w=>/^[\p{L}\p{N}]+$/u.test(w));if(!words.length)return null;
  const query=words.filter(w=>w.length>=2||words.length===1).map(w=>w+':*').join(' | ')||words[0]+':*';
  const r=await db.query<{id:string;name:string;aliases:string[]}>(`select e.id, e.name, e.aliases from entities e
-  where e.type = $1::text and (e.name_keys && ent_keys($2::text, '{}'::text[]) or e.tsv @@ to_tsquery('simple', $3::text))
+  where e.type = $1::text and e.has_page and (e.name_keys && ent_keys($2::text, '{}'::text[]) or e.tsv @@ to_tsquery('simple', $3::text))
   order by (e.name_keys && ent_keys($2::text, '{}'::text[])) desc, ts_rank_cd(e.tsv, to_tsquery('simple', $3::text)) desc, e.created_at limit 500`,[type,words.join(' '),query]);
  const exact=r.rows.find(x=>slugify(x.name)===s);if(exact)return {id:exact.id,name:exact.name,canonical:true};
  const alias=r.rows.find(x=>(x.aliases||[]).some(a=>slugify(a)===s));
@@ -122,7 +122,7 @@ export async function loadEntityPage(db:Queryable,type:string,slug:string):Promi
 // {entity id → page path} for the related entities that have a page (their type has a template).
 export async function resolveEntityIds(db:Queryable,ids:string[],selfId?:string):Promise<Record<string,string>>{
  const list=[...new Set(ids.filter(x=>/^[0-9a-f-]{36}$/i.test(x)&&x!==selfId))].slice(0,800);if(!list.length)return {};
- const r=await db.query<{id:string;type:string;name:string}>(`select e.id,e.type,e.name from entities e join entity_types t on t.type=e.type and t.template <> '{}'::jsonb where e.id = any($1::uuid[])`,[list]);
+ const r=await db.query<{id:string;type:string;name:string}>(`select e.id,e.type,e.name from entities e where e.has_page and e.id = any($1::uuid[])`,[list]);
  return Object.fromEntries(r.rows.map(x=>[String(x.id),entityPath(x.type,x.name)]));
 }
 // {mentionKey(name) → page path} for the names that have an entity page (a type with a template), the page
@@ -131,7 +131,7 @@ export async function resolveEntityIds(db:Queryable,ids:string[],selfId?:string)
 export async function resolveMentions(db:Queryable,names:string[],selfId?:string):Promise<Record<string,string>>{
  const list=[...new Set(names.map(n=>String(n||'').trim()).filter(n=>n&&n.length<=120))].slice(0,400);if(!list.length)return {};
  const r=await db.query<{k:string;type:string;name:string}>(`select distinct on (n.k) n.k, e.type, e.name from unnest($1::text[]) n(k)
-  join entities e on e.name_keys && ent_keys(n.k,'{}'::text[]) join entity_types t on t.type=e.type and t.template <> '{}'::jsonb
+  join entities e on e.has_page and e.name_keys && ent_keys(n.k,'{}'::text[])
   where ($2::uuid is null or e.id <> $2::uuid) order by n.k, (ent_norm(e.name)=ent_norm(n.k)) desc, e.created_at`,[list,selfId||null]);
  return Object.fromEntries(r.rows.map(x=>[mentionKey(x.k),entityPath(x.type,x.name)]));
 }
@@ -164,12 +164,13 @@ async function entityRankings(db:Queryable,d:EntityPageData,metrics:Record<strin
 export const ENTITY_SITEMAP_SIZE=40_000;
 // Only work the reviewer approved is listed: published types and published rankings (drafts render but are not in the sitemap).
 const LISTED=['published'];
-const LISTED_TYPES=`select type from entity_types where template <> '{}'::jsonb and status = 'published' union select scope->>'type' from rankings where slug is not null and status = any($1::text[]) and scope->>'type' is not null`;
+// Entities with a page (has_page) of published types.
+const LISTED_TYPES=`select type from entity_types where template <> '{}'::jsonb and status = any($1::text[])`;
 export async function countSitemapEntities(db:Queryable):Promise<number>{
- return Number((await db.query<{n:number}>(`select count(*)::int as n from entities e where e.type in (${LISTED_TYPES})`,[LISTED])).rows[0]?.n||0);
+ return Number((await db.query<{n:number}>(`select count(*)::int as n from entities e where e.has_page and e.type in (${LISTED_TYPES})`,[LISTED])).rows[0]?.n||0);
 }
 export async function sitemapEntities(db:Queryable,part:number,size:number):Promise<{path:string;updatedAt:string|null}[]>{
- const r=await db.query<{type:string;name:string;updated_at:unknown}>(`select e.type, e.name, e.updated_at from entities e where e.type in (${LISTED_TYPES})
+ const r=await db.query<{type:string;name:string;updated_at:unknown}>(`select e.type, e.name, e.updated_at from entities e where e.has_page and e.type in (${LISTED_TYPES})
   order by e.type, e.created_at, e.id limit $2::int offset $3::int`,[LISTED,size,part*size]);
  return r.rows.map(x=>({path:entityPath(x.type,x.name),updatedAt:iso(x.updated_at)}));
 }
@@ -183,14 +184,20 @@ export async function sitemapRankings(db:Queryable):Promise<{path:string;updated
 
 // ───────────── /?ask= links → database pages ─────────────
 // {questionKey → path} for questions that name a ranking (its title or slug) or an entity (name or alias).
-// An entity name shared by several types resolves to a type with a template, else the oldest entity.
+// Only entities that have a page; a name shared by several of them resolves to the oldest.
 export async function resolveNamedTargets(db:Queryable,questions:string[]):Promise<Record<string,string>>{
  const keys=[...new Set(questions.map(questionKey).filter(Boolean))].slice(0,3000);const out:Record<string,string>={};if(!keys.length)return out;
  const rk=await db.query<{slug:string;title:string}>(`select slug, title from rankings where slug is not null and status = any($1::text[]) and (lower(title) = any($2::text[]) or slug = any($2::text[]))`,[PAGE_STATUSES,keys]);
  for(const r of rk.rows)for(const k of [questionKey(r.title),r.slug])if(keys.includes(k)&&!out[k])out[k]=rankingPath(r.slug);
  const rest=keys.filter(k=>!out[k]);if(!rest.length)return out;
- const en=await db.query<{type:string;name:string;aliases:string[]}>(`select e.type, e.name, e.aliases from entities e left join entity_types t on t.type = e.type
-  where e.name_keys && ent_keys('', $1::text[]) order by (t.template is not null and t.template <> '{}'::jsonb) desc, e.created_at limit 5000`,[rest]);
+ const en=await db.query<{type:string;name:string;aliases:string[]}>(`select e.type, e.name, e.aliases from entities e
+  where e.has_page and e.name_keys && ent_keys('', $1::text[]) order by e.created_at limit 5000`,[rest]);
  for(const e of en.rows)for(const n of [e.name,...(e.aliases||[])]){const k=questionKey(n);if(rest.includes(k)&&!out[k])out[k]=entityPath(e.type,e.name);}
  return out;
+}
+
+// The entities among ids that have a page (ranking rows link only to these).
+export async function withPages(db:Queryable,ids:string[]):Promise<Set<string>>{
+ const list=[...new Set(ids.filter(x=>/^[0-9a-f-]{36}$/i.test(x)))];if(!list.length)return new Set();
+ return new Set((await db.query<{id:string}>('select id from entities where has_page and id = any($1::uuid[])',[list])).rows.map(r=>String(r.id)));
 }

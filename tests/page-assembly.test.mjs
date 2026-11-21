@@ -162,8 +162,7 @@ await seed(db);
 test('entity lookup by type and slug (exact, alias, unknown)',async()=>{
  const de=await pages.findEntityBySlug(db,'country','germany');assert.equal(de.name,'Germany');assert.equal(de.canonical,true);
  assert.equal((await pages.findEntityBySlug(db,'country','united-kingdom')).name,'United Kingdom');
- assert.equal((await pages.findEntityBySlug(db,'city','washington-d-c')).name,'Washington, D.C.');
- assert.equal((await pages.findEntityBySlug(db,'city','reykjavík')).name,'Reykjavík');
+ assert.equal(await pages.findEntityBySlug(db,'city','reykjavík'),null,'cities have no template, so no page');
  assert.equal(await pages.findEntityBySlug(db,'city','germany'),null,'type matters');
  assert.equal(await pages.findEntityBySlug(db,'country','germ'),null);
  await db.query("update entities set aliases = array['Deutschland'] where name = 'Germany'");
@@ -199,8 +198,7 @@ test('entity page data: facts with rank and history, peers, relations, rankings 
  const india=await pages.loadEntityPage(db,'country','india');assert.deepEqual(india.data.rankings.map(x=>x.slug),['country-rankings'],'not in the Europe sub-ranking');
  const m=(await import(new URL('pure.mjs',out))).assembleEntityPage(d);
  assert.equal(m.lead.join(' '),'Germany is a country in Europe & Central Asia with a population of 84.5M people (2023). It ranks 8th of 12 by population and 3rd by GDP.');
- const city=await pages.loadEntityPage(db,'city','berlin');assert.equal(city.data.type.template,null);
- assert.deepEqual(city.data.relations.incoming.map(x=>x.predicate+':'+x.sample[0].name),['capital:Germany']);
+ assert.equal(await pages.loadEntityPage(db,'city','berlin'),null,'a city has no template, so no page');
  assert.equal(await pages.loadEntityPage(db,'country','atlantis'),null);
 });
 
@@ -214,7 +212,7 @@ test('sitemap lists rankings with their criteria views and entities of listed ty
 
 test('/?ask= questions resolve to rankings and entities by name',async()=>{
  const t=await pages.resolveNamedTargets(db,['Country Rankings','germany','Deutschland','Paris','Atlantis']);
- assert.deepEqual(t,{'country rankings':'/rankings/country-rankings',germany:'/e/country/germany',deutschland:'/e/country/germany',paris:'/e/city/paris'});
+ assert.deepEqual(t,{'country rankings':'/rankings/country-rankings',germany:'/e/country/germany',deutschland:'/e/country/germany'},'Paris has no page (cities have no template)');
 });
 // (added) A trend section naming metrics in different units becomes one chart per unit.
 test('a trend section naming metrics in different units becomes one chart per unit',()=>{
@@ -262,4 +260,24 @@ test('related entities link by id, so a shared name never links to the wrong pag
  assert.equal(m.cards[0].href,'/e/us_state/georgia');
  const noPage=a.assembleEntityPage({...d,entityLinks:{}});
  assert.equal(noPage.cards[0].href,undefined,'the state has no page: no link, never the country of the same name');
+});
+
+test('only entities that pass their type\'s page threshold get a page; stubs and untemplated types do not',async()=>{
+ const repo=await import(new URL('repo.mjs',out));
+ const {id}=await db.tx(q=>repo.upsertEntity(q,{type:'country',name:'Stubland'}));
+ await repo.refreshPages(db,{ids:[id]});
+ assert.equal(await pages.findEntityBySlug(db,'country','stubland'),null,'a name with no data gets no page');
+ assert.equal((await db.query("select count(*)::int n from entities where type='city' and has_page")).rows[0].n,0,'cities have no template');
+ const tpl=(await db.query("select template from entity_types where type='country'")).rows[0].template;
+ try{
+  await db.query("update entity_types set template=$1::jsonb where type='country'",[JSON.stringify({...tpl,page:{minMetrics:50}})]);
+  await repo.refreshPages(db,{type:'country'});
+  assert.equal(await pages.findEntityBySlug(db,'country','germany'),null,'below the template\'s minMetrics');
+  assert.equal(await pages.countSitemapEntities(db),0);
+ }finally{
+  await db.query("update entity_types set template=$1::jsonb where type='country'",[JSON.stringify(tpl)]);
+  await repo.refreshPages(db,{type:'country'});
+  await db.query("delete from entities where id=$1::uuid",[id]);
+ }
+ assert.equal((await pages.findEntityBySlug(db,'country','germany')).name,'Germany');
 });

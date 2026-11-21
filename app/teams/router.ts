@@ -34,7 +34,8 @@ async function candidates(query:string):Promise<Candidate[]>{
  // Entities: hybrid search among types whose pages are published.
  const types=new Set((await db.query<{type:string}>(`select type from entity_types where status='published' and template <> '{}'::jsonb`)).rows.map(r=>r.type));
  if(types.size){
-  const hits=(await hybridSearch(db,{query,limit:12})).results.filter(e=>types.has(e.type)).slice(0,6);
+  const withPage=new Set((await db.query<{id:string}>('select id from entities where has_page and id = any($1::uuid[])',[(await hybridSearch(db,{query,limit:12})).results.map(e=>e.id)])).rows.map(r=>String(r.id)));
+  const hits=(await hybridSearch(db,{query,limit:12})).results.filter(e=>types.has(e.type)&&withPage.has(e.id)).slice(0,6);
   hits.forEach((e,i)=>out.push({id:'e'+(i+1),kind:'entity',type:e.type,name:e.name,description:(e.description||'').slice(0,160)}));
  }
  return out;
@@ -48,7 +49,7 @@ async function exactMatch(q:string):Promise<string|null>{
  // "France", "法国", "France (country)": a name or alias among types whose pages are published.
  const m=/^(.*?)\s*\(([^)]+)\)\s*$/.exec(q);const name=(m?m[1]:q).trim(),hint=m?m[2].trim().toLowerCase().replace(/\s+/g,'_'):null;
  const e=await db.query<{type:string;name:string}>(`select e.type,e.name from entities e join entity_types t on t.type=e.type and t.status='published' and t.template <> '{}'::jsonb
-  where e.name_keys && ent_keys($1::text,'{}'::text[]) and ($2::text is null or e.type=$2::text) order by (ent_norm(e.name)=ent_norm($1::text)) desc, e.created_at limit 2`,[name,hint]);
+  where e.has_page and e.name_keys && ent_keys($1::text,'{}'::text[]) and ($2::text is null or e.type=$2::text) order by (ent_norm(e.name)=ent_norm($1::text)) desc, e.created_at limit 2`,[name,hint]);
  // Two different entities share the name: let the router judge (e.g. Georgia the country and the state).
  if(e.rows.length===1||(e.rows.length>1&&hint))return '/e/'+encodeURIComponent(e.rows[0].type)+'/'+encodeURIComponent(slugify(e.rows[0].name));
  return null;

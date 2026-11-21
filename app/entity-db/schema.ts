@@ -150,6 +150,13 @@ export const MIGRATIONS:Migration[]=[
     text text not null, embedding vector(${dim}) not null, created_at timestamptz not null default now(), primary key (ranking_id, criterion))`,
   'create index if not exists ranking_vectors_embedding on ranking_vectors using hnsw (embedding vector_cosine_ops)',
  ]},
+ // Whether an entity has a page: its type has a page template and the entity meets the template's threshold
+ // (template.page.minMetrics, default 1) — a stub that only has a name (created as the far end of a relation)
+ // gets no page until data arrives. Kept current on every write; links, the sitemap and the router use it.
+ {version:7,name:'entity pages',statements:()=>[
+  'alter table entities add column if not exists has_page boolean not null default false',
+  'create index if not exists entities_pages on entities(type) where has_page',
+ ]},
 ];
 export const SCHEMA_VERSION=MIGRATIONS[MIGRATIONS.length-1].version;
 

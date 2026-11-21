@@ -1,5 +1,5 @@
 import type {Queryable,Row} from '@/app/entity-db/client';
-import {normalizeType} from '@/app/entity-db/repo';
+import {normalizeType,refreshPages} from '@/app/entity-db/repo';
 // Topic teams' configuration in the entity database (format: docs/rankwiki-templates.md).
 // Editors write templates and ranking definitions, collectors write schemas and recipes; programs read them.
 
@@ -30,6 +30,8 @@ export async function saveEntityType(db:Queryable,input:{type:string;label?:stri
    schema=coalesce($6::jsonb,entity_types.schema), template=coalesce($7::jsonb,entity_types.template), status=coalesce($8::text,entity_types.status),
    updated_by=$9::text, updated_at=now() returning *`,
   [type,input.topicId||null,input.label||'',input.plural||'',input.description||'',input.schema?JSON.stringify(input.schema):null,input.template?JSON.stringify(validateTemplate(input.template)):null,input.status||null,input.updatedBy]);
+ // A new template (or threshold) decides which entities of the type have pages.
+ if(input.template)await refreshPages(db,{type});
  return typeRow(r.rows[0]);
 }
 export async function getEntityType(db:Queryable,type:string):Promise<EntityType|null>{

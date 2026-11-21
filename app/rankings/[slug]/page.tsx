@@ -4,7 +4,7 @@ import {notFound,permanentRedirect} from 'next/navigation';
 import {SITE_NAME} from '@/app/edition';
 import {siteUrl} from '@/app/site';
 import {entityDb} from '@/app/entity-db/client';
-import {loadRankingPage} from '@/app/entity-db/pages';
+import {loadRankingPage,withPages} from '@/app/entity-db/pages';
 import {assembleRankingPage,entityPath,rankingPath} from '@/app/seo/assemble';
 import {propsRankingBlock,rankCriterion,blockPeriods,rankedView,rankingChartSvgs} from '@/app/seo/ranking-views';
 import {jsonLd} from '@/app/seo/structured-data';
@@ -19,15 +19,16 @@ type Props={params:Promise<{slug:string}>;searchParams:Promise<Record<string,str
 const decode=(s:string)=>{try{return decodeURIComponent(s);}catch{return s;}};
 const one=(v:string|string[]|undefined)=>typeof v==='string'?v:undefined;
 const load=cache(async(slug:string)=>{
- const input=await loadRankingPage(await entityDb(),slug);if(!input)return null;
+ const db=await entityDb();const input=await loadRankingPage(db,slug);if(!input)return null;
  const model=assembleRankingPage(input,'en');
  const props:Record<string,unknown>={criteria:model.criteria,rows:model.rows,default:model.defaultKey,periodKey:'period',
   ...(model.groupKey?{groupKey:model.groupKey}:{}),...(Array.isArray(input.def.config.views)?{views:input.def.config.views}:{}),
   ...(model.sources.length?{source:model.sources.join('; ')}:{})};
  const block=propsRankingBlock(props)!;
- // Names in the leaderboard link to their entity pages.
+ // Members link to their pages; one without a page (too little data yet) is plain text.
+ const pages=await withPages(db,model.rows.map(r=>String(r.entity_id||'')));
  const askTargets:Record<string,string>={};
- for(const r of model.rows){const n=String(r.name||''),t=String(r.type||'');if(n&&t&&!askTargets[questionKey(n)])askTargets[questionKey(n)]=entityPath(t,n);}
+ for(const r of model.rows){const n=String(r.name||''),t=String(r.type||'');if(n&&t&&pages.has(String(r.entity_id||''))&&!askTargets[questionKey(n)])askTargets[questionKey(n)]=entityPath(t,n);}
  return {input,model,props,block,state:{rows:model.rows},askTargets};
 });
 async function view(props:Props){

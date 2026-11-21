@@ -41,8 +41,12 @@ The goal is one page per entity and one ranking page per entity type (plus sub-s
 "University Rankings in Asia"). That is tens of millions of entities (Wikidata alone has
 ~110M items; products add far more), so pages cannot each be a hand-written agent article:
 
-- **A page is a view of the entity DB, not a stored article.** Every entity row has a URL
-  (`/e/<type>/<slug>`) the moment it exists. The page is rendered on request from the entity
+- **A page is a view of the entity DB, not a stored article.** An entity has a URL
+  (`/e/<type>/<slug>`) once it earns a page: its type has a template and it passes the template's
+  threshold (`page.minMetrics`, distinct metrics with data). The program keeps this as a flag
+  (`entities.has_page`) recomputed on every write and template save; links, the sitemap, the router and
+  ranking rows read only that flag, so a stub or a name mentioned in passing never gets a thin page or a
+  dead link, and becomes a page by itself as soon as its data arrives. The page is rendered on request from the entity
   record with its entity-type template (designed once per type by the topic's collector and
   editor: which attributes go in the card, which observations become charts, which rankings
   the entity appears in). Facts, numbers, charts and ranking positions are always current

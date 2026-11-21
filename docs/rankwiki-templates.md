@@ -45,6 +45,11 @@ collect data. No agent runs when a page is rendered. Stored in the entity databa
   incoming relations), `rankings` (every ranking definition whose scope contains the entity, with its rank
   on each criterion), `timeline` (dated attributes), `text` (titled sentences). Unknown kinds are ignored.
 - References are assembled from the sources of the facts shown.
+- `page` (optional): `{"minMetrics": 3}` — the page threshold. An entity gets a page only when its type has a
+  template and it has at least `minMetrics` distinct metrics (default 1, allowed 1–50). Entities below it (a name
+  mentioned once, a stub with no data) stay in the DB and still count in rankings, but have no URL: nothing links
+  to them, the sitemap and router skip them. The program recomputes this flag (`entities.has_page`) whenever data
+  is written and whenever the template is saved, so raising or lowering the threshold takes effect at once.
 
 ## Entity-type schema (`entity_types.schema`, written by the collector)
 
