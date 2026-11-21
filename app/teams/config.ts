@@ -47,7 +47,7 @@ export async function saveRankingDef(db:Queryable,input:{slug:string;title:strin
  const slug=String(input.slug||'').trim().toLowerCase();if(!SLUG.test(slug))throw Error('A ranking slug is lower-case words joined by hyphens, e.g. "country-rankings".');
  const title=String(input.title||'').trim().slice(0,200);if(!/\bRankings\b|排行榜/.test(title))throw Error('Title a ranking "<scope as a singular noun> Rankings", e.g. "Country Rankings".');
  const scope=obj(input.scope);if(typeof scope.type!=='string')throw Error('scope needs a type, e.g. {"type":"country","filters":{}}.');scope.type=normalizeType(scope.type);
- const criteria=[...new Set((input.criteria||[]).map(c=>String(c).trim()).filter(Boolean))];if(!criteria.length||criteria.length>8)throw Error('Give 1–8 criteria (metric keys).');
+ const criteria=[...new Set((input.criteria||[]).map(c=>String(c).trim()).filter(Boolean))];if(!criteria.length||criteria.length>12)throw Error('Give 1–12 criteria (metric keys).');
  const missing=(await db.query<{k:string}>('select k from unnest($1::text[]) k where not exists (select 1 from metrics m where m.key=split_part(k,\'@\',1))',[criteria])).rows.map(r=>r.k);
  if(missing.length)throw Error('Unknown metrics: '+missing.join(', ')+'. Collect them first (the collector defines metrics when loading data).');
  const config=obj(input.config);if(config.default&&!criteria.includes(String(config.default)))throw Error('config.default must be one of the criteria.');

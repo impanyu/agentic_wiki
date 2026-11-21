@@ -158,7 +158,7 @@ export async function sitemapRankings(db:Queryable):Promise<{path:string;updated
  return (await listRankingDefinitions(db)).filter(r=>r.status==='published').flatMap(r=>{
   const keys=r.criteria.map(c=>c.replace('@','_v'));const def=typeof r.config.default==='string'&&keys.includes(r.config.default)?r.config.default:keys[0];
   const base=rankingPath(r.slug);
-  return [base,...keys.filter(k=>k!==def).slice(0,8).map(k=>base+'?rank='+encodeURIComponent(k))].map(path=>({path,updatedAt:r.updatedAt||null}));
+  return [base,...keys.filter(k=>k!==def).slice(0,12).map(k=>base+'?rank='+encodeURIComponent(k))].map(path=>({path,updatedAt:r.updatedAt||null}));
  });
 }
 

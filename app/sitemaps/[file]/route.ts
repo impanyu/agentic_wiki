@@ -29,6 +29,6 @@ export async function GET(request:Request,{params}:{params:Promise<{file:string}
  return urlset(rows.flatMap(r=>{const mod=lastmod(r.updatedAt),base=pagePath(r.id,r.title);
   // A ranking page: its plain address (default criterion) and one per other criterion.
   const blocks=r.body?rankingBlocks(r.body):[],defaults=new Set(blocks.map(b=>b.defaultKey));
-  const extra=[...new Set(blocks.flatMap(b=>b.criteria.map(c=>c.key)))].filter(k=>!defaults.has(k)).slice(0,8);
+  const extra=[...new Set(blocks.flatMap(b=>b.criteria.map(c=>c.key)))].filter(k=>!defaults.has(k)).slice(0,12);
   return [base,...extra.map(k=>base+'?rank='+encodeURIComponent(k))].map(u=>({loc:origin+u,mod}));}));
 }

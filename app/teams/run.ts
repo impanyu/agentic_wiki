@@ -16,7 +16,7 @@ const RULES=`Rules of RankWiki (a public ranking and entity site, built from pub
 - Every entity has standard ids when they exist (iso3 / iso2 for countries, wikidata QIDs); rows merge on shared ids.
 - Rankings list at most the top 1,000 per criterion, but collection aims at the whole universe (the authoritative membership list), at minimum every entity that could place in the top 1,000 on any criterion.
 - Ranking titles are "<scope as a singular noun> Rankings" ("Country Rankings", "Country Rankings in Europe & Central Asia"); never "Top…", never a criterion in the title.
-- A ranking has 1–8 criteria (a platform limit): choose the measures readers compare most; every other metric still appears on entity pages, and a further ranking can cover other measures.
+- A ranking has 1–12 criteria (a platform limit): include every measure the brief asks readers to compare, up to 12; every other metric still appears on entity pages, and a further ranking can cover other measures.
 - Template values are rendered complete: {metric.x} already carries its unit and formatting ("68.7 million people", "$3.4T", "78.8%", "82.98 years") — never write a unit after it; {rank.x} is an ordinal ("23rd"); {type.label} is the lower-case singular ("country"). Write natural sentences that each say something new; never repeat a fact in two sentences; they must read well for the largest and the smallest entity.
 - Trend sections group metrics that share a unit (one section per theme: population, economy, society, environment); the platform draws one chart per unit.
 - Use only public sources that a normal anonymous visit can read; never log in, never solve CAPTCHAs.
@@ -55,7 +55,7 @@ const REVIEWER=`You are the independent reviewer of this topic team. Check the w
 - Accuracy: spot-check values against the source (call it yourself) for a few large and small entities; units are base units; no implausible outliers (sudden 1000× jumps).
 - Pages: preview_page every ranking (default, another criterion via ?rank=, an older ?year=) and 4–6 entity pages (the largest, a small one, one with gaps): they render, titles follow the rules, sentences are true to the data, no empty or "undefined" text, rankings and maps make sense.
 - Rules: titles, base units, history collected, recipes saved and running by themselves.
-Every review gathers fresh evidence with your tools (team_state, coverage, preview_page, entity_get, the sources) — never repeat an earlier verdict without rechecking. Do not raise issues that contradict the platform rules above (e.g. more than 8 criteria in a ranking).
+Every review gathers fresh evidence with your tools (team_state, coverage, preview_page, entity_get, the sources) — never repeat an earlier verdict without rechecking. Do not raise issues that contradict the platform rules above (e.g. more than 12 criteria in a ranking).
 Return approved=true only when nothing blocking or major remains for the team; list every issue with its owner (collector for data/recipes/schema, editor for templates/rankings/plan) and a concrete fix. A defect of the page renderer itself (wrong formatting the template does not control) has owner "platform": report it, but it does not block approval.`;
 
 type Log=(e:Record<string,unknown>)=>void;
