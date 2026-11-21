@@ -1,3 +1,4 @@
+import {cookies} from 'next/headers';
 import {cache} from 'react';
 import type {Metadata} from 'next';
 import {notFound,permanentRedirect} from 'next/navigation';
@@ -61,7 +62,8 @@ export default async function RankingPage(props:Props){
  // One address per view: another spelling of the slug, an unknown or default ?rank=, an unknown ?year= redirect.
  if(slug!==input.def.slug||(rank!==undefined&&!criterion)||(year!==undefined&&!period))permanentRedirect(path);
  const origin=siteUrl();
- const charts=await rankingChartSvgs([block],{[block.code]:state},criterion?.key,'en',period);
+ const dark=(await cookies()).get('rw-theme')?.value==='dark';
+ const charts=await rankingChartSvgs([block],{[block.code]:state},criterion?.key,'en',period,dark);
  const {criterion:c,ranked}=rankedView(block,state,criterion?.key,period);
  const ld={'@context':'https://schema.org','@type':'ItemList',url:origin+path,name,description:model.description,
   ...(input.def.updatedAt?{dateModified:input.def.updatedAt}:{}),publisher:{'@type':'Organization',name:SITE_NAME,url:origin},

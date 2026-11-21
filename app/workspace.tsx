@@ -32,6 +32,7 @@ import {pageAddress,inputQuery,type ConversionInput} from './dynamic/units';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { HomePage } from './home';
+import { ThemeToggle } from './theme';
 import type { FeaturedRanking } from '@/app/entity-db/pages';
 import { ArrowLeft, ArrowRight, Highlighter, Check, Globe2, Layers, LoaderCircle, LockKeyhole, GitFork, Trash2, Printer, ImagePlus, X as CloseIcon } from 'lucide-react';
 import {ContextIndex} from './context-index/view';
@@ -449,6 +450,7 @@ export default function Workspace({ user, signIn, signOut, featured=[] }: {
       </form>
       <input type="file" ref={uploadInput} hidden onChange={e=>{const file=e.target.files?.[0];if(file)void uploadFile(file);}}/>
       {!PUBLIC_EDITION&&<ConnectorPanel/>}
+      <ThemeToggle label={t("Switch theme")}/>
       <a className="account-link" href={user ? signOut : signIn} target="_top" title={user ? t("Signed in as ") + user.name : t("Sign in with Google")}>
         {user ? t("Sign out") : t("Sign in")}
       </a>

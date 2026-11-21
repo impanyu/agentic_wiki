@@ -4,6 +4,7 @@ import {Layers,ArrowRight,Trophy} from 'lucide-react';
 import {UiContext,usePageUi,useUi} from '@/app/i18n/client';
 import {SITE_NAME,PUBLIC_EDITION} from '@/app/edition';
 import {AskTargets,RankingView} from '@/app/seo/link-context';
+import {ThemeToggle} from '@/app/theme';
 import Ranking from '@/app/workflows/viz/ranking';
 import {StatCards,Position,PeerCompare,Timeline} from '@/app/workflows/viz/entity-viz';
 import {Trend,RadarProfile,LocationMap,RelationGraph} from '@/app/workflows/viz/entity-charts';
@@ -24,6 +25,7 @@ export function DbShell({language='en',askTargets,className,children}:{language?
     <input id="address" name="ask" type="text" placeholder={PUBLIC_EDITION?t('Search an entity or a ranking — e.g. Countries, iPhone 17, Perfumes'):t('Enter a question or context')} maxLength={4000} autoComplete="off" enterKeyHint="go" spellCheck={false}/>
     <button type="submit" className="go-button" aria-label={t('Open answer')} title={t('Open answer · Enter')}><ArrowRight size={18}/></button>
    </form>
+   <ThemeToggle label={t('Switch theme')}/>
   </header>
   <main className="browser-content">
    <article className={className} lang={language} dir="ltr">{children}</article>

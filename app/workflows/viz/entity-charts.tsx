@@ -13,6 +13,8 @@ import {trendOption,radarOption,graphOption,locationOption} from './entity-chart
 import {EvHead,EvSource,rankLabel} from './entity-viz';
 import './viz.css';
 import './entity-viz.css';
+import {useTheme} from '@/app/theme';
+import {themeOption} from './chart-theme';
 
 type ECharts=typeof import('echarts');
 type Chart=ReturnType<ECharts['init']>;
@@ -30,6 +32,7 @@ function EvChart({option,height,label,fallback,onClick,onReady}:{option:Record<s
  const box=useRef<HTMLDivElement>(null);const chart=useRef<Chart|null>(null);
  const cb=useRef({onClick,onReady});cb.current={onClick,onReady};
  const [ready,setReady]=useState(false);const [drawn,setDrawn]=useState(false);const [error,setError]=useState('');
+ const dark=useTheme()==='dark';
  useEffect(()=>{
   let dead=false,ro:ResizeObserver|null=null;
   loadECharts().then(echarts=>{
@@ -43,8 +46,8 @@ function EvChart({option,height,label,fallback,onClick,onReady}:{option:Record<s
  },[]);
  useEffect(()=>{
   const c=chart.current;if(!c||c.isDisposed()||!option)return;
-  try{c.setOption(option as any,{notMerge:true});setDrawn(true);setError('');}catch(e){setError(errText(e));}
- },[option,ready]);
+  try{c.setOption(themeOption(option,dark) as any,{notMerge:true});setDrawn(true);setError('');}catch(e){setError(errText(e));}
+ },[option,ready,dark]);
  return <div className="wf-ev-chartbox" style={{height}}>
   <div ref={box} className="wf-echart-canvas" role="img" aria-label={label}/>
   {!drawn&&<div className="wf-ev-fallback">{fallback}</div>}

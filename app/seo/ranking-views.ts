@@ -4,6 +4,7 @@ import {viewOption,autoViews,pickViews,chartKey,VIEW_HEIGHT,type RankingViewKind
 import {geoKind,geoKeyOf,registerGeo,pointOf,geoAspect,setGeoFetcher} from '@/app/workflows/viz/ranking-geo';
 import {readFile} from 'node:fs/promises';
 import {join} from 'node:path';
+import {themeOption} from '@/app/workflows/viz/chart-theme';
 // On the server, map geometry (public/geo/…) is read from disk.
 setGeoFetcher(async path=>JSON.parse(await readFile(join(process.cwd(),'public',path.replace(/^\/+/,'')),'utf8')));
 // The rankings on a page as the server sees them: their criteria (for ?rank= views, titles and the
@@ -72,7 +73,7 @@ export function blockViews(b:RankingBlock,state:Record<string,unknown>|undefined
  return b.props.chart==='map'&&v.includes('map')?['map',...v.filter(x=>x!=='map')]:v;
 }
 // {chartKey|view → SVG} for the view each ranking shows first (the criterion in view; 3D maps only in the browser).
-export async function rankingChartSvgs(blocks:RankingBlock[],preloaded:Record<string,Record<string,unknown>>,rank:string|undefined,locale:string,period?:string):Promise<Record<string,string>>{
+export async function rankingChartSvgs(blocks:RankingBlock[],preloaded:Record<string,Record<string,unknown>>,rank:string|undefined,locale:string,period?:string,dark=false):Promise<Record<string,string>>{
  const out:Record<string,string>={};
  for(const b of blocks){
   const state=preloaded[b.code];if(!state)continue;
@@ -93,7 +94,7 @@ export async function rankingChartSvgs(blocks:RankingBlock[],preloaded:Record<st
    if(!option)continue;
    const h=first==='bar'?Math.min(height,380):first==='map'&&kind?Math.round(WIDTH/geoAspect(kind,g))+MAP_EXTRA:VIEW_HEIGHT[first]??420;
    const chart=echarts.init(null as unknown as HTMLElement,undefined,{renderer:'svg',ssr:true,width:WIDTH,height:h});
-   try{chart.setOption({...option,animation:false} as never);
+   try{chart.setOption(themeOption({...option,animation:false},dark) as never);
     // Scales with its box: a viewBox instead of fixed pixels.
     out[chartKey(b.criteria.map(x=>x.key),c.key)+'|'+first]=chart.renderToSVGString().replace(/^<svg([^>]*?) width="(\d+)" height="(\d+)"/,(_m,a,ww,hh)=>`<svg${a}${/viewBox=/.test(a)?'':` viewBox="0 0 ${ww} ${hh}"`} preserveAspectRatio="xMidYMid meet"`);
    }finally{chart.dispose();}

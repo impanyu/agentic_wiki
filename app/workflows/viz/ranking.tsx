@@ -5,6 +5,8 @@ import type {VizProps} from './types';
 import {type Entry,type Summary,normalizeCriteria,toEntries,rankEntries,summarize,makeFormatter,shareOf,groupsOf,linkParts,parseNumber,periodKeyOf,rowPeriods,rowsAt,seriesOf,LATEST} from './ranking-data';
 import {useAskLink,useRankingView} from '@/app/seo/link-context';
 import {geoKind,geoKeyOf,registerGeo,baseRegion,pointOf,geoAspect,type GeoData} from './ranking-geo';
+import {useTheme} from '@/app/theme';
+import {themeOption} from './chart-theme';
 import './viz.css';
 import './ranking.css';
 
@@ -31,6 +33,7 @@ function ChartBox({option,height,label,aspect,extra=0,onClick,onChart,svg,gl}:{o
  const h=aspect&&width?Math.max(180,Math.min(height,Math.round(width/aspect)+extra)):height;
  const cb=useRef({onClick,onChart});cb.current={onClick,onChart};
  const [ready,setReady]=useState(false);const [error,setError]=useState('');
+ const dark=useTheme()==='dark';const themeRef=useRef(dark);
  useEffect(()=>{
   let dead=false,ro:ResizeObserver|null=null;
   (gl?loadGL():loadECharts()).then(echarts=>{
@@ -45,8 +48,10 @@ function ChartBox({option,height,label,aspect,extra=0,onClick,onChart,svg,gl}:{o
  useEffect(()=>{
   const c=chart.current;if(!c||c.isDisposed()||!option)return;
   // A timeline option (baseOption + options per period, the bar race) replaces the chart; others merge.
-  try{c.setOption(option as any,'baseOption' in option?{notMerge:true}:{replaceMerge:['series','dataZoom','visualMap']});setError('');}catch(e){setError(errMessage(e));}
- },[option,ready]);
+  // A theme switch redraws from scratch; otherwise a timeline option (the bar race) replaces the chart, others merge.
+  const fresh=themeRef.current!==dark;themeRef.current=dark;
+  try{c.setOption(themeOption(option,dark) as any,fresh||'baseOption' in option?{notMerge:true}:{replaceMerge:['series','dataZoom','visualMap']});setError('');}catch(e){setError(errMessage(e));}
+ },[option,ready,dark]);
  return <div ref={outer} className="wf-rank-chartbox" style={{height:h}}>
   <div ref={box} className="wf-echart-canvas" role="img" aria-label={label}/>
   {(!ready||!option)&&!error&&(svg?<div className="wf-rank-svg" role="img" aria-label={label} dangerouslySetInnerHTML={{__html:svg}}/>:<div className="wf-viz-loading wf-rank-shimmer" aria-busy="true"/>)}
@@ -185,6 +190,8 @@ export default function Ranking({props,setValue,fire,ctx}:VizProps){
  const title=typeof props.title==='string'?props.title:'',subtitle=typeof props.subtitle==='string'?props.subtitle:'',source=typeof props.source==='string'?props.source:'';
  const pills=criteria.length<=4;
  const groupColor=(g:string)=>PALETTE[groups.indexOf(g)%PALETTE.length];
+ // The podium: the first three on the criterion in view (distinct ranks; ties leave it out).
+ const podium=(()=>{const p=ranked.filter(e=>e.value!=null&&e.rank!=null&&e.rank<=3).slice(0,3);return p.length===3&&new Set(p.map(e=>e.rank)).size===3?p:[];})();
 
  const row=(e:Entry,i:number)=>{
   const share=shareOf(e,summary,locale);const medal=e.rank!=null&&e.rank<=3?e.rank:0;
@@ -224,6 +231,14 @@ export default function Ranking({props,setValue,fire,ctx}:VizProps){
    <span className="wf-rank-order">{c.order==='asc'?<ArrowUpNarrowWide size={13}/>:<ArrowDownWideNarrow size={13}/>}{c.order==='asc'?t('Lowest ranks first'):t('Highest ranks first')}</span>
    {c.description&&<span className="wf-rank-desc">{c.description}</span>}
   </div>
+
+  {podium.length===3&&<ol className="wf-rank-podium" aria-label={t('Top 3')}>{podium.map(e=>{const share=shareOf(e,summary,locale);const l=askLink(e.question);return <li key={e.index} className={'p'+e.rank} onClick={()=>pick(e)}>
+   <span className="wf-rank-podium-medal">{e.rank}</span>
+   <Avatar e={e} color={colorOf(e)}/>
+   <span className="wf-rank-podium-name">{l.href?<a href={l.href} rel={l.rel} onClick={ev=>ev.stopPropagation()}>{e.name}</a>:e.name}</span>
+   <span className="wf-rank-podium-val">{fmt(e.value!)}</span>
+   {share&&<span className="wf-rank-podium-share">{share.kind==='share'?share.text:t('Top {pct}',{pct:share.text})}</span>}
+  </li>;})}</ol>}
 
   <div className="wf-rank-tools">
    <label className="wf-rank-search"><Search size={14}/><input type="search" value={query} placeholder={t('Search…')} aria-label={t('Search entities')} onChange={ev=>setQuery(ev.target.value)}/></label>
