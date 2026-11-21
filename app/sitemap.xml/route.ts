@@ -1,4 +1,5 @@
 import {siteUrl} from '@/app/site';
+import {PUBLIC_EDITION} from '@/app/edition';
 import {countSitemapPages,SITEMAP_SIZE} from '@/app/seo/server';
 import {entityDb} from '@/app/entity-db/client';
 import {countSitemapEntities,ENTITY_SITEMAP_SIZE} from '@/app/entity-db/pages';
@@ -7,7 +8,8 @@ import {countSitemapEntities,ENTITY_SITEMAP_SIZE} from '@/app/entity-db/pages';
 export const dynamic='force-dynamic';
 export async function GET(request:Request){
  const origin=siteUrl()||new URL(request.url).origin;
- const parts=Math.max(1,Math.ceil(await countSitemapPages()/SITEMAP_SIZE));
+ // The public edition lists only pages built from the database (rankings, entities).
+ const parts=PUBLIC_EDITION?0:Math.max(1,Math.ceil(await countSitemapPages()/SITEMAP_SIZE));
  const files=Array.from({length:parts},(_,i)=>`pages-${i}.xml`);
  // The entity database is optional here: without it the index lists the pages only.
  try{const n=await countSitemapEntities(await entityDb());files.push('rankings-0.xml',...Array.from({length:Math.ceil(n/ENTITY_SITEMAP_SIZE)},(_,i)=>`entities-${i}.xml`));}

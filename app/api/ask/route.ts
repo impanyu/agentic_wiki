@@ -64,7 +64,7 @@ async function routeAnswer(request:Request,actor:Awaited<ReturnType<typeof getAc
    const family=await database().prepare('SELECT group_id FROM page_forks WHERE page_id=?').bind(source.id).first<{group_id:string}>();
    fork={sourceId:source.id,requestId:data.fork.requestId,groupId:family?.group_id||source.id,createdAt:source.createdAt};
   }
-  if(!fork&&!image){const exact=await exactSavedQuestion(question,uid);if(exact&&exact.id!==fromPage)return respond({page:exact,reused:true,destination:question});}
+  if(!fork&&!image&&!PUBLIC_EDITION){const exact=await exactSavedQuestion(question,uid);if(exact&&exact.id!==fromPage)return respond({page:exact,reused:true,destination:question});}
   jobId=await startJob(uid,'navigation',question||'Image');
   if(!aiKey())return respond({error:'The AI connection is not configured yet.'},503);
   const {sourceDocument,routingQuestion,vector,language}=await prepareNavigationInput(question,request.signal,image);
@@ -79,11 +79,12 @@ async function routeAnswer(request:Request,actor:Awaited<ReturnType<typeof getAc
    await database().batch(legacy.results.map(p=>database().prepare("UPDATE pages SET language=? WHERE id=? AND language='und'").bind(languages.get(p.id)!,p.id)));
   }
   const context:AgentContext={userId:uid,ownerId:uid,language,visibility:PUBLIC_EDITION?'public':'private',sourceDocument:sourceDocument||undefined};
-  // Public edition: pages built from the database (rankings, entities) answer first, found by meaning and
-  // chosen by the router model; the older agent-written pages are matched after them.
-  if(PUBLIC_EDITION&&!fork&&!image&&!sourceDocument){const {routeToDatabase}=await import('@/app/teams/router');
+  // Public edition: only pages built from the database (rankings, entities) answer, found by meaning and chosen
+  // by the router model; otherwise the reader is told honestly and the query goes to the closest topic's editor.
+  if(PUBLIC_EDITION){const {routeToDatabase,recordUnserved}=await import('@/app/teams/router');
    const r=await routeToDatabase(routingQuestion,request.signal).catch(e=>{console.warn('db route failed',(e as Error).message);return null;});
-   if(r)return respond({redirect:r.href,destination:routingQuestion});}
+   if(r)return respond({redirect:r.href,destination:routingQuestion});
+   return respond({error:await recordUnserved(routingQuestion,language),notAvailable:true},404);}
   const rootRouter=await spawnAgent('root-routing',context.ownerId);
   const rootRoute=await resolveRootRoute(routingQuestion,vector,language,uid,rootRouter,request.signal,!!fork,fromPage);
   const requested=rootRoute.intent;
@@ -133,7 +134,6 @@ async function routeAnswer(request:Request,actor:Awaited<ReturnType<typeof getAc
   // Public edition: no page is generated on the fly. A ranking or entity in the database answers the query
   // (its page is rendered from templates); otherwise the reader is told honestly and the query goes to the
   // closest topic's editor for the next plan.
-  if(PUBLIC_EDITION&&!fork&&!image){const {recordUnserved}=await import('@/app/teams/router');return respond({error:await recordUnserved(destination,language),notAvailable:true},404);}
   // One generator owns artifact selection after a routing miss.
   const visibility=(PUBLIC_EDITION?'public':'private') as 'public'|'private';
   const keyBytes=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(JSON.stringify([language,destinationKey,uid])));
