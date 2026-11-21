@@ -76,10 +76,27 @@ reader watches. In addition the router owns the **topic tree**:
   by the router into sub-topics; their entities and roadmap items move with the scope.
 - **Forward every query** to the chosen editor's inbox (with whether a page was served).
 
-### Editors — topic owners
-An editor is a persistent agent identity bound to one topic (e.g. *Countries*, *Cities of
-Asia*, *Football clubs*, *Programming languages*). It is the generator renamed: it composes
-entity pages and ranking pages for its topic only, using the page templates.
+### Editors — topic owners (editors-in-chief, not page writers)
+Pages are rendered by the platform from the entity DB and per-type templates (section 0), so
+an editor does not write pages. Its output is configuration and a little text — the parts that
+need judgment:
+1. **Type design**: for each entity type of its domain, the template (card fields, charts,
+   section plan) — once per type, revised from reviewer feedback and reader queries.
+2. **Ranking design**: which rankings exist (scope and sub-scopes such as "Men's Perfume
+   Rankings"), the universe and eligibility threshold, dedupe rules for variants, criteria and
+   default, derived/composite metrics with public methodology and sensitivity checks.
+3. **Text data cannot express**: leads and narrative sections for tier 1–2 entities, the
+   "About this ranking" note.
+4. **Priorities**: the roadmap — what to collect, which rankings to add, which entities to
+   promote to a higher prose tier — driven by router-forwarded queries and coverage gaps.
+5. **Judgment calls on data**: conflicting sources, identity (same entity or not), outliers;
+   routine collection and formats stay with the collector.
+Because page writing is gone, one editor covers a domain of related types (Countries &
+regions, Perfume & beauty, Phones & electronics, Universities…): tens to a couple hundred
+editors, not thousands. For simple types (one authoritative source, no subjective ranking) a
+single agent may do the editor's and collector's work; complex or subjective domains get the
+full trio. The reviewer checks type and ranking designs, universe completeness, data accuracy
+and the editor's text.
 
 Each editor has:
 - **Brief**: topic, scope (entity types, regions, inclusion thresholds), style notes.
