@@ -10,6 +10,9 @@ if [ -n "$(git status --porcelain --untracked-files=no)" ]; then echo "Commit an
 "$NODE" node_modules/next/dist/bin/next build --webpack
 "$NODE" scripts/prepare-standalone.mjs
 asset="${TMPDIR:-/tmp}/agenticwiki-$sha.tgz"
-COPYFILE_DISABLE=1 tar -C .next/standalone --exclude=node_modules --exclude=data --no-xattrs -czf "$asset" . 2>/dev/null || COPYFILE_DISABLE=1 tar -C .next/standalone --exclude=node_modules --exclude=data -czf "$asset" .
+# Leave out the top-level data directory (a local database) by listing the other entries: a --exclude=data
+# pattern also drops every nested directory named data, such as the app/data route.
+entries=$(cd .next/standalone && ls -A | grep -v -x -e data -e node_modules)
+COPYFILE_DISABLE=1 tar -C .next/standalone --exclude=node_modules --no-xattrs -czf "$asset" $entries 2>/dev/null || COPYFILE_DISABLE=1 tar -C .next/standalone --exclude=node_modules -czf "$asset" $entries
 gh release create "deploy-$sha" "$asset" --title "deploy $sha" --notes "Built artifact for $sha" --latest=false
 echo "Published deploy-$sha. On the VM run: scripts/deploy/install-release.sh $sha"
