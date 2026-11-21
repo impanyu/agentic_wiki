@@ -191,11 +191,16 @@ export function assembleEntityPage(d:EntityPageData,locale='en'):EntityPageModel
  for(const s of tpl.sections||[]){
   switch(s.kind){
    case 'trend':{
-    const keys=(s.metrics||[]).filter(k=>(d.metrics[k]?.history?.length||0)>1);if(!keys.length)break;keys.forEach(k=>used.add(k));
-    const c0=criterionOf(def(keys[0]));
-    sections.push({component:'trend',title:s.title||def(keys[0]).label,props:{format:c0.format,...(c0.currency?{currency:c0.currency}:{}),...(c0.unit?{unit:c0.unit}:{}),
-     series:trendSeries(keys.map(k=>({c:criterionOf(def(k)),points:sortPoints(d.metrics[k].history||[])}))),
-     source:[...new Set(keys.map(k=>d.metrics[k].source).filter(Boolean))].join('; ')}});
+    const all=(s.metrics||[]).filter(k=>(d.metrics[k]?.history?.length||0)>1);if(!all.length)break;all.forEach(k=>used.add(k));
+    // One chart per unit and format (people and USD never share an axis or a formatter), at most 6 lines each.
+    const groups=new Map<string,string[]>();for(const k of all){const c=criterionOf(def(k)),g=(c.unit||'')+'|'+c.format+'|'+(c.currency||'');const l=groups.get(g)??[];if(l.length<6)l.push(k);groups.set(g,l);}
+    for(const keys of groups.values()){
+     const c0=criterionOf(def(keys[0]));
+     const title=groups.size===1&&s.title?s.title:keys.length===1?def(keys[0]).label:(s.title?s.title+': ':'')+keys.map(k=>def(k).label).join(', ');
+     sections.push({component:'trend',title,props:{format:c0.format,...(c0.currency?{currency:c0.currency}:{}),...(c0.unit?{unit:c0.unit}:{}),
+      series:trendSeries(keys.map(k=>({c:criterionOf(def(k)),points:sortPoints(d.metrics[k].history||[])}))),
+      source:[...new Set(keys.map(k=>d.metrics[k].source).filter(Boolean))].join('; ')}});
+    }
     break;}
    case 'position':case 'peer_compare':{
     const k=s.metric||s.metrics?.[0];if(!k||!d.metrics[k])break;const {list,outside}=peerValues(k);if(list.length<2)break;used.add(k);

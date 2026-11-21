@@ -216,3 +216,12 @@ test('/?ask= questions resolve to rankings and entities by name',async()=>{
  const t=await pages.resolveNamedTargets(db,['Country Rankings','germany','Deutschland','Paris','Atlantis']);
  assert.deepEqual(t,{'country rankings':'/rankings/country-rankings',germany:'/e/country/germany',deutschland:'/e/country/germany',paris:'/e/city/paris'});
 });
+// (added) A trend section naming metrics in different units becomes one chart per unit.
+test('a trend section naming metrics in different units becomes one chart per unit',()=>{
+ const base=data();
+ const d={...base,type:{...base.type,template:{sections:[{kind:'trend',title:'Overview',metrics:['population','gdp_usd']}]}},
+  metrics:{...base.metrics,gdp_usd:{...base.metrics.gdp_usd,history:[{period:'2022',value:4.1e12},{period:'2023',value:4.456e12}]}}};
+ const trends=a.assembleEntityPage(d).sections.filter(s=>s.component==='trend');
+ assert.equal(trends.length,2);
+ assert.deepEqual(trends.map(t=>[t.props.unit??t.props.currency,t.props.series.map(x=>x.label)]),[['people',['Population']],['USD',['GDP']]]);
+});
