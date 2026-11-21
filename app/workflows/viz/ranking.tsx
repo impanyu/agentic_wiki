@@ -1,6 +1,6 @@
 'use client';
 import {useEffect,useMemo,useRef,useState} from 'react';
-import {Search,ArrowDownWideNarrow,ArrowUpNarrowWide} from 'lucide-react';
+import {Search,ArrowDownWideNarrow,ArrowUpNarrowWide,ChartColumn,LayoutGrid,ChartPie,Sun,Map as MapIcon,Box,ChartScatter,TrendingUp,ChartNoAxesColumn,SquareSplitVertical,Grid3x3,ChartSpline,ArrowDownUp,Radar,type LucideIcon} from 'lucide-react';
 import type {VizProps} from './types';
 import {type Entry,type Summary,normalizeCriteria,toEntries,rankEntries,summarize,makeFormatter,shareOf,groupsOf,linkParts,parseNumber} from './ranking-data';
 import {useAskLink,useRankingView} from '@/app/seo/link-context';
@@ -61,6 +61,8 @@ function Avatar({e,color}:{e:Entry;color:string}){
 }
 
 const PAGE=50,ROW_CAP=1000;
+const VIEW_ICONS:Record<RankingViewKind,LucideIcon>={bar:ChartColumn,treemap:LayoutGrid,donut:ChartPie,sunburst:Sun,map:MapIcon,map3d:Box,scatter:ChartScatter,
+ lorenz:TrendingUp,distribution:ChartNoAxesColumn,boxplot:SquareSplitVertical,heatmap:Grid3x3,parallel:ChartSpline,slope:ArrowDownUp,radar:Radar};
 
 export default function Ranking({props,setValue,fire,ctx}:VizProps){
  const t=ctx.t,locale=ctx.locale||'en';
@@ -240,7 +242,7 @@ export default function Ranking({props,setValue,fire,ctx}:VizProps){
   </div>}
   {views.length>0&&<div className={'wf-rank-chart '+active}>
    <div className="wf-rank-charttools">
-    {views.length>1?<div className="wf-rank-views" role="tablist" aria-label={t('Chart')}>{views.map(v=><button key={v} type="button" role="tab" aria-selected={v===active} className={v===active?'on':''} onClick={()=>setViewKind(v)}>{t(VIEW_LABELS[v])}</button>)}</div>
+    {views.length>1?<div className="wf-rank-viewbar"><span className="wf-rank-viewlabel">{t('Charts')}</span><div className="wf-rank-views" role="tablist" aria-label={t('Charts')}>{views.map(v=>{const Icon=VIEW_ICONS[v];return <button key={v} type="button" role="tab" aria-selected={v===active} className={v===active?'on':''} onClick={()=>setViewKind(v)}><Icon size={15} aria-hidden="true"/>{t(VIEW_LABELS[v])}</button>;})}</div></div>
      :<span className="wf-rank-charttitle">{c.label}{c.year?' · '+c.year:''}</span>}
     {active==='bar'&&chartRanked.length>top&&<div className="wf-rank-seg" role="radiogroup" aria-label={t('Bars shown')}>
      <button type="button" role="radio" aria-checked={!allBars} className={!allBars?'on':''} onClick={()=>setAllBars(false)}>{t('Top {n}',{n:top})}</button>
