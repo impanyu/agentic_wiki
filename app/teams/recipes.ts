@@ -24,6 +24,19 @@ export function parseSteps(raw:unknown):Step[]{
   return {id,tool,args};
  });
 }
+// A recipe must be complete: every fetched dataset is used by a later step (cleaned, joined or loaded), and the
+// recipe ends by loading into the entity database. Otherwise it would fetch data that never reaches readers.
+const FETCHERS=['call_public_source','fetch_data','extract_tables','crawl_pages','browse_page','query_data'];
+export function checkRecipe(steps:Step[]):string[]{
+ const problems:string[]=[];
+ const refs=(v:unknown,out:Set<string>)=>{if(typeof v==='string'){for(const m of v.matchAll(/\$([a-z][a-z0-9_]*)/gi))out.add(m[1]);}
+  else if(Array.isArray(v))v.forEach(x=>refs(x,out));else if(v&&typeof v==='object')Object.values(v).forEach(x=>refs(x,out));return out;};
+ steps.forEach((s,i)=>{if(!FETCHERS.includes(s.tool))return;
+  const used=steps.slice(i+1).some(t=>refs(t.args,new Set()).has(s.id));
+  if(!used)problems.push('Step "'+s.id+'" ('+s.tool+') fetches data that no later step uses: load it (entity_upsert with datasetId "$'+s.id+'") or join it into a step that is loaded.');});
+ if(!steps.some(s=>s.tool==='entity_upsert'||s.tool==='compute_metric'))problems.push('The recipe never loads anything: end with entity_upsert.');
+ return problems;
+}
 const datasetOf=(v:unknown):string|undefined=>{
  if(!v||typeof v!=='object')return undefined;const o=v as Record<string,unknown>;
  if(typeof o.datasetId==='string')return o.datasetId;

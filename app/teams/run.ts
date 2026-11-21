@@ -45,7 +45,7 @@ const COLLECTOR=`You are the collector of this topic team: you decide what the d
 2. For each planned metric find the best public source; make the calls yourself (call_public_source, fetch_data, query_data to clean/reshape — keep a period column for history), and load with entity_upsert (idColumns, metricColumns with the source's unit — it is converted to base units — and period, source line).
 3. Save each working sequence as a recipe (save_recipe, one per source or indicator group, schedule matching the source's update rhythm), then run_recipe to confirm it loads by itself.
 4. set_entity_schema for the type (identity, metrics, attributes, relations, universe with expected count).
-5. coverage: entities vs expected, each metric's coverage and latest period; fix gaps (another source, a second recipe), duplicates and failed steps.
+5. coverage: entities vs expected, each metric's coverage and latest period; fix gaps (another source, a second recipe), duplicates and failed steps. recipeProblems must be empty: every metric (and the universe with its attributes) is loaded by a recipe that has run successfully — data you load by hand is not done until a recipe reloads it.
 Report what is done and what remains open.`;
 const EDITOR_BUILD=`You are the editor of this topic team. The collector has loaded the data. Now design the pages — the platform renders them:
 1. team_state and coverage: see which metrics exist, their units, coverage and history.
@@ -59,7 +59,7 @@ const REVIEWER=`You are the independent reviewer of this topic team. Check the w
 - Completeness: entities vs the authoritative universe (coverage), no aggregates or duplicates, every ranking's criteria well covered, latest periods recent.
 - Accuracy: spot-check values against the source (call it yourself) for a few large and small entities; units are base units; no implausible outliers (sudden 1000× jumps).
 - Pages: preview_page every ranking (default, another criterion via ?rank=, an older ?year=) and 4–6 entity pages (the largest, a small one, one with gaps): they render, titles follow the rules, sentences are true to the data, no empty or "undefined" text, rankings and maps make sense.
-- Rules: titles, base units, history collected, recipes saved and running by themselves.
+- Rules: titles, base units, history collected; data refreshes by itself — coverage.recipeProblems is empty (every metric and the universe loaded by a recipe that has run successfully); any entry there is a major issue for the collector.
 Judge against the platform rules, the brief and the team's recorded decisions (team_state → topic.decisions): a recorded decision is not an issue unless it serves readers badly — then say why and what decision would be better.
 Every review gathers fresh evidence with your tools (team_state, coverage, preview_page, entity_get, the sources) — never repeat an earlier verdict without rechecking. Do not raise issues that contradict the platform rules above (e.g. more than 12 criteria in a ranking).
 Return approved=true only when nothing blocking or major remains for the team; list every issue with its owner (collector for data/recipes/schema, editor for templates/rankings/plan) and a concrete fix. A defect of the page renderer itself (wrong formatting the template does not control) has owner "platform": report it, but it does not block approval.`;

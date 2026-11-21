@@ -7,7 +7,7 @@ import {dataTools,runDataTool} from '@/app/data-tools';
 import {publicSourceTools,listPublicSources,callPublicSource} from '@/app/public-data/service';
 import {siteUrl} from '@/app/site';
 import {saveEntityType,getEntityType,listEntityTypes,saveRankingDef,listRankingDefs,saveRecipe,getRecipe,listRecipes,topicBrief,recordDecision,setTopicBrief} from './config';
-import {runRecipe,parseSteps,RECIPE_TOOLS} from './recipes';
+import {runRecipe,parseSteps,checkRecipe,RECIPE_TOOLS} from './recipes';
 // Tools of a topic team. Everyone explores with the public sources, data tools and entity database;
 // the collector writes schemas and recipes and runs them, the editor writes templates and ranking
 // definitions, the reviewer reads everything and opens rendered pages. Strict schemas: every property
@@ -19,7 +19,7 @@ const FORMAT='Format: docs/rankwiki-templates.md (also returned by team_state as
 
 const teamTools={
  team_state:tool('team_state','The topic\'s current state: entity types (schema, template, status, entity count), ranking definitions, recipes with their last run, metrics (key, label, unit, entities with a value, periods covered) and the formats of templates, schemas, rankings and recipes. Call it first. type: "" for all types of the topic.',{type:string}),
- coverage:tool('coverage','Check the data of one entity type: entity count against expected (the universe), and for each metric how many entities have a value, the latest period, the range of periods, and sample entities that lack it; possible duplicates (same normalized name). metrics: comma list ("" = every metric with data for the type). expected: the size of the universe (0 unknown).',{type:string,metrics:string,expected:integer}),
+ coverage:tool('coverage','Check the data of one entity type: entity count against expected (the universe), and for each metric how many entities have a value, the latest period, the range of periods, and sample entities that lack it; possible duplicates (same normalized name); and whether the data refreshes by itself — metrics no recipe loads, recipes that never ran or failed (recipeProblems must be empty). metrics: comma list ("" = every metric with data for the type). expected: the size of the universe (0 unknown).',{type:string,metrics:string,expected:integer}),
  set_entity_schema:tool('set_entity_schema','Collector: record the schema of an entity type — identity rules, metrics (key, label, unit in base units, order, format, source, history), attributes, relations, the universe (authoritative membership list and expected count). '+FORMAT+' schemaJson: JSON object string.',{type:string,label:string,plural:string,description:string,schemaJson:string}),
  save_recipe:tool('save_recipe','Collector: save a recipe — the ordered tool calls that fetch, clean and load one source into the entity database; the crawler runs it on its schedule with no model. stepsJson: JSON array string of {id, tool, args}; tools: '+RECIPE_TOOLS.join(', ')+'; args are the same as when you call the tool (object values allowed); "$<step id>" passes that step\'s dataset id. Build and test the calls yourself first, then save the working sequence. schedule: daily | weekly | monthly | yearly.',{type:string,name:string,description:string,stepsJson:string,schedule:string}),
  run_recipe:tool('run_recipe','Collector: run a saved recipe now (as the crawler does) and return each step\'s result (row counts, entities inserted/merged, observations, errors).',{type:string,name:string}),
@@ -86,9 +86,20 @@ async function coverage(typeRaw:string,metricsCsv:string,expected:number){
   const latest=(await db.query<{period:string;n:number}>(`select period, count(*)::int n from (select distinct on (o.entity_id) o.period from observations o join entities e on e.id=o.entity_id where e.type=$1::text and o.metric=$2::text order by o.entity_id, o.period desc) x group by period order by period desc limit 5`,[type,r.metric])).rows;
   perMetric.push({...r,coverage:total?Math.round(Number(r.entities)/total*1000)/10+'%':'0%',latestPeriods:latest,lacking});
  }
+ // Metrics of the type that no recipe loads (they would never be refreshed), and recipes that never ran or failed.
+ const recipes=await listRecipes(db,type);
+ const loaded=new Set<string>();
+ for(const r of recipes)for(const st of r.steps as {tool?:string;args?:Record<string,unknown>}[]){
+  if(st.tool!=='entity_upsert')continue;let mc=st.args?.metricColumns;if(typeof mc==='string'){try{mc=JSON.parse(mc);}catch{mc={};}}
+  for(const v of Object.values((mc||{}) as Record<string,{metric?:string}>))if(v?.metric)loaded.add(String(v.metric).split('@')[0]);}
+ const notInRecipes=rows.map(r=>String(r.metric)).filter(m=>!loaded.has(m));
+ const recipeHealth=recipes.map(r=>({name:r.name,steps:r.steps.length,status:r.status,lastRunAt:r.lastRunAt,lastOk:(r.lastResult as {ok?:boolean}|null)?.ok??null,problems:checkRecipe(r.steps as never)}));
  const dupes=(await db.query(`select ent_norm(name) k, array_agg(name order by name) names, count(*)::int n from entities where type=$1::text group by ent_norm(name) having count(*)>1 limit 20`,[type])).rows;
  const noIds=Number((await db.query<{n:number}>(`select count(*)::int n from entities where type=$1::text and ids='{}'::jsonb`,[type])).rows[0]?.n||0);
- return {type,entities:total,expected:expected||null,universeCoverage:expected?Math.round(total/expected*1000)/10+'%':null,entitiesWithoutStandardId:noIds,possibleDuplicates:dupes,metrics:perMetric};
+ return {type,entities:total,expected:expected||null,universeCoverage:expected?Math.round(total/expected*1000)/10+'%':null,entitiesWithoutStandardId:noIds,possibleDuplicates:dupes,metrics:perMetric,
+  // Data must stay fresh by itself: every metric needs a recipe that loads it, and every recipe must have run successfully.
+  metricsWithoutRecipe:notInRecipes,recipes:recipeHealth,
+  recipeProblems:[...notInRecipes.map(m=>'No recipe loads metric '+m+': it will never be refreshed.'),...recipeHealth.filter(r=>r.lastOk!==true).map(r=>'Recipe '+r.name+(r.lastRunAt?' failed its last run.':' has never been run (run_recipe).')),...recipeHealth.flatMap(r=>r.problems.map(p=>r.name+': '+p))]};
 }
 async function previewPage(path:string){
  const p=String(path||'').trim();if(!/^\/[\w\-./?=&%]*$/.test(p)||p.startsWith('//'))throw Error('Give a site path such as /rankings/country-rankings.');
@@ -111,7 +122,7 @@ export async function runTeamTool(role:Role,name:string,args:Record<string,unkno
   case 'coverage':return {data:await coverage(String(args.type),String(args.metrics||''),Number(args.expected)||0)};
   case 'set_entity_schema':return {data:await saveEntityType(db,{type:String(args.type),label:String(args.label||''),plural:String(args.plural||''),description:String(args.description||''),schema:json(args.schemaJson,'schemaJson'),topicId,updatedBy:who})};
   case 'set_entity_template':return {data:await saveEntityType(db,{type:String(args.type),label:String(args.label||''),plural:String(args.plural||''),template:json(args.templateJson,'templateJson'),topicId,updatedBy:who})};
-  case 'save_recipe':{const steps=json(args.stepsJson,'stepsJson');parseSteps(steps);
+  case 'save_recipe':{const steps=json(args.stepsJson,'stepsJson');const problems=checkRecipe(parseSteps(steps));if(problems.length)throw Error('Recipe not saved: '+problems.join(' '));
    const r=await saveRecipe(db,{type:String(args.type),name:String(args.name),description:String(args.description||''),steps,schedule:String(args.schedule||''),createdBy:who});
    return {data:{saved:true,type:r.type,name:r.name,steps:r.steps.length,schedule:r.schedule}};}
   case 'run_recipe':{const r=await getRecipe(db,String(args.type),String(args.name));if(!r)throw Error('No recipe '+args.type+'/'+args.name+'.');return {data:await runRecipe(db,r,signal)};}
