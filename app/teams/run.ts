@@ -2,7 +2,7 @@ import type {AgentContext} from '@/app/components-registry/registry';
 import {spawnAgent,askAgent,type Agent} from '@/app/agents/runtime';
 import {entityDb} from '@/app/entity-db/client';
 import {createTopic,getTopic} from '@/app/entity-db/repo';
-import {teamToolDefs,runTeamTool,type Role} from './tools';
+import {teamToolDefs,runTeamTool,coverage,type Role} from './tools';
 import {startTeamRun,logTeamCall,finishTeamRun,listRankingDefs,listEntityTypes,setStatus} from './config';
 // One pass of a topic team: the editor plans, the collector builds the data (schemas, recipes, runs),
 // the editor designs the pages (templates, ranking definitions), the reviewer checks everything
@@ -73,9 +73,14 @@ async function ask(role:Role,agent:Agent,topicId:string,instructions:string,task
  let calls=0;
  try{
   const result=await askAgent(agent,RULES+'\n\n'+instructions,task,schema,undefined,undefined,[],{
-   llmClass:role==='reviewer'?'review':'agent',timeoutMs:40*60_000,maxRounds:budget.rounds,
+   // Decisions (editor, reviewer, manager) use the premium class (commercial budget, free fallback); collecting uses the agent chain.
+   llmClass:role==='collector'?'agent':'premium',timeoutMs:40*60_000,maxRounds:budget.rounds,
    // A verdict must rest on evidence gathered in this review.
-   ...(role==='reviewer'?{validateFinal:async()=>calls<6?'Check with your tools before deciding (coverage, preview_page of every ranking and several entity pages, spot checks against the source); then return the verdict.':undefined}:{}),maxCalls:budget.calls,maxInputChars:400_000,
+   ...(role==='reviewer'?{validateFinal:async()=>calls<6?'Check with your tools before deciding (coverage, preview_page of every ranking and several entity pages, spot checks against the source); then return the verdict.':undefined}:{}),
+   // A collector's report is accepted only when the data refreshes by itself (no recipe problems for the topic's types).
+   ...(role==='collector'?{maxValidationRetries:3,validateFinal:async()=>{
+    const problems:string[]=[];for(const t of await listEntityTypes(db,topicId))problems.push(...(await coverage(t.type,'',0)).recipeProblems);
+    return problems.length?'Your report cannot be accepted yet — fix these first (save_recipe with complete steps, then run_recipe until it succeeds): '+problems.slice(0,8).join(' '):undefined;}}:{}),maxCalls:budget.calls,maxInputChars:400_000,
    extraTools:teamToolDefs(role),executeExtra:(name,args)=>runTeamTool(role,name,args,ctx,topicId),
    onEvent:e=>{
     if(e.kind==='tool_started'){calls++;const d=e.data as {tool:string;arguments:string};void logTeamCall(db,runId,{t:Date.now(),tool:d.tool,args:String(d.arguments).slice(0,2000)});log({event:'tool',role,tool:d.tool});}
@@ -90,7 +95,7 @@ async function ask(role:Role,agent:Agent,topicId:string,instructions:string,task
 export async function runTopicTeam({slug,name,brief,maxFixRounds=2,log=()=>{}}:{slug:string;name:string;brief:string;maxFixRounds?:number;log?:Log}){
  const db=await entityDb();
  const topic=await getTopic(db,slug)??await createTopic(db,{slug,name,description:brief});
- const editor=await spawnAgent('editor:'+slug,OWNER),collector=await spawnAgent('collector:'+slug,OWNER),reviewer=await spawnAgent('review:'+slug,OWNER);
+ const editor=await spawnAgent('team-editor:'+slug,OWNER),collector=await spawnAgent('team-collector:'+slug,OWNER),reviewer=await spawnAgent('team-review:'+slug,OWNER);
  const topicInfo={topic:{slug,name,brief}};
  const plan=await ask('editor',editor,topic.id,EDITOR_PLAN,{...topicInfo,step:'plan'},PLAN_SCHEMA,log,{rounds:24,calls:40});
  // Collector and editor work in passes: each pass continues from the plan's open items and the previous report,
@@ -122,7 +127,7 @@ export async function runTopicTeam({slug,name,brief,maxFixRounds=2,log=()=>{}}:{
  // and the reviewer re-reviews bound by them.
  let ruling:unknown=null;
  if(!verdict.approved&&teamIssues().length){
-  const manager=await spawnAgent('manager',OWNER);
+  const manager=await spawnAgent('team-manager',OWNER);
   ruling=await ask('manager',manager,topic.id,MANAGER,{...topicInfo,step:'arbitrate',issues:teamIssues(),reviewerSummary:verdict.summary},RULING_SCHEMA,log,{rounds:24,calls:40});
   const mustDo=(ruling as {rulings:{ruling:string}[]}).rulings.some(r=>r.ruling==='reviewer_right');
   if(mustDo){

@@ -8,7 +8,7 @@ import {recordRecipeRun,type Recipe} from './config';
 // model. "$<step id>" in an argument is replaced by that step's dataset id (or the step's value at a
 // path: "$src.dataset.datasetId"). Only collection tools may run: public sources, fetching and
 // table tools, and loading into the entity database.
-export const RECIPE_TOOLS=['call_public_source','fetch_data','extract_tables','query_data','describe_data','crawl_pages','browse_page','entity_upsert','define_metric','compute_metric'] as const;
+export const RECIPE_TOOLS=['call_public_source','fetch_data','extract_tables','query_data','describe_data','crawl_pages','browse_page','extract_fields','entity_upsert','define_metric','compute_metric'] as const;
 type Step={id:string;tool:string;args:Record<string,unknown>};
 export type StepResult={id:string;tool:string;ok:boolean;ms:number;summary?:unknown;error?:string};
 
@@ -26,7 +26,7 @@ export function parseSteps(raw:unknown):Step[]{
 }
 // A recipe must be complete: every fetched dataset is used by a later step (cleaned, joined or loaded), and the
 // recipe ends by loading into the entity database. Otherwise it would fetch data that never reaches readers.
-const FETCHERS=['call_public_source','fetch_data','extract_tables','crawl_pages','browse_page','query_data'];
+const FETCHERS=['call_public_source','fetch_data','extract_tables','crawl_pages','browse_page','extract_fields','query_data'];
 export function checkRecipe(steps:Step[]):string[]{
  const problems:string[]=[];
  const refs=(v:unknown,out:Set<string>)=>{if(typeof v==='string'){for(const m of v.matchAll(/\$([a-z][a-z0-9_]*)/gi))out.add(m[1]);}
@@ -57,6 +57,7 @@ function summary(tool:string,data:unknown):unknown{
  if(!data||typeof data!=='object')return data;const o=data as Record<string,unknown>;
  if(tool==='entity_upsert'){const {rows,inserted,merged,skipped,observations,relations,unresolved,idConflicts,errors,units}=o;return {rows,inserted,merged,skipped,observations,relations,unresolved,idConflicts,errors,units};}
  const d=(o.dataset as Record<string,unknown>)||o;
+ if(tool==='extract_fields')return {datasetId:datasetOf(o),rowCount:o.rowCount,pages:o.pages,fillRates:o.fillRates,errors:o.errors};
  return {datasetId:datasetOf(o),rowCount:d.rowCount??o.rowCount,columns:Array.isArray(d.columns)?(d.columns as {name:string}[]).map(c=>c.name??c).slice(0,30):undefined,note:typeof o.note==='string'?undefined:o.note,title:d.title??o.title};
 }
 export async function runSteps(stepsRaw:unknown,ctx:AgentContext,signal?:AbortSignal):Promise<{ok:boolean;steps:StepResult[]}>{
@@ -83,8 +84,23 @@ export async function runSteps(stepsRaw:unknown,ctx:AgentContext,signal?:AbortSi
  return {ok:true,steps:results};
 }
 export const crawlerContext=(recipe:{type:string;name:string}):AgentContext=>({userId:'rankwiki-crawler',ownerId:'rankwiki-crawler',language:'en',visibility:'public',agent:{id:'crawler:'+recipe.type+':'+recipe.name}} as unknown as AgentContext);
+// A run that still works but returns far less than last time means the source changed: rows down by half or
+// more, or a field that used to be filled now mostly empty. It counts as a failure so the collector repairs it.
+type Summ={rowCount?:number;fillRates?:Record<string,number>;rows?:number;observations?:number};
+export function driftOf(prev:StepResult[]|undefined,now:StepResult[]):string[]{
+ const out:string[]=[];if(!prev)return out;
+ for(const s of now){const p=prev.find(x=>x.id===s.id&&x.ok);if(!p||!s.ok)continue;const a=p.summary as Summ||{},b=s.summary as Summ||{};
+  const before=a.rowCount??a.rows,after=b.rowCount??b.rows;
+  if(typeof before==='number'&&typeof after==='number'&&before>=20&&after<before*0.5)out.push('Step '+s.id+': '+after+' rows, '+before+' last time.');
+  if(a.fillRates&&b.fillRates)for(const [f,r] of Object.entries(a.fillRates)){const n=b.fillRates[f]??0;if(r>=50&&n<r-40)out.push('Step '+s.id+': field "'+f+'" filled on '+n+'% of pages, '+r+'% last time.');}
+  if(typeof a.observations==='number'&&typeof b.observations==='number'&&a.observations>=100&&b.observations<a.observations*0.5)out.push('Step '+s.id+': '+b.observations+' values loaded, '+a.observations+' last time.');
+ }
+ return out;
+}
 export async function runRecipe(db:Queryable,recipe:Recipe,signal?:AbortSignal){
- const result=await runSteps(recipe.steps,crawlerContext(recipe),signal);
+ const run=await runSteps(recipe.steps,crawlerContext(recipe),signal);
+ const drift=run.ok?driftOf((recipe.lastResult as {steps?:StepResult[]}|null)?.steps,run.steps):[];
+ const result={...run,ok:run.ok&&!drift.length,...(drift.length?{drift}:{})};
  await recordRecipeRun(db,recipe.id,result.ok,result);
  return result;
 }

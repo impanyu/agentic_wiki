@@ -14,3 +14,10 @@ test('steps are validated: ids, allowed tools',()=>{
  assert.throws(()=>m.parseSteps([{id:'x',tool:'execute_code',args:{}}]),/tool must be one of/);
  assert.throws(()=>m.parseSteps([fetch('a'),fetch('a')]),/Duplicate step id/);
 });
+test('drift: far fewer rows or a field gone empty marks a run as failed',()=>{
+ const prev=[{id:'f',tool:'extract_fields',ok:true,ms:1,summary:{rowCount:1000,fillRates:{name:99,rating:97}}},{id:'l',tool:'entity_upsert',ok:true,ms:1,summary:{rows:1000,observations:5000}}];
+ assert.deepEqual(m.driftOf(prev,[{id:'f',tool:'extract_fields',ok:true,ms:1,summary:{rowCount:990,fillRates:{name:99,rating:96}}},{id:'l',tool:'entity_upsert',ok:true,ms:1,summary:{rows:990,observations:4950}}]),[]);
+ const d=m.driftOf(prev,[{id:'f',tool:'extract_fields',ok:true,ms:1,summary:{rowCount:1000,fillRates:{name:99,rating:3}}},{id:'l',tool:'entity_upsert',ok:true,ms:1,summary:{rows:300,observations:900}}]);
+ assert.equal(d.length,3);assert.match(d[0],/"rating" filled on 3%/);assert.match(d[1],/300 rows, 1000 last time/);
+ assert.deepEqual(m.driftOf(undefined,[]),[]);
+});

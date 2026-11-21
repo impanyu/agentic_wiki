@@ -74,7 +74,7 @@ async function teamState(type:string,topicId:string|null){
   formats:'See docs/rankwiki-templates.md: template {lead:[patterns], card:[keys], sections:[{kind, …}]} with values metric.<key> period.<key> rank.<key> of.<key> change.<key> attr.<name> rel.<predicate> name type.label; schema {identity, metrics:[{key,label,unit,order,format,source,history}], attributes, relations, universe:{source, expected}}; ranking {slug,title,scope:{type,filters},criteria,config:{default,views,period,group,lead,about,related}}; recipe steps [{id, tool, args}] with "$<step id>".',
  };
 }
-async function coverage(typeRaw:string,metricsCsv:string,expected:number){
+export async function coverage(typeRaw:string,metricsCsv:string,expected:number){
  const db=await entityDb(),type=normalizeType(typeRaw);
  const total=Number((await db.query<{n:number}>('select count(*)::int n from entities where type=$1::text',[type])).rows[0]?.n||0);
  const keys=metricsCsv.split(',').map(s=>s.trim()).filter(Boolean);
