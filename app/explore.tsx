@@ -1,6 +1,7 @@
 'use client';
 import {ArrowUpRight,ChevronRight,Compass,Trophy,Layers,BarChart3} from 'lucide-react';
 import {useUi} from '@/app/i18n/client';
+import {localePath} from '@/app/i18n/locales';
 import type {FeaturedRanking,TopicNav} from '@/app/entity-db/pages';
 // Browsing blocks shared by the home page and the topic pages: topic tiles (each opening its own level of the
 // tree) and ranking cards with their top three.
@@ -58,9 +59,9 @@ export function TypeList({types}:{types:TopicNav['types']}){
 }
 
 export function Breadcrumbs({trail,current}:{trail:{name:string;href:string}[];current:string}){
- const {t}=useUi();
+ const {t,locale}=useUi();
  return <nav className="rw-crumbs" aria-label={t('Breadcrumb')}><ol>
-  <li><a href="/">{t('Home')}</a></li>
+  <li><a href={localePath('/',locale)}>{t('Home')}</a></li>
   {trail.map(x=><li key={x.href}><a href={x.href}>{x.name}</a></li>)}
   <li aria-current="page">{current}</li>
  </ol></nav>;

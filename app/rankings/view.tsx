@@ -1,7 +1,9 @@
 'use client';
 import {useMemo,useState,type ReactNode} from 'react';
 import {Layers,ArrowRight,Trophy} from 'lucide-react';
-import {UiContext,usePageUi,useUi} from '@/app/i18n/client';
+import {UiContext,useStaticUi,useUi} from '@/app/i18n/client';
+import {localePath,dirOf} from '@/app/i18n/locales';
+import {LanguageSwitcher} from '@/app/i18n/switcher';
 import {SITE_NAME,PUBLIC_EDITION} from '@/app/edition';
 import {AskTargets,RankingView} from '@/app/seo/link-context';
 import {ThemeToggle} from '@/app/theme';
@@ -15,20 +17,22 @@ import type {PageSection} from '@/app/seo/assemble';
 // assembled. Everything is server-rendered; charts hydrate in the browser.
 
 // The reader shell: header with search, article. askTargets: names → their pages (links in rankings, peers, relations).
-export function DbShell({language='en',askTargets,className,children}:{language?:string;askTargets:Record<string,string>;className:string;children:ReactNode}){
- const ui=usePageUi(language),{t,locale}=ui;
- return <UiContext.Provider value={ui}><AskTargets.Provider value={askTargets}><div className="browser-shell" lang={locale}>
+export function DbShell({locale='en',dictionary={},askTargets,className,children}:{locale?:string;dictionary?:Record<string,string>;askTargets:Record<string,string>;className:string;children:ReactNode}){
+ const ui=useStaticUi(locale,dictionary),{t}=ui;
+ return <UiContext.Provider value={ui}><AskTargets.Provider value={askTargets}><div className="browser-shell" lang={locale} dir={dirOf(locale)}>
   <header className="browser-toolbar">
-   <a className="browser-brand" href="/" title={t('Home')} aria-label={SITE_NAME}><Layers size={22} aria-hidden="true"/><span>{SITE_NAME}</span></a>
-   <form className="address-bar" action="/" method="get" role="search">
+   <a className="browser-brand" href={localePath('/',locale)} title={t('Home')} aria-label={SITE_NAME}><Layers size={22} aria-hidden="true"/><span>{SITE_NAME}</span></a>
+   <form className="address-bar" action={localePath('/',locale)} method="get" role="search">
     <label htmlFor="address" className="sr-only">{t('Question or context')}</label>
     <input id="address" name="ask" type="text" placeholder={PUBLIC_EDITION?t('Search an entity or a ranking — e.g. Countries, iPhone 17, Perfumes'):t('Enter a question or context')} maxLength={4000} autoComplete="off" enterKeyHint="go" spellCheck={false}/>
     <button type="submit" className="go-button" aria-label={t('Open answer')} title={t('Open answer · Enter')}><ArrowRight size={18}/></button>
    </form>
+   <LanguageSwitcher/>
    <ThemeToggle label={t('Switch theme')}/>
   </header>
   <main className="browser-content">
-   <article className={className} lang={language} dir="ltr">{children}</article>
+   {/* Page content is written in English for now; the interface around it is in the reader's language. */}
+   <article className={className} lang="en" dir={dirOf(locale)}>{children}</article>
   </main>
  </div></AskTargets.Provider></UiContext.Provider>;
 }

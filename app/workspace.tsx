@@ -3,7 +3,9 @@ import {MapPreference} from './geo/viewer';
 import type {NavigationOrigin} from '@/app/routing/link-context';
 import {ResourcePicker} from './resources/picker';
 import {pageVisualProps} from './page-programs/visual-style';
-import {usePageUi,UiContext} from '@/app/i18n/client';
+import {usePageUi,useStaticUi,UiContext} from '@/app/i18n/client';
+import {localePath} from '@/app/i18n/locales';
+import {LanguageSwitcher} from '@/app/i18n/switcher';
 import dynamic from 'next/dynamic';
 const PageEditor=dynamic(()=>import('./page-editor/editor').then(m=>m.PageEditor),{ssr:false});
 import {PageShare} from './page-share';
@@ -53,16 +55,18 @@ async function readResponse(response: Response) {
   const result = await response.json() as {page:AnswerPage;reused?:boolean;question?:string;error?:string;redirect?:string};
   if (!response.ok) throw new Error(result.error || 'Could not open this answer. Please try again.');
   // The router answered with a page rendered from the database (/rankings/…, /e/…): open it.
-  if (typeof result.redirect==='string'&&result.redirect.startsWith('/')) { window.location.assign(result.redirect); return new Promise<never>(()=>{}); }
+  if (typeof result.redirect==='string'&&result.redirect.startsWith('/')) { window.location.assign(localePath(result.redirect,document.documentElement.lang||'en')); return new Promise<never>(()=>{}); }
   return result;
 }
 
-export default function Workspace({ user, signIn, signOut, featured=[], topics=[] }: {
+export default function Workspace({ user, signIn, signOut, featured=[], topics=[], locale: siteLocale='en', dictionary={} }: {
   user: { name: string; id: string } | null;
   signIn: string;
   signOut: string;
   featured?: FeaturedRanking[];
   topics?: TopicNav['children'];
+  locale?: string;
+  dictionary?: Record<string,string>;
 }) {
 
 
@@ -102,7 +106,9 @@ export default function Workspace({ user, signIn, signOut, featured=[], topics=[
   },[selected?.id,selected?.body,selected?.summary,conceptAttempt]);
   const [draft,setDraft]=useState<AnswerPage|null>(null);
   const [editing,setEditing]=useState(false);
-  const ui=usePageUi((draft||selected)?.language||'en'),{t,locale}=ui;
+  // The public edition speaks the address's language (/<code>/); the full edition follows the open page.
+  const pageUi=usePageUi((draft||selected)?.language||'en'),staticUi=useStaticUi(siteLocale,dictionary);
+  const ui=PUBLIC_EDITION?staticUi:pageUi,{t,locale}=ui;
   const [busy, setBusy] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -451,6 +457,7 @@ export default function Workspace({ user, signIn, signOut, featured=[], topics=[
       </form>
       <input type="file" ref={uploadInput} hidden onChange={e=>{const file=e.target.files?.[0];if(file)void uploadFile(file);}}/>
       {!PUBLIC_EDITION&&<ConnectorPanel/>}
+      {PUBLIC_EDITION&&<LanguageSwitcher/>}
       <ThemeToggle label={t("Switch theme")}/>
       <a className="account-link" href={user ? signOut : signIn} target="_top" title={user ? t("Signed in as ") + user.name : t("Sign in with Google")}>
         {user ? t("Sign out") : t("Sign in")}

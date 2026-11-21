@@ -1,3 +1,6 @@
+import {serverUi,requestLocale} from '@/app/i18n/request';
+import {localizeLinks} from '@/app/i18n/locales';
+import {localeMeta} from '@/app/i18n/meta';
 import {cookies} from 'next/headers';
 import {cache} from 'react';
 import type {Metadata} from 'next';
@@ -52,7 +55,7 @@ export async function generateMetadata(props:Props):Promise<Metadata>{
  const description=(criterion?`${model.title} ranked by ${criterion.label}${period?' ('+period+')':criterion.year?' ('+criterion.year+')':''}. `:'')+(model.description||model.title);
  return {title:`${name} · ${SITE_NAME}`,description:description.slice(0,300),
   ...(origin?{metadataBase:new URL(origin)}:{}),
-  alternates:{canonical:path},robots:{index:true,follow:true},
+  ...localeMeta(path,await requestLocale()),
   openGraph:{type:'article',title:name,description:description.slice(0,300),url:path,siteName:SITE_NAME},
   twitter:{card:'summary',title:name,description:description.slice(0,300)}};
 }
@@ -62,8 +65,9 @@ export default async function RankingPage(props:Props){
  // One address per view: another spelling of the slug, an unknown or default ?rank=, an unknown ?year= redirect.
  if(slug!==input.def.slug||(rank!==undefined&&!criterion)||(year!==undefined&&!period))permanentRedirect(path);
  const origin=siteUrl();
+ const {locale,dict,t}=await serverUi();const L=<T,>(v:T)=>localizeLinks(v,locale);
  const dark=(await cookies()).get('rw-theme')?.value==='dark';
- const charts=await rankingChartSvgs([block],{[block.code]:state},criterion?.key,'en',period,dark);
+ const charts=await rankingChartSvgs([block],{[block.code]:state},criterion?.key,locale,period,dark);
  const {criterion:c,ranked}=rankedView(block,state,criterion?.key,period);
  const ld={'@context':'https://schema.org','@type':'ItemList',url:origin+path,name,description:model.description,
   ...(input.def.updatedAt?{dateModified:input.def.updatedAt}:{}),publisher:{'@type':'Organization',name:SITE_NAME,url:origin},
@@ -71,11 +75,11 @@ export default async function RankingPage(props:Props){
   itemListElement:ranked.slice(0,100).map(e=>{const href=askTargets[questionKey(e.name)];return {'@type':'ListItem',position:e.rank,name:e.name,...(href?{url:origin+href}:{})};})};
  return <>
   <script type="application/ld+json" dangerouslySetInnerHTML={{__html:jsonLd(ld)}}/>
-  <DbShell askTargets={askTargets} className="answer template-ranking-v1">
-   <RankingBody kicker={'Ranking'+(input.def.status==='draft'?' · Draft':'')} title={name} baseTitle={model.title} titles={titles} basePath={base} defaultRank={block.defaultKey} rank={criterion?.key} period={period} charts={charts} props={rprops} lead={model.lead}/>
-   <p className="data-twin-files"><a href={base+'/data.csv'} download>Download the data (CSV)</a></p>
-   {model.about.length>0&&<section aria-labelledby="about-ranking"><h2 id="about-ranking">About this ranking</h2><ul>{model.about.map((x,i)=><li key={i}>{x}</li>)}</ul></section>}
-   {model.related.length>0&&<section aria-labelledby="related-rankings"><h2 id="related-rankings">Related rankings</h2><ul>{model.related.map(r=><li key={r.href}><a href={r.href}>{r.title}</a></li>)}</ul></section>}
+  <DbShell locale={locale} dictionary={dict} askTargets={L(askTargets)} className="answer template-ranking-v1">
+   <RankingBody kicker={t('Ranking')+(input.def.status==='draft'?' · '+t('Draft'):'')} title={name} baseTitle={model.title} titles={titles} basePath={L(base)} defaultRank={block.defaultKey} rank={criterion?.key} period={period} charts={charts} props={L(rprops)} lead={model.lead}/>
+   <p className="data-twin-files"><a href={base+'/data.csv'} download>{t('Download the data (CSV)')}</a></p>
+   {model.about.length>0&&<section aria-labelledby="about-ranking"><h2 id="about-ranking">{t('About this ranking')}</h2><ul>{model.about.map((x,i)=><li key={i}>{x}</li>)}</ul></section>}
+   {model.related.length>0&&<section aria-labelledby="related-rankings"><h2 id="related-rankings">{t('Related rankings')}</h2><ul>{model.related.map(r=><li key={r.href}><a href={L(r.href)}>{r.title}</a></li>)}</ul></section>}
   </DbShell>
  </>;
 }

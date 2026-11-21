@@ -25,3 +25,8 @@ export function usePageUi(language:string){
   return translateUi(text,catalog,{...dictionary,...(translations.locale===locale?translations.data:{})},values);
  }) as Translator}),[locale,translations]);
 }
+// The public pages' translator: the dictionary of the page's locale arrives with the page (server-rendered in
+// that language from the first byte; no request after load).
+export function useStaticUi(locale:string,dictionary:Record<string,string>){
+ return useMemo(()=>({locale,t:((text,values)=>interpolate(dictionary[text]||text,values)) as Translator}),[locale,dictionary]);
+}

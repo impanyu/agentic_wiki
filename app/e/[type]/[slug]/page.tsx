@@ -1,3 +1,6 @@
+import {serverUi,requestLocale} from '@/app/i18n/request';
+import {localizeLinks} from '@/app/i18n/locales';
+import {localeMeta} from '@/app/i18n/meta';
 import {cache} from 'react';
 import type {Metadata} from 'next';
 import {notFound,permanentRedirect} from 'next/navigation';
@@ -31,17 +34,18 @@ export async function generateMetadata(props:Props):Promise<Metadata>{
  const origin=siteUrl(),{model,path}=data;
  return {title:`${model.title} · ${SITE_NAME}`,description:model.description,
   ...(origin?{metadataBase:new URL(origin)}:{}),
-  alternates:{canonical:path},robots:{index:true,follow:true},
+  ...localeMeta(path,await requestLocale()),
   openGraph:{type:'article',title:model.title,description:model.description,url:path,siteName:SITE_NAME},
   twitter:{card:'summary',title:model.title,description:model.description}};
 }
-const fmtDate=(s:string|null)=>{if(!s)return '';const d=new Date(s);return Number.isNaN(d.getTime())?'':d.toLocaleDateString('en',{year:'numeric',month:'long',day:'numeric',timeZone:'UTC'});};
+const fmtDate=(s:string|null,locale='en')=>{if(!s)return '';const d=new Date(s);return Number.isNaN(d.getTime())?'':d.toLocaleDateString(locale,{year:'numeric',month:'long',day:'numeric',timeZone:'UTC'});};
 export default async function EntityPage(props:Props){
  const {type,slug,data}=await view(props);if(!data)notFound();
  const {model,path,data:d,updatedAt}=data;const e=d.entity;
  // One address per entity: an alias's slug or another spelling redirects to the name's slug.
  if(type!==e.type||slug!==slugify(e.name)||!data.canonical)permanentRedirect(path);
  const origin=siteUrl();
+ const {locale,dict,t}=await serverUi();const L=<T,>(v:T)=>localizeLinks(v,locale);
  const wikidata=e.ids.wikidata;
  const ld={'@context':'https://schema.org','@type':SCHEMA_TYPES[e.type]||'Thing',name:e.name,url:origin+path,description:model.description,
   ...(e.aliases.length?{alternateName:e.aliases.slice(0,10)}:{}),...(wikidata?{sameAs:['https://www.wikidata.org/wiki/'+wikidata]}:{}),
@@ -52,13 +56,13 @@ export default async function EntityPage(props:Props){
  for(const list of Object.values(d.peers))for(const p of list)if(p.type)askTargets[questionKey(p.name)]=entityPath(p.type,p.name);
  return <>
   <script type="application/ld+json" dangerouslySetInnerHTML={{__html:jsonLd(ld)}}/>
-  <DbShell askTargets={askTargets} className="answer template-wiki-v1 template-entity-v1">
-   <header className="wiki-heading db-hero"><span className="db-kicker">{d.type.label.charAt(0).toUpperCase()+d.type.label.slice(1)}</span><h1>{model.title}</h1>{model.lead.length>0&&<p className="lead">{model.leadParts.map((s,i)=><span key={i}>{i?' ':''}<LinkedText parts={s}/></span>)}</p>}</header>
-   <EntityBody cards={model.cards} sections={model.sections}/>
-   {model.references.length>0&&<section className="sources" aria-labelledby="references"><h2 id="references">References</h2><ol>
+  <DbShell locale={locale} dictionary={dict} askTargets={L(askTargets)} className="answer template-wiki-v1 template-entity-v1">
+   <header className="wiki-heading db-hero"><span className="db-kicker">{d.type.label.charAt(0).toUpperCase()+d.type.label.slice(1)}</span><h1>{model.title}</h1>{model.lead.length>0&&<p className="lead">{L(model.leadParts).map((s,i)=><span key={i}>{i?' ':''}<LinkedText parts={s}/></span>)}</p>}</header>
+   <EntityBody cards={L(model.cards)} sections={L(model.sections)}/>
+   {model.references.length>0&&<section className="sources" aria-labelledby="references"><h2 id="references">{t('References')}</h2><ol>
     {model.references.map((r,i)=><li key={i} id={'source-'+(i+1)}><div className="source-entry"><span className="source-title">{linkParts(r.source).map((p,j)=>p.href?<a key={j} href={p.href} target="_blank" rel="noopener noreferrer">{p.text}</a>:<span key={j}>{p.text}</span>)}</span>{r.what&&<span className="wf-muted"> — {r.what}</span>}</div></li>)}
    </ol></section>}
-   {model.asOf&&<p className="wf-muted data-as-of">Data as of {fmtDate(model.asOf)}.</p>}
+   {model.asOf&&<p className="wf-muted data-as-of">{t('Data as of {date}.',{date:fmtDate(model.asOf,locale)})}</p>}
   </DbShell>
  </>;
 }
