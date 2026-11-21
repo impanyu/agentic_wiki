@@ -116,3 +116,22 @@ test('polygons crossing the antimeridian are pinned to one edge',()=>{
  assert.deepEqual(p.coordinates[0],[[-179,-16],[-178,-17],[-180,-17],[-179,-16]]);
  assert.deepEqual(m.fixAntimeridian({type:'Point',coordinates:[1,2]}),{type:'Point',coordinates:[1,2]});
 });
+
+// Views and geography (ranking-chart.ts and ranking-geo.ts with their pure parts inlined).
+const views=await import('data:text/javascript;base64,'+Buffer.from(ts.transpile(
+ ['world-codes.ts','rich-helpers.ts','ranking-data.ts','ranking-geo.ts','ranking-chart.ts'].map(f=>readFileSync('app/workflows/viz/'+f,'utf8').replace(/^import .*;$/gm,'')).join('\n'),
+ {module:ts.ModuleKind.ESNext,target:ts.ScriptTarget.ES2022})).toString('base64'));
+test('U.S. states match by name, postal code, US-XX or FIPS; geoKind needs most entities on one map',()=>{
+ assert.equal(views.usStateKey(null,'California'),'06');assert.equal(views.usStateKey('CA'),'06');assert.equal(views.usStateKey('US-TX'),'48');
+ assert.equal(views.usStateKey('6'),'06');assert.equal(views.usStateKey(null,'Washington (U.S. state)'),'53');assert.equal(views.usStateKey(null,'Narnia'),null);
+ assert.equal(views.geoKind([{code:null,name:'Texas'},{code:null,name:'Ohio'},{code:null,name:'Utah'},{code:null,name:'Guam'}]),'us');
+ assert.equal(views.geoKind([{code:'FRA',name:'France'},{code:'DEU',name:'Germany'},{code:'JPN',name:'Japan'}]),'world');
+ assert.equal(views.geoKind([{code:null,name:'Chanel No. 5'},{code:null,name:'Sauvage'},{code:null,name:'Texas'}]),null);
+});
+test('views: share views only for additive quantities, maps only for geographic entities; explicit lists filtered',()=>{
+ assert.deepEqual(views.autoViews({additive:true,geo:'us',criteria:3}),['bar','treemap','donut','map','map3d','scatter']);
+ assert.deepEqual(views.autoViews({additive:false,geo:null,criteria:1}),['bar']);
+ const auto=views.autoViews({additive:false,geo:'world',criteria:2});
+ assert.deepEqual(views.pickViews(['map','treemap','scatter','nonsense'],auto),['map','scatter']);
+ assert.deepEqual(views.pickViews(['treemap'],auto),auto);assert.deepEqual(views.pickViews('auto',auto),auto);
+});

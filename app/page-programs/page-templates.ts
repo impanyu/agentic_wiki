@@ -20,7 +20,7 @@ export const rankingPageTemplate={
   'summary: one line — what is ranked, how many, data year (e.g. "All 217 countries and economies, ranked by population, GDP, area and more (World Bank, 2024).").',
   'body, in this order and nothing else:',
   '1. One short sentence (optional) stating scope, count and data year, with its citation.',
-  '2. The ```component block with the ranking (load action reads the CSV into state.rows). This is the page.',
+  '2. The ```component block with the ranking (load action reads the CSV into state.rows). This is the page. Its views (bars, treemap, donut, map, 3D height map, scatter) are chosen from the data automatically; set views only to reorder or narrow them. Give rows a code (ISO country code or U.S. state postal code) so the maps work.',
   '3. "## About this ranking" — at most 5 short bullets: the scope/universe and its source (coverage N of M), each criterion\u2019s source and year in one line, how ties and missing values are handled.',
   '4. "## Related rankings" — 3–8 links [Name Rankings](/?ask=…) to sibling scopes (sub-regions, categories, related sets).',
   'No highlights, narratives, extra charts or images: readers came for the ranking; facts about individual members belong on their entity pages.',

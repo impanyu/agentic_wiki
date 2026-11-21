@@ -30,7 +30,7 @@ export function AnswerText({body,title,summary,labels,sources,highlights,links=[
  function jumpTo(id:string){const target=document.getElementById(id);target?.scrollIntoView({block:'center'});target?.focus({preventScroll:true});}
  function citation(url:string,label:string,key:string){
   const index=sourceFor(url,label),id='citation-'+key;references[index].occurrences.push(id);
-  return <sup className="citation" key={key}><a id={id} href={'#source-'+(index+1)} aria-label={t("Source ")+(index+1)} onClick={e=>{e.preventDefault();jumpTo('source-'+(index+1));}}>[{index+1}]</a></sup>;
+  return <sup className="citation" key={key+":cite"}><a id={id} href={'#source-'+(index+1)} aria-label={t("Source ")+(index+1)} onClick={e=>{e.preventDefault();jumpTo('source-'+(index+1));}}>[{index+1}]</a></sup>;
  }
  // Articles may cite by number alone ("…[2]", or "\[2\]" as the page editor escapes it), meaning entry 2 of the page's source list.
  // Such markers become the same linked superscripts as [2](url) citations; the text itself

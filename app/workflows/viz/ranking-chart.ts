@@ -1,6 +1,7 @@
 // Chart options of the ranking component, shared by the browser (interactive ECharts canvas) and the
 // server (the same chart rendered to SVG for the crawlable page). No browser APIs here.
-import {type Criterion,type Entry,escapeHtml} from './ranking-data';
+import {type Criterion,type Entry,escapeHtml,colorScale,equalEarth,equalEarthInvert} from './ranking-data';
+import type {GeoKind} from './ranking-geo';
 export type Fmt=(n:number|null)=>string;
 export const FONT='Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif';
 export const PALETTE=['#4f7cff','#22c3a6','#ff8a4c','#a46bff','#f2c94c','#ef5da8','#2bb3e0','#7bd389'];
@@ -74,3 +75,103 @@ export function columnOption(o:{shown:Entry[];c:Criterion;fmt:Fmt;axisFmt:Fmt;wi
 
 // Identifies one ranking chart view: the ranking's criteria and the criterion drawn.
 export const chartKey=(criteria:string[],criterion:string)=>criteria.join(',')+'|'+criterion;
+
+// ───────────── more views of one criterion ─────────────
+// The views a ranking can show under its leaderboard. "auto" picks by the data: share views only for
+// quantities that add up (population, GDP, sales — not rates or averages), maps when the entities are
+// countries or U.S. states, a scatter when there is a second criterion.
+export const RANKING_VIEWS=['bar','treemap','donut','map','map3d','scatter'] as const;
+export type RankingViewKind=typeof RANKING_VIEWS[number];
+export function autoViews(o:{additive:boolean;geo:GeoKind|null;criteria:number}):RankingViewKind[]{
+ return ['bar',...(o.additive?['treemap','donut'] as const:[]),...(o.geo?['map','map3d'] as const:[]),...(o.criteria>=2?['scatter'] as const:[])];
+}
+export function pickViews(raw:unknown,auto:RankingViewKind[]):RankingViewKind[]{
+ if(!Array.isArray(raw))return auto;
+ const asked=raw.filter((v):v is RankingViewKind=>RANKING_VIEWS.includes(v as RankingViewKind));
+ // A view the data cannot support (a map of non-geographic entities, shares of a rate) is dropped.
+ const ok=asked.filter(v=>v==='bar'||auto.includes(v));
+ return ok.length?[...new Set(ok)]:auto;
+}
+const OTHERS_COLOR='#cbd5e1';
+const shareText=(v:number,total:number)=>total>0?(v/total*100).toFixed(v/total>=.1?0:1)+'%':'';
+// Treemap: every entity's area is its share of the total (the top 60 and "Others").
+export function treemapOption(o:{ranked:Entry[];c:Criterion;fmt:Fmt;othersLabel:string;noData:string}){
+ const pos=o.ranked.filter(e=>e.value!>0),total=pos.reduce((a,e)=>a+e.value!,0);
+ const top=pos.slice(0,60),rest=pos.slice(60),restSum=rest.reduce((a,e)=>a+e.value!,0);
+ const color=(i:number)=>i<3?MEDAL[i]:PALETTE[i%PALETTE.length];
+ const data=top.map((e,i)=>({name:e.name,value:e.value,entry:e,itemStyle:{color:color(i)}}));
+ if(restSum>0)data.push({name:o.othersLabel+' ('+rest.length+')',value:restSum,entry:undefined as unknown as Entry,itemStyle:{color:OTHERS_COLOR}});
+ return {textStyle:{fontFamily:FONT},aria:{enabled:true},
+  tooltip:{...TOOLTIP,formatter:(p:any)=>{const e:Entry|undefined=p.data?.entry;const share=shareText(p.value,total);
+   return e?tooltipHtml(e,o.c,o.fmt,o.noData).replace(/<\/div>$/,`<div style="color:#64748b;font-size:11px;margin-top:2px">${share}</div></div>`):`<div style="font-family:${FONT}"><b>${escapeHtml(p.name)}</b><div>${escapeHtml(o.fmt(p.value))} · ${share}</div></div>`;}},
+  series:[{type:'treemap',roam:false,nodeClick:false,breadcrumb:{show:false},left:0,right:0,top:0,bottom:0,
+   itemStyle:{borderColor:'#fff',borderWidth:2,gapWidth:2,borderRadius:6},
+   label:{show:true,formatter:(p:any)=>`{n|${p.name}}\n{v|${shareText(p.value,total)}}`,rich:{n:{fontSize:12,fontWeight:600,color:'#fff',lineHeight:16},v:{fontSize:11,color:'rgba(255,255,255,.85)'}},overflow:'truncate'},
+   upperLabel:{show:false},data}]};
+}
+// Donut: the top 9 and "Others", with the share of each.
+export function donutOption(o:{ranked:Entry[];c:Criterion;fmt:Fmt;othersLabel:string;noData:string}){
+ const pos=o.ranked.filter(e=>e.value!>0),total=pos.reduce((a,e)=>a+e.value!,0);
+ const top=pos.slice(0,9),restSum=pos.slice(9).reduce((a,e)=>a+e.value!,0);
+ const data=top.map((e,i)=>({name:e.name,value:e.value,itemStyle:{color:i<3?MEDAL[i]:PALETTE[(i+1)%PALETTE.length]}}));
+ if(restSum>0)data.push({name:o.othersLabel,value:restSum,itemStyle:{color:OTHERS_COLOR}});
+ return {textStyle:{fontFamily:FONT},aria:{enabled:true},
+  tooltip:{...TOOLTIP,formatter:(p:any)=>`<div style="font-family:${FONT}"><div style="font-weight:600;color:#0f172a">${escapeHtml(p.name)}</div><div style="font-weight:700;font-size:15px;margin-top:2px">${escapeHtml(o.fmt(p.value))}</div><div style="color:#64748b;font-size:11px">${shareText(p.value,total)}</div></div>`},
+  legend:{type:'scroll',orient:'vertical',right:8,top:'middle',textStyle:{color:'#334155',fontSize:12},itemWidth:10,itemHeight:10,icon:'circle',
+   formatter:(n:string)=>{const d=data.find(x=>x.name===n);return d?`${clip(n,22)}  ${shareText(d.value!,total)}`:n;}},
+  series:[{type:'pie',radius:['46%','78%'],center:['36%','50%'],avoidLabelOverlap:true,itemStyle:{borderColor:'#fff',borderWidth:2,borderRadius:6},
+   label:{show:true,position:'inside',formatter:(p:any)=>p.percent>=6?Math.round(p.percent)+'%':'',color:'#fff',fontSize:11,fontWeight:600},
+   emphasis:{scale:true,scaleSize:6},data}]};
+}
+// Choropleth: each country or state colored by its value (log scale when values span 100×).
+export function choroplethOption(o:{ranked:Entry[];c:Criterion;fmt:Fmt;kind:GeoKind;map:string;keyOf:(e:Entry)=>string|null;names:Map<string,string>;noData:string}){
+ const {c,fmt}=o;const seen=new Set<string>();const data:any[]=[];
+ const scale=colorScale(o.ranked.map(e=>e.value!));
+ for(const e of o.ranked){const k=o.keyOf(e);if(!k||seen.has(k))continue;seen.add(k);data.push({name:k,value:scale.log?Math.log10(e.value!):e.value,entry:e});}
+ const real=(v:number)=>scale.log?10**v:v;
+ return {textStyle:{fontFamily:FONT},animationDurationUpdate:700,animationEasingUpdate:'cubicInOut',aria:{enabled:true},
+  tooltip:{...TOOLTIP,formatter:(p:any)=>{const e:Entry|undefined=p.data?.entry;if(e)return tooltipHtml(e,c,fmt,o.noData);
+   return `<div style="font-family:${FONT}"><div style="font-weight:600;color:#0f172a">${escapeHtml(o.names.get(p.name)??p.name)}</div><div style="color:#94a3b8;font-size:11px;margin-top:2px">${escapeHtml(o.noData)}</div></div>`;}},
+  visualMap:[{type:'continuous',min:scale.min,max:scale.max,orient:'horizontal',left:8,bottom:4,itemWidth:10,itemHeight:160,calculable:true,realtime:true,
+   textStyle:{color:'#64748b',fontSize:11},formatter:(v:number)=>fmt(real(v)),
+   inRange:{color:c.order==='asc'?[...MAP_COLORS].reverse():MAP_COLORS},handleStyle:{borderColor:'#fff',shadowBlur:4,shadowColor:'rgba(15,23,42,.2)'},indicatorStyle:{borderColor:'#fff'}}],
+  series:[{id:'map',type:'map',map:o.map,roam:true,scaleLimit:{min:1,max:12},left:'center',top:6,bottom:MAP_BOTTOM,selectedMode:false,
+   ...(o.kind==='world'?{projection:{project:equalEarth,unproject:equalEarthInvert}}:{aspectScale:1}),
+   label:{show:false},itemStyle:{areaColor:'#eceff5',borderColor:'#fff',borderWidth:.6},
+   emphasis:{label:{show:false},itemStyle:{areaColor:'#ff8a4c',borderColor:'#fff',borderWidth:1,shadowBlur:12,shadowColor:'rgba(15,23,42,.25)'}},
+   data}]};
+}
+// 3D height map (echarts-gl): each region is extruded in proportion to its value and colored by it.
+export function heightMapOption(o:{ranked:Entry[];c:Criterion;fmt:Fmt;kind:GeoKind;map:string;keyOf:(e:Entry)=>string|null;names:Map<string,string>;noData:string}){
+ const {c,fmt}=o;const seen=new Set<string>();const data:any[]=[];
+ const vals=o.ranked.map(e=>e.value!).filter(v=>v>0);const max=Math.max(...vals,1),min=Math.min(...vals,max);
+ const log=min>0&&max/min>=100;// Heights keep the real differences (square root, so the largest do not dwarf everything); colors use a log scale when values span 100×.
+ const h=(v:number)=>v<=0?0.3:0.6+14*Math.sqrt(v/max);
+ for(const e of o.ranked){const k=o.keyOf(e);if(!k||seen.has(k))continue;seen.add(k);data.push({name:k,value:log?Math.log10(Math.max(e.value!,min)):e.value,height:h(e.value!),entry:e});}
+ const lo=log?Math.log10(min):Math.min(...o.ranked.map(e=>e.value!)),hi=log?Math.log10(max):max;
+ return {textStyle:{fontFamily:FONT},
+  tooltip:{...TOOLTIP,formatter:(p:any)=>{const e:Entry|undefined=p.data?.entry;return e?tooltipHtml(e,c,fmt,o.noData):`<div style="font-family:${FONT}"><b>${escapeHtml(o.names.get(p.name)??p.name)}</b><div style="color:#94a3b8">${escapeHtml(o.noData)}</div></div>`;}},
+  visualMap:[{type:'continuous',min:lo,max:hi===lo?lo+1:hi,orient:'horizontal',left:8,bottom:4,itemWidth:10,itemHeight:160,calculable:false,
+   textStyle:{color:'#64748b',fontSize:11},formatter:(v:number)=>fmt(log?10**v:v),inRange:{color:c.order==='asc'?[...MAP_COLORS].reverse():MAP_COLORS}}],
+  series:[{type:'map3D',map:o.map,boxWidth:o.kind==='us'?120:160,boxDepth:o.kind==='us'?75:80,regionHeight:0.5,shading:'lambert',
+   light:{main:{intensity:1.1,shadow:true,alpha:40,beta:30},ambient:{intensity:.45}},
+   viewControl:{distance:o.kind==='us'?105:125,alpha:40,beta:0,minAlpha:10,maxAlpha:85,panMouseButton:'left',rotateMouseButton:'right'},
+   groundPlane:{show:false},itemStyle:{color:'#e2e8f0',borderWidth:.5,borderColor:'#fff'},
+   label:{show:false},emphasis:{label:{show:false},itemStyle:{color:'#ff8a4c'}},data}]};
+}
+// Scatter: this criterion against another, one dot per entity; log axes when values span 1000×; the top 8 labelled.
+export function scatterOption(o:{entries:{name:string;row:Record<string,unknown>;rank?:number|null}[];x:Criterion;y:Criterion;fx:Fmt;fy:Fmt;value:(row:Record<string,unknown>,key:string)=>number|null}){
+ const pts=o.entries.map(e=>({e,x:o.value(e.row,o.x.key),y:o.value(e.row,o.y.key)})).filter(p=>p.x!=null&&p.y!=null) as {e:{name:string;rank?:number|null};x:number;y:number}[];
+ const logOf=(vs:number[])=>vs.length>2&&Math.min(...vs)>0&&Math.max(...vs)/Math.min(...vs)>=1000;
+ const lx=logOf(pts.map(p=>p.x)),ly=logOf(pts.map(p=>p.y));
+ const top=new Set([...pts].sort((a,b)=>o.x.order==='asc'?a.x-b.x:b.x-a.x).slice(0,8).map(p=>p.e.name));
+ const axis=(c:Criterion,f:Fmt,log:boolean)=>({type:log?'log':'value',name:c.label+(c.unit&&c.format!=='currency'&&c.format!=='percent'?` (${c.unit})`:''),nameLocation:'middle',nameGap:30,nameTextStyle:{color:'#64748b',fontSize:11},
+  scale:true,axisLabel:{color:'#94a3b8',fontSize:10,formatter:(v:number)=>f(v)},splitLine:{lineStyle:{color:'#eef1f6',type:'dashed'}},axisLine:{show:false},axisTick:{show:false}});
+ return {textStyle:{fontFamily:FONT},aria:{enabled:true},grid:{left:56,right:40,top:24,bottom:48,containLabel:true},
+  tooltip:{...TOOLTIP,formatter:(p:any)=>`<div style="font-family:${FONT}"><div style="font-weight:600;color:#0f172a">${escapeHtml(p.data.name)}</div><div style="color:#64748b;font-size:11px;margin-top:3px">${escapeHtml(o.x.label)}: <b style="color:#0f172a">${escapeHtml(o.fx(p.data.value[0]))}</b></div><div style="color:#64748b;font-size:11px">${escapeHtml(o.y.label)}: <b style="color:#0f172a">${escapeHtml(o.fy(p.data.value[1]))}</b></div></div>`},
+  xAxis:axis(o.x,o.fx,lx),yAxis:axis(o.y,o.fy,ly),
+  series:[{type:'scatter',symbolSize:11,itemStyle:{color:'rgba(79,124,255,.55)',borderColor:'#4f7cff',borderWidth:1},
+   emphasis:{itemStyle:{color:'#ff8a4c',borderColor:'#ff8a4c'}},
+   label:{show:true,position:'top',distance:6,fontSize:10,color:'#334155',formatter:(p:any)=>top.has(p.data.name)?p.data.name:''},labelLayout:{hideOverlap:true},
+   data:pts.map(p=>({name:p.e.name,value:[p.x,p.y]}))}]};
+}

@@ -2,65 +2,29 @@
 import {useEffect,useMemo,useRef,useState} from 'react';
 import {Search,ArrowDownWideNarrow,ArrowUpNarrowWide} from 'lucide-react';
 import type {VizProps} from './types';
-import {type Criterion,type Entry,type Summary,normalizeCriteria,toEntries,rankEntries,summarize,makeFormatter,shareOf,chartMode,colorScale,groupsOf,equalEarth,equalEarthInvert,escapeHtml,linkParts,fixAntimeridian,parseNumber} from './ranking-data';
+import {type Entry,type Summary,normalizeCriteria,toEntries,rankEntries,summarize,makeFormatter,shareOf,groupsOf,linkParts,parseNumber} from './ranking-data';
 import {useAskLink,useRankingView} from '@/app/seo/link-context';
-import {countryKey} from './world-codes';
+import {geoKind,geoKeyOf,registerGeo,GEO_ASPECT,type GeoData} from './ranking-geo';
 import './viz.css';
 import './ranking.css';
 
 type ECharts=typeof import('echarts');
 type Chart=ReturnType<ECharts['init']>;
-import {FONT,PALETTE,MAP_COLORS,MAP_BOTTOM,MAP_ASPECT,MEDAL,errMessage,rgba,gradient,NEG,clip,tooltipHtml,TOOLTIP,barOption,columnOption,chartKey,type Fmt} from './ranking-chart';
+import {PALETTE,MAP_BOTTOM,errMessage,rgba,NEG,columnOption,treemapOption,donutOption,choroplethOption,heightMapOption,scatterOption,autoViews,pickViews,chartKey,type RankingViewKind} from './ranking-chart';
 
 // Same prebuilt bundle as the echart component, so the page shares one echarts instance.
 let echartsP:Promise<ECharts>|null=null;
 // @ts-ignore
 const loadECharts=()=>echartsP??=import('echarts/dist/echarts.js').then(m=>((m as any).default??m) as ECharts).catch(e=>{echartsP=null;throw e;});
-// World geometry (world-atlas 110m, ~100 KB) loads only when a ranking draws a map.
-const MAP='wiki-rank-world';
-let worldP:Promise<Map<string,string>>|null=null;
-const loadWorld=()=>worldP??=Promise.all([
- loadECharts(),
- // @ts-ignore topojson-client ships no types
- import('topojson-client'),
- import('world-atlas/countries-110m.json'),
-]).then(([echarts,topo,atlasModule])=>{
- const atlas=(atlasModule as any).default??atlasModule;
- const fc=(topo as any).feature(atlas,atlas.objects.countries);
- const names=new Map<string,string>();
- fc.features=fc.features.filter((f:any)=>f.id!=='010').map((f:any)=>{
-  const label=String(f.properties?.name??'');
-  const key=f.id?String(f.id):label==='Kosovo'?'XKX':'x-'+label;names.set(key,label);
-  return {...f,geometry:f.geometry&&fixAntimeridian(f.geometry),properties:{name:key}};
- });
- echarts.registerMap(MAP,fc);
- return names;
-}).catch(e=>{worldP=null;throw e;});
-
-function mapOption(o:{ranked:Entry[];c:Criterion;fmt:Fmt;names:Map<string,string>;noData:string}){
- const {c,fmt}=o;const seen=new Set<string>();const data:any[]=[];
- const scale=colorScale(o.ranked.map(e=>e.value!));
- for(const e of o.ranked){const k=countryKey(e.code);if(!k||seen.has(k))continue;seen.add(k);data.push({name:k,value:scale.log?Math.log10(e.value!):e.value,entry:e});}
- const real=(v:number)=>scale.log?10**v:v;
- return {
-  textStyle:{fontFamily:FONT},animationDurationUpdate:700,animationEasingUpdate:'cubicInOut',aria:{enabled:true},
-  tooltip:{...TOOLTIP,formatter:(p:any)=>{const e:Entry|undefined=p.data?.entry;if(e)return tooltipHtml(e,c,fmt,o.noData);
-   return `<div style="font-family:${FONT}"><div style="font-weight:600;color:#0f172a">${escapeHtml(o.names.get(p.name)??p.name)}</div><div style="color:#94a3b8;font-size:11px;margin-top:2px">${escapeHtml(o.noData)}</div></div>`;}},
-  visualMap:[{type:'continuous',min:scale.min,max:scale.max,orient:'horizontal',left:8,bottom:4,itemWidth:10,itemHeight:160,calculable:true,realtime:true,
-textStyle:{color:'#64748b',fontSize:11},formatter:(v:number)=>fmt(real(v)),
-   inRange:{color:c.order==='asc'?[...MAP_COLORS].reverse():MAP_COLORS},handleStyle:{borderColor:'#fff',shadowBlur:4,shadowColor:'rgba(15,23,42,.2)'},indicatorStyle:{borderColor:'#fff'}}],
-  series:[{id:'world',type:'map',map:MAP,roam:true,projection:{project:equalEarth,unproject:equalEarthInvert},scaleLimit:{min:1,max:12},
-   left:'center',top:6,bottom:MAP_BOTTOM,selectedMode:false,
-   label:{show:false},itemStyle:{areaColor:'#eceff5',borderColor:'#fff',borderWidth:.6},
-   emphasis:{label:{show:false},itemStyle:{areaColor:'#ff8a4c',borderColor:'#fff',borderWidth:1,shadowBlur:12,shadowColor:'rgba(15,23,42,.25)'}},
-   data}],
- };
-}
+// echarts-gl (3D height map) registers on the same prebuilt echarts instance; loaded only for that view.
+let glP:Promise<ECharts>|null=null;
+// @ts-ignore echarts-gl ships no types
+const loadGL=()=>glP??=loadECharts().then(e=>import('echarts-gl/dist/echarts-gl.js').then(()=>e)).catch(e=>{glP=null;throw e;});
 
 // One ECharts instance in a resizable box; the shimmer shows until the chart has an option.
 // With aspect (width/height), the box is never taller than the drawing needs (the world map).
 // svg: the same chart rendered on the server, shown until the interactive chart is ready.
-function ChartBox({option,height,label,aspect,extra=0,onClick,onChart,svg}:{option:Record<string,unknown>|null;height:number;label:string;aspect?:number;extra?:number;onClick?:(p:any)=>void;onChart?:(c:Chart|null)=>void;svg?:string}){
+function ChartBox({option,height,label,aspect,extra=0,onClick,onChart,svg,gl}:{option:Record<string,unknown>|null;height:number;label:string;aspect?:number;extra?:number;onClick?:(p:any)=>void;onChart?:(c:Chart|null)=>void;svg?:string;gl?:boolean}){
  const box=useRef<HTMLDivElement>(null);const chart=useRef<Chart|null>(null);const outer=useRef<HTMLDivElement>(null);
  const [width,setWidth]=useState(0);
  useEffect(()=>{if(!aspect||!outer.current)return;const el=outer.current;const ro=new ResizeObserver(()=>setWidth(el.clientWidth));ro.observe(el);setWidth(el.clientWidth);return ()=>ro.disconnect();},[aspect]);
@@ -69,7 +33,7 @@ function ChartBox({option,height,label,aspect,extra=0,onClick,onChart,svg}:{opti
  const [ready,setReady]=useState(false);const [error,setError]=useState('');
  useEffect(()=>{
   let dead=false,ro:ResizeObserver|null=null;
-  loadECharts().then(echarts=>{
+  (gl?loadGL():loadECharts()).then(echarts=>{
    if(dead||!box.current)return;
    const c=echarts.init(box.current,null,{renderer:'canvas'});chart.current=c;
    c.on('click',(p:any)=>cb.current.onClick?.(p));
@@ -97,6 +61,7 @@ function Avatar({e,color}:{e:Entry;color:string}){
 }
 
 const PAGE=50,ROW_CAP=1000;
+const VIEW_LABELS:Record<RankingViewKind,string>={bar:'Bars',treemap:'Treemap',donut:'Donut',map:'Map',map3d:'3D map',scatter:'Scatter'};
 
 export default function Ranking({props,setValue,fire,ctx}:VizProps){
  const t=ctx.t,locale=ctx.locale||'en';
@@ -120,19 +85,11 @@ export default function Ranking({props,setValue,fire,ctx}:VizProps){
  const [query,setQuery]=useState('');
  const [group,setGroup]=useState<string|null>(null);
  const [expanded,setExpanded]=useState(false);
- const [names,setNames]=useState<Map<string,string>|null>(null);
- const [mapError,setMapError]=useState('');
+ const [geoData,setGeoData]=useState<GeoData|null>(null);
+ const [geoError,setGeoError]=useState('');
  const charts=useRef<Record<string,Chart|null>>({});
  const tableWrap=useRef<HTMLDivElement>(null);
 
- // One plot under the leaderboard: vertical bars of the current criterion; a world map only when asked for.
- const requested=props.chart==='none'?'none':props.chart==='map'&&chartMode('map',entries)==='map'?'map':'column';
- const mode=requested==='map'&&mapError?'column':requested;
- useEffect(()=>{
-  if(requested!=='map')return;let dead=false;
-  loadWorld().then(n=>!dead&&setNames(n)).catch(e=>!dead&&setMapError(errMessage(e)));
-  return ()=>{dead=true;};
- },[requested]);
 
  const {ranked,missing}=useMemo(()=>c?rankEntries(entries,c.key,c.order):{ranked:[],missing:[]},[entries,c]);
  const summary:Summary=useMemo(()=>summarize(ranked,missing,c??{format:'number'}),[ranked,missing,c]);
@@ -150,6 +107,28 @@ export default function Ranking({props,setValue,fire,ctx}:VizProps){
  const otherFmt=useMemo(()=>new Map(others.map(x=>[x.key,makeFormatter(x,entries.map(e=>parseNumber(e.row[x.key])).filter((v):v is number=>v!=null),locale)])),[others,entries,locale]);
  const cols=5+others.length;
 
+ // Views under the leaderboard: the template's list (props.views) or one chosen from the data — bars always,
+ // share views (treemap, donut) for quantities that add up, maps for countries or U.S. states, a scatter
+ // against a second criterion. One shows at a time (tabs); the first is also rendered on the server.
+ const geo=useMemo(()=>geoKind(entries),[entries]);
+ const keyOf=useMemo(()=>geo?geoKeyOf(geo):()=>null,[geo]);
+ const additive=summary.aggregate==='sum'&&summary.min>=0&&ranked.length>1;
+ const views=useMemo<RankingViewKind[]>(()=>{
+  if(props.chart==='none')return [];
+  const v=pickViews(props.views,autoViews({additive,geo,criteria:criteria.length}));
+  return props.chart==='map'&&v.includes('map')?['map',...v.filter(x=>x!=='map')]:v;
+ },[props.chart,props.views,additive,geo,criteria.length]);
+ const [viewKind,setViewKind]=useState<RankingViewKind|null>(null);
+ const active:RankingViewKind=viewKind&&views.includes(viewKind)?viewKind:views[0]??'bar';
+ const mapView=active==='map'||active==='map3d';
+ useEffect(()=>{
+  if(!geo||!mapView)return;let dead=false;
+  (active==='map3d'?loadGL():loadECharts()).then(e=>registerGeo(e,geo)).then(g=>!dead&&setGeoData(g)).catch(e=>!dead&&setGeoError(errMessage(e)));
+  return ()=>{dead=true;};
+ },[geo,mapView,active]);
+ const [yKey,setYKey]=useState('');
+ const yC=others.find(x=>x.key===yKey)??others[0];
+
  const pick=(e:Entry|undefined)=>{if(e)fire('select',e.row);};
  const choose=(key:string)=>{if(key===critKey)return;setCritKey(key);setValue(key);fire('change',key);view.onRank?.(key);try{const u=new URL(location.href);u.searchParams.set('rank',key);history.replaceState(history.state,'',u);}catch{}};
 
@@ -158,23 +137,27 @@ export default function Ranking({props,setValue,fire,ctx}:VizProps){
  const windowSize=Math.max(8,Math.floor((height-24)/28));
  const barHeight=Math.min(height,380);
  const columnWindow=30;
- const barOpt=useMemo(()=>c&&mode==='column'&&barShown.length?columnOption({shown:barShown,c,fmt,axisFmt,window:allBars?columnWindow:undefined,noData}):null,
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  [c,mode,chartRanked,allBars,top,fmt,axisFmt,colorOf,windowSize,noData]);
- const mapOpt=useMemo(()=>c&&mode==='map'&&names?mapOption({ranked,c,fmt,names,noData}):null,[c,mode,names,ranked,fmt,noData]);
- const miniShown=chartRanked.slice(0,10);
- const miniOpt=useMemo(()=>c&&mode==='map'&&miniShown.length?barOption({shown:miniShown,c,fmt,axisFmt,colorOf,compact:true,noData}):null,
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  [c,mode,chartRanked,fmt,axisFmt,colorOf,noData]);
-
-  const byKey=useMemo(()=>{const m=new Map<string,Entry>();for(const e of ranked){const k=countryKey(e.code);if(k&&!m.has(k))m.set(k,e);}return m;},[ranked]);
- const hover=(e:Entry|null,on:boolean)=>{
-  if(!e||e.value==null)return;const k=countryKey(e.code);const type=on?'highlight':'downplay';
-  for(const [id,ch] of Object.entries(charts.current)){
-   if(!ch||ch.isDisposed())continue;
-   if(id==='map'){if(k)ch.dispatchAction({type,seriesIndex:0,name:k});continue;}
-   const i=(id==='bar'?barShown:miniShown).indexOf(e);if(i>=0)ch.dispatchAction({type,seriesIndex:0,dataIndex:i});
+ const opt=useMemo(()=>{
+  if(!c)return null;
+  switch(active){
+   case 'bar':return barShown.length?columnOption({shown:barShown,c,fmt,axisFmt,window:allBars?columnWindow:undefined,noData}):null;
+   case 'treemap':return treemapOption({ranked:chartRanked,c,fmt,othersLabel:t('Others'),noData});
+   case 'donut':return donutOption({ranked:chartRanked,c,fmt,othersLabel:t('Others'),noData});
+   case 'map':return geo&&geoData?.kind===geo?choroplethOption({ranked,c,fmt,kind:geo,map:geoData.name,keyOf,names:geoData.names,noData}):null;
+   case 'map3d':return geo&&geoData?.kind===geo?heightMapOption({ranked,c,fmt,kind:geo,map:geoData.name,keyOf,names:geoData.names,noData}):null;
+   case 'scatter':{if(!yC)return null;const yv=entries.map(e=>parseNumber(e.row[yC.key])).filter((v):v is number=>v!=null);
+    return scatterOption({entries:[...ranked,...missing],x:c,y:yC,fx:axisFmt,fy:makeFormatter(yC,yv,locale,{unit:false,compact:true}),value:(row,k)=>parseNumber(row[k])});}
   }
+  return null;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+ },[active,c,chartRanked,ranked,missing,entries,allBars,top,fmt,axisFmt,geo,geoData,keyOf,yC,locale,noData]);
+ const byKey=useMemo(()=>{const m=new Map<string,Entry>();for(const e of ranked){const k=keyOf(e);if(k&&!m.has(k))m.set(k,e);}return m;},[ranked,keyOf]);
+ const hover=(e:Entry|null,on:boolean)=>{
+  if(!e||e.value==null)return;const type=on?'highlight':'downplay';const ch=charts.current[active];
+  if(!ch||ch.isDisposed())return;
+  if(active==='bar'){const i=barShown.indexOf(e);if(i>=0)ch.dispatchAction({type,seriesIndex:0,dataIndex:i});}
+  else if(active==='map'){const k=keyOf(e);if(k)ch.dispatchAction({type,seriesIndex:0,name:k});}
+  else if(active==='treemap'||active==='donut'||active==='scatter')ch.dispatchAction({type,seriesIndex:0,name:e.name});
  };
 
  // Table: every entity; search and group filters keep the overall ranks.
@@ -256,22 +239,25 @@ export default function Ranking({props,setValue,fire,ctx}:VizProps){
   {(hidden>0||expanded&&tRanked.length+tMissing.length>PAGE)&&<div className="wf-rank-more">
    <button type="button" onClick={()=>setExpanded(x=>!x)}>{hidden>0?t('Show all {count}',{count:(tRanked.length+tMissing.length).toLocaleString(locale)}):t('Show fewer')}</button>
   </div>}
-  {mode!=='none'&&<div className={'wf-rank-chart '+mode}>
-   {mapError&&requested==='map'&&<div className="wf-rank-notice">{t('The map could not load; showing a bar chart instead.')}</div>}
-   {mode==='column'&&<>
-    <div className="wf-rank-charttools"><span className="wf-rank-charttitle">{c.label}{c.year?' · '+c.year:''}</span>{chartRanked.length>top&&<div className="wf-rank-seg" role="radiogroup" aria-label={t('Bars shown')}>
+  {views.length>0&&<div className={'wf-rank-chart '+active}>
+   <div className="wf-rank-charttools">
+    {views.length>1?<div className="wf-rank-views" role="tablist" aria-label={t('Chart')}>{views.map(v=><button key={v} type="button" role="tab" aria-selected={v===active} className={v===active?'on':''} onClick={()=>setViewKind(v)}>{t(VIEW_LABELS[v])}</button>)}</div>
+     :<span className="wf-rank-charttitle">{c.label}{c.year?' · '+c.year:''}</span>}
+    {active==='bar'&&chartRanked.length>top&&<div className="wf-rank-seg" role="radiogroup" aria-label={t('Bars shown')}>
      <button type="button" role="radio" aria-checked={!allBars} className={!allBars?'on':''} onClick={()=>setAllBars(false)}>{t('Top {n}',{n:top})}</button>
      <button type="button" role="radio" aria-checked={allBars} className={allBars?'on':''} onClick={()=>setAllBars(true)}>{t('All {n}',{n:chartRanked.length})}</button>
-    </div>}</div>
-    {barShown.length?<ChartBox option={barOpt} height={barHeight} label={c.label} svg={!allBars&&!group?view.charts?.[chartKey(criteria.map(x=>x.key),c.key)]:undefined} onClick={p=>pick(barShown[p.dataIndex])} onChart={ch=>{charts.current.bar=ch;}}/>:<div className="wf-rank-empty">{noData}</div>}
-   </>}
-   {mode==='map'&&<div className="wf-rank-mapgrid">
-    <ChartBox option={mapOpt} height={height} aspect={MAP_ASPECT} extra={MAP_BOTTOM+6} label={c.label} onClick={p=>pick(byKey.get(p.name))} onChart={ch=>{charts.current.map=ch;}}/>
-    <div className="wf-rank-mini">
-     <div className="wf-rank-minititle">{t('Top {n}',{n:miniShown.length})}</div>
-     <ChartBox option={miniOpt} height={Math.max(220,miniShown.length*30+16)} label={c.label} onClick={p=>pick(miniShown[p.dataIndex])} onChart={ch=>{charts.current.mini=ch;}}/>
-    </div>
-   </div>}
+    </div>}
+    {active==='scatter'&&yC&&<label className="wf-rank-select wf-rank-vs"><span>{c.label} {t('vs')}</span><select value={yC.key} onChange={ev=>setYKey(ev.target.value)}>{others.map(x=><option key={x.key} value={x.key}>{x.label}</option>)}</select></label>}
+   </div>
+   {views.length>1&&<div className="wf-rank-charttitle wf-rank-charttitle-sub">{active==='scatter'&&yC?c.label+' × '+yC.label:c.label}{c.year?' · '+c.year:''}</div>}
+   {mapView&&geoError?<div className="wf-rank-notice">{t('The map could not load.')}</div>
+    :active==='bar'&&!barShown.length?<div className="wf-rank-empty">{noData}</div>
+    :<ChartBox key={active} gl={active==='map3d'} option={opt} label={c.label}
+      height={active==='bar'?barHeight:active==='treemap'?440:active==='donut'?360:active==='scatter'?440:active==='map3d'?480:height}
+      {...(active==='map'&&geo?{aspect:GEO_ASPECT[geo],extra:MAP_BOTTOM+6}:{})}
+      svg={!allBars&&!group&&active===views[0]?view.charts?.[chartKey(criteria.map(x=>x.key),c.key)+'|'+active]:undefined}
+      onClick={p=>pick(active==='bar'?barShown[p.dataIndex]:mapView?byKey.get(p.name):chartRanked.find(e=>e.name===p.name))}
+      onChart={ch=>{charts.current[active]=ch;}}/>}
   </div>}
 
   {source&&<figcaption className="wf-rank-source">{t('Source:')} {linkParts(source).map((p,i)=>p.href?<a key={i} href={p.href} target="_blank" rel="noopener noreferrer">{p.text}</a>:<span key={i}>{p.text}</span>)}</figcaption>}

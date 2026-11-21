@@ -181,3 +181,12 @@
 /* The server-rendered chart (SVG) until the interactive one is ready. */
 .wf-rank-svg{position:absolute;inset:0}
 .wf-rank-svg svg{width:100%;height:100%;display:block}
+/* View tabs under the leaderboard: bars, treemap, donut, map, 3D map, scatter. */
+.wf-rank .wf-rank-charttools{flex-wrap:wrap}
+.wf-rank-views{display:inline-flex;flex-wrap:wrap;gap:2px;padding:3px;border-radius:10px;background:#f1f5f9;max-width:100%}
+.wf-rank-views button{appearance:none;border:0;background:transparent;cursor:pointer;font:inherit;font-size:12.5px;font-weight:600;color:var(--rk-muted);padding:5px 12px;border-radius:7px;transition:background .15s,color .15s}
+.wf-rank-views button:hover{color:var(--rk-ink)}
+.wf-rank-views button.on{background:#fff;color:#1d4ed8;box-shadow:0 1px 2px rgba(15,23,42,.08),0 4px 12px -4px rgba(79,124,255,.35)}
+.wf-rank-views button:focus-visible{outline:2px solid var(--rk-accent);outline-offset:2px}
+.wf-rank .wf-rank-charttitle-sub{padding:2px 10px 6px;font-size:12px;color:var(--rk-muted)}
+.wf-rank .wf-rank-vs select{max-width:220px}
