@@ -6,10 +6,10 @@ export async function runToolLoop(options:{
  payload:Record<string,any>;request:(payload:Record<string,any>)=>Promise<any>;
  execute:(name:string,args:any)=>Promise<ToolResult>;event?:(event:LoopEvent)=>Promise<void>;
  validateFinal?:(response:any,trace:{webSearched:boolean})=>Promise<string|void>;
- signal?:AbortSignal;maxRounds?:number;maxCalls?:number;maxInputChars?:number;maxValidationRetries?:number;
+ signal?:AbortSignal;maxRounds?:number;maxCalls?:number;maxInputChars?:number;maxValidationRetries?:number;timeoutMs?:number;
 }){
  const {payload,request,execute,event}=options;
- const timeout=AbortSignal.timeout(600000),signal=options.signal?AbortSignal.any([options.signal,timeout]):timeout;
+ const timeout=AbortSignal.timeout(options.timeoutMs??600000),signal=options.signal?AbortSignal.any([options.signal,timeout]):timeout;
  const maxRounds=options.maxRounds??24,maxCalls=options.maxCalls??48,maxInputChars=options.maxInputChars??180000;
  // A final answer that keeps failing validation gets two corrections, not the whole round budget.
  const maxValidationRetries=options.maxValidationRetries??2;

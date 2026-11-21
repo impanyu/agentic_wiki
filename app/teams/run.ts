@@ -62,7 +62,7 @@ async function ask(role:Role,agent:Agent,topicId:string,instructions:string,task
  log({event:'agent_started',role,runId});
  try{
   const result=await askAgent(agent,RULES+'\n\n'+instructions,task,schema,undefined,undefined,[],{
-   llmClass:role==='reviewer'?'review':'agent',maxRounds:budget.rounds,maxCalls:budget.calls,maxInputChars:400_000,
+   llmClass:role==='reviewer'?'review':'agent',timeoutMs:40*60_000,maxRounds:budget.rounds,maxCalls:budget.calls,maxInputChars:400_000,
    extraTools:teamToolDefs(role),executeExtra:(name,args)=>runTeamTool(role,name,args,ctx,topicId),
    onEvent:e=>{
     if(e.kind==='tool_started'){const d=e.data as {tool:string;arguments:string};void logTeamCall(db,runId,{t:Date.now(),tool:d.tool,args:String(d.arguments).slice(0,2000)});log({event:'tool',role,tool:d.tool});}
@@ -80,8 +80,19 @@ export async function runTopicTeam({slug,name,brief,maxFixRounds=2,log=()=>{}}:{
  const editor=await spawnAgent('editor:'+slug,OWNER),collector=await spawnAgent('collector:'+slug,OWNER),reviewer=await spawnAgent('review:'+slug,OWNER);
  const topicInfo={topic:{slug,name,brief}};
  const plan=await ask('editor',editor,topic.id,EDITOR_PLAN,{...topicInfo,step:'plan'},PLAN_SCHEMA,log,{rounds:24,calls:40});
- const collected=await ask('collector',collector,topic.id,COLLECTOR,{...topicInfo,step:'collect',plan},REPORT_SCHEMA,log,{rounds:40,calls:90});
- const built=await ask('editor',editor,topic.id,EDITOR_BUILD,{...topicInfo,step:'design',plan,collector:collected},REPORT_SCHEMA,log,{rounds:32,calls:70});
+ // Collector and editor work in passes: each pass continues from the plan's open items and the previous report,
+ // so a long job survives one pass running out of time or budget.
+ const passes=async(role:Role,agent:Agent,instructions:string,step:string,extra:Record<string,unknown>,budget:{rounds:number;calls:number},max=3)=>{
+  let report:{done:string[];open:string[];notes:string}={done:[],open:['everything'],notes:''};const reports=[];
+  for(let i=0;i<max&&report.open.length;i++){
+   try{report=await ask(role,agent,topic.id,instructions+(i?'\nContinue from your previous report: finish what is still open.':''),{...topicInfo,step,pass:i+1,...extra,previous:i?report:undefined},REPORT_SCHEMA,log,budget) as typeof report;}
+   catch(e){report={done:[],open:['pass '+(i+1)+' stopped: '+(e as Error).message.slice(0,300)],notes:''};}
+   reports.push(report);
+  }
+  return reports;
+ };
+ const collected=await passes('collector',collector,COLLECTOR,'collect',{plan},{rounds:40,calls:90});
+ const built=await passes('editor',editor,EDITOR_BUILD,'design',{plan,collector:collected[collected.length-1]},{rounds:32,calls:70});
  let verdict=await ask('reviewer',reviewer,topic.id,REVIEWER,{...topicInfo,step:'review',plan},VERDICT_SCHEMA,log,{rounds:32,calls:70}) as {approved:boolean;issues:{owner:string;severity:string}[];summary:string};
  const rounds:unknown[]=[];
  for(let i=0;i<maxFixRounds&&!verdict.approved;i++){
