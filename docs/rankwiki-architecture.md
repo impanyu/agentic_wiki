@@ -472,3 +472,21 @@ The same data that renders pages is served to other agents, read-only and public
    roadmaps and recent work.
 4. Agent-facing service: REST API, MCP server, downloads, llms.txt/OpenAPI/JSON-LD.
 5. Deploy (Postgres container, rankwiki service), watch quotas, grow the tree.
+
+## Addresses: one tree of sets
+
+Topics and rankings are nodes of one tree, which is also the address tree (app/entity-db/pages.ts `pathMaps`,
+app/seo/paths.ts). Top level down:
+
+- `/geography` — a broad topic over several kinds of entity: a directory of its children (they share no criterion).
+- `/geography/countries` — a topic whose set is one kind of entity: its page *is* its main ranking (the type,
+  unfiltered); `?rank=<criterion>` and `?year=<y>` pick the view.
+- `/geography/countries/europe-central-asia` — a subset: a ranking whose filters narrow its parent's set, placed
+  under the most specific set it narrows and named by the values it adds. Subsets may overlap and be narrowed again.
+- `/e/<num>/<slug>` — an entity, outside the tree: a permanent number (the tree may deepen; an entity's address
+  never changes), the slug only for reading. `/e/<type>/<slug>` (older) redirects to it.
+
+Pages are built with stable internal links (`/topics/<slug>`, `/rankings/<slug>`) mapped to tree addresses at
+render time, so a node that moves moves its pages; its old address redirects (resolution by last segment).
+`/topics/…` and `/rankings/…` redirect to the tree. Teams (editor + collector) own a node and its subtree; the
+manager places each published topic in the tree. Top-level slugs never take a route name or a language code.

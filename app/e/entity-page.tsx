@@ -7,8 +7,8 @@ import {notFound,permanentRedirect} from 'next/navigation';
 import {SITE_NAME} from '@/app/edition';
 import {siteUrl} from '@/app/site';
 import {entityDb} from '@/app/entity-db/client';
-import {loadEntityPage,pathMaps} from '@/app/entity-db/pages';
-import {canonicalPath,canonicalLinks} from '@/app/seo/paths';
+import {loadEntityPage,loadEntityPageByNum,pathMaps} from '@/app/entity-db/pages';
+import {canonicalLinks} from '@/app/seo/paths';
 import {assembleEntityPage,entityPath} from '@/app/seo/assemble';
 import {jsonLd} from '@/app/seo/structured-data';
 import {questionKey,slugify} from '@/app/seo/urls';
@@ -18,17 +18,18 @@ import {DbShell,EntityBody,LinkedText} from '@/app/rankings/view';
 // serves types without a topic): one entity's page, rendered from its row in the entity database with its type's
 // template (entity_types.template, or a default built from the entity's metrics). No agent at page time:
 // sentences are template patterns filled with values, the card and charts are platform components.
-export type Props={params:Promise<{type:string;slug:string}>;legacy?:boolean};
+export type Props={params:Promise<{type:string;slug:string}>};
 const decode=(s:string)=>{try{return decodeURIComponent(s);}catch{return s;}};
 const TYPE=/^[a-z][a-z0-9_]{0,40}$/;
-const load=cache(async(type:string,slug:string)=>{
- if(!TYPE.test(type))return null;
- const r=await loadEntityPage(await entityDb(),type,slug);if(!r)return null;
- const model=assembleEntityPage(r.data,'en');const maps=await pathMaps(await entityDb());
- const internal=entityPath(type,r.data.entity.name);
- return {...r,model,maps,internal,path:canonicalPath(internal,maps)};
+// /e/<num>/<slug> by number; /e/<type>/<slug> (older addresses) by type and name, redirected to the number.
+const load=cache(async(first:string,slug:string)=>{
+ const db=await entityDb();
+ const r=/^\d+$/.test(first)?await loadEntityPageByNum(db,first):TYPE.test(first)?await loadEntityPage(db,first,slug):null;if(!r)return null;
+ const model=assembleEntityPage(r.data,'en');const maps=await pathMaps(db);
+ const path=entityPath(r.data.entity.type,r.data.entity.name,r.num);
+ return {...r,model,maps,path};
 });
-async function view(props:Props){const {type,slug}=await props.params;return {type:decode(type),slug:decode(slug),data:await load(decode(type).toLowerCase(),decode(slug))};}
+async function view(props:Props){const {type,slug}=await props.params;return {first:decode(type),slug:decode(slug),data:await load(decode(type).toLowerCase(),decode(slug))};}
 const SCHEMA_TYPES:Record<string,string>={country:'Country',city:'City',us_state:'State',state:'State',region:'Place',place:'Place',mountain:'Mountain',river:'RiverBodyOfWater',lake:'LakeBodyOfWater',
  university:'CollegeOrUniversity',company:'Organization',organization:'Organization',person:'Person',book:'Book',movie:'Movie',product:'Product'};
 export async function generateMetadata(props:Props):Promise<Metadata>{
@@ -42,11 +43,11 @@ export async function generateMetadata(props:Props):Promise<Metadata>{
 }
 const fmtDate=(s:string|null,locale='en')=>{if(!s)return '';const d=new Date(s);return Number.isNaN(d.getTime())?'':d.toLocaleDateString(locale,{year:'numeric',month:'long',day:'numeric',timeZone:'UTC'});};
 export async function EntityPage(props:Props){
- const {type,slug,data}=await view(props);if(!data)notFound();
- const {model,path,internal,maps,data:d,updatedAt}=data;const e=d.entity;
+ const {first,slug,data}=await view(props);if(!data)notFound();
+ const {model,path,maps,data:d,updatedAt}=data;const e=d.entity;
  const {locale,dict,t}=await serverUi();const L=<T,>(v:T)=>localizeLinks(canonicalLinks(v,maps),locale);
  // One address per entity: an alias's slug or another spelling redirects to the name's slug.
- if((props.legacy&&path!==internal)||type!==e.type||slug!==slugify(e.name)||!data.canonical)permanentRedirect(localizeLinks(path,locale));
+ if(first!==data.num||slug!==slugify(e.name)||!data.canonical)permanentRedirect(localizeLinks(path,locale));
  const origin=siteUrl();
  const wikidata=e.ids.wikidata;
  const ld={'@context':'https://schema.org','@type':SCHEMA_TYPES[e.type]||'Thing',name:e.name,url:origin+path,description:model.description,
@@ -55,7 +56,7 @@ export async function EntityPage(props:Props){
   ...(updatedAt?{dateModified:updatedAt}:{}),
   additionalProperty:model.properties.slice(0,60).map(p=>({'@type':'PropertyValue',name:p.name,value:p.value,...(p.unitText?{unitText:p.unitText}:{})}))};
  const askTargets:Record<string,string>={};
- for(const list of Object.values(d.peers))for(const p of list)if(p.type)askTargets[questionKey(p.name)]=entityPath(p.type,p.name);
+ for(const list of Object.values(d.peers))for(const p of list)if(p.type)askTargets[questionKey(p.name)]=entityPath(p.type,p.name,p.num);
  return <>
   <script type="application/ld+json" dangerouslySetInnerHTML={{__html:jsonLd(ld)}}/>
   <DbShell locale={locale} dictionary={dict} askTargets={L(askTargets)} className="answer template-wiki-v1 template-entity-v1">

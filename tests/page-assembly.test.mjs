@@ -208,12 +208,13 @@ test('sitemap lists rankings with their criteria views and entities of listed ty
  assert.ok(rk.some(x=>x.path==='/rankings/country-rankings'));assert.ok(rk.some(x=>x.path==='/rankings/country-rankings?rank=gdp_usd'));
  assert.ok(!rk.some(x=>x.path==='/rankings/country-rankings?rank=population'),'the default criterion is the plain address');
  assert.equal(await pages.countSitemapEntities(db),COUNTRIES.length,'cities and regions have neither a template nor a ranking');
- const en=await pages.sitemapEntities(db,0,5);assert.equal(en.length,5);assert.match(en[0].path,/^\/e\/country\//);
+ const en=await pages.sitemapEntities(db,0,5);assert.equal(en.length,5);assert.match(en[0].path,/^\/e\/\d+\/[a-z-]+$/);
 });
 
 test('/?ask= questions resolve to rankings and entities by name',async()=>{
+ const de=await pages.loadEntityPage(db,'country','germany');
  const t=await pages.resolveNamedTargets(db,['Country Rankings','germany','Deutschland','Paris','Atlantis']);
- assert.deepEqual(t,{'country rankings':'/rankings/country-rankings',germany:'/e/country/germany',deutschland:'/e/country/germany'},'Paris has no page (cities have no template)');
+ assert.deepEqual(t,{'country rankings':'/rankings/country-rankings',germany:'/e/'+de.num+'/germany',deutschland:'/e/'+de.num+'/germany'},'Paris has no page (cities have no template)');
 });
 // (added) A trend section naming metrics in different units becomes one chart per unit.
 test('a trend section naming metrics in different units becomes one chart per unit',()=>{
@@ -296,23 +297,23 @@ test('topic navigation: the tree opens level by level, with counts from the whol
  assert.equal(await pages.loadTopicNav(db,'nowhere'),null);
 });
 
-test('address tree: topics, rankings and entities under their topic path; old and moved addresses redirect',async()=>{
+test('address tree of sets: a topic is its main ranking, subsets sit under the set they narrow, entities by number',async()=>{
  const paths=await import(new URL('paths.mjs',out));
  const maps=await pages.pathMaps(db,{fresh:true});
- assert.equal(maps.topics.get('geography'),'/geography');assert.equal(maps.topics.get('countries'),'/geography/countries');
- assert.equal(paths.canonicalPath('/e/country/germany',maps),'/geography/countries/germany');
- assert.equal(paths.canonicalPath('/rankings/country-rankings?rank=gdp_usd',maps),'/geography/countries/country-rankings?rank=gdp_usd');
+ assert.equal(maps.rankings.get('country-rankings'),'/geography/countries','the main ranking is the topic page');
+ assert.equal(maps.rankings.get('countries-in-europe-and-central-asia-rankings'),'/geography/countries/europe-central-asia');
+ assert.equal(paths.canonicalPath('/rankings/country-rankings?rank=gdp_usd',maps),'/geography/countries?rank=gdp_usd');
  assert.equal(paths.canonicalPath('/topics/countries',maps),'/geography/countries');
- assert.equal(paths.canonicalPath('/e/city/paris',maps),'/e/city/paris','a type without a topic keeps its stable address');
  assert.equal(paths.canonicalPath('/rankings/country-rankings/data.csv',maps),'/rankings/country-rankings/data.csv');
- assert.deepEqual(paths.canonicalLinks({a:['/e/country/france'],b:'Population'},maps),{a:['/geography/countries/france'],b:'Population'});
- assert.deepEqual(await pages.resolvePath(db,['geography']),{kind:'topic',slug:'geography'});
- assert.deepEqual(await pages.resolvePath(db,['geography','countries']),{kind:'topic',slug:'countries'});
- assert.deepEqual(await pages.resolvePath(db,['geography','countries','country-rankings']),{kind:'ranking',slug:'country-rankings'});
- assert.deepEqual(await pages.resolvePath(db,['geography','countries','germany']),{kind:'entity',type:'country',slug:'germany'});
- assert.deepEqual(await pages.resolvePath(db,['countries']),{kind:'redirect',to:'/geography/countries'},'a topic out of place');
- assert.deepEqual(await pages.resolvePath(db,['geography','germany']),{kind:'redirect',to:'/geography/countries/germany'},'an entity out of place');
- assert.deepEqual(await pages.resolvePath(db,['geography','country-rankings']),{kind:'redirect',to:'/geography/countries/country-rankings'});
- assert.equal(await pages.resolvePath(db,['geography','countries','atlantis']),null);
- assert.equal(await pages.resolvePath(db,['nowhere']),null);
+ assert.deepEqual(await pages.resolvePath(db,['geography']),{kind:'topic',slug:'geography'},'a broad subject is a directory');
+ assert.deepEqual(await pages.resolvePath(db,['geography','countries']),{kind:'ranking',slug:'country-rankings'});
+ assert.deepEqual(await pages.resolvePath(db,['geography','countries','europe-central-asia']),{kind:'ranking',slug:'countries-in-europe-and-central-asia-rankings'});
+ assert.deepEqual(await pages.resolvePath(db,['countries']),{kind:'redirect',to:'/geography/countries'},'a node out of place');
+ assert.deepEqual(await pages.resolvePath(db,['geography','country-rankings']),{kind:'redirect',to:'/geography/countries'});
+ assert.equal(await pages.resolvePath(db,['geography','countries','germany']),null,'entities are not in the tree');
+ assert.deepEqual(pages.nodeTrail(maps,'/geography/countries/europe-central-asia').map(x=>x.href),['/geography','/geography/countries']);
+ assert.deepEqual(pages.nodeChildren(maps,'/geography/countries').map(x=>x.href),['/geography/countries/europe-central-asia']);
+ const de=await pages.loadEntityPage(db,'country','germany');assert.match(de.num,/^\d+$/);
+ const byNum=await pages.loadEntityPageByNum(db,de.num);assert.equal(byNum.data.entity.name,'Germany');
+ assert.equal(await pages.loadEntityPageByNum(db,'999999999'),null);
 });

@@ -1,26 +1,24 @@
-// Hierarchical addresses: every page sits under its topic path, top level down —
-//   /geography                              a topic
-//   /geography/countries                    a subtopic
-//   /geography/countries/country-rankings   a ranking (?rank=<criterion>&year=<y> pick its view)
-//   /geography/countries/germany            an entity
-// Page data is built with the stable internal forms (/topics/<slug>, /rankings/<slug>, /e/<type>/<slug>);
+// The address tree of sets, top level down (built in app/entity-db/pages.ts pathMaps) —
+//   /geography                                  a broad topic: a directory of its children
+//   /geography/countries                        a topic and its main ranking (?rank=<criterion>&year=<y>)
+//   /geography/countries/europe-central-asia    a subset: a ranking of the countries in that region
+// Entities are outside the tree, at /e/<num>/<slug> (the tree may deepen; an entity's address never changes).
+// Page data is built with the stable internal forms (/topics/<slug>, /rankings/<slug>);
 // canonicalLinks maps them to these addresses at render time, so moving a topic in the tree moves its pages
 // without touching stored data (the old address then redirects; see resolvePath in app/entity-db/pages.ts).
 export type PathMaps={topics:Map<string,string>;rankings:Map<string,string>;types:Map<string,string>};
 export {RESERVED_SEGMENTS} from '@/app/entity-db/reserved';
 const enc=encodeURIComponent;
-// One internal page address → its hierarchical address (unchanged when its topic is unknown).
+// One internal page address → its address in the tree (unchanged when its node is unknown).
 export function canonicalPath(href:string,maps:PathMaps):string{
  const q=href.search(/[?#]/),path=q<0?href:href.slice(0,q),rest=q<0?'':href.slice(q);
  let m=/^\/topics\/([^/]+)$/.exec(path);
  if(m){const t=maps.topics.get(decodeURIComponent(m[1]));return t?t+rest:href;}
  m=/^\/rankings\/([^/]+)$/.exec(path);
- if(m){const t=maps.rankings.get(decodeURIComponent(m[1]));return t?t+'/'+m[1]+rest:href;}
- m=/^\/e\/([^/]+)\/([^/]+)$/.exec(path);
- if(m){const t=maps.types.get(decodeURIComponent(m[1]));return t?t+'/'+m[2]+rest:href;}
+ if(m){const t=maps.rankings.get(decodeURIComponent(m[1]));return t?t+rest:href;}
  return href;
 }
-const INTERNAL=/^\/(?:topics\/[^/?#]+|rankings\/[^/?#]+|e\/[^/?#]+\/[^/?#]+)(?:[?#].*)?$/;
+const INTERNAL=/^\/(?:topics\/[^/?#]+|rankings\/[^/?#]+)(?:[?#].*)?$/;
 export function canonicalLinks<T>(value:T,maps:PathMaps):T{
  const walk=(v:unknown):unknown=>{
   if(typeof v==='string')return INTERNAL.test(v)?canonicalPath(v,maps):v;

@@ -44,9 +44,9 @@ function useVizCtx():VizProps['ctx']{
 const noop=()=>{};
 
 // The ranking with its title: a criterion or period switch retitles the page and its address (as /p does).
-export function RankingBody({kicker,title:initialTitle,baseTitle,titles,basePath,defaultRank,rank,period:initialPeriod,charts,props,lead}:{kicker?:string;title:string;baseTitle:string;titles:Record<string,string>;basePath:string;defaultRank:string;
+export function RankingBody({kicker,subsets=[],title:initialTitle,baseTitle,titles,basePath,defaultRank,rank,period:initialPeriod,charts,props,lead}:{kicker?:string;subsets?:{name:string;href:string;more:number}[];title:string;baseTitle:string;titles:Record<string,string>;basePath:string;defaultRank:string;
  rank?:string;period?:string;charts:Record<string,string>;props:Record<string,unknown>;lead:string|null}){
- const ctx=useVizCtx();
+ const ctx=useVizCtx();const {t}=useUi();
  const [title,setTitle]=useState(initialTitle);
  const [state,setState]=useState<{rank?:string;period?:string}>({rank,period:initialPeriod});
  const retitle=(next:{rank?:string;period?:string})=>{setState(next);const base=(next.rank&&titles[next.rank])||baseTitle;
@@ -54,7 +54,8 @@ export function RankingBody({kicker,title:initialTitle,baseTitle,titles,basePath
  const view={rank,charts,period:initialPeriod,rankHref:(key:string)=>key===defaultRank?basePath:basePath+'?rank='+encodeURIComponent(key),
   onRank:(key:string)=>retitle({...state,rank:key}),onPeriod:(p:string)=>retitle({...state,period:p})};
  return <RankingView.Provider value={view}>
-  <header className="wiki-heading db-hero">{kicker&&<span className="db-kicker"><Trophy size={13} aria-hidden="true"/>{kicker}</span>}<h1>{title}</h1>{lead&&<p className="lead">{lead}</p>}</header>
+  <header className="wiki-heading db-hero">{kicker&&<span className="db-kicker"><Trophy size={13} aria-hidden="true"/>{kicker}</span>}<h1>{title}</h1>{lead&&<p className="lead">{lead}</p>}
+   {subsets.length>0&&<nav className="db-subsets" aria-label={t('Narrow down')}><span>{t('Narrow down')}</span>{subsets.map(x=><a key={x.href} href={x.href}>{x.name}{x.more>0&&<small>+{x.more}</small>}</a>)}</nav>}</header>
   <Ranking props={props} setValue={noop} fire={noop} ctx={ctx}/>
  </RankingView.Provider>;
 }

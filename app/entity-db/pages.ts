@@ -84,8 +84,20 @@ function templateMetrics(t:Template):{peer:string[];all:string[]}{
  for(const s of t.sections||[]){const keys=[...(s.metrics||[]),...(s.metric?[s.metric]:[])];keys.forEach(k=>all.add(k));if(['position','peer_compare','radar_profile'].includes(s.kind))keys.forEach(k=>peer.add(k));}
  return {peer:[...peer],all:[...all]};
 }
-export async function loadEntityPage(db:Queryable,type:string,slug:string):Promise<{data:EntityPageData;canonical:boolean;updatedAt:string|null}|null>{
+type EntityPageLoad={data:EntityPageData;canonical:boolean;updatedAt:string|null;num:string};
+// By the entity's permanent number (its page address /e/<num>/<slug>).
+export async function loadEntityPageByNum(db:Queryable,num:string):Promise<EntityPageLoad|null>{
+ if(!/^\d{1,18}$/.test(num))return null;
+ const r=(await db.query<{id:string;type:string}>('select id, type from entities where num = $1::bigint and has_page',[num])).rows[0];
+ return r?loadEntityData(db,String(r.id),String(r.type),true):null;
+}
+// By type and name (the older address form, and lookups by name).
+export async function loadEntityPage(db:Queryable,type:string,slug:string):Promise<EntityPageLoad|null>{
  const found=await findEntityBySlug(db,type,slug);if(!found)return null;
+ return loadEntityData(db,found.id,type,found.canonical);
+}
+async function loadEntityData(db:Queryable,id:string,type:string,canonical:boolean):Promise<EntityPageLoad|null>{
+ const found={id,canonical};
  const e=await getEntity(db,found.id);if(!e)return null;
  const typeInfo=await getEntityType(db,type);
  const snap=(await db.query<{latest:Row;updated_at:unknown}>('select latest, updated_at from entities where id = $1::uuid',[e.id])).rows[0];
@@ -112,29 +124,33 @@ export async function loadEntityPage(db:Queryable,type:string,slug:string):Promi
  const peerKeys=templateMetrics(tpl).peer.filter(k=>metrics[k]).slice(0,12);
  if(peerKeys.length){
   const t=await metricTable(db,{type,metrics:peerKeys,period:'latest'});
-  for(const m of t.metrics)data.peers[m.key]=t.rows.filter(r=>typeof r[m.column]==='number'&&Number(r[m.column+'_rank'])<=RANK_LIMIT).map(r=>({name:String(r.name),type:String(r.type),value:Number(r[m.column])}));
+  // Peers link to their pages (by number); one without a page is named only.
+  const nums=await withPages(db,t.rows.map(r=>String(r.entity_id)));
+  for(const m of t.metrics)data.peers[m.key]=t.rows.filter(r=>typeof r[m.column]==='number'&&Number(r[m.column+'_rank'])<=RANK_LIMIT).map(r=>({name:String(r.name),value:Number(r[m.column]),
+   ...(nums.has(String(r.entity_id))?{type:String(r.type),num:nums.get(String(r.entity_id))}:{})}));
  }
  data.rankings=await entityRankings(db,data,metrics);
  // Links: related entities by their id (exact, even when names are shared), attribute values by name or alias.
  data.entityLinks=await resolveEntityIds(db,[...relations.outgoing.map(r=>r.id),...relations.incoming.flatMap(g=>g.sample.map(x=>x.id))],e.id);
  data.links=await resolveMentions(db,Object.values(e.attributes||{}).filter((v):v is string=>typeof v==='string'&&v.length>1&&v.length<=80&&!/^https?:/i.test(v)),e.id);
- return {data,canonical:found.canonical,updatedAt:iso(snap?.updated_at)};
+ const num=String((await db.query<{num:string}>('select num from entities where id = $1::uuid',[e.id])).rows[0]?.num??'');
+ return {data,canonical:found.canonical,updatedAt:iso(snap?.updated_at),num};
 }
 // {entity id → page path} for the related entities that have a page (their type has a template).
 export async function resolveEntityIds(db:Queryable,ids:string[],selfId?:string):Promise<Record<string,string>>{
  const list=[...new Set(ids.filter(x=>/^[0-9a-f-]{36}$/i.test(x)&&x!==selfId))].slice(0,800);if(!list.length)return {};
- const r=await db.query<{id:string;type:string;name:string}>(`select e.id,e.type,e.name from entities e where e.has_page and e.id = any($1::uuid[])`,[list]);
- return Object.fromEntries(r.rows.map(x=>[String(x.id),entityPath(x.type,x.name)]));
+ const r=await db.query<{id:string;type:string;name:string;num:string}>(`select e.id,e.type,e.name,e.num from entities e where e.has_page and e.id = any($1::uuid[])`,[list]);
+ return Object.fromEntries(r.rows.map(x=>[String(x.id),entityPath(x.type,x.name,x.num)]));
 }
 // {mentionKey(name) → page path} for the names that have an entity page (a type with a template), the page
 // itself excluded; an exact name wins over an alias. Resolved at render time, so links stay two-way: a new page
 // is linked from every page that mentions it the next time those pages are rendered.
 export async function resolveMentions(db:Queryable,names:string[],selfId?:string):Promise<Record<string,string>>{
  const list=[...new Set(names.map(n=>String(n||'').trim()).filter(n=>n&&n.length<=120))].slice(0,400);if(!list.length)return {};
- const r=await db.query<{k:string;type:string;name:string}>(`select distinct on (n.k) n.k, e.type, e.name from unnest($1::text[]) n(k)
+ const r=await db.query<{k:string;type:string;name:string;num:string}>(`select distinct on (n.k) n.k, e.type, e.name, e.num from unnest($1::text[]) n(k)
   join entities e on e.has_page and e.name_keys && ent_keys(n.k,'{}'::text[])
   where ($2::uuid is null or e.id <> $2::uuid) order by n.k, (ent_norm(e.name)=ent_norm(n.k)) desc, e.created_at`,[list,selfId||null]);
- return Object.fromEntries(r.rows.map(x=>[mentionKey(x.k),entityPath(x.type,x.name)]));
+ return Object.fromEntries(r.rows.map(x=>[mentionKey(x.k),entityPath(x.type,x.name,x.num)]));
 }
 // Every ranking definition whose scope contains the entity, with its rank on each criterion.
 async function entityRankings(db:Queryable,d:EntityPageData,metrics:Record<string,MetricFact>){
@@ -171,9 +187,9 @@ export async function countSitemapEntities(db:Queryable):Promise<number>{
  return Number((await db.query<{n:number}>(`select count(*)::int as n from entities e where e.has_page and e.type in (${LISTED_TYPES})`,[LISTED])).rows[0]?.n||0);
 }
 export async function sitemapEntities(db:Queryable,part:number,size:number):Promise<{path:string;updatedAt:string|null}[]>{
- const r=await db.query<{type:string;name:string;updated_at:unknown}>(`select e.type, e.name, e.updated_at from entities e where e.has_page and e.type in (${LISTED_TYPES})
+ const r=await db.query<{type:string;name:string;num:string;updated_at:unknown}>(`select e.type, e.name, e.num, e.updated_at from entities e where e.has_page and e.type in (${LISTED_TYPES})
   order by e.type, e.created_at, e.id limit $2::int offset $3::int`,[LISTED,size,part*size]);
- return r.rows.map(x=>({path:entityPath(x.type,x.name),updatedAt:iso(x.updated_at)}));
+ return r.rows.map(x=>({path:entityPath(x.type,x.name,x.num),updatedAt:iso(x.updated_at)}));
 }
 export async function sitemapRankings(db:Queryable):Promise<{path:string;updatedAt:string|null}[]>{
  return (await listRankingDefinitions(db)).filter(r=>r.status==='published').flatMap(r=>{
@@ -191,16 +207,16 @@ export async function resolveNamedTargets(db:Queryable,questions:string[]):Promi
  const rk=await db.query<{slug:string;title:string}>(`select slug, title from rankings where slug is not null and status = any($1::text[]) and (lower(title) = any($2::text[]) or slug = any($2::text[]))`,[PAGE_STATUSES,keys]);
  for(const r of rk.rows)for(const k of [questionKey(r.title),r.slug])if(keys.includes(k)&&!out[k])out[k]=rankingPath(r.slug);
  const rest=keys.filter(k=>!out[k]);if(!rest.length)return out;
- const en=await db.query<{type:string;name:string;aliases:string[]}>(`select e.type, e.name, e.aliases from entities e
+ const en=await db.query<{type:string;name:string;num:string;aliases:string[]}>(`select e.type, e.name, e.num, e.aliases from entities e
   where e.has_page and e.name_keys && ent_keys('', $1::text[]) order by e.created_at limit 5000`,[rest]);
- for(const e of en.rows)for(const n of [e.name,...(e.aliases||[])]){const k=questionKey(n);if(rest.includes(k)&&!out[k])out[k]=entityPath(e.type,e.name);}
+ for(const e of en.rows)for(const n of [e.name,...(e.aliases||[])]){const k=questionKey(n);if(rest.includes(k)&&!out[k])out[k]=entityPath(e.type,e.name,e.num);}
  return out;
 }
 
 // The entities among ids that have a page (ranking rows link only to these).
-export async function withPages(db:Queryable,ids:string[]):Promise<Set<string>>{
- const list=[...new Set(ids.filter(x=>/^[0-9a-f-]{36}$/i.test(x)))];if(!list.length)return new Set();
- return new Set((await db.query<{id:string}>('select id from entities where has_page and id = any($1::uuid[])',[list])).rows.map(r=>String(r.id)));
+export async function withPages(db:Queryable,ids:string[]):Promise<Map<string,string>>{
+ const list=[...new Set(ids.filter(x=>/^[0-9a-f-]{36}$/i.test(x)))];if(!list.length)return new Map();
+ return new Map((await db.query<{id:string;num:string}>('select id, num from entities where has_page and id = any($1::uuid[])',[list])).rows.map(r=>[String(r.id),String(r.num)]));
 }
 
 // The home page's showcase: published rankings (whole types first, then sub-scopes, newest first), each
@@ -221,7 +237,7 @@ export async function featuredRankings(db:Queryable,limit=12,topicIds?:string[])
   const pages=await withPages(db,rows.map(r=>String(r.entity_id)));
   out.push({slug:def.slug,href:rankingPath(def.slug),title:def.title,criterion:info?.label||lead,
    criteria:def.criteria.slice(0,4).map(c=>infos[c.split('@')[0]]?.label||c),more:Math.max(0,def.criteria.length-4),
-   top:rows.map(r=>({rank:Number(r.rank),name:String(r.name),href:pages.has(String(r.entity_id))?entityPath(String(r.type),String(r.name)):null,
+   top:rows.map(r=>({rank:Number(r.rank),name:String(r.name),href:pages.has(String(r.entity_id))?entityPath(String(r.type),String(r.name),pages.get(String(r.entity_id))):null,
     value:info&&col&&typeof r[col]==='number'?formatMetric(info,r[col] as number):col&&r[col]!=null?String(r[col]):''}))});
  }
  return out;
@@ -265,45 +281,71 @@ export async function loadTopicNav(db:Queryable,slug:string|null):Promise<TopicN
  return {topic,trail,children,rankings,types:tr.rows.map(x=>({type:String(x.type),label:String(x.label||x.type),plural:String(x.plural||x.label||x.type),pages:Number(x.n),href:x.rk?rankingPath(String(x.rk)):null}))};
 }
 
-// ───────────── hierarchical addresses ─────────────
-// Where every topic, ranking and entity type sits in the address tree (see app/seo/paths.ts). Read at most
-// once a minute: a topic moved in the tree moves its pages within a minute.
-let mapsCache:{at:number;maps:PathMaps}|null=null;
-export async function pathMaps(db:Queryable,{fresh=false}:{fresh?:boolean}={}):Promise<PathMaps>{
+// ───────────── the address tree ─────────────
+// Every topic and every ranking is a node of one tree of sets, addressed top level down (app/seo/paths.ts):
+// a topic's main ranking (its entity type, unfiltered) is the topic's own page; a narrower ranking is a node
+// under the set it narrows (the ranking whose filters its own include, most specific first), named by the
+// values it adds ("/geography/countries/europe-central-asia"); subsets may overlap and may be narrowed again.
+// A topic without a main ranking (a broad subject over several kinds of entity) is a directory of its children.
+// Read at most once a minute: a node moved in the tree moves its pages within a minute.
+type NodeInfo={path:string;kind:'topic'|'ranking';slug:string;name:string;parent:string|null};
+export type AddressTree=PathMaps&{nodes:Map<string,NodeInfo>;children:Map<string,string[]>;mainOf:Map<string,string>};
+let mapsCache:{at:number;maps:AddressTree}|null=null;
+const filterEntries=(f:unknown):[string,string][]=>Object.entries(f&&typeof f==='object'?f as Record<string,unknown>:{})
+ .map(([k,v])=>[k,typeof v==='string'||typeof v==='number'?String(v):Array.isArray(v)?v.map(String).sort().join(','):JSON.stringify(v)] as [string,string]).sort();
+const segmentOf=(extra:[string,string][])=>slugify(extra.map(([k,v])=>/^[{[]/.test(v)?k+' '+v.replace(/[^\p{L}\p{N}.]+/gu,' '):v).join(' ')).replace(/-and-/g,'-');
+export async function pathMaps(db:Queryable,{fresh=false}:{fresh?:boolean}={}):Promise<AddressTree>{
  if(!fresh&&mapsCache&&Date.now()-mapsCache.at<60_000)return mapsCache.maps;
- const topics=(await db.query<{id:string;parent_id:string|null;slug:string}>("select id, parent_id, slug from topics where status <> 'archived'")).rows
-  .map(t=>({id:String(t.id),parentId:t.parent_id?String(t.parent_id):null,slug:String(t.slug)}));
- const paths=topicPaths(topics);const byId=new Map(topics.map(t=>[t.id,paths.get(t.slug)!]));
- const rankings=new Map<string,string>(),types=new Map<string,string>();
- for(const r of (await db.query<{slug:string;topic_id:string|null}>('select slug, topic_id from rankings where slug is not null and topic_id is not null')).rows){const p=byId.get(String(r.topic_id));if(p)rankings.set(String(r.slug),p);}
- for(const r of (await db.query<{type:string;topic_id:string|null}>('select type, topic_id from entity_types where topic_id is not null')).rows){const p=byId.get(String(r.topic_id));if(p)types.set(String(r.type),p);}
- const maps={topics:paths,rankings,types};mapsCache={at:Date.now(),maps};return maps;
+ const topics=(await db.query<{id:string;parent_id:string|null;slug:string;name:string}>("select id, parent_id, slug, name from topics where status <> 'archived'")).rows
+  .map(t=>({id:String(t.id),parentId:t.parent_id?String(t.parent_id):null,slug:String(t.slug),name:String(t.name)}));
+ const paths=topicPaths(topics);const topicById=new Map(topics.map(t=>[t.id,t]));
+ const nodes=new Map<string,NodeInfo>(),children=new Map<string,string[]>(),rankings=new Map<string,string>(),mainOf=new Map<string,string>();
+ const add=(n:NodeInfo)=>{nodes.set(n.path,n);if(n.parent){const c=children.get(n.parent)??[];c.push(n.path);children.set(n.parent,c);}};
+ for(const t of topics){const path=paths.get(t.slug)!;const parent=t.parentId&&topicById.has(t.parentId)?paths.get(topicById.get(t.parentId)!.slug)!:null;add({path,kind:'topic',slug:t.slug,name:t.name,parent});}
+ const rows=(await db.query<{slug:string;title:string;topic_id:string|null;scope:Row}>('select slug, title, topic_id, scope from rankings where slug is not null and topic_id is not null and status = any($1::text[]) order by updated_at desc',[PAGE_STATUSES])).rows;
+ const byTopic=new Map<string,{slug:string;title:string;type:string;filters:[string,string][]}[]>();
+ for(const r of rows){const sc=obj(r.scope);const list=byTopic.get(String(r.topic_id))??[];list.push({slug:String(r.slug),title:String(r.title||r.slug),type:String(sc.type||''),filters:filterEntries(sc.filters)});byTopic.set(String(r.topic_id),list);}
+ for(const [topicId,list] of byTopic){
+  const t=topicById.get(topicId);if(!t)continue;const tp=paths.get(t.slug)!;
+  // The topic's main ranking: unfiltered, of the topic's one kind of entity (the newest when there are several).
+  const whole=list.filter(r=>!r.filters.length);const kinds=new Set(list.map(r=>r.type));
+  const main=kinds.size===1?whole[0]:undefined;
+  const placed=new Map<string,string>();// slug → path
+  if(main){placed.set(main.slug,tp);rankings.set(main.slug,tp);mainOf.set(tp,main.slug);const n=nodes.get(tp)!;nodes.set(tp,{...n,kind:'ranking',slug:main.slug});}
+  // Narrower sets after wider ones, each under the most specific set it narrows.
+  for(const r of [...list].filter(r=>r!==main).sort((a,b)=>a.filters.length-b.filters.length)){
+   const has=(f:[string,string][],x:[string,string])=>f.some(y=>y[0]===x[0]&&y[1]===x[1]);
+   const parents=list.filter(q=>q!==r&&placed.has(q.slug)&&q.type===r.type&&q.filters.length<r.filters.length&&q.filters.every(x=>has(r.filters,x)));
+   const parent=parents.sort((a,b)=>b.filters.length-a.filters.length)[0];
+   const base=parent?placed.get(parent.slug)!:tp;
+   const extra=r.filters.filter(x=>!parent||!has(parent.filters,x));
+   let seg=extra.length?segmentOf(extra):slugify(r.slug);if(!seg||seg==='page')seg=slugify(r.slug);
+   let path=base+'/'+encodeURIComponent(seg);for(let i=2;nodes.has(path);i++)path=base+'/'+encodeURIComponent(seg+'-'+i);
+   placed.set(r.slug,path);rankings.set(r.slug,path);add({path,kind:'ranking',slug:r.slug,name:r.title,parent:base});
+  }
+ }
+ const maps={topics:paths,rankings,types:new Map<string,string>(),nodes,children,mainOf};mapsCache={at:Date.now(),maps};return maps;
 }
-export type ResolvedPath={kind:'topic';slug:string}|{kind:'ranking';slug:string}|{kind:'entity';type:string;slug:string}|{kind:'redirect';to:string};
-// A hierarchical address → its page. The segments walk the topic tree from the top; the segment after the
-// last topic names a ranking of that topic or an entity of one of its types. An address that no longer
-// matches (a topic moved, an old spelling) redirects when its last segment names one page unambiguously.
+export type ResolvedPath={kind:'topic';slug:string}|{kind:'ranking';slug:string}|{kind:'redirect';to:string};
+// An address in the tree → its page. An address that no longer matches (a node moved, an older form) redirects
+// when its last segment names a topic or a ranking.
 export async function resolvePath(db:Queryable,segments:string[]):Promise<ResolvedPath|null>{
- const segs=segments.map(s=>{try{return decodeURIComponent(s);}catch{return s;}}).filter(Boolean);if(!segs.length||segs.length>12)return null;
+ const segs=segments.map(s=>{try{return decodeURIComponent(s);}catch{return s;}}).filter(Boolean);if(!segs.length||segs.length>16)return null;
  const maps=await pathMaps(db);
  const here='/'+segs.map(encodeURIComponent).join('/');
- // The longest prefix that is a topic path.
- let topic:string|null=null,used=0;
- for(let i=segs.length;i>0;i--){const p='/'+segs.slice(0,i).map(encodeURIComponent).join('/');const slug=segs[i-1];if(maps.topics.get(slug)===p){topic=slug;used=i;break;}}
- if(topic&&used===segs.length)return {kind:'topic',slug:topic};
+ const node=maps.nodes.get(here);
+ if(node)return node.kind==='ranking'?{kind:'ranking',slug:node.slug}:{kind:'topic',slug:node.slug};
  const last=segs[segs.length-1];
- if(topic&&used===segs.length-1){
-  if(maps.rankings.get(last)===maps.topics.get(topic)&&await getRankingDefinition(db,last))return {kind:'ranking',slug:last};
-  const tp=maps.topics.get(topic)!;
-  for(const [type,p] of maps.types)if(p===tp){const e=await findEntityBySlug(db,type,last);if(e)return e.canonical?{kind:'entity',type,slug:slugify(e.name)}:{kind:'redirect',to:canonicalPath('/e/'+type+'/'+encodeURIComponent(slugify(e.name)),maps)};}
- }
- // Not where the tree says: find the page its last segment names and send the reader there.
- const to=maps.topics.has(last)?maps.topics.get(last)!:maps.rankings.has(last)?maps.rankings.get(last)+'/'+encodeURIComponent(last):null;
- if(to&&to!==here)return {kind:'redirect',to};
- if(segs.length>=2){
-  const hits:string[]=[];
-  for(const type of new Set(maps.types.keys())){const e=await findEntityBySlug(db,type,last);if(e)hits.push(canonicalPath('/e/'+type+'/'+encodeURIComponent(slugify(e.name)),maps));if(hits.length>1)break;}
-  if(hits.length===1&&hits[0]!==here)return {kind:'redirect',to:hits[0]};
- }
- return null;
+ const to=maps.topics.get(last)??maps.rankings.get(last)??null;
+ return to&&to!==here?{kind:'redirect',to}:null;
+}
+// The way to a node (its ancestors, top first) and its children, for breadcrumbs and browsing.
+export function nodeTrail(maps:AddressTree,path:string):{name:string;href:string}[]{
+ const out:{name:string;href:string}[]=[];
+ for(let p=maps.nodes.get(path)?.parent;p&&out.length<16;p=maps.nodes.get(p)?.parent){const n=maps.nodes.get(p);if(!n)break;out.unshift({name:n.name,href:n.path});}
+ return out;
+}
+export function nodeChildren(maps:AddressTree,path:string):{name:string;href:string;kind:'topic'|'ranking';more:number}[]{
+ return (maps.children.get(path)??[]).map(p=>maps.nodes.get(p)!).filter(Boolean)
+  .map(n=>({name:n.name,href:n.path,kind:n.kind,more:(maps.children.get(n.path)??[]).length}));
 }

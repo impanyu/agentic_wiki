@@ -7,11 +7,10 @@ import {resolvePath} from '@/app/entity-db/pages';
 import {requestLocale} from '@/app/i18n/request';
 import {localizeLinks} from '@/app/i18n/locales';
 import {generateMetadata as rankingMeta,RankingPage} from '@/app/rankings/ranking-page';
-import {generateMetadata as entityMeta,EntityPage} from '@/app/e/entity-page';
 import {generateMetadata as topicMeta,TopicPage} from '@/app/topics/topic-page';
-// The address tree: /<topic>/<subtopic>/…/<ranking or entity>. Each address resolves through the topic tree to
-// the topic, ranking or entity page it names (app/entity-db/pages.ts resolvePath); an address that no longer
-// matches (a topic moved, another spelling) redirects to the page's current address.
+// The address tree of sets: /<topic>/<subtopic>/…/<subset>. A node whose set is one kind of entity is a ranking
+// (?rank= and ?year= pick its view); a broad topic over several kinds is a directory of its children. Entities
+// live at /e/<num>/<slug>. An address that no longer matches (a node moved) redirects to its current one.
 export const dynamic='force-dynamic';
 type Search=Record<string,string|string[]|undefined>;
 type Props={params:Promise<{path:string[]}>;searchParams:Promise<Search>};
@@ -22,8 +21,7 @@ export async function generateMetadata({params,searchParams}:Props):Promise<Meta
  const r=await resolve((await params).path.join('/')).catch(()=>null);
  if(!r||r.kind==='redirect')return {title:SITE_NAME,robots:{index:false}};
  if(r.kind==='topic')return topicMeta({params:Promise.resolve({slug:r.slug})});
- if(r.kind==='ranking')return rankingMeta({params:Promise.resolve({slug:r.slug}),searchParams});
- return entityMeta({params:Promise.resolve({type:r.type,slug:r.slug})});
+ return rankingMeta({params:Promise.resolve({slug:r.slug}),searchParams});
 }
 
 export default async function TreePage({params,searchParams}:Props){
@@ -31,6 +29,5 @@ export default async function TreePage({params,searchParams}:Props){
  if(!r)notFound();
  if(r.kind==='redirect')permanentRedirect(localizeLinks(r.to,await requestLocale())+query(await searchParams));
  if(r.kind==='topic')return TopicPage({params:Promise.resolve({slug:r.slug})});
- if(r.kind==='ranking')return RankingPage({params:Promise.resolve({slug:r.slug}),searchParams});
- return EntityPage({params:Promise.resolve({type:r.type,slug:r.slug})});
+ return RankingPage({params:Promise.resolve({slug:r.slug}),searchParams});
 }

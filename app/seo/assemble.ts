@@ -7,7 +7,9 @@ import {makeFormatter,type Criterion,type Format} from '../workflows/viz/ranking
 import {slugify} from './urls';
 
 // ───────────── addresses ─────────────
-export const entityPath=(type:string,name:string)=>'/e/'+encodeURIComponent(type)+'/'+encodeURIComponent(slugify(name));
+// An entity's page: /e/<num>/<slug> (the number is permanent; the slug is for reading and follows the name).
+// Without a number, the older /e/<type>/<slug> form, which redirects to it.
+export const entityPath=(type:string,name:string,num?:number|string|null)=>num!=null&&num!==''?'/e/'+num+'/'+encodeURIComponent(slugify(name)):'/e/'+encodeURIComponent(type)+'/'+encodeURIComponent(slugify(name));
 export const rankingPath=(slug:string)=>'/rankings/'+encodeURIComponent(slug);
 
 // ───────────── values ─────────────
@@ -123,7 +125,7 @@ export type EntityPageData={
  metrics:Record<string,MetricFact>;
  relations:EntityRelations;
  // Latest values of every peer (the top 1,000 of the type) for the metrics position/peer_compare/radar name.
- peers:Record<string,{name:string;type?:string;value:number}[]>;
+ peers:Record<string,{name:string;type?:string;num?:string;value:number}[]>;
  rankings:EntityRankingRef[];
  // Pages that exist for names this page mentions (attribute values, related entities): mentionKey(name) → path.
  // Resolved when the page is assembled, so links appear on old pages as soon as the new page exists.
@@ -221,7 +223,7 @@ export function assembleEntityPage(d:EntityPageData,locale='en'):EntityPageModel
  // Sections
  const sections:PageSection[]=[];
  const peerValues=(k:string)=>{
-  const list=(d.peers[k]||[]).map(p=>({name:p.name,value:p.value,...(p.type?{href:entityPath(p.type,p.name)}:{})}));
+  const list=(d.peers[k]||[]).map(p=>({name:p.name,value:p.value,...(p.type?{href:entityPath(p.type,p.name,p.num)}:{})}));
   const f=d.metrics[k];const inList=list.some(p=>p.name===e.name);
   if(f&&!inList)list.push({name:e.name,value:f.value});
   return {list,outside:!!f&&!inList};

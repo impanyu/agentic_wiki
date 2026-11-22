@@ -14,7 +14,8 @@ import {propsRankingBlock,rankCriterion,blockPeriods,rankedView,rankingChartSvgs
 import {jsonLd} from '@/app/seo/structured-data';
 import {questionKey} from '@/app/seo/urls';
 import {DbShell,RankingBody} from './view';
-import {pathMaps} from '@/app/entity-db/pages';
+import {pathMaps,nodeTrail,nodeChildren} from '@/app/entity-db/pages';
+import {Breadcrumbs} from '@/app/explore';
 import {canonicalPath,canonicalLinks} from '@/app/seo/paths';
 // A ranking page, at its place in the address tree (/<topic>/…/<slug>; /rankings/<slug> redirects there, and
 // serves rankings without a topic). A ranking definition rendered from the entity database by templates (no agent at page
@@ -34,7 +35,7 @@ const load=cache(async(slug:string)=>{
  // Members link to their pages; one without a page (too little data yet) is plain text.
  const pages=await withPages(db,model.rows.map(r=>String(r.entity_id||'')));
  const askTargets:Record<string,string>={};
- for(const r of model.rows){const n=String(r.name||''),t=String(r.type||'');if(n&&t&&pages.has(String(r.entity_id||''))&&!askTargets[questionKey(n)])askTargets[questionKey(n)]=entityPath(t,n);}
+ for(const r of model.rows){const n=String(r.name||''),t=String(r.type||''),id=String(r.entity_id||'');if(n&&t&&pages.has(id)&&!askTargets[questionKey(n)])askTargets[questionKey(n)]=entityPath(t,n,pages.get(id));}
  return {input,model,props,block,state:{rows:model.rows},askTargets};
 });
 async function view(props:Props){
@@ -80,7 +81,8 @@ export async function RankingPage(props:Props){
  return <>
   <script type="application/ld+json" dangerouslySetInnerHTML={{__html:jsonLd(ld)}}/>
   <DbShell locale={locale} dictionary={dict} askTargets={L(askTargets)} className="answer template-ranking-v1">
-   <RankingBody kicker={t('Ranking')+(input.def.status==='draft'?' · '+t('Draft'):'')} title={name} baseTitle={model.title} titles={titles} basePath={localizeLinks(base,locale)} defaultRank={block.defaultKey} rank={criterion?.key} period={period} charts={charts} props={L(rprops)} lead={model.lead}/>
+   {base!==internal&&<Breadcrumbs trail={L(nodeTrail(maps,base))} current={maps.nodes.get(base)?.name??model.title}/>}
+   <RankingBody kicker={t('Ranking')+(input.def.status==='draft'?' · '+t('Draft'):'')} subsets={L(nodeChildren(maps,base))} title={name} baseTitle={model.title} titles={titles} basePath={localizeLinks(base,locale)} defaultRank={block.defaultKey} rank={criterion?.key} period={period} charts={charts} props={L(rprops)} lead={model.lead}/>
    <p className="data-twin-files"><a href={internal+'/data.csv'} download>{t('Download the data (CSV)')}</a></p>
    {model.about.length>0&&<section aria-labelledby="about-ranking"><h2 id="about-ranking">{t('About this ranking')}</h2><ul>{model.about.map((x,i)=><li key={i}>{x}</li>)}</ul></section>}
    {model.related.length>0&&<section aria-labelledby="related-rankings"><h2 id="related-rankings">{t('Related rankings')}</h2><ul>{model.related.map(r=><li key={r.href}><a href={L(r.href)}>{r.title}</a></li>)}</ul></section>}

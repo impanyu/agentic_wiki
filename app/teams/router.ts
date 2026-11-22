@@ -5,6 +5,7 @@ import {storedEmbedDim} from '@/app/entity-db/schema';
 import {embedder as llmEmbedder,respond} from '@/app/llm';
 import {output} from '@/app/api/ask/ai';
 import {slugify} from '@/app/seo/urls';
+import {entityPath} from '@/app/seo/assemble';
 import {topicEditorId} from './tools';
 // The router's database step (public edition): find candidates by meaning — published rankings by vector
 // similarity to their title, scope and criteria; entities by hybrid search (vector + words + names) among types
@@ -12,7 +13,7 @@ import {topicEditorId} from './tools';
 // the criterion and year it asks about) or none. Database pages come before the older agent-written pages.
 // When nothing serves the query the reader is told honestly and the query goes to the closest topic's editor.
 
-type Candidate={id:string;kind:'ranking';slug:string;title:string;criteria:{key:string;label:string}[];defaultKey:string;closestView:string}|{id:string;kind:'entity';type:string;name:string;description:string};
+type Candidate={id:string;kind:'ranking';slug:string;title:string;criteria:{key:string;label:string}[];defaultKey:string;closestView:string}|{id:string;kind:'entity';entityId:string;type:string;name:string;description:string};
 const ensureEmbedder=()=>{if(!getEmbedder())setEmbedder(texts=>llmEmbedder()(texts));return getEmbedder();};
 
 async function candidates(query:string):Promise<Candidate[]>{
@@ -36,7 +37,7 @@ async function candidates(query:string):Promise<Candidate[]>{
  if(types.size){
   const withPage=new Set((await db.query<{id:string}>('select id from entities where has_page and id = any($1::uuid[])',[(await hybridSearch(db,{query,limit:12})).results.map(e=>e.id)])).rows.map(r=>String(r.id)));
   const hits=(await hybridSearch(db,{query,limit:12})).results.filter(e=>types.has(e.type)&&withPage.has(e.id)).slice(0,6);
-  hits.forEach((e,i)=>out.push({id:'e'+(i+1),kind:'entity',type:e.type,name:e.name,description:(e.description||'').slice(0,160)}));
+  hits.forEach((e,i)=>out.push({id:'e'+(i+1),kind:'entity',entityId:e.id,type:e.type,name:e.name,description:(e.description||'').slice(0,160)}));
  }
  return out;
 }
@@ -48,10 +49,10 @@ async function exactMatch(q:string):Promise<string|null>{
  if(r.rows[0])return '/rankings/'+r.rows[0].slug;
  // "France", "法国", "France (country)": a name or alias among types whose pages are published.
  const m=/^(.*?)\s*\(([^)]+)\)\s*$/.exec(q);const name=(m?m[1]:q).trim(),hint=m?m[2].trim().toLowerCase().replace(/\s+/g,'_'):null;
- const e=await db.query<{type:string;name:string}>(`select e.type,e.name from entities e join entity_types t on t.type=e.type and t.status='published' and t.template <> '{}'::jsonb
+ const e=await db.query<{type:string;name:string;num:string}>(`select e.type,e.name,e.num from entities e join entity_types t on t.type=e.type and t.status='published' and t.template <> '{}'::jsonb
   where e.has_page and e.name_keys && ent_keys($1::text,'{}'::text[]) and ($2::text is null or e.type=$2::text) order by (ent_norm(e.name)=ent_norm($1::text)) desc, e.created_at limit 2`,[name,hint]);
  // Two different entities share the name: let the router judge (e.g. Georgia the country and the state).
- if(e.rows.length===1||(e.rows.length>1&&hint))return '/e/'+encodeURIComponent(e.rows[0].type)+'/'+encodeURIComponent(slugify(e.rows[0].name));
+ if(e.rows.length===1||(e.rows.length>1&&hint))return entityPath(e.rows[0].type,e.rows[0].name,e.rows[0].num);
  return null;
 }
 // Routed queries are remembered for a few hours: the same question opens its page at once the next time.
@@ -78,7 +79,8 @@ async function judge(q:string,signal?:AbortSignal):Promise<{href:string;reason:s
  const c=list.find(x=>x.id===d.choice);
  console.log('db route',JSON.stringify({query:q.slice(0,200),choice:c?(c.kind==='ranking'?c.slug:c.type+'/'+c.name):null,criterion:d.criterion,year:d.year,confidence:d.confidence,reason:d.reason.slice(0,200)}));
  if(!c||d.confidence!=='high')return null;
- if(c.kind==='entity')return {href:'/e/'+encodeURIComponent(c.type)+'/'+encodeURIComponent(slugify(c.name)),reason:d.reason};
+ if(c.kind==='entity'){const num=(await (await entityDb()).query<{num:string}>('select num from entities where id = $1::uuid',[c.id.startsWith('e')?c.entityId:c.id])).rows[0]?.num;
+  return {href:entityPath(c.type,c.name,num),reason:d.reason};}
  const params=new URLSearchParams();
  if(d.criterion&&d.criterion!==c.defaultKey&&c.criteria.some(k=>k.key===d.criterion))params.set('rank',d.criterion);
  if(/^\d{4}$/.test(d.year))params.set('year',d.year);
