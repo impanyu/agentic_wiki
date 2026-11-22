@@ -452,11 +452,15 @@ export async function searchPages(db:Queryable,query:string,{embed}:{embed?:((t:
     if(!nodes.some(n=>n.href===href||n.href===path))nodes.push({kind:'ranking',title:String(r.title),subtitle:'Ranking',href:path,score:4+Number(r.d)});}
   }}catch(e){console.warn('search: semantic step skipped',(e as Error).message);}}
  const entities:SearchHit[]=await entityMatches(db,query,20).catch(()=>[]);
+ // Meaning adds entities only where words or names also match — or, when nothing matches by name, the closest
+ // few (a near vector alone says "same kind of thing", not "what was asked for").
  if(embed&&entities.length<20){
-  const hits=(await hybridSearch(db,{query,limit:20}).catch(()=>({results:[]}))).results;
+  const hits=(await hybridSearch(db,{query,limit:20}).catch(()=>({results:[]}))).results
+   .filter(h=>entities.length?h.matchedBy.some(b=>b!=='vector'):true).slice(0,entities.length?20:5);
   const ids=await withPages(db,hits.map(h=>h.id));
-  for(const h of hits){const num=ids.get(h.id);if(!num)continue;const href=entityPath(h.type,h.name,num);
-   if(!entities.some(x=>x.href===href))entities.push({kind:'entity',title:h.name,subtitle:h.type.replace(/_/g,' '),href,score:5});}
+  const types=new Map((await db.query<{type:string;label:string}>('select type, label from entity_types')).rows.map(r=>[String(r.type),String(r.label||r.type)]));
+  for(const h of hits){const num=ids.get(h.id);if(!num)continue;const href=entityPath(h.type,h.name,num);const label=types.get(h.type)??h.type.replace(/_/g,' ');
+   if(!entities.some(x=>x.href===href))entities.push({kind:'entity',title:h.name,subtitle:label.charAt(0).toUpperCase()+label.slice(1),href,score:5});}
  }
  return {nodes:nodes.slice(0,24),entities:entities.slice(0,24)};
 }

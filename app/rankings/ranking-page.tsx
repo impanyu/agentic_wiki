@@ -2,6 +2,7 @@ import {serverUi,requestLocale} from '@/app/i18n/request';
 import {localizeLinks} from '@/app/i18n/locales';
 import {localeMeta} from '@/app/i18n/meta';
 import {cookies} from 'next/headers';
+import {getChatGPTUser} from '@/app/chatgpt-auth';
 import {cache} from 'react';
 import type {Metadata} from 'next';
 import {notFound,permanentRedirect} from 'next/navigation';
@@ -73,6 +74,7 @@ export async function RankingPage(props:Props){
  if((props.legacy&&base!==internal)||slug!==input.def.slug||(rank!==undefined&&!criterion)||(year!==undefined&&!period))permanentRedirect(localizeLinks(path,locale));
  const origin=siteUrl();
  const dark=(await cookies()).get('rw-theme')?.value==='dark';
+ const account=await getChatGPTUser().then(u=>u?{name:u.displayName}:null).catch(()=>null);
  const popular=base!==internal?await popularRankings(await entityDb(),maps,base).catch(()=>[]):[];
  const charts=await rankingChartSvgs([block],{[block.code]:state},criterion?.key,locale,period,dark);
  const {criterion:c,ranked}=rankedView(block,state,criterion?.key,period);
@@ -82,11 +84,13 @@ export async function RankingPage(props:Props){
   itemListElement:ranked.slice(0,100).map(e=>{const href=L(askTargets[questionKey(e.name)]);return {'@type':'ListItem',position:e.rank,name:e.name,...(href?{url:origin+href}:{})};})};
  return <>
   <script type="application/ld+json" dangerouslySetInnerHTML={{__html:jsonLd(ld)}}/>
-  <DbShell locale={locale} dictionary={dict} askTargets={L(askTargets)} className="answer template-ranking-v1">
+  <DbShell locale={locale} dictionary={dict} askTargets={L(askTargets)} className="answer template-ranking-v1" account={account} references={<>
+{model.about.length>0&&<section aria-labelledby="about-ranking"><h2 id="about-ranking">{t('About this ranking')}</h2><ul>{model.about.map((x,i)=><li key={i}>{linkParts(x).map((p,j)=>p.href?<a key={j} href={p.href} target="_blank" rel="noopener noreferrer" className="ext">{p.text}</a>:<span key={j}>{p.text}</span>)}</li>)}</ul></section>}
+  </>}>
    {base!==internal&&<Breadcrumbs trail={L(nodeTrail(maps,base))} current={maps.nodes.get(base)?.name??model.title}/>}
    <RankingBody slug={input.def.slug} kicker={t('Ranking')+(input.def.status==='draft'?' · '+t('Draft'):'')} subsets={L(nodeChildren(maps,base))} title={name} baseTitle={model.title} titles={titles} basePath={localizeLinks(base,locale)} defaultRank={block.defaultKey} rank={criterion?.key} period={period} charts={charts} props={L(rprops)} lead={model.lead}/>
    <p className="data-twin-files"><a href={internal+'/data.csv'} download>{t('Download the data (CSV)')}</a></p>
-   {model.about.length>0&&<section aria-labelledby="about-ranking"><h2 id="about-ranking">{t('About this ranking')}</h2><ul>{model.about.map((x,i)=><li key={i}>{linkParts(x).map((p,j)=>p.href?<a key={j} href={p.href} target="_blank" rel="noopener noreferrer" className="ext">{p.text}</a>:<span key={j}>{p.text}</span>)}</li>)}</ul></section>}
+
    <RankingGrid rankings={L(popular)} title={t('Popular rankings')}/>
    {model.related.length>0&&<section aria-labelledby="related-rankings"><h2 id="related-rankings">{t('Related rankings')}</h2><ul>{model.related.map(r=><li key={r.href}><a href={L(r.href)}>{r.title}</a></li>)}</ul></section>}
   </DbShell>

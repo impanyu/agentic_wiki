@@ -29,11 +29,13 @@ public edition (`PUBLIC_EDITION`): every page is public and read-only, built fro
 
 Every part serves this. Editors plan pages ahead of demand (every entity, every useful ranking and
 sub-ranking, every criterion view) and from readers' unserved queries, so the page exists before it
-is asked for. The router answers in milliseconds whenever it can — an exact name, alias or ranking
-title, or a query routed before (cached) — and calls a model only for open questions, whose answer is
-then cached too. Search vectors are prepared ahead (on save, and by the heartbeat), never at query
-time. Pages link readers onward (an entity to its rankings and related entities, a ranking to every
-member and its sibling rankings). Next: search suggestions as the reader types.
+is asked for. Readers find pages by **search**, as on any encyclopedia, with no model in the loop:
+suggestions while they type (names of topics, rankings, criterion views and entities — the address tree
+in memory and the entity name index), and on Enter a results page that adds meaning (the query's
+embedding against vectors prepared ahead for every ranking view and entity). A search that finds
+nothing is answered honestly and passed to the editors. Pages link readers onward (an entity to its
+rankings and related entities, a ranking to every member and its sibling rankings); every link is a
+plain address the web server renders from the database.
 
 ## 0. Scale: a page for every entity, a ranking for every entity type
 
@@ -94,18 +96,18 @@ The goal is one page per entity and one ranking page per entity type (plus sub-s
 
 ## 1. Agents
 
-### Router — the manager
-Works as today for readers: interpret the query, match an existing page (profile/embedding
-match), otherwise hand the query to the most relevant editor, which writes the page while the
-reader watches. In addition the router owns the **topic tree**:
+### Manager (formerly the router)
+The manager no longer handles readers' queries one by one (search does, without a model). It keeps the
+**topic tree** and the teams growing with demand (app/teams/manager.ts):
 
-- **Pick an editor**: embed the query, nearest topics by vector similarity over topic
-  descriptions, then a cheap LLM decision among the top candidates (or "none fits").
-- **Create editors**: when no topic fits (score below threshold) the router creates a child
-  topic under the closest parent with a scope description, and its editor starts with a
-  bootstrap roadmap. Editors that grow too large (entities, backlog, query volume) are split
-  by the router into sub-topics; their entities and roadmap items move with the scope.
-- **Forward every query** to the chosen editor's inbox (with whether a page was served).
+- **Once a day** it reads the searches that found little (`search_log`), groups those that mean the same,
+  and decides per group: *assign* to an existing topic's editor (its inbox), open a *new topic* (a subtopic
+  where a branch needs splitting, or a new subject) with a brief for its team, or *ignore* (not answerable
+  from public data, vague, spam, private persons).
+- New teams wait in the **team queue** (`team_queue`); the scheduler starts them on the heartbeat while
+  fewer than `TEAM_CONCURRENCY` run and this month's model spending is under `TEAM_MONTHLY_BUDGET_USD`.
+- It places each newly published topic in the tree, and arbitrates when a team's reviewer and builders
+  disagree (rulings bind the team).
 
 ### Editors — topic owners (planners and template designers, never page writers)
 Generating a page involves no agent. Pages, their text and their references are assembled by

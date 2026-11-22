@@ -100,6 +100,10 @@ async function ask(role:Role,agent:Agent,topicId:string,instructions:string,task
  }catch(e){await finishTeamRun(db,runId,{status:'failed',summary:(e as Error).message});log({event:'agent_failed',role,error:(e as Error).message});throw e;}
 }
 
+// One manager decision outside a team pass (the daily review of readers' searches, app/teams/manager.ts).
+export function askManager(agent:Agent,topicId:string,instructions:string,task:unknown,schema:Record<string,unknown>,log:Log){
+ return ask('manager',agent,topicId,instructions,task,schema,log,{rounds:12,calls:20});
+}
 // The manager places a topic in the navigation tree (once: a topic that already has a parent stays where it is).
 export async function placeTopic(slug:string,log:Log=()=>{}):Promise<{placed:boolean;path?:string[];summary?:string}>{
  const db=await entityDb();const topic=await getTopic(db,slug);if(!topic)throw Error('No topic '+slug+'.');

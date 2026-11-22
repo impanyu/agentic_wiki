@@ -14,6 +14,7 @@ import {jsonLd} from '@/app/seo/structured-data';
 import {questionKey,slugify} from '@/app/seo/urls';
 import {linkParts} from '@/app/workflows/viz/ranking-data';
 import {outboundLinks} from '@/app/seo/outbound';
+import {getChatGPTUser} from '@/app/chatgpt-auth';
 import {ArrowUpRight} from 'lucide-react';
 import {DbShell,EntityBody,LinkedText} from '@/app/rankings/view';
 // An entity's page, at its place in the address tree (/<topic>/…/<slug>; /e/<type>/<slug> redirects there and
@@ -53,6 +54,7 @@ export async function EntityPage(props:Props){
  const origin=siteUrl();
  const wikidata=e.ids.wikidata;
  const links=outboundLinks(e);
+ const account=await getChatGPTUser().then(u=>u?{name:u.displayName}:null).catch(()=>null);
  const ld={'@context':'https://schema.org','@type':SCHEMA_TYPES[e.type]||'Thing',name:e.name,url:origin+path,description:model.description,
   ...(e.aliases.length?{alternateName:e.aliases.slice(0,10)}:{}),...(links.length?{sameAs:links.map(l=>l.href)}:{}),
   ...(Object.keys(e.ids).length?{identifier:Object.entries(e.ids).map(([k,v])=>({'@type':'PropertyValue',propertyID:k,value:v}))}:{}),
@@ -62,15 +64,17 @@ export async function EntityPage(props:Props){
  for(const list of Object.values(d.peers))for(const p of list)if(p.type)askTargets[questionKey(p.name)]=entityPath(p.type,p.name,p.num);
  return <>
   <script type="application/ld+json" dangerouslySetInnerHTML={{__html:jsonLd(ld)}}/>
-  <DbShell locale={locale} dictionary={dict} askTargets={L(askTargets)} className="answer template-wiki-v1 template-entity-v1">
+  <DbShell locale={locale} dictionary={dict} askTargets={L(askTargets)} className="answer template-wiki-v1 template-entity-v1" account={account} references={<>
+{model.references.length>0&&<section className="sources" aria-labelledby="references"><h2 id="references">{t('References')}</h2><ol>
+    {model.references.map((r,i)=><li key={i} id={'source-'+(i+1)}><div className="source-entry"><span className="source-title">{linkParts(r.source).map((p,j)=>p.href?<a key={j} href={p.href} target="_blank" rel="noopener noreferrer">{p.text}</a>:<span key={j}>{p.text}</span>)}</span>{r.what&&<span className="wf-muted"> — {r.what}</span>}</div></li>)}
+   </ol></section>}
+   {model.asOf&&<p className="wf-muted data-as-of">{t('Data as of {date}.',{date:fmtDate(model.asOf,locale)})}</p>}
+  </>}>
    <header className="wiki-heading db-hero"><span className="db-kicker">{d.type.label.charAt(0).toUpperCase()+d.type.label.slice(1)}</span><h1>{model.title}</h1>{model.lead.length>0&&<p className="lead">{L(model.leadParts).map((s,i)=><span key={i}>{i?' ':''}<LinkedText parts={s}/></span>)}</p>}
     {links.length>0&&<div className="ext-links">{links.map(l=><a key={l.href} className={'ext-link'+(l.primary?' primary':'')} href={l.href} target="_blank" rel="noopener noreferrer"><span>{t(l.label)}</span><small>{l.host}</small><ArrowUpRight size={15} aria-hidden="true"/></a>)}</div>}
    </header>
    <EntityBody cards={L(model.cards)} sections={L(model.sections)}/>
-   {model.references.length>0&&<section className="sources" aria-labelledby="references"><h2 id="references">{t('References')}</h2><ol>
-    {model.references.map((r,i)=><li key={i} id={'source-'+(i+1)}><div className="source-entry"><span className="source-title">{linkParts(r.source).map((p,j)=>p.href?<a key={j} href={p.href} target="_blank" rel="noopener noreferrer">{p.text}</a>:<span key={j}>{p.text}</span>)}</span>{r.what&&<span className="wf-muted"> — {r.what}</span>}</div></li>)}
-   </ol></section>}
-   {model.asOf&&<p className="wf-muted data-as-of">{t('Data as of {date}.',{date:fmtDate(model.asOf,locale)})}</p>}
+
   </DbShell>
  </>;
 }

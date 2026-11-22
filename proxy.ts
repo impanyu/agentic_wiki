@@ -22,7 +22,7 @@ export function proxy(request:NextRequest){
   return NextResponse.next();
  }
  // Language editions: /<code>/… is the page at /… rendered in that language; /en/… is the bare address.
- const m=/^\/([a-z]{2})(\/.*)?$/.exec(path);
+ const m=/^\/([a-z]{2,3}(?:-[a-z]{2,4})?)(\/.*)?$/.exec(path);
  if(m&&isLocale(m[1])){
   if(m[1]===DEFAULT_LOCALE){const url=request.nextUrl.clone();url.pathname=m[2]||'/';return NextResponse.redirect(url,308);}
   // next.config.ts rewrites the path internally; here the request only learns its language.

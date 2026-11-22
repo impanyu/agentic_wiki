@@ -51,3 +51,14 @@ export async function fillVectors(){
   await embedPending(db,1000);
  }catch(err){console.warn('vectors: fill failed',(err as Error).message);}finally{embedding=false;}
 }
+
+// The manager's daily review and the team queue, on the same heartbeat (one review at a time).
+let reviewing=false;
+export async function manageTeams(){
+ const {entityDb}=await import('@/app/entity-db/client');const {managerDue,runManagerDaily,runTeamQueue}=await import('./manager');
+ const {llmSpend}=await import('@/app/llm');
+ const db=await entityDb();
+ if(!reviewing&&await managerDue(db)){reviewing=true;void runManagerDaily(e=>console.log('[manager]',JSON.stringify(e))).catch(e=>console.error('[manager] failed',(e as Error).message)).finally(()=>{reviewing=false;});}
+ const started=await runTeamQueue(async()=>(await llmSpend()).spentUsd,(slug,e)=>console.log('[team:'+slug+']',JSON.stringify(e)));
+ if(started.length)console.log('[queue] started',started.join(', '));
+}

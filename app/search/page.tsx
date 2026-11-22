@@ -1,3 +1,4 @@
+import {getChatGPTUser} from '@/app/chatgpt-auth';
 import type {Metadata} from 'next';
 import {SITE_NAME} from '@/app/edition';
 import {entityDb} from '@/app/entity-db/client';
@@ -8,7 +9,7 @@ import {serverUi} from '@/app/i18n/request';
 import {localizeLinks} from '@/app/i18n/locales';
 import {DbShell} from '@/app/rankings/view';
 import {SearchResults} from '@/app/search-box';
-import {recordUnserved} from '@/app/teams/router';
+import {recordUnserved} from '@/app/teams/unserved';
 // /search?q=…: the pages that match a query — by name first, then by meaning. When nothing matches, the reader
 // is told so honestly and the query is passed to the editors (and to the manager, who reads the search log).
 export const dynamic='force-dynamic';
@@ -28,7 +29,7 @@ export default async function SearchPage({searchParams}:Props){
   await logSearch(db,q,ui.locale,nodes.length+entities.length).catch(()=>{});
   if(!nodes.length&&!entities.length)note=await recordUnserved(q,ui.locale).catch(()=>'');
  }
- return <DbShell locale={ui.locale} dictionary={ui.dict} askTargets={{}} className="answer template-search-v1" query={q}>
+ return <DbShell locale={ui.locale} dictionary={ui.dict} askTargets={{}} className="answer template-search-v1" query={q} account={await getChatGPTUser().then(u=>u?{name:u.displayName}:null).catch(()=>null)}>
   <SearchResults query={q} nodes={localizeLinks(nodes,ui.locale)} entities={localizeLinks(entities,ui.locale)} unserved={!!note}/>
  </DbShell>;
 }

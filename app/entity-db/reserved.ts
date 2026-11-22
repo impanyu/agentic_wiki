@@ -1,4 +1,4 @@
 // First segments of addresses that are routes of their own, and the language codes: no topic may take one as
 // its slug (a topic's slug is a segment of its pages' addresses, see app/seo/paths.ts).
 export const RESERVED_SEGMENTS=new Set(['api','e','p','rankings','topics','data','sitemaps','sitemap.xml','robots.txt','geo','favicon.ico','favicon.svg','_next','static','public','search','about',
- 'en','zh','es','fr','de','ja','ko','ru','pt','ar','hi','it','id','tr','vi','pl']);
+ 'en','zh','zh-hant','yue','es','hi','ar','bn','pt','ru','ja','pa','de','jv','ko','fr','te','mr','tr','ta','vi','ur','it','th','gu','fa','pl','uk','kn','ml','or','my','ha','yo','ig','am','om','sw','id','ms','fil','ceb','nl','ro','el','cs','hu','sv','he','az','kk','uz','ne','si','km','zu','xh','af','so','ps','sd','as','mai','mg','rw','ht','sn','ny','ku','sr','bg','hr','sk','da','fi','no','ca','lt','ka','hy','lo','tg','ky','mn']);

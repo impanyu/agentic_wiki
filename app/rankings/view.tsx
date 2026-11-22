@@ -1,5 +1,7 @@
 'use client';
-import {useEffect,useMemo,useState,type ReactNode} from 'react';
+import {useContext,useEffect,useMemo,useState,type ReactNode} from 'react';
+import {usePathname} from 'next/navigation';
+import {questionKey} from '@/app/seo/urls';
 import {Layers,ArrowRight,Trophy} from 'lucide-react';
 import {UiContext,useStaticUi,useUi} from '@/app/i18n/client';
 import {localePath,dirOf} from '@/app/i18n/locales';
@@ -20,7 +22,9 @@ import type {PageSection} from '@/app/seo/assemble';
 // assembled. Everything is server-rendered; charts hydrate in the browser.
 
 // The reader shell: header with search, article. askTargets: names → their pages (links in rankings, peers, relations).
-export function DbShell({locale='en',dictionary={},askTargets,className,query='',children}:{locale?:string;dictionary?:Record<string,string>;askTargets:Record<string,string>;className:string;query?:string;children:ReactNode}){
+export function DbShell({locale='en',dictionary={},askTargets,className,query='',account=null,references,children}:{locale?:string;dictionary?:Record<string,string>;askTargets:Record<string,string>;className:string;query?:string;
+ account?:{name:string}|null;references?:ReactNode;children:ReactNode}){
+ const here=usePathname()||'/';
  const ui=useStaticUi(locale,dictionary),{t}=ui;
  // Remember this page in the reader's history (this device only).
  useEffect(()=>{if(/template-search/.test(className))return;const kind=/template-ranking/.test(className)?'ranking':/template-entity/.test(className)?'entity':'topic';
@@ -31,10 +35,11 @@ export function DbShell({locale='en',dictionary={},askTargets,className,query=''
    <SearchBox initial={query}/>
    <LanguageSwitcher/>
    <ThemeToggle label={t('Switch theme')}/>
+   <a className="account-link" href={account?'/auth/signout':'/auth/google?return_to='+encodeURIComponent(here)} title={account?t('Signed in as ')+account.name:t('Sign in with Google')}>{account?t('Sign out'):t('Sign in')}</a>
   </header>
   <main className="browser-content">
    {/* Page content is written in English for now; the interface around it is in the reader's language. */}
-   <article className={className} lang="en" dir={dirOf(locale)}>{children}<RecentlyViewed/></article>
+   <article className={className} lang="en" dir={dirOf(locale)}>{children}<RecentlyViewed/>{references}</article>
   </main>
  </div></AskTargets.Provider></UiContext.Provider>;
 }
@@ -48,7 +53,7 @@ const noop=()=>{};
 // The ranking with its title: a criterion or period switch retitles the page and its address (as /p does).
 export function RankingBody({slug,kicker,subsets=[],title:initialTitle,baseTitle,titles,basePath,defaultRank,rank,period:initialPeriod,charts,props,lead}:{slug?:string;kicker?:string;subsets?:NodeCard[];title:string;baseTitle:string;titles:Record<string,string>;basePath:string;defaultRank:string;
  rank?:string;period?:string;charts:Record<string,string>;props:Record<string,unknown>;lead:string|null}){
- const ctx=useVizCtx();const {t}=useUi();
+ const ctx=useVizCtx();const {t}=useUi();const targets=useContext(AskTargets);
  const [title,setTitle]=useState(initialTitle);
  // One view per ranking per session, from the browser (what makes a ranking "popular").
  useEffect(()=>{if(!slug)return;const k='rw-viewed:'+slug;try{if(sessionStorage.getItem(k))return;sessionStorage.setItem(k,'1');}catch{}
@@ -61,7 +66,7 @@ export function RankingBody({slug,kicker,subsets=[],title:initialTitle,baseTitle
  return <RankingView.Provider value={view}>
   <header className="wiki-heading db-hero">{kicker&&<span className="db-kicker"><Trophy size={13} aria-hidden="true"/>{kicker}</span>}<h1>{title}</h1>{lead&&<p className="lead">{lead}</p>}</header>
   {subsets.length>0&&<><h2 className="rw-nodes-title">{t('Narrow down')}</h2><NodeGrid nodes={subsets} compact/></>}
-  <Ranking props={props} setValue={noop} fire={noop} ctx={ctx}/>
+  <Ranking props={props} setValue={noop} fire={(name:string,payload:unknown)=>{if(name!=='select')return;const row=payload as {name?:unknown}|null;const href=row&&typeof row.name==='string'?targets?.[questionKey(row.name)]:null;if(href)window.location.assign(href);}} ctx={ctx}/>
  </RankingView.Provider>;
 }
 

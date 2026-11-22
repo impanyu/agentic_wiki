@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {readFileSync,writeFileSync,mkdirSync} from 'node:fs';
 import ts from 'typescript';
 const en=JSON.parse(readFileSync('app/i18n/public/en.json','utf8'));
-const LANGS=['zh','es','fr','de','ja','ko','ru','pt','ar','hi','it','id','tr','vi','pl'];
+const LANGS=[...readFileSync('app/i18n/locales.ts','utf8').matchAll(/\{code:'([a-z-]+)'/g)].map(m=>m[1]).filter(c=>c!=='en');
 const tokens=s=>(s.match(/\{\w+\}/g)||[]).sort().join('|');
 
 test('every site language translates every public interface string, keeping its placeholders',()=>{
@@ -35,5 +35,7 @@ test('language addresses: /<code>/ prefixes, links inside page data move with th
  assert.equal(localizeLinks('/geography/countries/germany','fr'),'/fr/geography/countries/germany');
  assert.equal(localizeLinks('/api/ask','fr'),'/api/ask');assert.equal(localizeLinks('/geo/world.json','fr'),'/geo/world.json');
  assert.equal(localizeLinks(data,'en'),data);
- assert.equal(dirOf('ar'),'rtl');assert.equal(dirOf('fr'),'ltr');
+ assert.equal(dirOf('ar'),'rtl');assert.equal(dirOf('fr'),'ltr');assert.equal(dirOf('ur'),'rtl');
+ assert.deepEqual(splitLocale('/zh-hant/geography'),{locale:'zh-hant',path:'/geography'});assert.equal(localePath('/geography','yue'),'/yue/geography');
+ const reserved=readFileSync('app/entity-db/reserved.ts','utf8');for(const c of LANGS)assert.ok(reserved.includes("'"+c+"'"),'reserved: '+c);
 });

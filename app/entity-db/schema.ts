@@ -172,6 +172,15 @@ export const MIGRATIONS:Migration[]=[
     results integer not null default 0, handled boolean not null default false, at timestamptz not null default now())`,
   'create index if not exists search_log_open on search_log(at) where not handled',
  ]},
+ // Topic teams waiting to run (the scheduler starts them within the concurrency and budget limits), and small
+ // platform state (when the manager last ran).
+ {version:11,name:'team queue',statements:()=>[
+  `create table if not exists team_queue(slug text primary key, name text not null, brief text not null, parent_slug text, priority integer not null default 0,
+    status text not null default 'queued' check (status in ('queued','running','done','failed')), note text not null default '',
+    created_at timestamptz not null default now(), started_at timestamptz, finished_at timestamptz)`,
+  'create index if not exists team_queue_next on team_queue(priority desc, created_at) where status = \'queued\'',
+  'create table if not exists platform_state(key text primary key, value jsonb not null default \'{}\'::jsonb, updated_at timestamptz not null default now())',
+ ]},
 ];
 export const SCHEMA_VERSION=MIGRATIONS[MIGRATIONS.length-1].version;
 

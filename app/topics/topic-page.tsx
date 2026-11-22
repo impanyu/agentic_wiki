@@ -1,3 +1,4 @@
+import {getChatGPTUser} from '@/app/chatgpt-auth';
 import {serverUi,requestLocale} from '@/app/i18n/request';
 import {localizeLinks} from '@/app/i18n/locales';
 import {localeMeta} from '@/app/i18n/meta';
@@ -40,7 +41,7 @@ export async function TopicPage(props:Props){
   {'@type':'BreadcrumbList',itemListElement:[{name:SITE_NAME,href:'/'},...nav.trail.map(x=>({name:x.name,href:x.href})),{name:t.name,href:t.href}].map((x,i)=>({'@type':'ListItem',position:i+1,name:x.name,item:base+canonicalPath(x.href,maps)}))}]};
  return <>
   <script type="application/ld+json" dangerouslySetInnerHTML={{__html:jsonLd(ld)}}/>
-  <DbShell locale={ui.locale} dictionary={ui.dict} askTargets={{}} className="answer template-topic-v1">
+  <DbShell locale={ui.locale} dictionary={ui.dict} askTargets={{}} className="answer template-topic-v1" account={await getChatGPTUser().then(u=>u?{name:u.displayName}:null).catch(()=>null)}>
    <Breadcrumbs trail={L(nav.trail.map(x=>({name:x.name,href:x.href})))} current={t.name}/>
    <header className="wiki-heading db-hero"><span className="db-kicker"><Compass size={13} aria-hidden="true"/>{ui.t('Topic')}</span><h1>{t.name}</h1>
     {t.description&&<p className="lead">{t.description}</p>}
