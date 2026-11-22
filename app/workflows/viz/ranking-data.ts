@@ -136,13 +136,29 @@ export function equalEarthInvert(p:number[]):number[]{
 export const escapeHtml=(s:string)=>s.replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c]!);
 
 // Attribution text split into plain and link parts (http/https URLs only).
+// Known datasets named in source text, linked to their public pages (where a reader can check the figure).
+// A source given as an address links to itself; an API address links to the dataset's page instead.
+const DATASETS:{re:RegExp;href:(m:RegExpMatchArray)=>string}[]=[
+ {re:/World Bank WDI ([A-Z][A-Z0-9]*(?:\.[A-Z0-9]+)+)/g,href:m=>'https://data.worldbank.org/indicator/'+m[1]},
+ {re:/World Bank (?:WDI|World Development Indicators)(?! [A-Z][A-Z0-9]*\.)/g,href:()=>'https://databank.worldbank.org/source/world-development-indicators'},
+ {re:/\bWikidata (Q\d+)\b/g,href:m=>'https://www.wikidata.org/wiki/'+m[1]},
+ {re:/\bWikidata (P\d+)\b/g,href:m=>'https://www.wikidata.org/wiki/Property:'+m[1]},
+ {re:/\bUN (?:DESA )?World Population Prospects\b/g,href:()=>'https://population.un.org/wpp/'},
+ {re:/\bIMF World Economic Outlook\b/g,href:()=>'https://www.imf.org/en/Publications/WEO'},
+ {re:/\bOur World in Data\b/g,href:()=>'https://ourworldindata.org/'},
+];
+const API_PAGES:[RegExp,string][]=[[/^https?:\/\/api\.worldbank\.org\/v2\/country\/?$/,'https://data.worldbank.org/country'],[/^https?:\/\/api\.worldbank\.org\//,'https://data.worldbank.org/']];
 export function linkParts(s:string):{text:string;href?:string}[]{
- const out:{text:string;href?:string}[]=[];let last=0;
+ const spans:{start:number;end:number;href:string}[]=[];
  for(const m of s.matchAll(/https?:\/\/[^\s<>"']+/g)){
   let url=m[0];const trail=url.match(/[.,;:!?)\]]+$/);if(trail)url=url.slice(0,-trail[0].length);
-  if(m.index!>last)out.push({text:s.slice(last,m.index)});
-  out.push({text:url,href:url});last=m.index!+url.length;
+  spans.push({start:m.index!,end:m.index!+url.length,href:API_PAGES.find(([re])=>re.test(url))?.[1]??url});
  }
+ for(const d of DATASETS)for(const m of s.matchAll(d.re)){const start=m.index!,end=start+m[0].length;
+  if(!spans.some(x=>start<x.end&&end>x.start))spans.push({start,end,href:d.href(m)});}
+ spans.sort((a,b)=>a.start-b.start);
+ const out:{text:string;href?:string}[]=[];let last=0;
+ for(const x of spans){if(x.start>last)out.push({text:s.slice(last,x.start)});out.push({text:s.slice(x.start,x.end),href:x.href});last=x.end;}
  if(last<s.length)out.push({text:s.slice(last)});
  return out;
 }

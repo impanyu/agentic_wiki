@@ -362,3 +362,24 @@ html,body{background:var(--rw-bg)}
 .answer .search-empty p{margin:0;font-size:15px;line-height:1.6;color:var(--rw-text)}
 .template-search-v1{max-width:900px;margin:0 auto}
 @media (max-width:650px){.search-suggest{position:fixed;top:54px;left:8px;right:8px}}
+
+/* Outbound links of an entity: the official site or product page first, as the page's main call to action */
+.ext-links{display:flex;flex-wrap:wrap;gap:8px;margin-top:18px}
+.browser-shell .ext-link{display:inline-flex;align-items:center;gap:8px;padding:8px 13px;border-radius:9px;text-decoration:none;font-size:14px;font-weight:600;
+ color:var(--rw-ink);background:var(--rw-surface);border:1px solid var(--rw-border-strong);transition:border-color .15s,background .15s,opacity .15s}
+.browser-shell .ext-link small{font-size:12px;font-weight:500;color:var(--rw-muted)}
+.browser-shell .ext-link svg{color:var(--rw-muted)}
+.browser-shell .ext-link:hover{border-color:var(--rw-ink)}
+.browser-shell .ext-link.primary{color:var(--rw-bg);background:var(--rw-ink);border-color:var(--rw-ink)}
+.browser-shell .ext-link.primary small,.browser-shell .ext-link.primary svg{color:inherit;opacity:.7}
+.browser-shell .ext-link.primary:hover{opacity:.88}
+/* Links to sources leave the site: a small arrow says so */
+.browser-shell .answer a.ext::after,.browser-shell .answer .sources a[target=_blank]::after,.browser-shell .wf-rank-source a::after,.browser-shell .wf-ev-source a::after{content:"↗";margin-left:2px;font-size:.85em;color:var(--rw-soft)}
+/* References: aligned with the page (no old sidebar margin), numbers in the gutter */
+.answer.template-entity-v1 .sources{margin:44px 0 0;padding:0}
+.answer.template-entity-v1 .sources ol{margin:0;padding:0 0 0 1.6em;border-top:1px solid var(--rw-border)}
+.answer.template-entity-v1 .sources li{padding:9px 0 9px 4px;border-bottom:1px solid var(--rw-border);line-height:1.55}
+.answer.template-entity-v1 .sources li::marker{color:var(--rw-soft);font-size:12px}
+.answer.template-entity-v1 .sources .source-entry{display:block}
+.answer.template-entity-v1 .sources .source-title a{color:var(--rw-accent-ink)}
+.answer.template-entity-v1 .sources .wf-muted{color:var(--rw-muted)}

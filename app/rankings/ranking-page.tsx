@@ -13,6 +13,7 @@ import {assembleRankingPage,entityPath,rankingPath} from '@/app/seo/assemble';
 import {propsRankingBlock,rankCriterion,blockPeriods,rankedView,rankingChartSvgs} from '@/app/seo/ranking-views';
 import {jsonLd} from '@/app/seo/structured-data';
 import {questionKey} from '@/app/seo/urls';
+import {linkParts} from '@/app/workflows/viz/ranking-data';
 import {DbShell,RankingBody} from './view';
 import {pathMaps,nodeTrail,nodeChildren,popularRankings} from '@/app/entity-db/pages';
 import {Breadcrumbs,RankingGrid} from '@/app/explore';
@@ -85,7 +86,7 @@ export async function RankingPage(props:Props){
    {base!==internal&&<Breadcrumbs trail={L(nodeTrail(maps,base))} current={maps.nodes.get(base)?.name??model.title}/>}
    <RankingBody slug={input.def.slug} kicker={t('Ranking')+(input.def.status==='draft'?' · '+t('Draft'):'')} subsets={L(nodeChildren(maps,base))} title={name} baseTitle={model.title} titles={titles} basePath={localizeLinks(base,locale)} defaultRank={block.defaultKey} rank={criterion?.key} period={period} charts={charts} props={L(rprops)} lead={model.lead}/>
    <p className="data-twin-files"><a href={internal+'/data.csv'} download>{t('Download the data (CSV)')}</a></p>
-   {model.about.length>0&&<section aria-labelledby="about-ranking"><h2 id="about-ranking">{t('About this ranking')}</h2><ul>{model.about.map((x,i)=><li key={i}>{x}</li>)}</ul></section>}
+   {model.about.length>0&&<section aria-labelledby="about-ranking"><h2 id="about-ranking">{t('About this ranking')}</h2><ul>{model.about.map((x,i)=><li key={i}>{linkParts(x).map((p,j)=>p.href?<a key={j} href={p.href} target="_blank" rel="noopener noreferrer" className="ext">{p.text}</a>:<span key={j}>{p.text}</span>)}</li>)}</ul></section>}
    <RankingGrid rankings={L(popular)} title={t('Popular rankings')}/>
    {model.related.length>0&&<section aria-labelledby="related-rankings"><h2 id="related-rankings">{t('Related rankings')}</h2><ul>{model.related.map(r=><li key={r.href}><a href={L(r.href)}>{r.title}</a></li>)}</ul></section>}
   </DbShell>
