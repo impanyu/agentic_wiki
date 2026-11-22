@@ -1,6 +1,7 @@
 import type {Queryable,Row} from './client';
 import {getEntity,metricTable,hybridSearch,RANK_LIMIT} from './repo';
 import {slugify,questionKey} from '@/app/seo/urls';
+import {topicPaths,canonicalPath,type PathMaps} from '@/app/seo/paths';
 import {formatMetric,entityPath,rankingPath,defaultTemplate,mentionKey,type MetricInfo,type MetricFact,type EntityPageData,type Template,type RankingDef,type RankingPageInput,type Point} from '@/app/seo/assemble';
 // Reads for the database-driven pages (/rankings/<slug>, /e/<type>/<slug>), the sitemap and link
 // resolution. Read-only; everything a page shows comes from here, assembled by app/seo/assemble.ts.
@@ -262,4 +263,47 @@ export async function loadTopicNav(db:Queryable,slug:string|null):Promise<TopicN
    (select r.slug from rankings r where r.status = 'published' and r.slug is not null and r.scope->>'type' = et.type order by (coalesce(r.scope->'filters','{}'::jsonb) = '{}'::jsonb) desc, r.updated_at desc limit 1) rk
   from entity_types et where et.topic_id = $1::uuid and et.status = 'published' order by et.label`,[topic.id]);
  return {topic,trail,children,rankings,types:tr.rows.map(x=>({type:String(x.type),label:String(x.label||x.type),plural:String(x.plural||x.label||x.type),pages:Number(x.n),href:x.rk?rankingPath(String(x.rk)):null}))};
+}
+
+// ───────────── hierarchical addresses ─────────────
+// Where every topic, ranking and entity type sits in the address tree (see app/seo/paths.ts). Read at most
+// once a minute: a topic moved in the tree moves its pages within a minute.
+let mapsCache:{at:number;maps:PathMaps}|null=null;
+export async function pathMaps(db:Queryable,{fresh=false}:{fresh?:boolean}={}):Promise<PathMaps>{
+ if(!fresh&&mapsCache&&Date.now()-mapsCache.at<60_000)return mapsCache.maps;
+ const topics=(await db.query<{id:string;parent_id:string|null;slug:string}>("select id, parent_id, slug from topics where status <> 'archived'")).rows
+  .map(t=>({id:String(t.id),parentId:t.parent_id?String(t.parent_id):null,slug:String(t.slug)}));
+ const paths=topicPaths(topics);const byId=new Map(topics.map(t=>[t.id,paths.get(t.slug)!]));
+ const rankings=new Map<string,string>(),types=new Map<string,string>();
+ for(const r of (await db.query<{slug:string;topic_id:string|null}>('select slug, topic_id from rankings where slug is not null and topic_id is not null')).rows){const p=byId.get(String(r.topic_id));if(p)rankings.set(String(r.slug),p);}
+ for(const r of (await db.query<{type:string;topic_id:string|null}>('select type, topic_id from entity_types where topic_id is not null')).rows){const p=byId.get(String(r.topic_id));if(p)types.set(String(r.type),p);}
+ const maps={topics:paths,rankings,types};mapsCache={at:Date.now(),maps};return maps;
+}
+export type ResolvedPath={kind:'topic';slug:string}|{kind:'ranking';slug:string}|{kind:'entity';type:string;slug:string}|{kind:'redirect';to:string};
+// A hierarchical address → its page. The segments walk the topic tree from the top; the segment after the
+// last topic names a ranking of that topic or an entity of one of its types. An address that no longer
+// matches (a topic moved, an old spelling) redirects when its last segment names one page unambiguously.
+export async function resolvePath(db:Queryable,segments:string[]):Promise<ResolvedPath|null>{
+ const segs=segments.map(s=>{try{return decodeURIComponent(s);}catch{return s;}}).filter(Boolean);if(!segs.length||segs.length>12)return null;
+ const maps=await pathMaps(db);
+ const here='/'+segs.map(encodeURIComponent).join('/');
+ // The longest prefix that is a topic path.
+ let topic:string|null=null,used=0;
+ for(let i=segs.length;i>0;i--){const p='/'+segs.slice(0,i).map(encodeURIComponent).join('/');const slug=segs[i-1];if(maps.topics.get(slug)===p){topic=slug;used=i;break;}}
+ if(topic&&used===segs.length)return {kind:'topic',slug:topic};
+ const last=segs[segs.length-1];
+ if(topic&&used===segs.length-1){
+  if(maps.rankings.get(last)===maps.topics.get(topic)&&await getRankingDefinition(db,last))return {kind:'ranking',slug:last};
+  const tp=maps.topics.get(topic)!;
+  for(const [type,p] of maps.types)if(p===tp){const e=await findEntityBySlug(db,type,last);if(e)return e.canonical?{kind:'entity',type,slug:slugify(e.name)}:{kind:'redirect',to:canonicalPath('/e/'+type+'/'+encodeURIComponent(slugify(e.name)),maps)};}
+ }
+ // Not where the tree says: find the page its last segment names and send the reader there.
+ const to=maps.topics.has(last)?maps.topics.get(last)!:maps.rankings.has(last)?maps.rankings.get(last)+'/'+encodeURIComponent(last):null;
+ if(to&&to!==here)return {kind:'redirect',to};
+ if(segs.length>=2){
+  const hits:string[]=[];
+  for(const type of new Set(maps.types.keys())){const e=await findEntityBySlug(db,type,last);if(e)hits.push(canonicalPath('/e/'+type+'/'+encodeURIComponent(slugify(e.name)),maps));if(hits.length>1)break;}
+  if(hits.length===1&&hits[0]!==here)return {kind:'redirect',to:hits[0]};
+ }
+ return null;
 }

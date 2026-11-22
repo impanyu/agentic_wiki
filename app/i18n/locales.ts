@@ -25,9 +25,10 @@ export function localePath(path:string,locale:string):string{
  if(splitLocale(path).locale!==DEFAULT_LOCALE)return path;
  return '/'+locale+(path==='/'?'':path.startsWith('/?')?path.slice(1):path);
 }
-// Page addresses inside data handed to pages (hrefs of rankings, entities, topics, the home page and its
-// questions) are moved into the locale; files, data downloads and APIs keep their one address.
-const PAGE_LINK=/^\/(?:$|\?|e\/|rankings\/[^/?#]+(?:\?[^/]*)?$|topics\/|p\/)/;
+// Page addresses inside data handed to pages (topics, rankings and entities in the address tree, the home page
+// and its questions) are moved into the locale; files (a last segment with an extension), data downloads,
+// APIs and static assets keep their one address.
+const PAGE_LINK=/^\/(?!\/|api\/|data\/|sitemaps?\b|geo\/|_next\/|favicon|robots)(?:[^?#]*\/)?[^./?#]*(?:[?#].*)?$/;
 export function localizeLinks<T>(value:T,locale:string):T{
  if(!isLocale(locale)||locale===DEFAULT_LOCALE)return value;
  const walk=(v:unknown):unknown=>{

@@ -1,4 +1,5 @@
 import type {EntityDb,Queryable,Row} from './client';
+import {RESERVED_SEGMENTS} from './reserved';
 import {GLOBAL_ID_KEYS,storedEmbedDim} from './schema';
 import {getEmbedder,toVector,entityText} from './embeddings';
 import {normalizeUnit} from './units';
@@ -653,7 +654,9 @@ export type Topic={id:string;parentId:string|null;slug:string;name:string;descri
 const topicRow=(r:Row):Topic=>({id:String(r.id),parentId:(r.parent_id as string)||null,slug:String(r.slug),name:String(r.name),description:String(r.description),scope:(r.scope as Row)||{},status:String(r.status)});
 const slugify=(s:string)=>s.toLowerCase().normalize('NFKD').replace(/[̀-ͯ]/g,'').replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'').slice(0,100);
 export async function createTopic(db:Queryable,{parentId=null,slug,name,description='',scope={}}:{parentId?:string|null;slug?:string;name:string;description?:string;scope?:Row}):Promise<Topic>{
- const s=slugify(slug||name);if(!s)throw Error('A topic needs a name.');
+ let s=slugify(slug||name);if(!s)throw Error('A topic needs a name.');
+ // A topic's slug is a segment of its pages' addresses: never one of the site's own routes or a language code.
+ if(RESERVED_SEGMENTS.has(s))s=s+'-topic';
  const r=await db.query(`insert into topics(parent_id,slug,name,description,scope) values ($1::uuid,$2::text,$3::text,$4::text,$5::jsonb) returning *`,[parentId,s,name.trim().slice(0,200),description.slice(0,4000),JSON.stringify(scope)]);
  return topicRow(r.rows[0]);
 }

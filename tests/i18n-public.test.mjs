@@ -32,6 +32,8 @@ test('language addresses: /<code>/ prefixes, links inside page data move with th
  assert.equal(fr.href,'/fr/e/country/france');assert.equal(fr.links[0].href,'/fr/rankings/a?rank=b');
  assert.equal(fr.links[1].href,'/rankings/a/data.csv','downloads keep one address');assert.equal(fr.links[2].href,'https://x.org/');
  assert.equal(fr.map.france,'/fr/e/country/france');assert.equal(fr.text,'Population');
+ assert.equal(localizeLinks('/geography/countries/germany','fr'),'/fr/geography/countries/germany');
+ assert.equal(localizeLinks('/api/ask','fr'),'/api/ask');assert.equal(localizeLinks('/geo/world.json','fr'),'/geo/world.json');
  assert.equal(localizeLinks(data,'en'),data);
  assert.equal(dirOf('ar'),'rtl');assert.equal(dirOf('fr'),'ltr');
 });

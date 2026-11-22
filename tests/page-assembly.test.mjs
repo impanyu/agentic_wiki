@@ -149,9 +149,10 @@ test('addresses and CSV',()=>{
 // ───────────── page data builders against PGlite ─────────────
 const out=new URL('../node_modules/.cache/page-assembly-test/',import.meta.url);mkdirSync(out,{recursive:true});
 const write=(name,src,map={})=>{let js=tr(src);js=js.replace(/(from\s*|import\()\s*(['"])([^'"]+)\2/g,(m,pre,q,spec)=>map[spec]?`${pre}'${map[spec]}'`:spec.startsWith('./')?`${pre}'${spec}.mjs'`:m);writeFileSync(new URL(name+'.mjs',out),js);};
-for(const f of ['client','schema','metrics','embeddings','units','repo'])write(f,readFileSync(`app/entity-db/${f}.ts`,'utf8'));
+for(const f of ['client','schema','metrics','embeddings','units','reserved','repo'])write(f,readFileSync(`app/entity-db/${f}.ts`,'utf8'));
 writeFileSync(new URL('pure.mjs',out),tr(pure));
-write('pages',readFileSync('app/entity-db/pages.ts','utf8'),{'@/app/seo/urls':'./pure.mjs','@/app/seo/assemble':'./pure.mjs'});
+write('paths',readFileSync('app/seo/paths.ts','utf8'),{'@/app/entity-db/reserved':'./reserved.mjs'});
+write('pages',readFileSync('app/entity-db/pages.ts','utf8'),{'@/app/seo/urls':'./pure.mjs','@/app/seo/assemble':'./pure.mjs','@/app/seo/paths':'./paths.mjs'});
 const client=await import(new URL('client.mjs',out));
 const pages=await import(new URL('pages.mjs',out));
 const {seed,COUNTRIES}=await import('../scripts/dev/seed-countries-fixture.mjs');
@@ -293,4 +294,25 @@ test('topic navigation: the tree opens level by level, with counts from the whol
  assert.equal(c.types[0].type,'country');assert.equal(c.types[0].pages,COUNTRIES.length);assert.match(c.types[0].href,/^\/rankings\//);
  assert.equal(c.rankings[0].top.length,3);
  assert.equal(await pages.loadTopicNav(db,'nowhere'),null);
+});
+
+test('address tree: topics, rankings and entities under their topic path; old and moved addresses redirect',async()=>{
+ const paths=await import(new URL('paths.mjs',out));
+ const maps=await pages.pathMaps(db,{fresh:true});
+ assert.equal(maps.topics.get('geography'),'/geography');assert.equal(maps.topics.get('countries'),'/geography/countries');
+ assert.equal(paths.canonicalPath('/e/country/germany',maps),'/geography/countries/germany');
+ assert.equal(paths.canonicalPath('/rankings/country-rankings?rank=gdp_usd',maps),'/geography/countries/country-rankings?rank=gdp_usd');
+ assert.equal(paths.canonicalPath('/topics/countries',maps),'/geography/countries');
+ assert.equal(paths.canonicalPath('/e/city/paris',maps),'/e/city/paris','a type without a topic keeps its stable address');
+ assert.equal(paths.canonicalPath('/rankings/country-rankings/data.csv',maps),'/rankings/country-rankings/data.csv');
+ assert.deepEqual(paths.canonicalLinks({a:['/e/country/france'],b:'Population'},maps),{a:['/geography/countries/france'],b:'Population'});
+ assert.deepEqual(await pages.resolvePath(db,['geography']),{kind:'topic',slug:'geography'});
+ assert.deepEqual(await pages.resolvePath(db,['geography','countries']),{kind:'topic',slug:'countries'});
+ assert.deepEqual(await pages.resolvePath(db,['geography','countries','country-rankings']),{kind:'ranking',slug:'country-rankings'});
+ assert.deepEqual(await pages.resolvePath(db,['geography','countries','germany']),{kind:'entity',type:'country',slug:'germany'});
+ assert.deepEqual(await pages.resolvePath(db,['countries']),{kind:'redirect',to:'/geography/countries'},'a topic out of place');
+ assert.deepEqual(await pages.resolvePath(db,['geography','germany']),{kind:'redirect',to:'/geography/countries/germany'},'an entity out of place');
+ assert.deepEqual(await pages.resolvePath(db,['geography','country-rankings']),{kind:'redirect',to:'/geography/countries/country-rankings'});
+ assert.equal(await pages.resolvePath(db,['geography','countries','atlantis']),null);
+ assert.equal(await pages.resolvePath(db,['nowhere']),null);
 });

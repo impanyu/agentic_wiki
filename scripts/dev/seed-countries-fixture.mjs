@@ -11,7 +11,7 @@ import {readFileSync,writeFileSync,mkdirSync} from 'node:fs';
 import ts from 'typescript';
 
 const out=new URL('../../node_modules/.cache/entity-db-seed/',import.meta.url);mkdirSync(out,{recursive:true});
-for(const f of ['client','schema','metrics','embeddings','units','repo']){
+for(const f of ['client','schema','metrics','embeddings','units','reserved','repo']){
  let js=ts.transpileModule(readFileSync(new URL(`../../app/entity-db/${f}.ts`,import.meta.url),'utf8'),{compilerOptions:{module:ts.ModuleKind.ESNext,target:ts.ScriptTarget.ES2022}}).outputText;
  js=js.replace(/(from\s*|import\()\s*(['"])([^'"]+)\2/g,(m,pre,q,spec)=>spec.startsWith('./')?`${pre}'${spec}.mjs'`:m);
  writeFileSync(new URL(f+'.mjs',out),js);

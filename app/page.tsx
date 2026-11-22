@@ -6,7 +6,8 @@ import {serverUi,requestLocale} from './i18n/request';
 import {localizeLinks} from './i18n/locales';
 import {localeMeta} from './i18n/meta';
 import {entityDb} from './entity-db/client';
-import {featuredRankings,loadTopicNav,type FeaturedRanking,type TopicNav} from './entity-db/pages';
+import {featuredRankings,loadTopicNav,pathMaps,type FeaturedRanking,type TopicNav} from './entity-db/pages';
+import {canonicalLinks} from './seo/paths';
 import {loadPublicPage} from './seo/server';
 import {pagePath} from './seo/urls';
 export const dynamic = 'force-dynamic';
@@ -29,6 +30,7 @@ async function homeData():Promise<HomeData>{
 }
 export default async function Home(){
  const [user,data,ui] = await Promise.all([getChatGPTUser(),homeData(),serverUi()]);
+ const maps=PUBLIC_EDITION?await entityDb().then(db=>pathMaps(db)).catch(()=>({topics:new Map(),rankings:new Map(),types:new Map()})):{topics:new Map(),rankings:new Map(),types:new Map()};
  return <Workspace user={user ? {name:user.displayName,id:user.userId}:null} signIn={chatGPTSignInPath('/')} signOut={chatGPTSignOutPath('/')}
-  featured={localizeLinks(data.featured,ui.locale)} topics={localizeLinks(data.topics,ui.locale)} locale={ui.locale} dictionary={ui.dict} />;
+  featured={localizeLinks(canonicalLinks(data.featured,maps),ui.locale)} topics={localizeLinks(canonicalLinks(data.topics,maps),ui.locale)} locale={ui.locale} dictionary={ui.dict} />;
 }
