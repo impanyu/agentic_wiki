@@ -2,12 +2,12 @@
 // the light palette; this maps an option to the dark one: neutral inks and lines become their dark
 // counterparts, white surfaces and borders become the dark surface, the choropleth ramp runs from deep to
 // bright, and tooltip HTML produced by formatters is recoloured too. Accent colours are kept.
-const SURFACE='#131a2e';
+const SURFACE='#111114';
 const NEUTRAL:Record<string,string>={
- '#0f172a':'#e8ecf7','#1e293b':'#dde3f0','#1e3a8a':'#a5b8ff','#334155':'#c6cede','#475569':'#aab4c8','#64748b':'#8a95ab',
- '#94a3b8':'#6e7a92','#cbd5e1':'#3b4661','#e2e8f0':'#2b3450','#eef1f6':'#222a42','#f1f5f9':'#1c2338','#eceff5':'#232c45',
- '#d3dbe8':'#2b3450','#e5e9f1':'#2a3350','#fbfcfe':'#141b2f','#f6f8fc':'#161d31','#f5f7fb':'#171e33','#eef3ff':'#1a2547',
- '#fff4d6':'#3a2f12','#fde2e2':'#3a1a20','#c2410c':'#fb923c','#e8efff':'#1c2650',
+ '#0f172a':'#f2f2f4','#1e293b':'#e4e4e8','#1e3a8a':'#a5a6ff','#334155':'#c4c4cc','#475569':'#aaaab4','#64748b':'#8d8d99',
+ '#94a3b8':'#6f6f7a','#cbd5e1':'#3a3a42','#e2e8f0':'#2a2a31','#eef1f6':'#202026','#f1f5f9':'#1b1b20','#eceff5':'#202026',
+ '#d3dbe8':'#2a2a31','#e5e9f1':'#2a2a31','#fbfcfe':'#141418','#f6f8fc':'#16161a','#f5f7fb':'#17171b','#eef3ff':'#1a1a2a',
+ '#fff4d6':'#2e2614','#fde2e2':'#2e1a1d','#c2410c':'#fb923c','#e8efff':'#1c2650',
 };
 const LIGHT_RAMP=['#e8efff','#b9cdff','#7d9dff','#4f7cff','#2f4fd6','#1e2f86'];
 const DARK_RAMP=['#1c2650','#263f99','#3b63e0','#5b86ff','#93b2ff','#d6e3ff'];

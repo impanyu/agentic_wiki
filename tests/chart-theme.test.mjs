@@ -12,11 +12,11 @@ test('dark chart theme: neutrals and surfaces change, accents and white text sta
   visualMap:[{inRange:{color:['#e8efff','#b9cdff','#7d9dff','#4f7cff','#2f4fd6','#1e2f86']}}],
   series:[{itemStyle:{color:'#4f7cff',borderColor:'#fff'},label:{color:'#fff'},data:[1,2,3]}]};
  const d=themeOption(light,true);
- assert.equal(d.tooltip.backgroundColor,'#131a2e');
- assert.match(d.tooltip.formatter(),/color:#e8ecf7/);
- assert.equal(d.xAxis.axisLabel.color,'#6e7a92');
+ assert.equal(d.tooltip.backgroundColor,'#111114');
+ assert.match(d.tooltip.formatter(),/color:#f2f2f4/);
+ assert.equal(d.xAxis.axisLabel.color,'#6f6f7a');
  assert.equal(d.series[0].itemStyle.color,'#4f7cff','accent kept');
- assert.equal(d.series[0].itemStyle.borderColor,'#131a2e','white border becomes the surface');
+ assert.equal(d.series[0].itemStyle.borderColor,'#111114','white border becomes the surface');
  assert.equal(d.series[0].label.color,'#fff','white text stays');
  assert.equal(d.visualMap[0].inRange.color[5],'#d6e3ff','high values are bright on dark');
  assert.equal(themeOption(light,false),light,'light is untouched');
