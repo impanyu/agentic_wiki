@@ -330,3 +330,14 @@ test('popular rankings: a node lists the most viewed published rankings of its s
  assert.deepEqual(under.map(x=>x.slug),['countries-in-europe-and-central-asia-rankings'],'the node itself is not listed');
  assert.deepEqual(pages.nodeChildren(maps,'').map(x=>x.href),['/geography'],'the root lists the top-level nodes that have something');
 });
+
+test('search: suggestions by name with no model (entities, rankings, criterion views); results add meaning; searches are logged',async()=>{
+ const s=await pages.suggest(db,'ger');assert.equal(s[0].title,'Germany');assert.match(s[0].href,/^\/e\/\d+\/germany$/);
+ const g=await pages.suggest(db,'gdp');assert.ok(g.some(h=>h.kind==='view'&&h.href==='/geography/countries?rank=gdp_usd'),'a criterion is a view of its own');
+ const c=await pages.suggest(db,'country rank');assert.equal(c[0].href,'/geography/countries');
+ assert.deepEqual(await pages.suggest(db,'xyzzy'),[]);assert.deepEqual(await pages.suggest(db,'  '),[]);
+ const r=await pages.searchPages(db,'europe');assert.equal(r.nodes[0].href,'/geography/countries/europe-central-asia');
+ await pages.logSearch(db,'best perfumes','zh',0);
+ const row=(await db.query("select norm, locale, results, handled from search_log where query='best perfumes'")).rows[0];
+ assert.deepEqual({...row},{norm:'best perfumes',locale:'zh',results:0,handled:false});
+});

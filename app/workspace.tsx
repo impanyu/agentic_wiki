@@ -6,6 +6,7 @@ import {pageVisualProps} from './page-programs/visual-style';
 import {usePageUi,useStaticUi,UiContext} from '@/app/i18n/client';
 import {localePath} from '@/app/i18n/locales';
 import {LanguageSwitcher} from '@/app/i18n/switcher';
+import { SearchBox } from '@/app/search-box';
 import dynamic from 'next/dynamic';
 const PageEditor=dynamic(()=>import('./page-editor/editor').then(m=>m.PageEditor),{ssr:false});
 import {PageShare} from './page-share';
@@ -439,6 +440,8 @@ export default function Workspace({ user, signIn, signOut, nodes=[], popular=[],
         <button type="button" aria-label={t("Forward")} title={t("Forward")} disabled={historyPosition>=historyLength-1||saving} onClick={()=>history.forward()}><ArrowRight size={19}/></button>
         <HistoryMenu disabled={busy||saving} saveError={historySaveError} beforeLoad={()=>{for(const visit of [...failedVisits.current.values()])saveVisit(visit.pageId,visit.text,visit.parameters,visit.id,visit.legacy);return visitWrites.current;}} onOpen={(entry:HistoryEntry)=>void openInternal({id:entry.id,targetId:entry.pageId,targetTitle:entry.title,quote:entry.question||entry.title,segments:[],parameters:entry.parameters})}/>
       </div>
+      {/* The public edition searches (suggestions while typing, then /search); the full edition asks. */}
+      {PUBLIC_EDITION?<SearchBox/>:<>
       {/* Works before the page script loads too: a native submit goes to /?ask=…, which the page opens on load. */}
       <form className="address-bar" action="/" method="get" onSubmit={event => { event.preventDefault(); if(voiceRecording&&voice.current){ if(voiceSending)return; setVoiceSending(true); void voice.current.finish().then(spoken=>{ const text=[question.trim(),spoken.trim()].filter(Boolean).join(' '); if(text||attached){ setQuestion(text); void navigate(text,undefined,undefined,attached?.dataUrl); } }).finally(()=>setVoiceSending(false)); return; } void navigate(question,undefined,undefined,attached?.dataUrl); }} onDragOver={event=>{if([...event.dataTransfer.items].some(i=>i.kind==='file'))event.preventDefault();}} onDrop={event=>{const file=[...event.dataTransfer.files].find(f=>f.type.startsWith('image/'));if(file){event.preventDefault();void attachImage(file);}}} aria-label={t("Open an answer")}>
         <label htmlFor="address" className="sr-only">{t("Question or context")}</label>
@@ -455,6 +458,7 @@ export default function Workspace({ user, signIn, signOut, nodes=[], popular=[],
           {busy || voiceSending ? <LoaderCircle className="spinner" size={18}/> : <ArrowRight size={18}/>}
         </button>
       </form>
+      </>}
       <input type="file" ref={uploadInput} hidden onChange={e=>{const file=e.target.files?.[0];if(file)void uploadFile(file);}}/>
       {!PUBLIC_EDITION&&<ConnectorPanel/>}
       {PUBLIC_EDITION&&<LanguageSwitcher/>}

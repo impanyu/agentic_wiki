@@ -384,3 +384,85 @@ export async function popularRankings(db:Queryable,maps:AddressTree,path:string,
  if(popularCache.size>5000)popularCache.clear();
  popularCache.set(path,{at:Date.now(),cards});return cards;
 }
+
+// ───────────── search ─────────────
+// Readers find pages by searching, as on any encyclopedia: suggestions while they type (names only: the
+// address tree in memory and the entity name index; no model), and on Enter a results page that adds meaning
+// (the query's embedding against the vectors already prepared for every ranking view and entity).
+export type SearchHit={kind:'topic'|'ranking'|'view'|'entity';title:string;subtitle:string;href:string;score:number};
+type IndexEntry=SearchHit&{key:string;words:string[]};
+const norm=(s:string)=>s.normalize('NFKC').toLowerCase().replace(/[‘’'"“”`]/g,'').replace(/[^\p{L}\p{N}]+/gu,' ').trim();
+let indexCache:{at:number;entries:IndexEntry[]}|null=null;
+async function searchIndex(db:Queryable):Promise<IndexEntry[]>{
+ if(indexCache&&Date.now()-indexCache.at<60_000)return indexCache.entries;
+ const maps=await pathMaps(db);const out:IndexEntry[]=[];
+ const push=(e:SearchHit)=>{const key=norm(e.title);out.push({...e,key,words:key.split(' ')});};
+ for(const n of maps.nodes.values()){if(!n.live)continue;
+  if(n.kind==='topic')push({kind:'topic',title:n.name,subtitle:'Topic',href:n.path,score:0});
+  else push({kind:'ranking',title:n.name,subtitle:'Ranking',href:n.path,score:0});}
+ // A main ranking is also found by its own title ("Country Rankings" as well as "Countries").
+ const rk=(await db.query<{slug:string;title:string;criteria:string[];config:Row}>("select slug, title, criteria, config from rankings where slug is not null and status = 'published'")).rows;
+ const labels=await metricInfos(db,[...new Set(rk.flatMap(r=>(r.criteria||[]).map(c=>c.split('@')[0])))]);
+ for(const r of rk){const path=maps.rankings.get(String(r.slug));if(!path)continue;
+  const node=maps.nodes.get(path);if(node&&node.name!==r.title)push({kind:'ranking',title:String(r.title),subtitle:'Ranking',href:path,score:0});
+  const def=String(obj(r.config).default||r.criteria?.[0]||'');
+  // Every other criterion is a view of its own ("Country Rankings by GDP").
+  for(const c of r.criteria||[]){if(c===def)continue;const label=labels[c.split('@')[0]]?.label||c;
+   push({kind:'view',title:`${r.title} by ${label}`,subtitle:'Ranking',href:path+'?rank='+encodeURIComponent(c),score:0});}}
+ indexCache={at:Date.now(),entries:out};return out;
+}
+// How well a title matches the typed text: 0 exact, 1 starts with it, 2 every typed word starts a word, 3 contains.
+function matchScore(e:IndexEntry,q:string,qw:string[]):number{
+ if(e.key===q)return 0;if(e.key.startsWith(q))return 1;
+ if(qw.length&&qw.every(w=>e.words.some(x=>x.startsWith(w))))return 2;
+ return e.key.includes(q)?3:-1;
+}
+async function entityMatches(db:Queryable,q:string,limit:number):Promise<SearchHit[]>{
+ const w=norm(q).split(' ').filter(Boolean).slice(0,8);if(!w.length)return [];
+ const r=await db.query<{type:string;name:string;num:string;label:string}>(`select e.type, e.name, e.num, coalesce(t.label, e.type) as label from entities e
+  join entity_types t on t.type = e.type and t.status = 'published'
+  where e.has_page and e.tsv @@ to_tsquery('simple', $1::text)
+  order by (lower(e.name) = $2::text) desc, (lower(e.name) like $3::text) desc, length(e.name), e.name limit $4::int`,
+  [w.map(x=>x.replace(/[^\p{L}\p{N}]/gu,'')+':*AB').filter(x=>x!==':*AB').join(' & '),norm(q),norm(q).replace(/[\\%_]/g,m=>'\\'+m)+'%',limit]);
+ const nq=norm(q);
+ return r.rows.map(x=>{const n=norm(x.name);return {kind:'entity' as const,title:x.name,subtitle:x.label.charAt(0).toUpperCase()+x.label.slice(1),href:entityPath(x.type,x.name,x.num),score:n===nq?0:n.startsWith(nq)?1:2};});
+}
+export async function suggest(db:Queryable,query:string,limit=8):Promise<SearchHit[]>{
+ const q=norm(query).slice(0,100);if(!q)return [];const qw=q.split(' ');
+ const nodes=(await searchIndex(db)).map(e=>({e,s:matchScore(e,q,qw)})).filter(x=>x.s>=0)
+  .sort((a,b)=>a.s-b.s||(a.e.kind==='view'?1:0)-(b.e.kind==='view'?1:0)||a.e.title.length-b.e.title.length).slice(0,limit)
+  .map(({e,s})=>({kind:e.kind,title:e.title,subtitle:e.subtitle,href:e.href,score:s}));
+ const ents=await entityMatches(db,query,limit).catch(()=>[]);
+ const seen=new Set<string>();
+ return [...nodes,...ents].sort((a,b)=>a.score-b.score).filter(h=>!seen.has(h.href)&&!!seen.add(h.href)).slice(0,limit);
+}
+// The results page: name matches first, then pages close in meaning (rankings by their prepared view vectors,
+// entities by hybrid search), each list without duplicates.
+export async function searchPages(db:Queryable,query:string,{embed}:{embed?:((t:string[])=>Promise<number[][]>)|null}={}):Promise<{nodes:SearchHit[];entities:SearchHit[]}>{
+ const q=norm(query).slice(0,200);if(!q)return {nodes:[],entities:[]};const qw=q.split(' ');
+ const nodes=(await searchIndex(db)).map(e=>({e,s:matchScore(e,q,qw)})).filter(x=>x.s>=0).sort((a,b)=>a.s-b.s||a.e.title.length-b.e.title.length)
+  .slice(0,20).map(({e,s})=>({kind:e.kind,title:e.title,subtitle:e.subtitle,href:e.href,score:s}));
+ if(embed){try{
+  const {storedEmbedDim}=await import('./schema');const dim=await storedEmbedDim(db);const v=(await embed([query]))[0];
+  if(v?.length===dim){const maps=await pathMaps(db);
+   const near=(await db.query<{slug:string;title:string;criterion:string;d:number}>(`select r.slug, r.title, x.criterion, x.d from (select ranking_id, criterion, embedding <=> $1::vector as d from ranking_vectors order by embedding <=> $1::vector limit 30) x
+    join rankings r on r.id = x.ranking_id where r.status = 'published' and x.d < 0.55 order by x.d`,['['+v.join(',')+']'])).rows;
+   for(const r of near){const path=maps.rankings.get(String(r.slug));if(!path)continue;
+    const href=r.criterion?path+'?rank='+encodeURIComponent(r.criterion):path;
+    if(!nodes.some(n=>n.href===href||n.href===path))nodes.push({kind:'ranking',title:String(r.title),subtitle:'Ranking',href:path,score:4+Number(r.d)});}
+  }}catch(e){console.warn('search: semantic step skipped',(e as Error).message);}}
+ const entities:SearchHit[]=await entityMatches(db,query,20).catch(()=>[]);
+ if(embed&&entities.length<20){
+  const hits=(await hybridSearch(db,{query,limit:20}).catch(()=>({results:[]}))).results;
+  const ids=await withPages(db,hits.map(h=>h.id));
+  for(const h of hits){const num=ids.get(h.id);if(!num)continue;const href=entityPath(h.type,h.name,num);
+   if(!entities.some(x=>x.href===href))entities.push({kind:'entity',title:h.name,subtitle:h.type.replace(/_/g,' '),href,score:5});}
+ }
+ return {nodes:nodes.slice(0,24),entities:entities.slice(0,24)};
+}
+// One search from the results page (suggestions are not logged): the query, its language and how many pages
+// answered it.
+export async function logSearch(db:Queryable,query:string,locale:string,results:number):Promise<void>{
+ const q=query.trim().slice(0,300);if(!q)return;
+ await db.query('insert into search_log(query, norm, locale, results) values ($1::text, $2::text, $3::text, $4::int)',[q,norm(q),locale.slice(0,8),results]);
+}

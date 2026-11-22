@@ -81,12 +81,8 @@ async function routeAnswer(request:Request,actor:Awaited<ReturnType<typeof getAc
   const context:AgentContext={userId:uid,ownerId:uid,language,visibility:PUBLIC_EDITION?'public':'private',sourceDocument:sourceDocument||undefined};
   // Public edition: only pages built from the database (rankings, entities) answer, found by meaning and chosen
   // by the router model; otherwise the reader is told honestly and the query goes to the closest topic's editor.
-  if(PUBLIC_EDITION){const {routeToDatabase,recordUnserved}=await import('@/app/teams/router');
-   const r=await routeToDatabase(routingQuestion,request.signal).catch(e=>{console.warn('db route failed',(e as Error).message);return null;});
-   if(r){const {entityDb}=await import('@/app/entity-db/client');const {pathMaps}=await import('@/app/entity-db/pages');const {canonicalPath}=await import('@/app/seo/paths');
-    const href=await entityDb().then(db=>pathMaps(db)).then(m=>canonicalPath(r.href,m)).catch(()=>r.href);
-    return respond({redirect:href,destination:routingQuestion});}
-   return respond({error:await recordUnserved(routingQuestion,language),notAvailable:true},404);}
+  // The public edition finds pages by search (no model): a question sent here opens the search for it.
+  if(PUBLIC_EDITION)return respond({redirect:'/search?q='+encodeURIComponent(routingQuestion.slice(0,200)),destination:routingQuestion});
   const rootRouter=await spawnAgent('root-routing',context.ownerId);
   const rootRoute=await resolveRootRoute(routingQuestion,vector,language,uid,rootRouter,request.signal,!!fork,fromPage);
   const requested=rootRoute.intent;

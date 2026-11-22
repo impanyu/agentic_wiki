@@ -3,7 +3,8 @@ import Workspace from './workspace';
 import { getChatGPTUser, chatGPTSignInPath, chatGPTSignOutPath } from './chatgpt-auth';
 import {SITE_NAME,PUBLIC_EDITION} from './edition';
 import {serverUi,requestLocale} from './i18n/request';
-import {localizeLinks} from './i18n/locales';
+import {localizeLinks,localePath} from './i18n/locales';
+import {redirect} from 'next/navigation';
 import {localeMeta} from './i18n/meta';
 import {entityDb} from './entity-db/client';
 import {pathMaps,nodeChildren,popularRankings} from './entity-db/pages';
@@ -19,7 +20,10 @@ export async function generateMetadata({searchParams}:{searchParams:Promise<Reco
 }
 // The public edition's home is the root of the tree of sets: its top-level nodes, server-rendered (crawlers
 // follow them down from here).
-export default async function Home(){
+export default async function Home({searchParams}:{searchParams:Promise<Record<string,string|string[]|undefined>>}){
+ // The public edition finds pages by search: an older /?ask=… address opens the search for it.
+ const ask=(await searchParams).ask;
+ if(PUBLIC_EDITION&&typeof ask==='string'&&ask.trim())redirect(localePath('/search?q='+encodeURIComponent(ask.trim().slice(0,200)),await requestLocale()));
  const [user,ui] = await Promise.all([getChatGPTUser(),serverUi()]);
  const maps=PUBLIC_EDITION?await entityDb().then(db=>pathMaps(db)).catch(e=>{console.warn('home nodes',(e as Error).message);return null;}):null;
  return <Workspace user={user ? {name:user.displayName,id:user.userId}:null} signIn={chatGPTSignInPath('/')} signOut={chatGPTSignOutPath('/')}

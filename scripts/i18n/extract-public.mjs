@@ -2,7 +2,7 @@
 // adding or changing a t('…') call in these files; then translate the new keys into every other language file
 // (tests/i18n-public.test.mjs fails until each language has them all).
 import {readFileSync,writeFileSync} from 'node:fs';
-const FILES=['app/rankings/view.tsx','app/explore.tsx','app/home.tsx','app/i18n/switcher.tsx','app/theme.tsx',
+const FILES=['app/rankings/view.tsx','app/explore.tsx','app/search-box.tsx','app/home.tsx','app/i18n/switcher.tsx','app/theme.tsx',
  'app/workflows/viz/ranking.tsx','app/workflows/viz/entity-viz.tsx','app/workflows/viz/entity-charts.tsx',
  'app/rankings/ranking-page.tsx','app/e/entity-page.tsx','app/topics/topic-page.tsx'];
 // Text the shared workspace toolbar shows on the public home page, and labels passed to t() through variables.

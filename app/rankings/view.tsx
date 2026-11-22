@@ -4,6 +4,7 @@ import {Layers,ArrowRight,Trophy} from 'lucide-react';
 import {UiContext,useStaticUi,useUi} from '@/app/i18n/client';
 import {localePath,dirOf} from '@/app/i18n/locales';
 import {LanguageSwitcher} from '@/app/i18n/switcher';
+import {SearchBox} from '@/app/search-box';
 import {NodeGrid,recordVisit,RecentlyViewed} from '@/app/explore';
 import type {NodeCard} from '@/app/entity-db/pages';
 import {SITE_NAME,PUBLIC_EDITION} from '@/app/edition';
@@ -19,19 +20,15 @@ import type {PageSection} from '@/app/seo/assemble';
 // assembled. Everything is server-rendered; charts hydrate in the browser.
 
 // The reader shell: header with search, article. askTargets: names → their pages (links in rankings, peers, relations).
-export function DbShell({locale='en',dictionary={},askTargets,className,children}:{locale?:string;dictionary?:Record<string,string>;askTargets:Record<string,string>;className:string;children:ReactNode}){
+export function DbShell({locale='en',dictionary={},askTargets,className,query='',children}:{locale?:string;dictionary?:Record<string,string>;askTargets:Record<string,string>;className:string;query?:string;children:ReactNode}){
  const ui=useStaticUi(locale,dictionary),{t}=ui;
  // Remember this page in the reader's history (this device only).
- useEffect(()=>{const kind=/template-ranking/.test(className)?'ranking':/template-entity/.test(className)?'entity':'topic';
+ useEffect(()=>{if(/template-search/.test(className))return;const kind=/template-ranking/.test(className)?'ranking':/template-entity/.test(className)?'entity':'topic';
   recordVisit({title:document.title.replace(/ · [^·]+$/,''),href:location.pathname+location.search,kind});},[className]);
  return <UiContext.Provider value={ui}><AskTargets.Provider value={askTargets}><div className="browser-shell" lang={locale} dir={dirOf(locale)}>
   <header className="browser-toolbar">
    <a className="browser-brand" href={localePath('/',locale)} title={t('Home')} aria-label={SITE_NAME}><Layers size={22} aria-hidden="true"/><span>{SITE_NAME}</span></a>
-   <form className="address-bar" action={localePath('/',locale)} method="get" role="search">
-    <label htmlFor="address" className="sr-only">{t('Question or context')}</label>
-    <input id="address" name="ask" type="text" placeholder={PUBLIC_EDITION?t('Search an entity or a ranking — e.g. Countries, iPhone 17, Perfumes'):t('Enter a question or context')} maxLength={4000} autoComplete="off" enterKeyHint="go" spellCheck={false}/>
-    <button type="submit" className="go-button" aria-label={t('Open answer')} title={t('Open answer · Enter')}><ArrowRight size={18}/></button>
-   </form>
+   <SearchBox initial={query}/>
    <LanguageSwitcher/>
    <ThemeToggle label={t('Switch theme')}/>
   </header>

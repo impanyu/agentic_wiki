@@ -166,6 +166,12 @@ export const MIGRATIONS:Migration[]=[
  {version:9,name:'ranking views',statements:()=>[
   'create table if not exists ranking_views(slug text not null, day date not null default current_date, n integer not null default 0, primary key (slug, day))',
  ]},
+ // What readers searched for and how many pages answered: the manager reads it to grow the topic tree.
+ {version:10,name:'search log',statements:()=>[
+  `create table if not exists search_log(id bigserial primary key, query text not null, norm text not null, locale text not null default 'en',
+    results integer not null default 0, handled boolean not null default false, at timestamptz not null default now())`,
+  'create index if not exists search_log_open on search_log(at) where not handled',
+ ]},
 ];
 export const SCHEMA_VERSION=MIGRATIONS[MIGRATIONS.length-1].version;
 
