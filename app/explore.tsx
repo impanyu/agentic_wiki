@@ -1,8 +1,9 @@
 'use client';
-import {ArrowUpRight,ChevronRight,Compass,Trophy,Layers,BarChart3} from 'lucide-react';
+import {useEffect,useState} from 'react';
+import {ArrowUpRight,ChevronRight,Compass,Trophy,Layers,BarChart3,History,CircleDot} from 'lucide-react';
 import {useUi} from '@/app/i18n/client';
 import {localePath} from '@/app/i18n/locales';
-import type {FeaturedRanking,TopicNav} from '@/app/entity-db/pages';
+import type {FeaturedRanking,TopicNav,NodeCard} from '@/app/entity-db/pages';
 // Browsing blocks shared by the home page and the topic pages: topic tiles (each opening its own level of the
 // tree) and ranking cards with their top three.
 
@@ -65,4 +66,42 @@ export function Breadcrumbs({trail,current}:{trail:{name:string;href:string}[];c
   {trail.map(x=><li key={x.href}><a href={x.href}>{x.name}</a></li>)}
   <li aria-current="page">{current}</li>
  </ol></nav>;
+}
+
+// The direct children of a node in the tree of sets, the same on every node page (and the home page, the
+// root): each card opens the next level. A ranking card is a set of one kind of entity; a topic card a
+// broader subject.
+export function NodeGrid({nodes,compact=false}:{nodes:NodeCard[];compact?:boolean}){
+ const {t,locale}=useUi();
+ if(!nodes.length)return null;
+ return <section className={'rw-explore rw-nodes'+(compact?' compact':'')} aria-label={t('Browse')}>
+  <div className="rw-topics">{nodes.map((x,i)=><article key={x.href} className="rw-topic" style={{['--h' as string]:hue(x.href),['--d' as string]:Math.min(i,12)*35+'ms'}}>
+   <a className="rw-card-link" href={x.href} aria-label={x.name}/>
+   <span className="rw-topic-icon" aria-hidden="true">{x.kind==='ranking'?<Trophy size={compact?17:21}/>:x.name.slice(0,1).toUpperCase()}</span>
+   <div className="rw-topic-body">
+    <h3>{x.name}<ChevronRight size={17} aria-hidden="true"/></h3>
+    {!compact&&x.description&&<p>{x.description}</p>}
+    {x.more>0&&<span className="rw-topic-stats"><span><Layers size={13} aria-hidden="true"/>{t('{count} below',{count:x.more.toLocaleString(locale)})}</span></span>}
+   </div>
+  </article>)}</div>
+ </section>;
+}
+
+// The reader's own history: pages opened on this device (kept in the browser only, never sent anywhere).
+type Visit={title:string;href:string;kind:'ranking'|'entity'|'topic';at:number};
+const VISITS='rw-visits';
+const readVisits=():Visit[]=>{try{const v=JSON.parse(localStorage.getItem(VISITS)||'[]');return Array.isArray(v)?v.filter(x=>x&&typeof x.href==='string'&&typeof x.title==='string'):[];}catch{return [];}};
+export function recordVisit(v:Omit<Visit,'at'>){
+ try{const list=[{...v,at:Date.now()},...readVisits().filter(x=>x.href!==v.href)].slice(0,24);localStorage.setItem(VISITS,JSON.stringify(list));}catch{}
+}
+export function RecentlyViewed(){
+ const {t}=useUi();
+ const [list,setList]=useState<Visit[]>([]);
+ useEffect(()=>{const here=location.pathname+location.search;setList(readVisits().filter(x=>x.href!==here).slice(0,12));},[]);
+ if(!list.length)return null;
+ return <section className="rw-explore rw-recent" aria-labelledby="rw-recent-title">
+  <h2 id="rw-recent-title"><History size={18} aria-hidden="true"/>{t('Recently viewed')}</h2>
+  <div className="rw-recent-list">{list.map(x=><a key={x.href} href={x.href} className={'rw-recent-item '+x.kind}>
+   {x.kind==='ranking'?<Trophy size={14} aria-hidden="true"/>:x.kind==='entity'?<CircleDot size={14} aria-hidden="true"/>:<Compass size={14} aria-hidden="true"/>}<span>{x.title}</span></a>)}</div>
+ </section>;
 }

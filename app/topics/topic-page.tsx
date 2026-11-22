@@ -7,18 +7,19 @@ import {notFound} from 'next/navigation';
 import {SITE_NAME} from '@/app/edition';
 import {siteUrl} from '@/app/site';
 import {entityDb} from '@/app/entity-db/client';
-import {loadTopicNav,topicPath,pathMaps} from '@/app/entity-db/pages';
+import {loadTopicNav,topicPath,pathMaps,nodeChildren,popularRankings} from '@/app/entity-db/pages';
 import {canonicalPath,canonicalLinks} from '@/app/seo/paths';
 import {permanentRedirect} from 'next/navigation';
 import {jsonLd} from '@/app/seo/structured-data';
 import {DbShell} from '@/app/rankings/view';
-import {TopicGrid,RankingGrid,TypeList,Breadcrumbs} from '@/app/explore';
+import {NodeGrid,RankingGrid,Breadcrumbs} from '@/app/explore';
 import {Compass} from 'lucide-react';
-// A topic page at its place in the address tree (/<root>/…/<slug>; /topics/<slug> redirects there): one level of the topic tree — its subtopics (each opening its own level), its rankings with
+// A broad topic's page (a node over several kinds of entity, so no ranking of its own) at its place in the
+// address tree; /topics/<slug> redirects there. Like every node page it lists its direct children. One level of the topic tree — its subtopics (each opening its own level), its rankings with
 // their leaders, and the kinds of entity pages it has. Rendered from the database; the manager keeps the tree.
 export type Props={params:Promise<{slug:string}>;legacy?:boolean};
 const decode=(s:string)=>{try{return decodeURIComponent(s);}catch{return s;}};
-const load=cache(async(slug:string)=>loadTopicNav(await entityDb(),slug));
+const load=cache(async(slug:string)=>loadTopicNav(await entityDb(),slug,{rankings:false}));
 
 export async function generateMetadata(props:Props):Promise<Metadata>{
  const nav=await load(decode((await props.params).slug)).catch(()=>null);
@@ -43,11 +44,10 @@ export async function TopicPage(props:Props){
    <Breadcrumbs trail={L(nav.trail.map(x=>({name:x.name,href:x.href})))} current={t.name}/>
    <header className="wiki-heading db-hero"><span className="db-kicker"><Compass size={13} aria-hidden="true"/>{ui.t('Topic')}</span><h1>{t.name}</h1>
     {t.description&&<p className="lead">{t.description}</p>}
-    <p className="rw-hero-stats"><span>{ui.t('{count} rankings',{count:n(t.rankings)})}</span>{t.pages>0&&<span>{ui.t('{count} pages',{count:n(t.pages)})}</span>}{nav.children.length>0&&<span>{ui.t('{count} subtopics',{count:n(nav.children.length)})}</span>}</p>
+    <p className="rw-hero-stats"><span>{ui.t('{count} rankings',{count:n(t.rankings)})}</span>{t.pages>0&&<span>{ui.t('{count} pages',{count:n(t.pages)})}</span>}</p>
    </header>
-   <TopicGrid topics={L(nav.children)} title={ui.t('Subtopics')}/>
-   <RankingGrid rankings={L(nav.rankings)} title={nav.children.length?ui.t('Leading rankings'):ui.t('Rankings')}/>
-   <TypeList types={L(nav.types)}/>
+   <NodeGrid nodes={L(nodeChildren(maps,here))}/>
+   <RankingGrid rankings={L(await popularRankings(await entityDb(),maps,here).catch(()=>[]))} title={ui.t('Popular rankings')}/>
   </DbShell>
  </>;
 }

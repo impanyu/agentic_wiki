@@ -227,6 +227,10 @@ export async function featuredRankings(db:Queryable,limit=12,topicIds?:string[])
  const defs=(await db.query(`select * from rankings where slug is not null and status='published' and array_length(criteria,1)>0
   and ($2::uuid[] is null or topic_id = any($2::uuid[]))
   order by (coalesce(scope->'filters','{}'::jsonb) = '{}'::jsonb) desc, updated_at desc limit $1::int`,[limit,topicIds??null])).rows.map(rankingRow);
+ return rankingCards(db,defs);
+}
+// A card per ranking: its leading criterion, its criteria and its top three (linked when they have a page).
+async function rankingCards(db:Queryable,defs:RankingDef[]):Promise<FeaturedRanking[]>{
  const out:FeaturedRanking[]=[];
  for(const def of defs){
   const lead=String(def.config?.default||def.criteria[0]);const infos=await metricInfos(db,def.criteria.map(c=>c.split('@')[0]));
@@ -263,7 +267,7 @@ export async function topicTree(db:Queryable):Promise<TopicNode[]>{
  return r.rows.map(x=>({id:String(x.id),parentId:x.parent_id?String(x.parent_id):null,slug:String(x.slug),name:String(x.name),description:String(x.description||''),
   rankings:Number(x.rankings),types:Number(x.types),pages:Number(x.pages),href:topicPath(String(x.slug))})).filter(x=>x.rankings+x.types>0);
 }
-export async function loadTopicNav(db:Queryable,slug:string|null):Promise<TopicNav|null>{
+export async function loadTopicNav(db:Queryable,slug:string|null,{rankings:withRankings=true}:{rankings?:boolean}={}):Promise<TopicNav|null>{
  const tree=await topicTree(db);const byId=new Map(tree.map(x=>[x.id,x]));
  const topic=slug?tree.find(x=>x.slug===slug)??null:null;if(slug&&!topic)return null;
  const trail:TopicNode[]=[];for(let p=topic?.parentId?byId.get(topic.parentId):undefined;p&&trail.length<12;p=p.parentId?byId.get(p.parentId):undefined)trail.unshift(p);
@@ -274,7 +278,7 @@ export async function loadTopicNav(db:Queryable,slug:string|null):Promise<TopicN
  if(!topic)return {topic:null,trail:[],children,rankings:[],types:[]};
  const subtree:string[]=[];const walk=(id:string)=>{subtree.push(id);for(const k of tree)if(k.parentId===id)walk(k.id);};walk(topic.id);
  // A topic lists its own rankings in full; with subtopics, the leading rankings of the whole branch.
- const rankings=await featuredRankings(db,children.length?12:120,children.length?subtree:[topic.id]);
+ const rankings=withRankings?await featuredRankings(db,children.length?12:120,children.length?subtree:[topic.id]):[];
  const tr=await db.query(`select et.type, et.label, et.plural, (select count(*)::int from entities e where e.type = et.type and e.has_page) n,
    (select r.slug from rankings r where r.status = 'published' and r.slug is not null and r.scope->>'type' = et.type order by (coalesce(r.scope->'filters','{}'::jsonb) = '{}'::jsonb) desc, r.updated_at desc limit 1) rk
   from entity_types et where et.topic_id = $1::uuid and et.status = 'published' order by et.label`,[topic.id]);
@@ -288,7 +292,7 @@ export async function loadTopicNav(db:Queryable,slug:string|null):Promise<TopicN
 // values it adds ("/geography/countries/europe-central-asia"); subsets may overlap and may be narrowed again.
 // A topic without a main ranking (a broad subject over several kinds of entity) is a directory of its children.
 // Read at most once a minute: a node moved in the tree moves its pages within a minute.
-type NodeInfo={path:string;kind:'topic'|'ranking';slug:string;name:string;parent:string|null};
+type NodeInfo={path:string;kind:'topic'|'ranking';slug:string;name:string;description:string;parent:string|null;live?:boolean};
 export type AddressTree=PathMaps&{nodes:Map<string,NodeInfo>;children:Map<string,string[]>;mainOf:Map<string,string>};
 let mapsCache:{at:number;maps:AddressTree}|null=null;
 const filterEntries=(f:unknown):[string,string][]=>Object.entries(f&&typeof f==='object'?f as Record<string,unknown>:{})
@@ -296,12 +300,12 @@ const filterEntries=(f:unknown):[string,string][]=>Object.entries(f&&typeof f===
 const segmentOf=(extra:[string,string][])=>slugify(extra.map(([k,v])=>/^[{[]/.test(v)?k+' '+v.replace(/[^\p{L}\p{N}.]+/gu,' '):v).join(' ')).replace(/-and-/g,'-');
 export async function pathMaps(db:Queryable,{fresh=false}:{fresh?:boolean}={}):Promise<AddressTree>{
  if(!fresh&&mapsCache&&Date.now()-mapsCache.at<60_000)return mapsCache.maps;
- const topics=(await db.query<{id:string;parent_id:string|null;slug:string;name:string}>("select id, parent_id, slug, name from topics where status <> 'archived'")).rows
-  .map(t=>({id:String(t.id),parentId:t.parent_id?String(t.parent_id):null,slug:String(t.slug),name:String(t.name)}));
+ const topics=(await db.query<{id:string;parent_id:string|null;slug:string;name:string;description:string}>("select id, parent_id, slug, name, description from topics where status <> 'archived'")).rows
+  .map(t=>({id:String(t.id),parentId:t.parent_id?String(t.parent_id):null,slug:String(t.slug),name:String(t.name),description:String(t.description||'')}));
  const paths=topicPaths(topics);const topicById=new Map(topics.map(t=>[t.id,t]));
  const nodes=new Map<string,NodeInfo>(),children=new Map<string,string[]>(),rankings=new Map<string,string>(),mainOf=new Map<string,string>();
  const add=(n:NodeInfo)=>{nodes.set(n.path,n);if(n.parent){const c=children.get(n.parent)??[];c.push(n.path);children.set(n.parent,c);}};
- for(const t of topics){const path=paths.get(t.slug)!;const parent=t.parentId&&topicById.has(t.parentId)?paths.get(topicById.get(t.parentId)!.slug)!:null;add({path,kind:'topic',slug:t.slug,name:t.name,parent});}
+ for(const t of topics){const path=paths.get(t.slug)!;const parent=t.parentId&&topicById.has(t.parentId)?paths.get(topicById.get(t.parentId)!.slug)!:null;add({path,kind:'topic',slug:t.slug,name:t.name,description:t.description,parent});}
  const rows=(await db.query<{slug:string;title:string;topic_id:string|null;scope:Row}>('select slug, title, topic_id, scope from rankings where slug is not null and topic_id is not null and status = any($1::text[]) order by updated_at desc',[PAGE_STATUSES])).rows;
  const byTopic=new Map<string,{slug:string;title:string;type:string;filters:[string,string][]}[]>();
  for(const r of rows){const sc=obj(r.scope);const list=byTopic.get(String(r.topic_id))??[];list.push({slug:String(r.slug),title:String(r.title||r.slug),type:String(sc.type||''),filters:filterEntries(sc.filters)});byTopic.set(String(r.topic_id),list);}
@@ -321,9 +325,12 @@ export async function pathMaps(db:Queryable,{fresh=false}:{fresh?:boolean}={}):P
    const extra=r.filters.filter(x=>!parent||!has(parent.filters,x));
    let seg=extra.length?segmentOf(extra):slugify(r.slug);if(!seg||seg==='page')seg=slugify(r.slug);
    let path=base+'/'+encodeURIComponent(seg);for(let i=2;nodes.has(path);i++)path=base+'/'+encodeURIComponent(seg+'-'+i);
-   placed.set(r.slug,path);rankings.set(r.slug,path);add({path,kind:'ranking',slug:r.slug,name:r.title,parent:base});
+   placed.set(r.slug,path);rankings.set(r.slug,path);add({path,kind:'ranking',slug:r.slug,name:r.title,description:'',parent:base});
   }
  }
+ // A node is live when it is a ranking or has one below it; the others (no data yet) are not listed.
+ for(const n of nodes.values())if(n.kind==='ranking')for(let p:string|null=n.path;p&&!nodes.get(p)!.live;p=nodes.get(p)!.parent)nodes.get(p)!.live=true;
+ const roots=[...nodes.values()].filter(n=>!n.parent).map(n=>n.path);children.set('',roots);
  const maps={topics:paths,rankings,types:new Map<string,string>(),nodes,children,mainOf};mapsCache={at:Date.now(),maps};return maps;
 }
 export type ResolvedPath={kind:'topic';slug:string}|{kind:'ranking';slug:string}|{kind:'redirect';to:string};
@@ -345,7 +352,35 @@ export function nodeTrail(maps:AddressTree,path:string):{name:string;href:string
  for(let p=maps.nodes.get(path)?.parent;p&&out.length<16;p=maps.nodes.get(p)?.parent){const n=maps.nodes.get(p);if(!n)break;out.unshift({name:n.name,href:n.path});}
  return out;
 }
-export function nodeChildren(maps:AddressTree,path:string):{name:string;href:string;kind:'topic'|'ranking';more:number}[]{
- return (maps.children.get(path)??[]).map(p=>maps.nodes.get(p)!).filter(Boolean)
-  .map(n=>({name:n.name,href:n.path,kind:n.kind,more:(maps.children.get(n.path)??[]).length}));
+// A node's direct children that have something published ('' is the root: the top-level nodes).
+export type NodeCard={name:string;href:string;kind:'topic'|'ranking';description:string;more:number};
+export function nodeChildren(maps:AddressTree,path:string):NodeCard[]{
+ const live=(p:string)=>!!maps.nodes.get(p)?.live;
+ return (maps.children.get(path)??[]).filter(live).map(p=>maps.nodes.get(p)!)
+  .map(n=>({name:n.name,href:n.path,kind:n.kind,description:n.description,more:(maps.children.get(n.path)??[]).filter(live).length}))
+  .sort((a,b)=>b.more-a.more||a.name.localeCompare(b.name));
+}
+
+// ───────────── popularity ─────────────
+// One reader view of a ranking page (browsers only, once per page per session).
+export async function recordRankingView(db:Queryable,slug:string):Promise<boolean>{
+ if(!/^[a-z0-9][a-z0-9-]{0,120}$/.test(slug))return false;
+ const r=await db.query(`insert into ranking_views(slug, day, n) select slug, current_date, 1 from rankings where slug = $1::text and status = any($2::text[])
+  on conflict (slug, day) do update set n = ranking_views.n + 1 returning n`,[slug,PAGE_STATUSES]);
+ return r.rows.length>0;
+}
+// The most viewed rankings in a node's subtree over the last 30 days (newest first while views are few), as cards.
+const popularCache=new Map<string,{at:number;cards:FeaturedRanking[]}>();
+export async function popularRankings(db:Queryable,maps:AddressTree,path:string,limit=6):Promise<FeaturedRanking[]>{
+ const hit=popularCache.get(path);if(hit&&Date.now()-hit.at<5*60_000)return hit.cards;
+ const own=maps.nodes.get(path);const slugs:string[]=[];
+ const walk=(p:string)=>{for(const c of maps.children.get(p)??[]){const n=maps.nodes.get(c);if(!n?.live)continue;if(n.kind==='ranking')slugs.push(n.slug);walk(c);}};
+ walk(path);
+ const list=[...new Set(slugs)].filter(x=>x!==(own?.kind==='ranking'?own.slug:''));
+ if(!list.length){popularCache.set(path,{at:Date.now(),cards:[]});return [];}
+ const defs=(await db.query(`select r.* from rankings r left join (select slug, sum(n) v from ranking_views where day > current_date - 30 group by slug) w on w.slug = r.slug
+  where r.slug = any($1::text[]) and r.status = 'published' and array_length(r.criteria,1) > 0 order by coalesce(w.v,0) desc, r.updated_at desc limit $2::int`,[list,limit])).rows.map(rankingRow);
+ const cards=await rankingCards(db,defs);
+ if(popularCache.size>5000)popularCache.clear();
+ popularCache.set(path,{at:Date.now(),cards});return cards;
 }

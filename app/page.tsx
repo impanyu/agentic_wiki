@@ -6,7 +6,7 @@ import {serverUi,requestLocale} from './i18n/request';
 import {localizeLinks} from './i18n/locales';
 import {localeMeta} from './i18n/meta';
 import {entityDb} from './entity-db/client';
-import {featuredRankings,loadTopicNav,pathMaps,type FeaturedRanking,type TopicNav} from './entity-db/pages';
+import {pathMaps,nodeChildren,popularRankings} from './entity-db/pages';
 import {canonicalLinks} from './seo/paths';
 import {loadPublicPage} from './seo/server';
 import {pagePath} from './seo/urls';
@@ -17,20 +17,11 @@ export async function generateMetadata({searchParams}:{searchParams:Promise<Reco
  const page=await loadPublicPage(id).catch(()=>null);if(!page)return {};
  return {title:`${page.title} · ${SITE_NAME}`,description:(page.summary||page.title).slice(0,300),alternates:{canonical:pagePath(page.id,page.title)}};
 }
-// The public edition's home shows the topic tree's first level and the published rankings, server-rendered
-// (crawlers follow them from here). Read at most every five minutes.
-type HomeData={featured:FeaturedRanking[];topics:TopicNav['children']};
-let homeCache:{at:number;data:HomeData}|null=null;
-async function homeData():Promise<HomeData>{
- if(!PUBLIC_EDITION)return {featured:[],topics:[]};
- if(homeCache&&Date.now()-homeCache.at<5*60_000)return homeCache.data;
- const data=await entityDb().then(async db=>({featured:await featuredRankings(db,12),topics:(await loadTopicNav(db,null))?.children??[]}))
-  .catch(e=>{console.warn('home data',(e as Error).message);return homeCache?.data??{featured:[],topics:[]};});
- homeCache={at:Date.now(),data};return data;
-}
+// The public edition's home is the root of the tree of sets: its top-level nodes, server-rendered (crawlers
+// follow them down from here).
 export default async function Home(){
- const [user,data,ui] = await Promise.all([getChatGPTUser(),homeData(),serverUi()]);
- const maps=PUBLIC_EDITION?await entityDb().then(db=>pathMaps(db)).catch(()=>({topics:new Map(),rankings:new Map(),types:new Map()})):{topics:new Map(),rankings:new Map(),types:new Map()};
+ const [user,ui] = await Promise.all([getChatGPTUser(),serverUi()]);
+ const maps=PUBLIC_EDITION?await entityDb().then(db=>pathMaps(db)).catch(e=>{console.warn('home nodes',(e as Error).message);return null;}):null;
  return <Workspace user={user ? {name:user.displayName,id:user.userId}:null} signIn={chatGPTSignInPath('/')} signOut={chatGPTSignOutPath('/')}
-  featured={localizeLinks(canonicalLinks(data.featured,maps),ui.locale)} topics={localizeLinks(canonicalLinks(data.topics,maps),ui.locale)} locale={ui.locale} dictionary={ui.dict} />;
+  nodes={maps?localizeLinks(nodeChildren(maps,''),ui.locale):[]} popular={maps?localizeLinks(canonicalLinks(await entityDb().then(db=>popularRankings(db,maps,'')).catch(()=>[]),maps),ui.locale):[]} locale={ui.locale} dictionary={ui.dict} />;
 }

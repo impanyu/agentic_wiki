@@ -14,8 +14,8 @@ import {propsRankingBlock,rankCriterion,blockPeriods,rankedView,rankingChartSvgs
 import {jsonLd} from '@/app/seo/structured-data';
 import {questionKey} from '@/app/seo/urls';
 import {DbShell,RankingBody} from './view';
-import {pathMaps,nodeTrail,nodeChildren} from '@/app/entity-db/pages';
-import {Breadcrumbs} from '@/app/explore';
+import {pathMaps,nodeTrail,nodeChildren,popularRankings} from '@/app/entity-db/pages';
+import {Breadcrumbs,RankingGrid} from '@/app/explore';
 import {canonicalPath,canonicalLinks} from '@/app/seo/paths';
 // A ranking page, at its place in the address tree (/<topic>/…/<slug>; /rankings/<slug> redirects there, and
 // serves rankings without a topic). A ranking definition rendered from the entity database by templates (no agent at page
@@ -72,6 +72,7 @@ export async function RankingPage(props:Props){
  if((props.legacy&&base!==internal)||slug!==input.def.slug||(rank!==undefined&&!criterion)||(year!==undefined&&!period))permanentRedirect(localizeLinks(path,locale));
  const origin=siteUrl();
  const dark=(await cookies()).get('rw-theme')?.value==='dark';
+ const popular=base!==internal?await popularRankings(await entityDb(),maps,base).catch(()=>[]):[];
  const charts=await rankingChartSvgs([block],{[block.code]:state},criterion?.key,locale,period,dark);
  const {criterion:c,ranked}=rankedView(block,state,criterion?.key,period);
  const ld={'@context':'https://schema.org','@type':'ItemList',url:origin+path,name,description:model.description,
@@ -82,9 +83,10 @@ export async function RankingPage(props:Props){
   <script type="application/ld+json" dangerouslySetInnerHTML={{__html:jsonLd(ld)}}/>
   <DbShell locale={locale} dictionary={dict} askTargets={L(askTargets)} className="answer template-ranking-v1">
    {base!==internal&&<Breadcrumbs trail={L(nodeTrail(maps,base))} current={maps.nodes.get(base)?.name??model.title}/>}
-   <RankingBody kicker={t('Ranking')+(input.def.status==='draft'?' · '+t('Draft'):'')} subsets={L(nodeChildren(maps,base))} title={name} baseTitle={model.title} titles={titles} basePath={localizeLinks(base,locale)} defaultRank={block.defaultKey} rank={criterion?.key} period={period} charts={charts} props={L(rprops)} lead={model.lead}/>
+   <RankingBody slug={input.def.slug} kicker={t('Ranking')+(input.def.status==='draft'?' · '+t('Draft'):'')} subsets={L(nodeChildren(maps,base))} title={name} baseTitle={model.title} titles={titles} basePath={localizeLinks(base,locale)} defaultRank={block.defaultKey} rank={criterion?.key} period={period} charts={charts} props={L(rprops)} lead={model.lead}/>
    <p className="data-twin-files"><a href={internal+'/data.csv'} download>{t('Download the data (CSV)')}</a></p>
    {model.about.length>0&&<section aria-labelledby="about-ranking"><h2 id="about-ranking">{t('About this ranking')}</h2><ul>{model.about.map((x,i)=><li key={i}>{x}</li>)}</ul></section>}
+   <RankingGrid rankings={L(popular)} title={t('Popular rankings')}/>
    {model.related.length>0&&<section aria-labelledby="related-rankings"><h2 id="related-rankings">{t('Related rankings')}</h2><ul>{model.related.map(r=><li key={r.href}><a href={L(r.href)}>{r.title}</a></li>)}</ul></section>}
   </DbShell>
  </>;

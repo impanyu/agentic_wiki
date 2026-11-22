@@ -381,3 +381,26 @@ a.rw-type:hover{transform:translateY(-2px);box-shadow:var(--rw-shadow-lift)}
  color:var(--rw-ink);background:var(--rw-surface);border:1px solid var(--rw-border-strong);transition:all .15s}
 .browser-shell .db-subsets a:hover{border-color:rgba(129,140,248,.6);color:var(--rw-accent-ink);transform:translateY(-1px);box-shadow:0 8px 18px -10px rgba(79,70,229,.6)}
 .db-subsets small{font-size:11px;font-weight:700;color:var(--rw-accent-ink);background:var(--rw-accent-soft);padding:1px 6px;border-radius:999px}
+
+/* Node pages: the direct children, the same cards everywhere (compact on a ranking page, under its title). */
+.answer h2.rw-nodes-title{font-family:var(--rw-font);font-size:13px;font-weight:750;letter-spacing:.1em;text-transform:uppercase;color:var(--rw-muted);border:0;padding:0;margin:4px 0 10px}
+.rw-nodes{margin-top:6px}
+.rw-home .rw-nodes{margin-top:clamp(36px,7vh,64px)}
+.rw-nodes.compact{margin:0 0 22px}
+.rw-nodes.compact .rw-topics{grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:10px}
+.rw-nodes.compact .rw-topic{padding:12px 14px;gap:10px;border-radius:18px;align-items:center}
+.rw-nodes.compact .rw-topic-icon{width:34px;height:34px;border-radius:11px}
+.rw-nodes.compact .rw-topic h3{font-size:14.5px}
+.rw-nodes.compact .rw-topic::after{width:120px;height:120px}
+.rw-topic-icon svg{color:#fff}
+@media (max-width:650px){.rw-nodes.compact .rw-topics{grid-template-columns:repeat(2,minmax(0,1fr))}.rw-nodes.compact .rw-topic{padding:10px}.rw-nodes.compact .rw-topic-icon{display:none}.rw-nodes.compact .rw-topic h3{font-size:13.5px}}
+
+/* The reader's history (this device): small pills, newest first. */
+.rw-recent-list{display:flex;flex-wrap:wrap;gap:8px}
+.browser-shell .rw-recent-item{display:inline-flex;align-items:center;gap:7px;max-width:100%;padding:8px 13px;border-radius:999px;font-size:13.5px;font-weight:600;text-decoration:none;
+ color:var(--rw-ink);background:var(--rw-surface);border:1px solid var(--rw-border-strong);transition:all .15s}
+.rw-recent-item span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.rw-recent-item svg{flex:none;color:var(--rw-accent)}
+.rw-recent-item.ranking svg{color:#d97706}
+.browser-shell .rw-recent-item:hover{border-color:rgba(129,140,248,.6);color:var(--rw-accent-ink);transform:translateY(-1px)}
+.answer .rw-recent{margin-top:44px}

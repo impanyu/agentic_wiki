@@ -4,25 +4,26 @@ import {useCallback,useEffect,useRef,useState} from 'react';
 import {Clock3,LoaderCircle,AppWindow,FileText,X,Bot} from 'lucide-react';
 import {useUi} from '@/app/i18n/client';
 import type {HomeCard,CardStatus} from '@/app/api/home/route';
-import type {FeaturedRanking,TopicNav} from '@/app/entity-db/pages';
-import {TopicGrid,RankingGrid} from './explore';
+import type {NodeCard,FeaturedRanking} from '@/app/entity-db/pages';
+import {NodeGrid,RankingGrid,RecentlyViewed} from './explore';
 
 // The home page: recently visited pages and the newest public pages, as cards.
-export function HomePage({onOpen,revision=0,featured=[],topics=[]}:{onOpen:(card:HomeCard)=>void;revision?:number;featured?:FeaturedRanking[];topics?:TopicNav['children']}){
+export function HomePage({onOpen,revision=0,nodes=[],popular=[]}:{onOpen:(card:HomeCard)=>void;revision?:number;nodes?:NodeCard[];popular?:FeaturedRanking[]}){
  const {t,locale}=useUi();
- if(PUBLIC_EDITION)return <PublicHome featured={featured} topics={topics}/>;
+ if(PUBLIC_EDITION)return <PublicHome nodes={nodes} popular={popular}/>;
  return <HistoryHome onOpen={onOpen} revision={revision}/>;
 }
-// The public edition's front page: the name, the topic tree's first level, and the published rankings.
-function PublicHome({featured,topics}:{featured:FeaturedRanking[];topics:TopicNav['children']}){
+// The public edition's front page: the name, then the root of the tree of sets (its top-level nodes).
+function PublicHome({nodes,popular}:{nodes:NodeCard[];popular:FeaturedRanking[]}){
  const {t}=useUi();
  return <div className="rw-home">
   <section className="rw-hero">
    <h1><em>RankWiki</em></h1>
    <p>{t('Rank anything.')}</p>
   </section>
-  <TopicGrid topics={topics}/>
-  <RankingGrid rankings={featured}/>
+  <NodeGrid nodes={nodes}/>
+  <RankingGrid rankings={popular} title={t('Popular rankings')}/>
+  <RecentlyViewed/>
  </div>;
 }
 function HistoryHome({onOpen,revision=0}:{onOpen:(card:HomeCard)=>void;revision?:number}){

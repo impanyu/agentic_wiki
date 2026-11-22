@@ -317,3 +317,16 @@ test('address tree of sets: a topic is its main ranking, subsets sit under the s
  const byNum=await pages.loadEntityPageByNum(db,de.num);assert.equal(byNum.data.entity.name,'Germany');
  assert.equal(await pages.loadEntityPageByNum(db,'999999999'),null);
 });
+
+test('popular rankings: a node lists the most viewed published rankings of its subtree, never itself',async()=>{
+ await db.query("update rankings set status='published' where slug='countries-in-europe-and-central-asia-rankings'");
+ const maps=await pages.pathMaps(db,{fresh:true});
+ assert.equal(await pages.recordRankingView(db,'countries-in-europe-and-central-asia-rankings'),true);
+ assert.equal(await pages.recordRankingView(db,'no-such-ranking'),false);
+ const top=await pages.popularRankings(db,maps,'/geography');
+ assert.deepEqual(top.map(x=>x.slug),['countries-in-europe-and-central-asia-rankings','country-rankings'],'viewed first');
+ assert.equal(top[0].top.length,3);
+ const under=await pages.popularRankings(db,maps,'/geography/countries');
+ assert.deepEqual(under.map(x=>x.slug),['countries-in-europe-and-central-asia-rankings'],'the node itself is not listed');
+ assert.deepEqual(pages.nodeChildren(maps,'').map(x=>x.href),['/geography'],'the root lists the top-level nodes that have something');
+});
