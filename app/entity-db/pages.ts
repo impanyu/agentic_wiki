@@ -254,7 +254,10 @@ async function rankingCards(db:Queryable,defs:RankingDef[]):Promise<FeaturedRank
 // published anywhere below them are left out, so every tile leads somewhere.
 export type TopicNode={id:string;parentId:string|null;slug:string;name:string;description:string;rankings:number;types:number;pages:number;href:string};
 export type TopicNav={topic:TopicNode|null;trail:TopicNode[];children:(TopicNode&{sub:{slug:string;name:string;href:string}[]})[];
- rankings:FeaturedRanking[];types:{type:string;label:string;plural:string;pages:number;href:string|null}[]};
+ rankings:FeaturedRanking[];types:{type:string;label:string;plural:string;pages:number;href:string|null}[];
+ build?:TopicBuild|null};
+// Where a topic's team stands while its pages are being built (shown on the topic's page until it has rankings).
+export type TopicBuild={status:'queued'|'running'|'done'|'failed'|'none';ahead:number;entities:number;sources:number;startedAt:string|null};
 export const topicPath=(slug:string)=>'/topics/'+encodeURIComponent(slug);
 let treeCache:{at:number;nodes:Promise<TopicNode[]>}|null=null;
 // The tree with its counts, kept for five minutes (counting every branch's pages is a full scan).
@@ -273,7 +276,7 @@ async function topicTreeUncached(db:Queryable):Promise<TopicNode[]>{
   select t.id, t.parent_id, t.slug, t.name, t.description, sum(own.rk)::int rankings, sum(own.ty)::int types, sum(own.pg)::int pages
   from t join sub on sub.root = t.id join own on own.id = sub.id group by t.id, t.parent_id, t.slug, t.name, t.description order by t.name`);
  return r.rows.map(x=>({id:String(x.id),parentId:x.parent_id?String(x.parent_id):null,slug:String(x.slug),name:String(x.name),description:String(x.description||''),
-  rankings:Number(x.rankings),types:Number(x.types),pages:Number(x.pages),href:topicPath(String(x.slug))})).filter(x=>x.rankings+x.types>0);
+  rankings:Number(x.rankings),types:Number(x.types),pages:Number(x.pages),href:topicPath(String(x.slug))}));
 }
 export async function loadTopicNav(db:Queryable,slug:string|null,{rankings:withRankings=true}:{rankings?:boolean}={}):Promise<TopicNav|null>{
  const tree=await topicTree(db);const byId=new Map(tree.map(x=>[x.id,x]));
@@ -290,7 +293,16 @@ export async function loadTopicNav(db:Queryable,slug:string|null,{rankings:withR
  const tr=await db.query(`select et.type, et.label, et.plural, (select count(*)::int from entities e where e.type = et.type and e.has_page) n,
    (select r.slug from rankings r where r.status = 'published' and r.slug is not null and r.scope->>'type' = et.type order by (coalesce(r.scope->'filters','{}'::jsonb) = '{}'::jsonb) desc, r.updated_at desc limit 1) rk
   from entity_types et where et.topic_id = $1::uuid and et.status = 'published' order by et.label`,[topic.id]);
- return {topic,trail,children,rankings,types:tr.rows.map(x=>({type:String(x.type),label:String(x.label||x.type),plural:String(x.plural||x.label||x.type),pages:Number(x.n),href:x.rk?rankingPath(String(x.rk)):null}))};
+ const build=topic.rankings===0?await topicBuild(db,topic).catch(()=>null):null;
+ return {topic,trail,children,rankings,build,types:tr.rows.map(x=>({type:String(x.type),label:String(x.label||x.type),plural:String(x.plural||x.label||x.type),pages:Number(x.n),href:x.rk?rankingPath(String(x.rk)):null}))};
+}
+
+async function topicBuild(db:Queryable,topic:TopicNode):Promise<TopicBuild>{
+ const q=(await db.query<{status:string;priority:number;created_at:unknown;started_at:unknown}>('select status, priority, created_at, started_at from team_queue where slug=$1::text',[topic.slug])).rows[0];
+ const ahead=q?.status==='queued'?Number((await db.query<{n:number}>(`select count(*)::int n from team_queue where status='queued' and (priority > $1::int or (priority = $1::int and created_at < $2::timestamptz))`,[q.priority,q.created_at])).rows[0]?.n||0):0;
+ const entities=Number((await db.query<{n:number}>('select count(*)::int n from entities where topic_id=$1::uuid or type in (select type from entity_types where topic_id=$1::uuid)',[topic.id])).rows[0]?.n||0);
+ const sources=Number((await db.query<{n:number}>('select count(*)::int n from sources where topic_id=$1::uuid',[topic.id])).rows[0]?.n||0);
+ return {status:(q?.status as TopicBuild['status'])||'none',ahead,entities,sources,startedAt:q?.started_at?new Date(String(q.started_at)).toISOString():null};
 }
 
 // ───────────── the address tree ─────────────
@@ -361,12 +373,16 @@ export function nodeTrail(maps:AddressTree,path:string):{name:string;href:string
  return out;
 }
 // A node's direct children that have something published ('' is the root: the top-level nodes).
-export type NodeCard={name:string;href:string;kind:'topic'|'ranking';description:string;more:number};
+// Every child is listed (the whole tree is browsable from the start); those with published rankings come first, the
+// others are marked as being built.
+const INTERNAL_TOPIC='general';
+export type NodeCard={name:string;href:string;kind:'topic'|'ranking';description:string;more:number;live:boolean};
 export function nodeChildren(maps:AddressTree,path:string):NodeCard[]{
  const live=(p:string)=>!!maps.nodes.get(p)?.live;
- return (maps.children.get(path)??[]).filter(live).map(p=>maps.nodes.get(p)!)
-  .map(n=>({name:n.name,href:n.path,kind:n.kind,description:n.description,more:(maps.children.get(n.path)??[]).filter(live).length}))
-  .sort((a,b)=>b.more-a.more||a.name.localeCompare(b.name));
+ // The manager's catch-all inbox topic ("general") is internal, not a place to browse.
+ return (maps.children.get(path)??[]).map(p=>maps.nodes.get(p)!).filter(n=>!(n.kind==='topic'&&n.slug===INTERNAL_TOPIC))
+  .map(n=>({name:n.name,href:n.path,kind:n.kind,description:n.description,more:(maps.children.get(n.path)??[]).length,live:live(n.path)}))
+  .sort((a,b)=>Number(b.live)-Number(a.live)||b.more-a.more||a.name.localeCompare(b.name));
 }
 
 // ───────────── popularity ─────────────
@@ -405,9 +421,11 @@ async function searchIndex(db:Queryable):Promise<IndexEntry[]>{
  if(indexCache&&Date.now()-indexCache.at<60_000)return indexCache.entries;
  const maps=await pathMaps(db);const out:IndexEntry[]=[];
  const push=(e:SearchHit)=>{const key=norm(e.title);out.push({...e,key,words:key.split(' ')});};
- for(const n of maps.nodes.values()){if(!n.live)continue;
-  if(n.kind==='topic')push({kind:'topic',title:n.name,subtitle:'Topic',href:n.path,score:0});
-  else push({kind:'ranking',title:n.name,subtitle:'Ranking',href:n.path,score:0});}
+ for(const n of maps.nodes.values()){
+  // A topic still being built is findable too (its page says where its team stands); rankings only once published.
+  if(n.kind==='topic'){push({kind:'topic',title:n.name,subtitle:n.live?'Topic':'Topic · being built',href:n.path,score:0});continue;}
+  if(!n.live)continue;
+  push({kind:'ranking',title:n.name,subtitle:'Ranking',href:n.path,score:0});}
  // A main ranking is also found by its own title ("Country Rankings" as well as "Countries").
  const rk=(await db.query<{slug:string;title:string;criteria:string[];config:Row}>("select slug, title, criteria, config from rankings where slug is not null and status = 'published'")).rows;
  const labels=await metricInfos(db,[...new Set(rk.flatMap(r=>(r.criteria||[]).map(c=>c.split('@')[0])))]);

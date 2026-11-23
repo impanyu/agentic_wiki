@@ -484,3 +484,12 @@ html,body{background:var(--rw-bg)}
 .entity-highlights .all-ranks b{color:var(--rw-muted)}
 .answer .entity-rankings .er-chip .er-value{color:var(--rw-muted);font-size:11.5px;font-variant-numeric:tabular-nums;padding-left:6px;border-left:1px solid var(--rw-border)}
 #all-rankings{scroll-margin-top:84px}
+/* Topics still being built: browsable, quietly marked */
+.rw-topic.building{opacity:.82}
+.rw-topic.building .rw-topic-icon{filter:grayscale(.6)}
+.rw-badge-building{display:inline-flex;align-items:center;padding:1px 8px;border-radius:999px;font-size:11px;font-weight:600;color:var(--rw-muted);border:1px dashed var(--rw-border-strong)}
+.rw-build{display:flex;gap:14px;align-items:flex-start;margin:6px 0 26px;padding:16px 18px;border-radius:12px;border:1px dashed var(--rw-border-strong);background:var(--rw-surface)}
+.rw-build svg{flex:none;margin-top:2px;color:var(--rw-muted)}
+.rw-build strong{display:block;font-size:14px;color:var(--rw-ink);margin-bottom:4px}
+.rw-build p{margin:0;font-size:13.5px;color:var(--rw-text);line-height:1.55}
+.rw-build-stats{display:flex;gap:14px;margin-top:8px!important;color:var(--rw-muted)!important;font-size:12.5px!important}

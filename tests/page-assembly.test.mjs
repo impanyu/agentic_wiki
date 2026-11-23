@@ -91,12 +91,12 @@ test('entity page: lead, card, sections in template order, references, as-of sta
  assert.deepEqual(p.history.map(x=>x.period),['2022','2023'],'history sorted oldest first');
  assert.equal(g.rank,undefined);assert.equal(g.note,'Outside the top 1,000 of 2,000');assert.equal(g.currency,'USD');assert.equal(g.href,'/rankings/country-rankings?rank=gdp_usd');
  assert.deepEqual(cap,{label:'Capital',value:'Berlin',href:'/e/city/berlin'});
- assert.deepEqual(m.sections.map(s=>s.component),['trend','position','peer_compare','location_map','relation_graph','rankings','timeline','text'],'single-point trend, 2-metric radar and unknown kinds are left out');
- const pos=m.sections[1];assert.equal(pos.props.highlight,'Germany');assert.equal(pos.props.values.length,2,'the entity is added when outside the peers');assert.match(pos.props.subtitle,/outside them \(1200th of 2,000\)/);
- const peers=m.sections[2];assert.equal(peers.props.values.length,2);assert.equal(peers.props.subtitle,undefined);assert.equal(peers.props.values[0].href,'/e/country/india');
- assert.deepEqual(m.sections[3].props,{name:'Germany',region:'DEU'});
- assert.deepEqual(m.sections[4].props.relations.map(r=>r.predicate+':'+r.name+':'+r.href),['Capital:Berlin:/e/city/berlin','Located in of:Munich:/e/city/munich','Located in of:Hamburg:/e/city/hamburg']);
- assert.equal(m.sections[5].links[0].detail,'Population: 19th of 217 · GDP: outside the top 1,000 · Area: not ranked');
+ assert.deepEqual(m.sections.map(s=>s.component),['rankings','trend','position','peer_compare','location_map','relation_graph','timeline','text'],'every rank first; single-point trend, 2-metric radar and unknown kinds are left out');
+ const pos=m.sections[2];assert.equal(pos.props.highlight,'Germany');assert.equal(pos.props.values.length,2,'the entity is added when outside the peers');assert.match(pos.props.subtitle,/outside them \(1200th of 2,000\)/);
+ const peers=m.sections[3];assert.equal(peers.props.values.length,2);assert.equal(peers.props.subtitle,undefined);assert.equal(peers.props.values[0].href,'/e/country/india');
+ assert.deepEqual(m.sections[4].props,{name:'Germany',region:'DEU'});
+ assert.deepEqual(m.sections[5].props.relations.map(r=>r.predicate+':'+r.name+':'+r.href),['Capital:Berlin:/e/city/berlin','Located in of:Munich:/e/city/munich','Located in of:Hamburg:/e/city/hamburg']);
+ assert.equal(m.sections[0].links[0].detail,'Population: 19th of 217 · GDP: outside the top 1,000 · Area: not ranked');
  assert.deepEqual(m.sections[6].props.events,[{date:'1871-01-18',label:'Founded'}]);
  assert.deepEqual(m.sections[7].paragraphs,['GDP was $4.5T in 2023.']);
  assert.deepEqual(m.references,[{source:'WB POP',what:'Population (2022–2023)'},{source:'WB GDP',what:'GDP (2023)'},{source:'Wikidata P36',what:'Capital'}]);
@@ -245,10 +245,10 @@ test('links: filled values link to existing pages only; attributes fall back to 
  assert.equal(withBerlin.cards[0].href,'/e/city/berlin');assert.equal(withBerlin.cards[1].href,'/rankings/country-rankings-europe');
  assert.equal(a.partsText(withBerlin.leadParts[0]),withBerlin.lead[0]);
 });
-test('every entity page lists its rankings, even when the template leaves the section out; each rank opens that criterion',()=>{
+test('every entity page lists its rankings first, even when the template leaves the section out; each rank opens that criterion',()=>{
  const base=data();
  const m=a.assembleEntityPage({...base,type:{...base.type,template:{lead:['{name}.'],sections:[{kind:'trend',metrics:['population']}]}}});
- const r=m.sections[m.sections.length-1];
+ const r=m.sections[0];
  assert.equal(r.component,'rankings');
  assert.deepEqual(r.links[0].ranks.map(x=>[x.text,x.href]),[['19th of 217','/rankings/country-rankings'],['outside the top 1,000','/rankings/country-rankings?rank=gdp_usd'],['not ranked','/rankings/country-rankings?rank=area_km2']]);
 });

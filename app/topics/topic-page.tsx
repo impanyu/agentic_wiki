@@ -15,7 +15,8 @@ import {permanentRedirect} from 'next/navigation';
 import {jsonLd} from '@/app/seo/structured-data';
 import {DbShell} from '@/app/rankings/view';
 import {NodeGrid,RankingGrid,Breadcrumbs} from '@/app/explore';
-import {Compass} from 'lucide-react';
+import {Compass,Hammer} from 'lucide-react';
+import type {TopicBuild} from '@/app/entity-db/pages';
 // A broad topic's page (a node over several kinds of entity, so no ranking of its own) at its place in the
 // address tree; /topics/<slug> redirects there. Like every node page it lists its direct children. One level of the topic tree — its subtopics (each opening its own level), its rankings with
 // their leaders, and the kinds of entity pages it has. Rendered from the database; the manager keeps the tree.
@@ -29,7 +30,9 @@ export async function generateMetadata(props:Props):Promise<Metadata>{
  if(!nav?.topic)return {title:SITE_NAME,robots:{index:false}};
  const t=nav.topic;
  const description=(t.description||`${t.name}: ${t.rankings} rankings and ${t.pages} entity pages.`).slice(0,300);
- return {title:`${t.name} · ${SITE_NAME}`,description,...localeMeta(canonicalPath(topicPath(t.slug),await pathMaps(await entityDb())),await requestLocale()),openGraph:{title:t.name,description,url:canonicalPath(topicPath(t.slug),await pathMaps(await entityDb())),siteName:SITE_NAME,type:'website'}};
+ // A topic still being built (no published ranking yet) is browsable but kept out of search engines until it has content.
+ const building=t.rankings===0;
+ return {title:`${t.name} · ${SITE_NAME}`,description,...localeMeta(canonicalPath(topicPath(t.slug),await pathMaps(await entityDb())),await requestLocale()),openGraph:{title:t.name,description,url:canonicalPath(topicPath(t.slug),await pathMaps(await entityDb())),siteName:SITE_NAME,type:'website'},...(building?{robots:{index:false,follow:true}}:{})};
 }
 
 export async function TopicPage(props:Props){
@@ -47,10 +50,24 @@ export async function TopicPage(props:Props){
    <Breadcrumbs trail={L(nav.trail.map(x=>({name:x.name,href:x.href})))} current={t.name}/>
    <header className="wiki-heading db-hero"><span className="db-kicker"><Compass size={13} aria-hidden="true"/>{ui.t('Topic')}</span><h1>{t.name}</h1>
     {t.description&&<p className="lead">{t.description}</p>}
-    <p className="rw-hero-stats"><span>{ui.t('{count} rankings',{count:n(t.rankings)})}</span>{t.pages>0&&<span>{ui.t('{count} pages',{count:n(t.pages)})}</span>}</p>
+    {t.rankings>0&&<p className="rw-hero-stats"><span>{ui.t('{count} rankings',{count:n(t.rankings)})}</span>{t.pages>0&&<span>{ui.t('{count} pages',{count:n(t.pages)})}</span>}</p>}
    </header>
+   {nav.build&&<BuildStatus build={nav.build} t={ui.t} n={n}/>}
    <NodeGrid nodes={L(nodeChildren(maps,here))}/>
    <RankingGrid rankings={L(await popularRankings(await entityDb(),maps,here).catch(()=>[]))} title={ui.t('Popular rankings')}/>
   </DbShell>
  </>;
+}
+
+// A topic whose pages are not published yet says where its team stands, so the tree is useful from the start.
+function BuildStatus({build,t,n}:{build:TopicBuild;t:(k:string,v?:Record<string,string|number>)=>string;n:(x:number)=>string}){
+ const state=build.status==='running'?t('Its team is researching sources and collecting data now.')
+  :build.status==='queued'?t('Its team starts soon ({count} topics ahead in the queue).',{count:n(build.ahead)})
+  :build.status==='done'?t('Its first pass is done; the pages are waiting for the reviewer\'s approval.')
+  :t('Its team has not been scheduled yet.');
+ return <section className="rw-build" aria-label={t('Being built')}>
+  <Hammer size={18} aria-hidden="true"/>
+  <div><strong>{t('Being built')}</strong><p>{t('Rankings and entity pages for this topic are being built from public data.')} {state}</p>
+   {(build.entities>0||build.sources>0)&&<p className="rw-build-stats">{build.sources>0&&<span>{t('{count} sources found',{count:n(build.sources)})}</span>}{build.entities>0&&<span>{t('{count} entities collected',{count:n(build.entities)})}</span>}</p>}</div>
+ </section>;
 }

@@ -75,13 +75,13 @@ export function NodeGrid({nodes,compact=false}:{nodes:NodeCard[];compact?:boolea
  const {t,locale}=useUi();
  if(!nodes.length)return null;
  return <section className={'rw-explore rw-nodes'+(compact?' compact':'')} aria-label={t('Browse')}>
-  <div className="rw-topics">{nodes.map((x,i)=><article key={x.href} className="rw-topic" style={{['--h' as string]:hue(x.href),['--d' as string]:Math.min(i,12)*35+'ms'}}>
+  <div className="rw-topics">{nodes.map((x,i)=><article key={x.href} className={'rw-topic'+(x.live===false?' building':'')} style={{['--h' as string]:hue(x.href),['--d' as string]:Math.min(i,12)*35+'ms'}}>
    <a className="rw-card-link" href={x.href} aria-label={x.name}/>
    <span className="rw-topic-icon" aria-hidden="true">{x.kind==='ranking'?<Trophy size={compact?17:21}/>:x.name.slice(0,1).toUpperCase()}</span>
    <div className="rw-topic-body">
     <h3>{x.name}<ChevronRight size={17} aria-hidden="true"/></h3>
     {!compact&&x.description&&<p>{x.description}</p>}
-    {x.more>0&&<span className="rw-topic-stats"><span><Layers size={13} aria-hidden="true"/>{t('{count} below',{count:x.more.toLocaleString(locale)})}</span></span>}
+    {(x.more>0||x.live===false)&&<span className="rw-topic-stats">{x.more>0&&<span><Layers size={13} aria-hidden="true"/>{t('{count} below',{count:x.more.toLocaleString(locale)})}</span>}{x.live===false&&<span className="rw-badge-building">{t('Being built')}</span>}</span>}
    </div>
   </article>)}</div>
  </section>;
