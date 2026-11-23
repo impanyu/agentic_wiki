@@ -99,20 +99,20 @@ type Log=(e:Record<string,unknown>)=>void;
 // A builder step that fails or never passes its checks on the open chain is redone once on the commercial model,
 // so an open model can never lower the quality floor.
 type Accept=()=>Promise<string|undefined>;
-async function ask(role:Role,agent:Agent,topicId:string,instructions:string,task:unknown,schema:Record<string,unknown>,log:Log,budget:{rounds:number;calls:number},accept?:Accept){
+async function ask(role:Role,agent:Agent,topicId:string,instructions:string,task:unknown,schema:Record<string,unknown>,log:Log,budget:{rounds:number;calls:number},accept?:Accept,tools?:string[]){
  const builder=role==='editor'||role==='collector';
  // The team's reviewer judges on open models too (a different family from the builders', so it is an independent
  // check), with the commercial model as its fallback; the manager's rulings stay on the commercial model.
  // REVIEWER_CLASS=premium puts reviews back on the commercial model.
  if(role==='reviewer'&&process.env.REVIEWER_CLASS!=='premium'){
-  try{return await askOnce(role,agent,topicId,instructions,task,schema,log,budget,'review',accept);}
-  catch(e){log({event:'escalated',role,from:'review',to:'premium',reason:(e as Error).message.slice(0,300)});return askOnce(role,agent,topicId,instructions,task,schema,log,budget,'premium',accept);}
+  try{return await askOnce(role,agent,topicId,instructions,task,schema,log,budget,'review',accept,tools);}
+  catch(e){log({event:'escalated',role,from:'review',to:'premium',reason:(e as Error).message.slice(0,300)});return askOnce(role,agent,topicId,instructions,task,schema,log,budget,'premium',accept,tools);}
  }
- if(!builder)return askOnce(role,agent,topicId,instructions,task,schema,log,budget,'premium',accept);
- try{return await askOnce(role,agent,topicId,instructions,task,schema,log,budget,'agent',accept);}
- catch(e){log({event:'escalated',role,from:'agent',to:'premium',reason:(e as Error).message.slice(0,300)});return askOnce(role,agent,topicId,instructions,task,schema,log,budget,'premium',accept);}
+ if(!builder)return askOnce(role,agent,topicId,instructions,task,schema,log,budget,'premium',accept,tools);
+ try{return await askOnce(role,agent,topicId,instructions,task,schema,log,budget,'agent',accept,tools);}
+ catch(e){log({event:'escalated',role,from:'agent',to:'premium',reason:(e as Error).message.slice(0,300)});return askOnce(role,agent,topicId,instructions,task,schema,log,budget,'premium',accept,tools);}
 }
-async function askOnce(role:Role,agent:Agent,topicId:string,instructions:string,task:unknown,schema:Record<string,unknown>,log:Log,budget:{rounds:number;calls:number},llmClass:'agent'|'premium'|'review',accept?:Accept){
+async function askOnce(role:Role,agent:Agent,topicId:string,instructions:string,task:unknown,schema:Record<string,unknown>,log:Log,budget:{rounds:number;calls:number},llmClass:'agent'|'premium'|'review',accept?:Accept,tools?:string[]){
  const db=await entityDb();
  const runId=await startTeamRun(db,{topicId,role,task:typeof task==='string'?task:JSON.stringify(task)});
  const ctx={userId:OWNER,ownerId:OWNER,language:'en',visibility:'public',agent:{id:agent.id}} as unknown as AgentContext;
@@ -128,7 +128,8 @@ async function askOnce(role:Role,agent:Agent,topicId:string,instructions:string,
    ...(accept?{maxValidationRetries:3,validateFinal:async()=>accept()}:role==='collector'?{maxValidationRetries:3,validateFinal:async()=>{
     const problems:string[]=[];for(const t of await listEntityTypes(db,topicId))problems.push(...(await coverage(t.type,'',0)).recipeProblems);
     return problems.length?'Your report cannot be accepted yet — fix these first (save_recipe with complete steps, then run_recipe until it succeeds): '+problems.slice(0,8).join(' '):undefined;}}:{}),maxCalls:budget.calls,maxInputChars:400_000,
-   extraTools:teamToolDefs(role),executeExtra:(name,args)=>runTeamTool(role,name,args,ctx,topicId),
+   // A stage may narrow the tools to what its deliverable needs (focus: no browsing while loading).
+   extraTools:tools?teamToolDefs(role).filter(t=>tools.includes(t.name)):teamToolDefs(role),executeExtra:(name,args)=>{if(tools&&!tools.includes(name))throw Error(name+' is not used in this stage; use: '+tools.join(', '));return runTeamTool(role,name,args,ctx,topicId);},
    onEvent:e=>{
     if(e.kind==='tool_started'){calls++;const d=e.data as {tool:string;arguments:string};void logTeamCall(db,runId,{t:Date.now(),tool:d.tool,args:String(d.arguments).slice(0,2000)});log({event:'tool',role,tool:d.tool});}
     else if(e.kind==='tool_finished'){const d=e.data as {tool:string;result:unknown};void logTeamCall(db,runId,{t:Date.now(),tool:d.tool,result:JSON.stringify(d.result).slice(0,3000)});}
@@ -175,7 +176,7 @@ export const workflowOf=(note:string,hasPages:boolean):WorkflowKind=>/^repair/.t
 type Report={done:string[];open:string[];notes:string;unavailable?:{metric:string;why:string;tried:string}[]};
 type Ctx={db:Awaited<ReturnType<typeof entityDb>>;topic:{id:string;slug:string};info:{topic:{slug:string;name:string;brief:string};team?:{slug:string;name:string;brief:string}};r:Record<string,unknown>;log:Log;
  agents:{editor:Agent;collector:Agent;reviewer:Agent}};
-type Stage={id:string;role:'editor'|'collector';base:'plan'|'collector'|'editor';text:string;input:(c:Ctx)=>Record<string,unknown>;schema?:Record<string,unknown>;
+type Stage={id:string;role:'editor'|'collector';base:'plan'|'collector'|'editor';text:string;tools?:string[];input:(c:Ctx)=>Record<string,unknown>;schema?:Record<string,unknown>;
  budget:{rounds:number;calls:number};passes?:number;when?:(c:Ctx)=>boolean;accept?:(c:Ctx)=>Promise<string|undefined>;onFail:'skip'|'stop'};
 const BASE={plan:EDITOR_PLAN,collector:COLLECTOR,editor:EDITOR_BUILD};
 const typesOf=async(c:Ctx)=>{const planned=((c.r.plan as {types?:{type:string}[]}|undefined)?.types||[]).map(t=>String(t.type||'').toLowerCase().replace(/[^a-z0-9]+/g,'_')).filter(Boolean);
@@ -186,10 +187,10 @@ const recipeProblems=async(c:Ctx)=>{const out:string[]=[];for(const t of await l
 const S={
  plan:{id:'plan',role:'editor',base:'plan',text:'Stage: plan. The topic\'s entity type and its schema are usually predefined (team_state → topic.entityType and topic.schema: inherited and own attributes, metrics, relations, planned indices and ranking criteria; for a subset such as a country\'s cities, topic.filter narrows a global type). Plan from it: keep its type, metrics, indices and criteria, add only what is missing, and say what you add. Decide the universe and its expected size and the sources to try. Be concise; do not collect data yourself.',
   input:c=>({}),schema:PLAN_SCHEMA,budget:{rounds:14,calls:24},onFail:'stop'},
- survey:{id:'survey',role:'collector',base:'collector',text:'Stage: source survey. Start from the sources the tree\'s schema already names for this topic and every topic above it (team_state → topic.schema.sources; the deeper the topic, the more specific): check each, then look for what they miss. Do ONLY step 0 — survey sources (every source you open is entered in the register automatically as a candidate), then call record_sources once to mark the ones you choose (and reject the ones you rule out, with why): the source of the universe (the full list of entities) and the best source per planned metric. Do not load entities yet. Report the chosen sources.',
+ survey:{id:'survey',role:'collector',base:'collector',tools:['team_state','list_public_sources','call_public_source','find_sources','web_search','browse_page','fetch_data','extract_tables','describe_data','record_sources','request_access','report_issue'],text:'Stage: source survey. Start from the sources the tree\'s schema already names for this topic and every topic above it (team_state → topic.schema.sources; the deeper the topic, the more specific): check each, then look for what they miss. Do ONLY step 0 — survey sources (every source you open is entered in the register automatically as a candidate), then call record_sources once to mark the ones you choose (and reject the ones you rule out, with why): the source of the universe (the full list of entities) and the best source per planned metric. Do not load entities yet. Report the chosen sources.',
   input:c=>({plan:c.r.plan}),budget:{rounds:18,calls:30},onFail:'skip',
   accept:async c=>{const n=await count(c,'select count(*)::int n from sources where topic_id=$1::uuid',[c.topic.id]);return n>=3?undefined:'Record at least 3 candidate sources with record_sources (chosen or rejected, with why) before reporting; '+n+' recorded so far.';}},
- universe:{id:'universe',role:'collector',base:'collector',text:'Stage: load the universe. Load the full list of entities now — names, standard ids, the main attributes, picture, official website, Wikipedia and introduction — with entity_upsert or bulk_import (with the admission standard), save it as a recipe (save_recipe) and run it once (run_recipe). Set the entity schema. Metrics come in the next stage; load the ones the universe source already gives.',
+ universe:{id:'universe',role:'collector',base:'collector',tools:['team_state','coverage','list_public_sources','call_public_source','fetch_data','extract_tables','query_data','describe_data','crawl_pages','extract_fields','entity_upsert','bulk_import','entity_get','entity_search','set_entity_schema','save_recipe','run_recipe','retract_observations','record_sources','request_access','report_issue'],text:'Stage: load the universe. Use the sources chosen in the survey (task → survey, team_state → sources); do not search for new ones. Your first calls fetch the list and your next call loads it (entity_upsert on the fetched dataset, or bulk_import for a large dump). Load the full list of entities now — names, standard ids, the main attributes, picture, official website, Wikipedia and introduction — with entity_upsert or bulk_import (with the admission standard), save it as a recipe (save_recipe) and run it once (run_recipe). Set the entity schema. Metrics come in the next stage; load the ones the universe source already gives.',
   input:c=>({plan:c.r.plan,survey:c.r.survey}),budget:{rounds:24,calls:40},onFail:'stop',
   accept:async c=>{const list=await typesOf(c);const n=list.length?await count(c,'select count(*)::int n from entities where type = any($1::text[])',[list]):0;
    const r=list.length?await count(c,'select count(*)::int n from recipes where type = any($1::text[])',[list]):0;
@@ -197,12 +198,12 @@ const S={
  starter:{id:'starter',role:'editor',base:'editor',text:'Stage: first pages. With the data loaded so far, save the main ranking (save_ranking, the criteria that have data now) and a basic entity template (set_entity_template: lead sentence, card, rankings and the sections the data supports). Preview one ranking and one entity page. Deeper design comes later.',
   input:c=>({plan:c.r.plan,universe:c.r.universe}),budget:{rounds:18,calls:30},onFail:'stop',
   accept:async c=>(await listRankingDefs(c.db,{topicId:c.topic.id})).length?undefined:'Save the main ranking (save_ranking) before reporting.'},
- metrics:{id:'collect',role:'collector',base:'collector',text:'Stage: metrics. The universe is loaded; now load every planned metric (with history), each by a recipe that runs by itself, and fill coverage gaps. List every planned metric no reliable public source gives in unavailable (why, and the sources you tried); the editor decides what to do with each.',
+ metrics:{id:'collect',role:'collector',base:'collector',tools:['team_state','coverage','list_public_sources','call_public_source','fetch_data','extract_tables','query_data','describe_data','crawl_pages','extract_fields','entity_upsert','bulk_import','entity_get','entity_search','set_entity_schema','save_recipe','run_recipe','retract_observations','record_sources','request_access','report_issue'],text:'Stage: metrics. The universe is loaded; now load every planned metric (with history), each by a recipe that runs by itself, and fill coverage gaps. List every planned metric no reliable public source gives in unavailable (why, and the sources you tried); the editor decides what to do with each.',
   input:c=>({plan:c.r.plan,survey:c.r.survey,universe:c.r.universe}),schema:COLLECT_SCHEMA,budget:{rounds:40,calls:90},passes:2,onFail:'skip',
   accept:async c=>{const p=await recipeProblems(c);return p.length?'Your report cannot be accepted yet — fix these first (save_recipe with complete steps, then run_recipe until it succeeds): '+p.slice(0,8).join(' '):undefined;}},
  resolve:{id:'resolve',role:'editor',base:'editor',text:'Stage: metrics the collector could not get. Decide each one — "replace" with a measure public data does support (name it in replacement), "drop" it, or "request_access" when a better source exists that needs a key or account (call request_access too). Record each decision with record_decision and update the plan.',
   input:c=>({plan:c.r.plan,unavailable:unavailableOf(c)}),schema:RESOLVE_SCHEMA,budget:{rounds:12,calls:20},when:c=>unavailableOf(c).length>0,onFail:'skip'},
- replace:{id:'replace',role:'collector',base:'collector',text:'Stage: replacement metrics. The editor replaced metrics you could not get with these: load each one by a recipe that runs by itself.',
+ replace:{id:'replace',role:'collector',base:'collector',tools:['team_state','coverage','list_public_sources','call_public_source','fetch_data','extract_tables','query_data','describe_data','crawl_pages','extract_fields','entity_upsert','bulk_import','entity_get','entity_search','set_entity_schema','save_recipe','run_recipe','retract_observations','record_sources','request_access','report_issue'],text:'Stage: replacement metrics. The editor replaced metrics you could not get with these: load each one by a recipe that runs by itself.',
   input:c=>({plan:c.r.plan,replacements:replacementsOf(c)}),schema:COLLECT_SCHEMA,budget:{rounds:30,calls:60},when:c=>replacementsOf(c).length>0,onFail:'skip'},
  design:{id:'design',role:'editor',base:'editor',text:'Stage: full design. Complete the template, the sub-rankings (established classifications only), composite indices and related rankings; preview every ranking and several entity pages and fix what is wrong.',
   input:c=>({plan:c.r.plan,starter:c.r.starter,collector:lastReport(c.r.collect)}),budget:{rounds:32,calls:70},passes:2,onFail:'skip'},
@@ -210,7 +211,7 @@ const S={
   input:c=>({}),budget:{rounds:30,calls:60},onFail:'stop',accept:async c=>{const p=await recipeProblems(c);return p.length?'Not repaired yet: '+p.slice(0,8).join(' '):undefined;}},
  triage:{id:'triage',role:'editor',base:'editor',text:'Stage: readers\' requests. Read the inbox (read_inbox) and treat the queries as signals of demand, not tickets: for each group of related queries, (1) find the need behind it ("best tractor for a small vineyard" means a narrow/vineyard tractor segment), (2) generalise to the neighbouring needs the same readers will have (orchard, compact and hill-farm tractors) and plan those too, (3) plan the entities and metrics the data lacks (save_plan: ingest items for the collector, ranking items for yourself — sub-rankings by established segments), (4) propose subtopics where the queries point to a distinct sub-field (propose_subtopics, with the classification basis), and (5) mark every query read with your decision (triage_queries: planned, generalised into …, or out of scope and why).',
   input:c=>({}),budget:{rounds:14,calls:24},onFail:'stop'},
- expandData:{id:'expand-data',role:'collector',base:'collector',text:'Stage: load what the plan asks for. Work the open ingest items of the plan (entities and metrics readers asked for), each by a recipe that runs by itself, and close them.',
+ expandData:{id:'expand-data',role:'collector',base:'collector',tools:['team_state','coverage','list_public_sources','call_public_source','fetch_data','extract_tables','query_data','describe_data','crawl_pages','extract_fields','entity_upsert','bulk_import','entity_get','entity_search','set_entity_schema','save_recipe','run_recipe','retract_observations','record_sources','request_access','report_issue'],text:'Stage: load what the plan asks for. Work the open ingest items of the plan (entities and metrics readers asked for), each by a recipe that runs by itself, and close them.',
   input:c=>({triage:c.r.triage}),schema:COLLECT_SCHEMA,budget:{rounds:30,calls:70},onFail:'skip'},
  expandDesign:{id:'expand-design',role:'editor',base:'editor',text:'Stage: pages for what readers asked. Add the rankings and template sections the new data supports; preview them and fix what is wrong.',
   input:c=>({triage:c.r.triage,collector:c.r['expand-data']}),budget:{rounds:24,calls:50},onFail:'skip'},
@@ -228,12 +229,13 @@ const WORKFLOWS:Record<WorkflowKind,{stages:Stage[];review:'full'|'none'}>={
  sources:{stages:[S.sources],review:'none'},
 };
 async function runStage(c:Ctx,st:Stage):Promise<unknown>{
- const agent=c.agents[st.role];const instructions=BASE[st.base]+'\n'+st.text;const schema=st.schema||REPORT_SCHEMA;
- if(!st.passes||st.passes<=1)return ask(st.role,agent,c.topic.id,instructions,{...c.info,step:st.id,...st.input(c)},schema,c.log,st.budget,st.accept?()=>st.accept!(c):undefined);
+ // The stage's own instruction comes first and again last: it is what this call must deliver.
+ const agent=c.agents[st.role];const instructions='THIS STAGE: '+st.text+'\n\n'+BASE[st.base]+'\n\nREMEMBER — '+st.text;const schema=st.schema||REPORT_SCHEMA;
+ if(!st.passes||st.passes<=1)return ask(st.role,agent,c.topic.id,instructions,{...c.info,step:st.id,...st.input(c)},schema,c.log,st.budget,st.accept?()=>st.accept!(c):undefined,st.tools);
  // Long stages run in passes: each continues from the previous report, so one pass running out of budget is not fatal.
  let report:Report={done:[],open:['everything'],notes:''};const reports:Report[]=[];
  for(let i=0;i<st.passes&&report.open.length;i++){
-  try{report=await ask(st.role,agent,c.topic.id,instructions+(i?'\nContinue from your previous report: finish what is still open.':''),{...c.info,step:st.id,pass:i+1,...st.input(c),previous:i?report:undefined},schema,c.log,st.budget,st.accept?()=>st.accept!(c):undefined) as Report;}
+  try{report=await ask(st.role,agent,c.topic.id,instructions+(i?'\nContinue from your previous report: finish what is still open.':''),{...c.info,step:st.id,pass:i+1,...st.input(c),previous:i?report:undefined},schema,c.log,st.budget,st.accept?()=>st.accept!(c):undefined,st.tools) as Report;}
   catch(e){report={done:[],open:['pass '+(i+1)+' stopped: '+(e as Error).message.slice(0,300)],notes:''};}
   reports.push(report);
  }
