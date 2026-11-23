@@ -13,6 +13,9 @@ const CLOSED:[RegExp,string[]?][]=[
  [/^\/api\/pages\/[^/]+\/?$/,['POST','PUT','PATCH','DELETE']],
 ];
 export function closedInPublicEdition(path:string,method:string){
+ // The scheduler's heartbeat stays open (its own per-boot token guards it): recipes, vectors, the manager and the
+ // team queue all run on it.
+ if(path==='/api/live-agents/tick')return false;
  return CLOSED.some(([pattern,methods])=>pattern.test(path)&&(!methods||methods.includes(method.toUpperCase())));
 }
 export function proxy(request:NextRequest){

@@ -6,6 +6,7 @@ test('the public edition closes connector, upload, editing, chat, fork and visib
  const {closedInPublicEdition:closed}=await load('proxy.ts','const NextResponse={};const PUBLIC_EDITION=true;\n');
  for(const [path,method] of [['/api/connectors','GET'],['/api/connectors/x','DELETE'],['/api/storage/google/start','POST'],['/api/connections/google-drive','GET'],['/api/components/upload','POST'],['/api/components/c1/execute','POST'],['/drive-picker','GET'],['/api/pages/p1/chat','GET'],['/api/pages/p1/chat','POST'],['/api/pages/p1/content','PUT'],['/api/pages/p1/fork','DELETE'],['/api/pages/p1/versions','POST'],['/api/pages/p1/live-agent','PUT'],['/api/pages/p1','PATCH'],['/api/pages/p1/files','POST'],['/api/pages/p1/files/f1','DELETE'],['/api/pages/p1/files/f1','PATCH'],['/api/pages/p1/drive','GET'],['/api/sandboxes/run','POST']])
   assert.equal(closed(path,method),true,method+' '+path);
+ assert.equal(closed('/api/live-agents/tick','POST'),false,'the scheduler heartbeat stays open (token-guarded)');assert.equal(closed('/api/live-agents/x','POST'),true);
  for(const [path,method] of [['/api/ask','POST'],['/api/pages/p1','GET'],['/api/pages/p1/files','GET'],['/api/pages/p1/files/f1','GET'],['/api/pages/p1/concepts','POST'],['/api/history','GET'],['/api/history','POST'],['/api/home','GET'],['/api/session','GET'],['/api/health','GET']])
   assert.equal(closed(path,method),false,method+' '+path);
 });
