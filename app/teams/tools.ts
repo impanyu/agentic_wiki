@@ -39,12 +39,15 @@ const teamTools={
  set_topic_brief:tool('set_topic_brief','Manager: rewrite the topic brief (what the topic covers and what its pages must offer). The team works from it from the next step on.',{brief:string}),
  retract_observations:tool('retract_observations','Collector: withdraw observations the team has ruled out, e.g. a metric loaded from a less authoritative or superseded source. Removes every observation of one metric for one entity type whose source starts with source, or (keepSource) every one whose source does NOT start with keepSource; period limits it to one period. Snapshots, ranks and pages update at once. Read the source names with entity_get first, and fix the recipe that loaded them or they return on its next run. Use empty strings for unused fields.',{type:string,metric:string,source:string,keepSource:string,period:string}),
  report_issue:tool('report_issue','Report a problem you cannot solve yourself to the human operators (it appears on the admin page and they are notified): a source that needs a login, payment or a key; a site that blocks automated reading; a platform feature or tool that is missing or broken; rules that contradict each other. Say what you tried. Do not report what you can fix yourself; keep working on the rest. severity: blocker (the topic cannot progress), major, minor.',{title:string,detail:string,severity:string}),
+ web_search:tool('web_search','Search the web (any language) to discover data sources: statistics offices, regulators, industry associations, registries, official catalogs, retailers and spec sites, open data dumps. Search in English AND in the local languages of the main markets (e.g. "拖拉机 销量 数据", "ट्रैक्टर बिक्री आंकड़े", "トラクター 出荷 統計"). Returns titles, URLs and snippets; open promising ones with fetch_data / browse_page. count: 1–10.',{query:string,count:integer}),
+ find_sources:tool('find_sources','Search the world directory of public data sources (international bodies, the statistics office of every large country, regulators, registries, stock exchanges, local retailers and spec sites, bulk dumps) by subject words and country. query: e.g. "tractors sales", "drug approvals", "company registry". country: ISO code or name ("IN", "Japan") or "" for all. Entries are leads: open them before relying on them.',{query:string,country:string}),
+ record_sources:tool('record_sources','Collector: record your source survey in the topic\'s source register — every candidate source you examined, chosen or not, so later runs and reviews build on it. itemsJson: JSON array string of {url, name, kind (statistics|regulator|registry|association|catalog|retail|spec_site|dataset|api|other), countries (e.g. "CN, IN" or "world"), covers (what entities and fields, how many, which years), format (api|bulk|csv|html), decision (chosen|rejected|candidate), reason}.',{itemsJson:string}),
  preview_page:tool('preview_page','Open a page of this site as a reader or crawler sees it (server-rendered HTML, no scripts): returns status, title, the visible text (first 8,000 characters), the number of table rows, charts and links. path: e.g. "/rankings/country-rankings", "/rankings/country-rankings?year=2005", "/e/country/france".',{path:string}),
 };
 const ROLE_TOOLS:Record<Role,string[]>={
- collector:['team_state','coverage','set_entity_schema','save_recipe','run_recipe','retract_observations','close_plan_items','report_issue'],
- editor:['team_state','coverage','set_entity_template','save_ranking','save_plan','close_plan_items','missing_pages','read_inbox','triage_queries','record_decision','preview_page','report_issue'],
- reviewer:['team_state','coverage','preview_page','report_issue'],
+ collector:['team_state','coverage','web_search','find_sources','record_sources','set_entity_schema','save_recipe','run_recipe','retract_observations','close_plan_items','report_issue'],
+ editor:['team_state','coverage','web_search','find_sources','set_entity_template','save_ranking','save_plan','close_plan_items','missing_pages','read_inbox','triage_queries','record_decision','preview_page','report_issue'],
+ reviewer:['team_state','coverage','web_search','find_sources','preview_page','report_issue'],
  manager:['team_state','coverage','preview_page','record_decision','set_topic_brief','report_issue'],
 };
 // Data tools without save_data (that writes Page files); the reviewer reads, never writes.
@@ -77,6 +80,7 @@ async function teamState(type:string,topicId:string|null){
   rankings:await listRankingDefs(db,{type:type||undefined,topicId:type?undefined:topicId}),
   recipes:(await listRecipes(db,type||undefined)).map(r=>({type:r.type,name:r.name,description:r.description,schedule:r.schedule,status:r.status,steps:r.steps.length,lastRunAt:r.lastRunAt,lastResult:r.lastResult})),
   metrics,
+  sources:topicId?await (await import('./sources')).listSources(db,topicId):[],
   plan:editorId?(await listRoadmap(db,editorId)).filter(i=>i.status==='pending'||i.status==='running'||i.status==='failed').map(i=>({id:i.id,kind:i.kind,title:i.title,spec:i.spec,priority:i.priority,cadence:i.cadence,status:i.status,origin:i.origin})):[],
   inboxWaiting:editorId?(await listInbox(db,editorId,{limit:200})).length:0,
   formats:'See docs/rankwiki-templates.md: template {lead:[patterns], card:[keys], sections:[{kind, …}]} with values metric.<key> period.<key> rank.<key> of.<key> change.<key> attr.<name> rel.<predicate> name type.label; schema {identity, metrics:[{key,label,unit,order,format,source,history}], attributes, relations, universe:{source, expected}}; ranking {slug,title,scope:{type,filters},criteria,config:{default,views,period,group,lead,about,related}}; recipe steps [{id, tool, args}] with "$<step id>".',
@@ -127,6 +131,9 @@ export async function runTeamTool(role:Role,name:string,args:Record<string,unkno
   case 'list_public_sources':return {data:await listPublicSources(signal,String(args.source??''))};
   case 'call_public_source':return {data:await callPublicSource(String(args.sourceId),String(args.tool),json(args.argumentsJson||'{}','argumentsJson'),ctx,signal)};
   case 'team_state':return {data:await teamState(String(args.type||''),topicId)};
+  case 'web_search':{const {searchWeb}=await import('./sources');return {data:await searchWeb(String(args.query||''),Number(args.count)||8,signal)};}
+  case 'find_sources':{const {findSources}=await import('./sources');return {data:await findSources(String(args.query||''),String(args.country||''))};}
+  case 'record_sources':{const {recordSources}=await import('./sources');const items=json(args.itemsJson,'itemsJson');if(!Array.isArray(items)||!items.length)throw Error('itemsJson: a JSON array of sources.');return {data:await recordSources(db,topicId,items)};}
   case 'coverage':return {data:await coverage(String(args.type),String(args.metrics||''),Number(args.expected)||0)};
   case 'set_entity_schema':return {data:await saveEntityType(db,{type:String(args.type),label:String(args.label||''),plural:String(args.plural||''),description:String(args.description||''),schema:json(args.schemaJson,'schemaJson'),topicId,updatedBy:who})};
   case 'set_entity_template':return {data:await saveEntityType(db,{type:String(args.type),label:String(args.label||''),plural:String(args.plural||''),template:json(args.templateJson,'templateJson'),topicId,updatedBy:who})};
