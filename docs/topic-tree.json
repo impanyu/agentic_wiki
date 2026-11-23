@@ -50373,5 +50373,442 @@
     ]
    }
   ]
+ },
+ {
+  "slug": "local-services",
+  "name": "Local businesses and services",
+  "kind": "commercial",
+  "description": "The best local businesses in every city — trades, health, repair, care, food and stays — ranked on official records and public signals.",
+  "children": [
+   {
+    "slug": "home-trades",
+    "name": "Home trades",
+    "kind": "commercial",
+    "description": "Licensed trades for the home.",
+    "children": [
+     {
+      "slug": "plumbers",
+      "name": "Plumbers",
+      "kind": "commercial",
+      "description": "Plumbing businesses ranked on licence standing, clean records and tenure. Rank within each city (a sub-ranking per city/metro, by official administrative area), starting with the 100 largest US metros and the largest cities of every major country.",
+      "entity": "plumbing business",
+      "universe": "licensed plumbing contractors in state and national licence registries, located through OSM and business registries",
+      "criteria": [
+       "licence status and years licensed",
+       "disciplinary actions and complaints (official records)",
+       "years in business",
+       "service area",
+       "trust index = licence standing, clean record and tenure, weighted"
+      ],
+      "sources": [
+       "state contractor/plumbing licence boards (e.g. CSLB California, TDLR Texas)",
+       "OpenStreetMap craft=plumber",
+       "national business registries",
+       "BBB public profiles (accreditation only, linked)"
+      ],
+      "priority": 1
+     },
+     {
+      "slug": "electricians",
+      "name": "Electricians",
+      "kind": "commercial",
+      "description": "Electrical contractors ranked on licence standing, clean records and tenure. Rank within each city (a sub-ranking per city/metro, by official administrative area), starting with the 100 largest US metros and the largest cities of every major country.",
+      "entity": "electrical contractor",
+      "universe": "licensed electrical contractors in state and national licence registries",
+      "criteria": [
+       "licence status and years licensed",
+       "disciplinary actions and complaints (official records)",
+       "years in business",
+       "service area",
+       "trust index = licence standing, clean record and tenure, weighted"
+      ],
+      "sources": [
+       "state electrical licence boards",
+       "OpenStreetMap craft=electrician",
+       "business registries"
+      ],
+      "priority": 1
+     },
+     {
+      "slug": "hvac-contractors",
+      "name": "HVAC contractors",
+      "kind": "commercial",
+      "description": "Heating and cooling contractors ranked on licences, records, tenure and certifications. Rank within each city (a sub-ranking per city/metro, by official administrative area), starting with the 100 largest US metros and the largest cities of every major country.",
+      "entity": "HVAC contractor",
+      "universe": "licensed heating and air-conditioning contractors",
+      "criteria": [
+       "licence status and years licensed",
+       "disciplinary actions and complaints (official records)",
+       "years in business",
+       "manufacturer certifications (public dealer locators)",
+       "trust index = licence standing, clean record and tenure, weighted"
+      ],
+      "sources": [
+       "state mechanical licence boards",
+       "manufacturer dealer locators (Carrier, Trane, Lennox)",
+       "OpenStreetMap"
+      ],
+      "priority": 1
+     },
+     {
+      "slug": "roofers",
+      "name": "Roofers",
+      "kind": "commercial",
+      "description": "Roofing contractors ranked on licences, records, tenure and certifications. Rank within each city (a sub-ranking per city/metro, by official administrative area), starting with the 100 largest US metros and the largest cities of every major country.",
+      "entity": "roofing contractor",
+      "universe": "licensed roofing contractors",
+      "criteria": [
+       "licence status and years licensed",
+       "disciplinary actions and complaints (official records)",
+       "years in business",
+       "manufacturer certifications (GAF, Owens Corning)",
+       "trust index = licence standing, clean record and tenure, weighted"
+      ],
+      "sources": [
+       "state contractor licence boards",
+       "manufacturer certified-contractor locators",
+       "OpenStreetMap"
+      ],
+      "priority": 2
+     },
+     {
+      "slug": "general-contractors",
+      "name": "General contractors",
+      "kind": "commercial",
+      "description": "General contractors ranked on licences, records, tenure and permit activity. Rank within each city (a sub-ranking per city/metro, by official administrative area), starting with the 100 largest US metros and the largest cities of every major country.",
+      "entity": "general contractor",
+      "universe": "licensed general and remodelling contractors",
+      "criteria": [
+       "licence status and years licensed",
+       "disciplinary actions and complaints (official records)",
+       "years in business",
+       "building permits pulled (public permit data)",
+       "trust index = licence standing, clean record and tenure, weighted"
+      ],
+      "sources": [
+       "state contractor licence boards",
+       "city building-permit open data",
+       "business registries"
+      ],
+      "priority": 2
+     },
+     {
+      "slug": "locksmiths",
+      "name": "Locksmiths",
+      "kind": "commercial",
+      "description": "Locksmiths ranked on licences, records and tenure. Rank within each city (a sub-ranking per city/metro, by official administrative area), starting with the 100 largest US metros and the largest cities of every major country.",
+      "entity": "locksmith",
+      "universe": "licensed locksmiths (where licensed) and locksmith businesses",
+      "criteria": [
+       "licence status and years licensed",
+       "disciplinary actions and complaints (official records)",
+       "years in business",
+       "service area",
+       "trust index = licence standing, clean record and tenure, weighted"
+      ],
+      "sources": [
+       "state locksmith licence boards",
+       "OpenStreetMap shop=locksmith"
+      ],
+      "priority": 3
+     },
+     {
+      "slug": "pest-control",
+      "name": "Pest control companies",
+      "kind": "commercial",
+      "description": "Pest control companies ranked on licences, records and tenure. Rank within each city (a sub-ranking per city/metro, by official administrative area), starting with the 100 largest US metros and the largest cities of every major country.",
+      "entity": "pest control company",
+      "universe": "licensed pest control operators",
+      "criteria": [
+       "licence status and years licensed",
+       "disciplinary actions and complaints (official records)",
+       "years in business",
+       "service area",
+       "trust index = licence standing, clean record and tenure, weighted"
+      ],
+      "sources": [
+       "state pesticide applicator licence registries",
+       "OpenStreetMap"
+      ],
+      "priority": 3
+     },
+     {
+      "slug": "movers",
+      "name": "Moving companies",
+      "kind": "commercial",
+      "description": "Moving companies ranked on licences, safety ratings and complaints. Rank within each city (a sub-ranking per city/metro, by official administrative area), starting with the 100 largest US metros and the largest cities of every major country.",
+      "entity": "moving company",
+      "universe": "licensed movers (US DOT/FMCSA registered and state-licensed)",
+      "criteria": [
+       "licence status and years licensed",
+       "disciplinary actions and complaints (official records)",
+       "years in business",
+       "safety rating (FMCSA)",
+       "complaints (FMCSA)",
+       "trust index = licence standing, clean record and tenure, weighted"
+      ],
+      "sources": [
+       "FMCSA SAFER and complaint data",
+       "state mover licence registries"
+      ],
+      "priority": 2
+     }
+    ]
+   },
+   {
+    "slug": "local-health",
+    "name": "Local health care",
+    "kind": "commercial",
+    "description": "Clinics and practitioners, ranked on official quality data.",
+    "children": [
+     {
+      "slug": "dentists",
+      "name": "Dentists",
+      "kind": "commercial",
+      "description": "Dental practices ranked on licence standing, records and tenure. Rank within each city (a sub-ranking per city/metro, by official administrative area), starting with the 100 largest US metros and the largest cities of every major country.",
+      "entity": "dental practice",
+      "universe": "licensed dental practices",
+      "criteria": [
+       "licence status",
+       "disciplinary actions and complaints (official records)",
+       "years in practice",
+       "accepted insurance networks (public directories)",
+       "quality index = licence standing, clean record and tenure"
+      ],
+      "sources": [
+       "state dental boards",
+       "NPPES NPI registry",
+       "OpenStreetMap amenity=dentist"
+      ],
+      "priority": 1
+     },
+     {
+      "slug": "doctors-clinics",
+      "name": "Doctors and clinics",
+      "kind": "commercial",
+      "description": "Clinics and practices ranked on certification, official quality scores and records. Rank within each city (a sub-ranking per city/metro, by official administrative area), starting with the 100 largest US metros and the largest cities of every major country.",
+      "entity": "medical practice",
+      "universe": "medical practices and clinics with NPI records",
+      "criteria": [
+       "board certification",
+       "disciplinary actions",
+       "Medicare quality scores (Care Compare)",
+       "patient experience scores where public",
+       "quality index = certification, quality scores and clean record"
+      ],
+      "sources": [
+       "CMS Care Compare and NPPES",
+       "state medical boards",
+       "OpenStreetMap"
+      ],
+      "priority": 1
+     },
+     {
+      "slug": "veterinarians",
+      "name": "Veterinarians",
+      "kind": "commercial",
+      "description": "Veterinary clinics ranked on accreditation, licences and records. Rank within each city (a sub-ranking per city/metro, by official administrative area), starting with the 100 largest US metros and the largest cities of every major country.",
+      "entity": "veterinary clinic",
+      "universe": "licensed veterinary clinics",
+      "criteria": [
+       "licence status",
+       "disciplinary actions and complaints (official records)",
+       "AAHA accreditation",
+       "years in practice",
+       "quality index = accreditation, licence and record"
+      ],
+      "sources": [
+       "state veterinary boards",
+       "AAHA accredited hospital locator",
+       "OpenStreetMap amenity=veterinary"
+      ],
+      "priority": 2
+     },
+     {
+      "slug": "pharmacies-local",
+      "name": "Pharmacies",
+      "kind": "commercial",
+      "description": "Pharmacies ranked on licences, records, hours and services. Rank within each city (a sub-ranking per city/metro, by official administrative area), starting with the 100 largest US metros and the largest cities of every major country.",
+      "entity": "pharmacy",
+      "universe": "licensed retail pharmacies",
+      "criteria": [
+       "licence status",
+       "disciplinary actions and complaints (official records)",
+       "opening hours",
+       "24-hour service",
+       "access index = hours and services"
+      ],
+      "sources": [
+       "state boards of pharmacy",
+       "NCPDP/NPI data",
+       "OpenStreetMap amenity=pharmacy"
+      ],
+      "priority": 3
+     }
+    ]
+   },
+   {
+    "slug": "local-care-services",
+    "name": "Care, repair and personal services",
+    "kind": "commercial",
+    "description": "Everyday local services.",
+    "children": [
+     {
+      "slug": "auto-repair-shops",
+      "name": "Auto repair shops",
+      "kind": "commercial",
+      "description": "Auto repair shops ranked on certifications, records and tenure. Rank within each city (a sub-ranking per city/metro, by official administrative area), starting with the 100 largest US metros and the largest cities of every major country.",
+      "entity": "auto repair shop",
+      "universe": "auto repair businesses",
+      "criteria": [
+       "ASE certification",
+       "licence status (where required)",
+       "disciplinary actions and complaints (official records)",
+       "years in business",
+       "trust index = certification, record and tenure"
+      ],
+      "sources": [
+       "ASE Blue Seal locator",
+       "state auto-repair bureaus (e.g. California BAR)",
+       "OpenStreetMap shop=car_repair"
+      ],
+      "priority": 1
+     },
+     {
+      "slug": "child-care-centers",
+      "name": "Child care centres",
+      "kind": "commercial",
+      "description": "Child care centres ranked on official quality ratings, accreditation and inspections. Rank within each city (a sub-ranking per city/metro, by official administrative area), starting with the 100 largest US metros and the largest cities of every major country.",
+      "entity": "child care centre",
+      "universe": "licensed child care centres and preschools",
+      "criteria": [
+       "licence status",
+       "inspection violations (official)",
+       "capacity",
+       "NAEYC accreditation",
+       "quality rating (state QRIS)",
+       "quality index = QRIS rating, accreditation and clean inspections"
+      ],
+      "sources": [
+       "state child care licensing databases",
+       "state QRIS ratings",
+       "NAEYC accreditation search"
+      ],
+      "priority": 1
+     },
+     {
+      "slug": "law-firms-local",
+      "name": "Lawyers and law firms",
+      "kind": "commercial",
+      "description": "Law firms ranked on bar standing, disciplinary records and experience. Rank within each city (a sub-ranking per city/metro, by official administrative area), starting with the 100 largest US metros and the largest cities of every major country.",
+      "entity": "law firm",
+      "universe": "law firms and solo practices with bar-admitted attorneys",
+      "criteria": [
+       "attorneys in good standing",
+       "disciplinary history (state bar)",
+       "years since admission",
+       "practice areas",
+       "trust index = standing, clean record and experience"
+      ],
+      "sources": [
+       "state bar attorney directories",
+       "court records (public)",
+       "OpenStreetMap office=lawyer"
+      ],
+      "priority": 2
+     },
+     {
+      "slug": "hair-salons",
+      "name": "Hair salons and barbers",
+      "kind": "commercial",
+      "description": "Salons and barbers ranked on licences, records and tenure. Rank within each city (a sub-ranking per city/metro, by official administrative area), starting with the 100 largest US metros and the largest cities of every major country.",
+      "entity": "salon",
+      "universe": "licensed salons and barbershops",
+      "criteria": [
+       "licence status",
+       "disciplinary actions and complaints (official records)",
+       "years in business",
+       "services",
+       "trust index = licence, record and tenure"
+      ],
+      "sources": [
+       "state cosmetology board licence lookups",
+       "OpenStreetMap shop=hairdresser"
+      ],
+      "priority": 3
+     },
+     {
+      "slug": "gyms-local",
+      "name": "Gyms and fitness studios",
+      "kind": "commercial",
+      "description": "Gyms ranked on facilities, hours and price. Rank within each city (a sub-ranking per city/metro, by official administrative area), starting with the 100 largest US metros and the largest cities of every major country.",
+      "entity": "gym",
+      "universe": "gyms and fitness studios",
+      "criteria": [
+       "opening hours",
+       "facilities",
+       "price per month",
+       "years in business",
+       "value index = facilities ÷ price"
+      ],
+      "sources": [
+       "OpenStreetMap leisure=fitness_centre",
+       "official gym websites"
+      ],
+      "priority": 3
+     }
+    ]
+   },
+   {
+    "slug": "local-food-stays",
+    "name": "Local food and stays",
+    "kind": "commercial",
+    "description": "Restaurants and lodging by city.",
+    "children": [
+     {
+      "slug": "restaurants-by-city",
+      "name": "Restaurants by city",
+      "kind": "commercial",
+      "description": "Restaurants ranked city by city on guide distinctions and health inspections. Rank within each city (a sub-ranking per city/metro, by official administrative area), starting with the 100 largest US metros and the largest cities of every major country.",
+      "entity": "restaurant",
+      "universe": "restaurants in each city from OSM and official listings",
+      "criteria": [
+       "health inspection score (city open data)",
+       "guide distinctions (Michelin, 50 Best, Bib Gourmand)",
+       "cuisine",
+       "price level",
+       "quality index = guide distinctions and clean inspections"
+      ],
+      "sources": [
+       "city restaurant inspection open data (NYC DOHMH, SF, Chicago…)",
+       "Michelin Guide",
+       "OpenStreetMap amenity=restaurant"
+      ],
+      "priority": 1
+     },
+     {
+      "slug": "hotels-by-city",
+      "name": "Hotels by city",
+      "kind": "commercial",
+      "description": "Hotels ranked city by city on official classification, ratings and value. Rank within each city (a sub-ranking per city/metro, by official administrative area), starting with the 100 largest US metros and the largest cities of every major country.",
+      "entity": "hotel",
+      "universe": "hotels in each city from OSM and official tourism registries",
+      "criteria": [
+       "official star classification",
+       "guest rating where public",
+       "price level",
+       "amenities",
+       "value index = classification and rating ÷ price"
+      ],
+      "sources": [
+       "national hotel classification registries (e.g. Hotelstars Union, AA)",
+       "OpenStreetMap tourism=hotel",
+       "official tourism boards"
+      ],
+      "priority": 1
+     }
+    ]
+   }
+  ]
  }
 ]
