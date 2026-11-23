@@ -37,7 +37,7 @@ export async function localizeContent<T>(db:Queryable,model:T,locale:string):Pro
    await db.query(`insert into translations(lang,hash,source) select $1::text, x.h, x.s from unnest($2::text[],$3::text[]) as x(h,s) on conflict do nothing`,[locale,missing.map(m=>m[0]),missing.map(m=>m[1])]);
    // The first reader of a page in this language should not see English: a small batch is translated right away
    // (CONTENT_SYNC_LIMIT texts within CONTENT_SYNC_MS); a larger one, or a slow or failed call, waits for the heartbeat.
-   const limit=Number(process.env.CONTENT_SYNC_LIMIT||80),ms=Number(process.env.CONTENT_SYNC_MS||6000);
+   const limit=Number(process.env.CONTENT_SYNC_LIMIT||80),ms=Number(process.env.CONTENT_SYNC_MS||3000);
    if(missing.length<=limit&&limit>0){
     const name=LOCALES.find(l=>l.code===locale)?.name||locale;
     const got=await Promise.race([translateBatch(missing.map(m=>m[1]),locale,name).catch(()=>null),new Promise<null>(r=>setTimeout(()=>r(null),ms))]);

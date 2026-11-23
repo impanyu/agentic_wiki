@@ -15,4 +15,6 @@ const child = spawn(process.execPath, dev ? ['node_modules/next/dist/bin/next', 
 for (const signal of ['SIGTERM', 'SIGINT']) process.on(signal, () => child.kill(signal));
 child.on('exit', code => process.exit(code ?? 1));
 const tick = () => fetch('http://127.0.0.1:' + (process.env.PORT || '3000') + '/api/live-agents/tick', { method: 'POST', headers: { 'x-live-agent-token': process.env.LIVE_AGENT_TICK_TOKEN }, signal: AbortSignal.timeout(20000) }).catch(() => {});
-setTimeout(() => { void tick(); setInterval(() => void tick(), 60000); }, 60000);
+// RANKWIKI_ROLE=web serves pages only (no heartbeat); a separate worker process (RANKWIKI_ROLE=worker) runs the
+// teams, crawler, translation and enrichment, so background work never slows readers' requests.
+if (process.env.RANKWIKI_ROLE !== 'web') setTimeout(() => { void tick(); setInterval(() => void tick(), 60000); }, 60000);
