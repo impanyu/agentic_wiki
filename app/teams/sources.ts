@@ -1,5 +1,3 @@
-import {readFile} from 'node:fs/promises';
-import path from 'node:path';
 import type {Queryable} from '@/app/entity-db/client';
 import {webSearch} from '@/app/llm/search';
 // The collector's source survey: a world directory of public data sources to search (international bodies, every
@@ -8,7 +6,8 @@ import {webSearch} from '@/app/llm/search';
 export type DirectoryEntry={id:string;name:string;scope?:string;countries?:string[];languages?:string[];topics?:string[];kind?:string;access?:string;url?:string;api?:string;format?:string;notes?:string};
 let directory:Promise<DirectoryEntry[]>|null=null;
 function loadDirectory(){
- directory??=readFile(path.join(process.cwd(),'app','public-data','directory.json'),'utf8').then(t=>JSON.parse(t) as DirectoryEntry[]).catch(()=>[]);
+ // Bundled with the server build (app/public-data/directory.json, curated and link-checked).
+ directory??=import('@/app/public-data/directory.json').then(m=>(m.default??m) as unknown as DirectoryEntry[]).catch(()=>[]);
  return directory;
 }
 const norm=(s:string)=>s.toLowerCase().normalize('NFKD').replace(/[̀-ͯ]/g,'');
@@ -21,9 +20,11 @@ export async function findSources(query:string,country:string,limit=30){
  const hits=all.map(e=>{
   const hay=norm([e.name,e.scope,e.kind,(e.topics||[]).join(' '),e.notes,e.id].join(' '));
   const score=words.reduce((n,w)=>n+(hay.includes(w)?1:0),0);
-  const inCountry=!c||(e.countries||[]).some(x=>norm(x)===c)||norm(e.scope||'').includes(c)||(e.countries||[]).some(x=>['world','global','int'].includes(norm(x)));
-  return {e,score,inCountry};
- }).filter(h=>h.inCountry&&(!words.length||h.score>0)).sort((a,b)=>b.score-a.score).slice(0,limit).map(h=>h.e);
+  // A code matches exactly ("IN" is India, not the "in" of "United Kingdom"); a name (4+ letters) matches the scope.
+  const local=!!c&&((e.countries||[]).some(x=>norm(x)===c)||c.length>3&&norm(e.scope||'').includes(c));
+  const world=(e.countries||[]).some(x=>['world','global','int'].includes(norm(x)));
+  return {e,score:score+(local?0.5:0),inCountry:!c||local||world};
+ }).filter(h=>h.inCountry&&(!words.length||h.score>=1)).sort((a,b)=>b.score-a.score).slice(0,limit).map(h=>h.e);
  return {directorySize:all.length,count:hits.length,sources:hits,
   note:all.length?'Directory entries are leads, not proof: open each one (fetch_data, browse_page) to see what it really holds before recording it.':'The source directory is not available on this server; use web_search.'};
 }
