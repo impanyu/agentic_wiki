@@ -228,6 +228,31 @@ export const MIGRATIONS:Migration[]=[
     where has_page and (description = '' or image is null or not (attributes ? 'wikipedia') or not (attributes ? 'website'))
     and (ids ?| array['wikidata','orcid','openalex','imdb'] or attributes ? 'wikipedia')`,
  ]},
+ // Precomputed pages (app/entity-db/snapshots.ts): each ranking and entity page's data, built when its data changes.
+ // data_changes notes when a type's observations changed (any writer: recipes, agents, bulk loads), from triggers
+ // on observations, so the worker knows which pages to rebuild; at most one row per type per minute.
+ {version:18,name:'precomputed pages',statements:()=>[
+  `create table if not exists page_data(kind text not null, key text not null, type text not null default '', data jsonb not null,
+    built_at timestamptz not null default now(), primary key (kind, key))`,
+  'create index if not exists page_data_type on page_data(kind, type, built_at)',
+  'create index if not exists page_data_built on page_data(kind, built_at)',
+  'create index if not exists entities_page_updated on entities(updated_at) where has_page',
+  'create index if not exists entities_page_ids on entities(id) where has_page',
+  'create table if not exists data_changes(type text not null, at timestamptz not null default now())',
+  'create index if not exists data_changes_type on data_changes(type, at desc)',
+  `create or replace function note_data_change() returns trigger language plpgsql as $f$
+   begin
+    insert into data_changes(type) select distinct e.type from changed c join entities e on e.id = c.entity_id
+     where not exists (select 1 from data_changes d where d.type = e.type and d.at > now() - interval '1 minute');
+    return null;
+   end $f$`,
+  'drop trigger if exists observations_changed_ins on observations',
+  'create trigger observations_changed_ins after insert on observations referencing new table as changed for each statement execute function note_data_change()',
+  'drop trigger if exists observations_changed_upd on observations',
+  'create trigger observations_changed_upd after update on observations referencing new table as changed for each statement execute function note_data_change()',
+  'drop trigger if exists observations_changed_del on observations',
+  'create trigger observations_changed_del after delete on observations referencing old table as changed for each statement execute function note_data_change()',
+ ]},
 ];
 export const SCHEMA_VERSION=MIGRATIONS[MIGRATIONS.length-1].version;
 

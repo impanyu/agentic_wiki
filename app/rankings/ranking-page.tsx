@@ -13,6 +13,7 @@ import {SITE_NAME} from '@/app/edition';
 import {siteUrl} from '@/app/site';
 import {entityDb} from '@/app/entity-db/client';
 import {loadRankingPage,withPages} from '@/app/entity-db/pages';
+import {wantsFresh} from '@/app/entity-db/fresh';
 import {assembleRankingPage,entityPath,rankingPath} from '@/app/seo/assemble';
 import {propsRankingBlock,rankCriterion,blockPeriods,rankedView,rankingChartSvgs} from '@/app/seo/ranking-views';
 import {jsonLd} from '@/app/seo/structured-data';
@@ -32,9 +33,10 @@ const decode=(s:string)=>{try{return decodeURIComponent(s);}catch{return s;}};
 const one=(v:string|string[]|undefined)=>typeof v==='string'?v:undefined;
 // Ranking data and server-drawn charts are kept for ten minutes (data changes on the collectors' schedules).
 const rankingData=ttlCache<Awaited<ReturnType<typeof loadUncached>>>(10*60_000,200,24*3600_000),chartSvgs=ttlCache<Record<string,string>>(10*60_000,600,24*3600_000);
-const load=cache((slug:string)=>rankingData.get(slug,()=>loadUncached(slug)));
-async function loadUncached(slug:string){
- const db=await entityDb();const input=await loadRankingPage(db,slug);if(!input)return null;
+// An agent checking its own change (wantsFresh) gets the page rebuilt from the database, not a stored copy.
+const load=cache(async(slug:string)=>await wantsFresh()?loadUncached(slug,true):rankingData.get(slug,()=>loadUncached(slug)));
+async function loadUncached(slug:string,fresh=false){
+ const db=await entityDb();const input=await loadRankingPage(db,slug,{fresh});if(!input)return null;
  const model=assembleRankingPage(input,'en');
  const full:Record<string,unknown>={criteria:model.criteria,rows:model.rows,default:model.defaultKey,periodKey:'period',
   ...(model.groupKey?{groupKey:model.groupKey}:{}),...(Array.isArray(input.def.config.views)?{views:input.def.config.views}:{}),

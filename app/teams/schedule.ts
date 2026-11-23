@@ -144,6 +144,13 @@ export async function refreshStats(){
  return refreshTopicStats(db).catch(e=>{console.error('[stats] failed',(e as Error).message);return 0;});
 }
 
+// Precomputed pages: rebuild the ranking and entity pages whose data changed, and build the ones never built.
+export async function refreshPageData(){
+ const db=await entityDb();const {refreshSnapshots}=await import('@/app/entity-db/snapshot-refresh');
+ const r=await refreshSnapshots(db).catch(e=>{console.error('[pages] refresh failed',(e as Error).message);return null;});
+ if(r&&(r.built||r.failed))console.log('[pages] rebuilt',r.built,'failed',r.failed,'due',r.due);return r;
+}
+
 // Entity introductions and pictures from Wikipedia where collectors left them out (a few each minute).
 let enriching=false;
 export async function enrichEntities(){

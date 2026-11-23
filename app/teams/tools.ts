@@ -148,7 +148,8 @@ function typeCounts(db:{query:<T>(sql:string,params?:unknown[])=>Promise<{rows:T
 async function previewPage(path:string){
  const p=String(path||'').trim();if(!/^\/[\w\-./?=&%]*$/.test(p)||p.startsWith('//'))throw Error('Give a site path such as /rankings/country-rankings.');
  const base=process.env.TEAM_PREVIEW_ORIGIN||siteUrl()||'http://127.0.0.1:'+(process.env.PORT||'3000');
- const r=await fetch(base+p,{redirect:'follow',signal:AbortSignal.timeout(60_000),headers:{'user-agent':'RankWiki-reviewer'}});
+ // Rebuilt from the database for this request (x-rankwiki-fresh), so the agent sees its own change, not the stored page.
+ const r=await fetch(base+p,{redirect:'follow',signal:AbortSignal.timeout(60_000),headers:{'user-agent':'RankWiki-reviewer',...(process.env.TEAM_ADMIN_TOKEN?{'x-rankwiki-fresh':process.env.TEAM_ADMIN_TOKEN}:{})}});
  const html=await r.text();
  const title=/<title>([^<]*)<\/title>/.exec(html)?.[1]||'';
  const body=html.replace(/<script[\s\S]*?<\/script>/g,'').replace(/<style[\s\S]*?<\/style>/g,'');

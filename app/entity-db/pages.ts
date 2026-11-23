@@ -1,6 +1,7 @@
 import type {Queryable,Row} from './client';
 import {getEntity,metricTable,hybridSearch,inScope,RANK_LIMIT} from './repo';
 import {ttlCache} from './ttl-cache';
+import {snapshot} from './snapshots';
 import {slugify,questionKey} from '@/app/seo/urls';
 import {topicPaths,canonicalPath,type PathMaps} from '@/app/seo/paths';
 import {formatMetric,entityImage,entityPath,rankingPath,defaultTemplate,mentionKey,type MetricInfo,type MetricFact,type EntityPageData,type Template,type RankingDef,type RankingPageInput,type Point} from '@/app/seo/assemble';
@@ -56,7 +57,12 @@ export async function findEntityBySlug(db:Queryable,type:string,slug:string):Pro
 }
 
 // ───────────── ranking page ─────────────
-export async function loadRankingPage(db:Queryable,slug:string):Promise<RankingPageInput|null>{
+// A ranking page's data: precomputed (page_data, kept current by the worker), built and stored on a first view.
+// fresh rebuilds it now (an agent checking its own change).
+export async function loadRankingPage(db:Queryable,slug:string,{fresh=false}:{fresh?:boolean}={}):Promise<RankingPageInput|null>{
+ return snapshot(db,'ranking',slug,()=>buildRankingPage(db,slug),v=>String(v.def.scope.type||''),fresh);
+}
+export async function buildRankingPage(db:Queryable,slug:string):Promise<RankingPageInput|null>{
  const def=await getRankingDefinition(db,slug);if(!def)return null;
  const criteria=def.criteria.slice(0,12);
  const type=def.scope.type?await getEntityType(db,def.scope.type):{type:'',label:'entity',plural:'entities',description:'',template:null,schema:{}};
@@ -90,11 +96,12 @@ function templateMetrics(t:Template):{peer:string[];all:string[]}{
  return {peer:[...peer],all:[...all]};
 }
 type EntityPageLoad={data:EntityPageData;canonical:boolean;updatedAt:string|null;num:string};
+type EntityPageBuilt=Omit<EntityPageLoad,'canonical'>;
 // By the entity's permanent number (its page address /e/<num>/<slug>).
-export async function loadEntityPageByNum(db:Queryable,num:string):Promise<EntityPageLoad|null>{
+export async function loadEntityPageByNum(db:Queryable,num:string,{fresh=false}:{fresh?:boolean}={}):Promise<EntityPageLoad|null>{
  if(!/^\d{1,18}$/.test(num))return null;
  const r=(await db.query<{id:string;type:string}>('select id, type from entities where num = $1::bigint and has_page',[num])).rows[0];
- return r?loadEntityData(db,String(r.id),String(r.type),true):null;
+ return r?loadEntityData(db,String(r.id),String(r.type),true,fresh):null;
 }
 // The ranking tables entity pages show (peers over a type, each sub-ranking the entity is in) are the same for every
 // member of a type: computed once and shared for a few minutes, so a page of a large type is not 3 s of table scans.
@@ -102,12 +109,17 @@ type MetricTableArgs=Parameters<typeof metricTable>[1];
 const typeTables=ttlCache<Awaited<ReturnType<typeof metricTable>>>(5*60_000,400,24*3600_000);
 const sharedTable=(db:Queryable,args:MetricTableArgs)=>typeTables.get(JSON.stringify(args),()=>metricTable(db,args));
 // By type and name (the older address form, and lookups by name).
-export async function loadEntityPage(db:Queryable,type:string,slug:string):Promise<EntityPageLoad|null>{
+export async function loadEntityPage(db:Queryable,type:string,slug:string,{fresh=false}:{fresh?:boolean}={}):Promise<EntityPageLoad|null>{
  const found=await findEntityBySlug(db,type,slug);if(!found)return null;
- return loadEntityData(db,found.id,type,found.canonical);
+ return loadEntityData(db,found.id,type,found.canonical,fresh);
 }
-async function loadEntityData(db:Queryable,id:string,type:string,canonical:boolean):Promise<EntityPageLoad|null>{
- const found={id,canonical};
+// An entity page's data: precomputed (page_data, kept current by the worker), built and stored on a first view.
+async function loadEntityData(db:Queryable,id:string,type:string,canonical:boolean,fresh=false):Promise<EntityPageLoad|null>{
+ const v=await snapshot<EntityPageBuilt>(db,'entity',id,()=>buildEntityPage(db,id,type),x=>x.data.entity.type,fresh);
+ return v?{...v,canonical}:null;
+}
+export async function buildEntityPage(db:Queryable,id:string,type:string):Promise<EntityPageBuilt|null>{
+ const found={id};
  const e=await getEntity(db,found.id);if(!e)return null;
  const typeInfo=await getEntityType(db,type);
  const snap=(await db.query<{latest:Row;updated_at:unknown}>('select latest, updated_at from entities where id = $1::uuid',[e.id])).rows[0];
@@ -145,7 +157,7 @@ async function loadEntityData(db:Queryable,id:string,type:string,canonical:boole
  data.entityLinks=await resolveEntityIds(db,[...relations.outgoing.map(r=>r.id),...relations.incoming.flatMap(g=>g.sample.map(x=>x.id))],e.id);
  data.links=await resolveMentions(db,Object.values(e.attributes||{}).filter((v):v is string=>typeof v==='string'&&v.length>1&&v.length<=80&&!/^https?:/i.test(v)),e.id);
  const num=String((await db.query<{num:string}>('select num from entities where id = $1::uuid',[e.id])).rows[0]?.num??'');
- return {data,canonical:found.canonical,updatedAt:iso(snap?.updated_at),num};
+ return {data,updatedAt:iso(snap?.updated_at),num};
 }
 // {entity id → page path} for the related entities that have a page (their type has a template).
 export async function resolveEntityIds(db:Queryable,ids:string[],selfId?:string):Promise<Record<string,string>>{

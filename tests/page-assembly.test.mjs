@@ -149,7 +149,7 @@ test('addresses and CSV',()=>{
 // ───────────── page data builders against PGlite ─────────────
 const out=new URL('../node_modules/.cache/page-assembly-test/',import.meta.url);mkdirSync(out,{recursive:true});
 const write=(name,src,map={})=>{let js=tr(src);js=js.replace(/(from\s*|import\()\s*(['"])([^'"]+)\2/g,(m,pre,q,spec)=>map[spec]?`${pre}'${map[spec]}'`:spec.startsWith('./')?`${pre}'${spec}.mjs'`:m);writeFileSync(new URL(name+'.mjs',out),js);};
-for(const f of ['client','schema','metrics','embeddings','units','reserved','repo','inherit','ttl-cache'])write(f,readFileSync(`app/entity-db/${f}.ts`,'utf8'));
+for(const f of ['client','schema','metrics','embeddings','units','reserved','repo','inherit','ttl-cache','snapshots'])write(f,readFileSync(`app/entity-db/${f}.ts`,'utf8'));
 writeFileSync(new URL('pure.mjs',out),tr(pure));
 write('paths',readFileSync('app/seo/paths.ts','utf8'),{'@/app/entity-db/reserved':'./reserved.mjs'});
 write('pages',readFileSync('app/entity-db/pages.ts','utf8'),{'@/app/seo/urls':'./pure.mjs','@/app/seo/assemble':'./pure.mjs','@/app/seo/paths':'./paths.mjs'});
@@ -211,6 +211,24 @@ test('sitemap lists rankings with their criteria views and entities of listed ty
  const en=await pages.sitemapEntities(db,0,5);assert.equal(en.length,5);assert.match(en[0].path,/^\/e\/\d+\/[a-z-]+$/);
 });
 
+test('pages are precomputed: stored on first build, served from the copy, rebuilt after their data changes',async()=>{
+ write('snapshot-refresh',readFileSync('app/entity-db/snapshot-refresh.ts','utf8'));
+ const refresh=await import(new URL('snapshot-refresh.mjs',out));
+ const first=await pages.loadRankingPage(db,'country-rankings');
+ const row=(await db.query("select type, built_at from page_data where kind='ranking' and key='country-rankings'")).rows[0];
+ assert.equal(row.type,'country','stored with its type');
+ // Served from the copy: a change to the data does not reach the page until it is rebuilt.
+ const de=(await db.query("select id from entities where type='country' and name='Germany'")).rows[0].id;
+ await db.query("update observations set value = value + 1 where entity_id = $1::uuid and metric = 'population'",[de]);
+ const changed=(await db.query("select count(*)::int n from data_changes where type='country'")).rows[0].n;assert.ok(changed>=1,'the trigger noted the change');
+ const again=await pages.loadRankingPage(db,'country-rankings');assert.deepEqual(again.rows,first.rows,'still the stored copy');
+ // Rebuilt by the worker once due (the 10-minute floor is moved back here), or at once when fresh is asked for.
+ await db.query("update page_data set built_at = now() - interval '1 hour' where kind='ranking'");
+ const r=await refresh.refreshSnapshots(db,{budgetMs:20000,workers:1});assert.ok(r.built>=1);
+ const after=await pages.loadRankingPage(db,'country-rankings');assert.notDeepEqual(after.rows,first.rows,'rebuilt with the new value');
+ const ent=await pages.loadEntityPage(db,'country','germany',{fresh:true});assert.equal(ent.data.entity.name,'Germany');
+ assert.ok((await db.query("select 1 from page_data where kind='entity' and key=$1::text",[de])).rows.length,'entity pages are stored too');
+});
 test('/?ask= questions resolve to rankings and entities by name',async()=>{
  const de=await pages.loadEntityPage(db,'country','germany');
  const t=await pages.resolveNamedTargets(db,['Country Rankings','germany','Deutschland','Paris','Atlantis']);

@@ -9,6 +9,7 @@ import {SITE_NAME} from '@/app/edition';
 import {siteUrl} from '@/app/site';
 import {entityDb} from '@/app/entity-db/client';
 import {loadEntityPage,loadEntityPageByNum,pathMaps,nodeTrail} from '@/app/entity-db/pages';
+import {wantsFresh} from '@/app/entity-db/fresh';
 import {autolinker} from '@/app/seo/autolink';
 import {Breadcrumbs} from '@/app/explore';
 import {canonicalLinks,canonicalPath} from '@/app/seo/paths';
@@ -30,10 +31,11 @@ const decode=(s:string)=>{try{return decodeURIComponent(s);}catch{return s;}};
 const TYPE=/^[a-z][a-z0-9_]{0,40}$/;
 // /e/<num>/<slug> by number; /e/<type>/<slug> (older addresses) by type and name, redirected to the number.
 const entityData=ttlCache<Awaited<ReturnType<typeof loadUncached>>>(10*60_000,3000,24*3600_000);
-const load=cache((first:string,slug:string)=>entityData.get(first+'/'+slug,()=>loadUncached(first,slug)));
-async function loadUncached(first:string,slug:string){
+// An agent checking its own change (wantsFresh) gets the page rebuilt from the database, not a stored copy.
+const load=cache(async(first:string,slug:string)=>await wantsFresh()?loadUncached(first,slug,true):entityData.get(first+'/'+slug,()=>loadUncached(first,slug)));
+async function loadUncached(first:string,slug:string,fresh=false){
  const db=await entityDb();
- const r=/^\d+$/.test(first)?await loadEntityPageByNum(db,first):TYPE.test(first)?await loadEntityPage(db,first,slug):null;if(!r)return null;
+ const r=/^\d+$/.test(first)?await loadEntityPageByNum(db,first,{fresh}):TYPE.test(first)?await loadEntityPage(db,first,slug,{fresh}):null;if(!r)return null;
  const model=assembleEntityPage(r.data,'en');const maps=await pathMaps(db);
  const path=entityPath(r.data.entity.type,r.data.entity.name,r.num);
  return {...r,model,maps,path};
