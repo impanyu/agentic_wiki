@@ -58,19 +58,29 @@ type Val={v:number;unit:string;year:string};
 async function values(p:Plan,m:Metric,items:string[]|null,signal:AbortSignal):Promise<Map<string,Val>>{
  const scope=items?`VALUES ?item { ${items.map(i=>'wd:'+i).join(' ')} }`
   :`VALUES ?class { ${p.classes.map(c=>'wd:'+c).join(' ')} } ?item wdt:P31 ?class . ${p.filters.map(f=>`?item wdt:${f.prop} wd:${f.value} .`).join(' ')}`;
- const q=`SELECT ?item ?a ?u ?n ?nu ?t WHERE { ${scope}
+ const q=`SELECT ?item ?a ?u ?n ?nu ?t ?pref WHERE { ${scope}
   ?item p:${m.prop} ?st . ?st psv:${m.prop} ?v . ?v wikibase:quantityAmount ?a . OPTIONAL { ?v wikibase:quantityUnit ?u }
   OPTIONAL { ?st psn:${m.prop} ?nv . ?nv wikibase:quantityAmount ?n ; wikibase:quantityUnit ?nu }
-  OPTIONAL { ?st pq:P585 ?t } ?st wikibase:rank ?rk . FILTER(?rk != wikibase:DeprecatedRank) }
+  OPTIONAL { ?st pq:P585 ?t } ?st wikibase:rank ?rk . FILTER(?rk != wikibase:DeprecatedRank) BIND(?rk = wikibase:PreferredRank AS ?pref) }
   ${items?'':`ORDER BY ${m.order==='asc'?'ASC':'DESC'}(COALESCE(?n, ?a)) LIMIT ${TOP*3}`}`;
  const rows=await sparql(q,signal);
- const out=new Map<string,Val>();const unitCount=new Map<string,number>();
+ // Several statements for one entity: the one Wikidata marks preferred, else the latest dated one; undated values
+ // that disagree by more than 3× (a wrong unit or a typo in one of them) leave the entity without this value.
+ const all=new Map<string,(Val&{pref:boolean})[]>();
  for(const b of rows){
   const id=qid(b.item.value),n=b.n?Number(b.n.value):NaN,a=Number(b.a.value);
   const v=Number.isFinite(n)?n:a;if(!Number.isFinite(v))continue;
   const u=qid((Number.isFinite(n)?b.nu?.value:b.u?.value)||'Q199');const year=/^\d{4}/.test(b.t?.value||'')?b.t!.value.slice(0,4):'';
-  const prev=out.get(id);
-  if(!prev||(year&&(!prev.year||year>prev.year))||(!year&&!prev.year&&v>prev.v))out.set(id,{v,unit:u,year});
+  const list=all.get(id)??[];list.push({v,unit:u,year,pref:b.pref?.value==='true'});all.set(id,list);
+ }
+ const out=new Map<string,Val>();const unitCount=new Map<string,number>();
+ for(const [id,list] of all){
+  const pref=list.filter(x=>x.pref),pool=pref.length?pref:list;
+  const dated=pool.filter(x=>x.year).sort((a,b)=>b.year.localeCompare(a.year));
+  if(dated.length){out.set(id,dated[0]);continue;}
+  const vs=pool.map(x=>Math.abs(x.v)).filter(x=>x>0);
+  if(vs.length>1&&Math.max(...vs)/Math.min(...vs)>3)continue;
+  out.set(id,pool.reduce((m,x)=>x.v>m.v?x:m));
  }
  for(const x of out.values())unitCount.set(x.unit,(unitCount.get(x.unit)||0)+1);
  const top=[...unitCount].sort((a,b)=>b[1]-a[1])[0]?.[0];
@@ -134,6 +144,7 @@ export async function fastLaneTopic(db:EntityDb,t:Topic):Promise<{ok:boolean;rea
  for(const m of metrics)await db.query(`insert into metrics(key,version,label,unit,description,methodology,sort_order,format,kind,created_by,status,used)
    select $1::text,1,$2::text,$3::text,$4::text,$5::text,$6::text,'','observed','fastlane','published',true where not exists (select 1 from metrics where key=$1::text)`,
   [m.key,m.label,unitOf(m.key),`${m.label} (Wikidata property ${m.prop}).`,`Read from Wikidata (query.wikidata.org), property ${m.prop}: the latest dated statement of each entity, deprecated ones excluded; quantities normalised to SI units by Wikidata; only values in the measure's most common unit are kept.`,m.order]);
+ for(const m of metrics)await db.query(`update metrics set label=$2::text, unit=$3::text, sort_order=$4::text where key=$1::text and created_by='fastlane'`,[m.key,m.label,unitOf(m.key),m.order]);
  const {upsertEntities}=await import('@/app/entity-db/repo');
  const res=await upsertEntities(db,rows,{type,nameColumn:'name',idColumns:{wikidata:'wikidata'},imageColumn:'image',attributeColumns:['wikipedia','website'],topicId:t.id,
   metricColumns:Object.fromEntries(metrics.map(m=>['m_'+m.key,{metric:m.key,unit:unitOf(m.key),period:'p_'+m.key}]))},{source:'Wikidata (query.wikidata.org)'});
