@@ -137,7 +137,9 @@ export async function runTeamTool(role:Role,name:string,args:Record<string,unkno
  const db=await entityDb(),who=role+':'+(ctx.agent?.id||'');
  switch(name){
   case 'list_public_sources':return {data:await listPublicSources(signal,String(args.source??''))};
-  case 'call_public_source':return {data:await callPublicSource(String(args.sourceId),String(args.tool),json(args.argumentsJson||'{}','argumentsJson'),ctx,signal)};
+  case 'call_public_source':{const data=await callPublicSource(String(args.sourceId),String(args.tool),json(args.argumentsJson||'{}','argumentsJson'),ctx,signal);
+   if(topicId&&(role==='collector'||role==='editor')){const src=(data as {source?:string})?.source;void autoRecordSource(db,topicId,'call_public_source',{url:typeof src==='string'&&/^https?:/.test(src)?src.split(/[\s;]/)[0]:'https://rankwiki.aisoup.net/sources/'+encodeURIComponent(String(args.sourceId))}).catch(()=>{});}
+   return {data};}
   case 'team_state':return {data:await teamState(String(args.type||''),topicId)};
   case 'web_search':{const {searchWeb}=await import('./sources');return {data:await searchWeb(String(args.query||''),Number(args.count)||8,signal)};}
   case 'find_sources':{const {findSources}=await import('./sources');return {data:await findSources(String(args.query||''),String(args.country||''))};}
@@ -201,7 +203,19 @@ export async function runTeamTool(role:Role,name:string,args:Record<string,unkno
   case 'set_topic_brief':{if(!topicId)throw Error('No topic.');const b=String(args.brief||'').trim();if(b.length<40)throw Error('Write the whole brief.');await setTopicBrief(db,topicId,b);return {data:{saved:true}};}
   case 'preview_page':return {data:await previewPage(String(args.path))};
  }
- if(entityToolNames.includes(name))return runEntityTool(name,args,ctx,signal);
- return runDataTool(name,args,ctx,signal);
+ const out=entityToolNames.includes(name)?await runEntityTool(name,args,ctx,signal):await runDataTool(name,args,ctx,signal);
+ // Every source a team member actually read from is written to the topic's source register by the program (as a
+ // candidate the collector then marks chosen or rejected), so the register never depends on remembering to record.
+ if(topicId&&(role==='collector'||role==='editor')&&AUTO_SOURCE.has(name))void autoRecordSource(db,topicId,name,args).catch(()=>{});
+ return out;
+}
+const AUTO_SOURCE=new Set(['fetch_data','extract_tables','browse_page','crawl_pages','extract_fields','bulk_import']);
+async function autoRecordSource(db:Queryable,topicId:string,tool:string,args:Record<string,unknown>){
+ const raw=String(args.url||args.startUrl||args.indexUrl||'').trim();if(!/^https?:\/\//.test(raw))return;
+ let u:URL;try{u=new URL(raw.replace(/\{\{[^}]*\}\}/g,'x'));}catch{return;}
+ // One entry per site path (not per query string), so repeated calls to one API do not flood the register.
+ const url=u.origin+u.pathname.replace(/\/+$/,'');
+ const notes=JSON.stringify({name:u.hostname.replace(/^www\./,''),countries:'',covers:'read with '+tool,format:tool==='bulk_import'?'bulk':tool==='fetch_data'?'api':'html',decision:'candidate',reason:'recorded automatically when the team read it',auto:true,at:new Date().toISOString()});
+ await db.query(`insert into sources(topic_id,url,kind,notes,last_ok_at) values ($1::uuid,$2::text,'auto',$3::text,now()) on conflict (coalesce(topic_id::text, ''), url) do update set last_ok_at=now()`,[topicId,url.slice(0,2000),notes]);
 }
 export {getEntityType,listMetrics};
