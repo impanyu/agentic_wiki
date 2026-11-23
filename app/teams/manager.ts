@@ -155,7 +155,7 @@ export async function runTeamQueue(spentUsd:()=>Promise<number>,log:(slug:string
  const max=Math.max(0,Number(process.env.TEAM_CONCURRENCY||2)),cap=Number(process.env.TEAM_MONTHLY_BUDGET_USD||200);
  // Teams marked running that this process did not start were cut off by a restart (a deploy): back to the queue at
  // once on the first tick, else after 4 hours.
- await db.query(`update team_queue set status='queued', note='restarted' where status='running' and ($2::boolean or started_at < now() - interval '4 hours') and not (slug = any($1::text[]))`,[[...running],!recovered]);
+ await db.query(`update team_queue set status='queued' where status='running' and ($2::boolean or started_at < now() - interval '4 hours') and not (slug = any($1::text[]))`,[[...running],!recovered]);
  recovered=true;
  const started:string[]=[];
  while(running.size<max){
@@ -163,11 +163,14 @@ export async function runTeamQueue(spentUsd:()=>Promise<number>,log:(slug:string
    const {raiseIssue}=await import('@/app/ops/issues');
    await raiseIssue(db,{source:'scheduler',severity:'major',title:'Team queue paused: monthly model budget reached',detail:`This month's model spending reached TEAM_MONTHLY_BUDGET_USD (${cap}). Queued teams wait until next month unless the budget is raised.`,fingerprint:'budget:'+new Date().toISOString().slice(0,7)}).catch(()=>{});
    break;}
-  const next=(await db.query<{slug:string;name:string;brief:string}>(`update team_queue set status='running', started_at=now() where slug = (select slug from team_queue where status='queued' order by priority desc, created_at limit 1 for update skip locked) returning slug, name, brief`)).rows[0];
+  const next=(await db.query<{slug:string;name:string;brief:string;note:string}>(`update team_queue set status='running', started_at=now() where slug = (select slug from team_queue where status='queued' order by priority desc, created_at limit 1 for update skip locked) returning slug, name, brief, note`)).rows[0];
   if(!next)break;
   running.add(next.slug);started.push(next.slug);
-  const {runTopicTeam}=await import('./run');
-  void runTopicTeam({slug:next.slug,name:next.name,brief:next.brief,log:e=>log(next.slug,e)})
+  const {runTopicTeam,workflowOf}=await import('./run');
+  // The workflow follows why the team was queued (build, repair, expand, review, sources).
+  const hasPages=Number((await db.query<{n:number}>('select count(*)::int n from rankings r join topics t on t.id=r.topic_id where t.slug=$1::text',[next.slug])).rows[0]?.n||0)>0;
+  const kind=workflowOf(String(next.note||''),hasPages);
+  void runTopicTeam({slug:next.slug,name:next.name,brief:next.brief,kind,log:e=>log(next.slug,e)})
    .then(res=>db.query(`update team_queue set status='done', finished_at=now(), note=$2::text where slug=$1::text`,[next.slug,res.verdict.approved?'approved':'not approved']))
    .catch(async e=>{await db.query(`update team_queue set status='failed', finished_at=now(), note=$2::text where slug=$1::text`,[next.slug,String((e as Error).message).slice(0,500)]);
     const {raiseIssue}=await import('@/app/ops/issues');

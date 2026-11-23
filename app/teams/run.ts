@@ -160,95 +160,141 @@ export async function placeTopic(slug:string,log:Log=()=>{}):Promise<{placed:boo
  log({event:'topic_placed',path:names,summary:r.summary});
  return {placed:!!parent,path:names,summary:r.summary};
 }
-export async function runTopicTeam({slug,name,brief,maxFixRounds=2,log=()=>{}}:{slug:string;name:string;brief:string;maxFixRounds?:number;log?:Log}){
+// ───────────── the team workflow engine ─────────────
+// A topic team runs one of a few fixed workflows, chosen by why it was queued: build (a new topic), repair (a
+// collection rule broke), expand (readers asked for more), review (the routine check) and sources (the 90-day source
+// review). A workflow is a list of stages; each stage names its role, the deliverable (schema), the inputs it gets
+// from earlier stages, a call budget, an acceptance check the program enforces, when it runs, and what happens when
+// it fails (skip it, or stop the run and raise an issue). The engine runs the stages in order, checkpoints each one
+// (a restart resumes after the last finished stage) and ends every workflow that changes pages with the shared
+// review loop (review → fix rounds routed by owner → the manager's ruling → publish or keep as draft).
+export type WorkflowKind='build'|'repair'|'expand'|'review'|'sources';
+export const workflowOf=(note:string,hasPages:boolean):WorkflowKind=>/^repair/.test(note)?'repair':/^expand/.test(note)?'expand':/^source review/.test(note)?'sources':/^review/.test(note)?(hasPages?'review':'build'):'build';
+type Report={done:string[];open:string[];notes:string;unavailable?:{metric:string;why:string;tried:string}[]};
+type Ctx={db:Awaited<ReturnType<typeof entityDb>>;topic:{id:string;slug:string};info:{topic:{slug:string;name:string;brief:string}};r:Record<string,unknown>;log:Log;
+ agents:{editor:Agent;collector:Agent;reviewer:Agent}};
+type Stage={id:string;role:'editor'|'collector';base:'plan'|'collector'|'editor';text:string;input:(c:Ctx)=>Record<string,unknown>;schema?:Record<string,unknown>;
+ budget:{rounds:number;calls:number};passes?:number;when?:(c:Ctx)=>boolean;accept?:(c:Ctx)=>Promise<string|undefined>;onFail:'skip'|'stop'};
+const BASE={plan:EDITOR_PLAN,collector:COLLECTOR,editor:EDITOR_BUILD};
+const typesOf=async(c:Ctx)=>{const planned=((c.r.plan as {types?:{type:string}[]}|undefined)?.types||[]).map(t=>String(t.type||'').toLowerCase().replace(/[^a-z0-9]+/g,'_')).filter(Boolean);
+ return [...new Set([...planned,...(await listEntityTypes(c.db,c.topic.id)).map(t=>t.type)])];};
+const count=async(c:Ctx,sql:string,args:unknown[])=>Number((await c.db.query<{n:number}>(sql,args)).rows[0]?.n||0);
+const lastReport=(x:unknown):Report|undefined=>Array.isArray(x)?x[x.length-1]:x as Report|undefined;
+const recipeProblems=async(c:Ctx)=>{const out:string[]=[];for(const t of await listEntityTypes(c.db,c.topic.id))out.push(...(await coverage(t.type,'',0)).recipeProblems);return out;};
+const S={
+ plan:{id:'plan',role:'editor',base:'plan',text:'Stage: plan. Decide the entity types, each type\'s universe and expected size, the main ranking and its criteria, and the sources to try. Be concise; do not collect data yourself.',
+  input:c=>({}),schema:PLAN_SCHEMA,budget:{rounds:14,calls:24},onFail:'stop'},
+ survey:{id:'survey',role:'collector',base:'collector',text:'Stage: source survey. Do ONLY step 0 — survey and record sources (record_sources), choose the source of the universe (the full list of entities) and the best source per planned metric. Do not load entities yet. Report the chosen sources.',
+  input:c=>({plan:c.r.plan}),budget:{rounds:18,calls:30},onFail:'skip',
+  accept:async c=>{const n=await count(c,'select count(*)::int n from sources where topic_id=$1::uuid',[c.topic.id]);return n>=3?undefined:'Record at least 3 candidate sources with record_sources (chosen or rejected, with why) before reporting; '+n+' recorded so far.';}},
+ universe:{id:'universe',role:'collector',base:'collector',text:'Stage: load the universe. Load the full list of entities now — names, standard ids, the main attributes, picture, official website, Wikipedia and introduction — with entity_upsert or bulk_import (with the admission standard), save it as a recipe (save_recipe) and run it once (run_recipe). Set the entity schema. Metrics come in the next stage; load the ones the universe source already gives.',
+  input:c=>({plan:c.r.plan,survey:c.r.survey}),budget:{rounds:24,calls:40},onFail:'stop',
+  accept:async c=>{const list=await typesOf(c);const n=list.length?await count(c,'select count(*)::int n from entities where type = any($1::text[])',[list]):0;
+   const r=list.length?await count(c,'select count(*)::int n from recipes where type = any($1::text[])',[list]):0;
+   return n<1?'No entities are loaded yet for '+(list.join(', ')||'the planned types')+'. Load the universe (entity_upsert or bulk_import) before reporting.':r<1?'Save the loading steps as a recipe (save_recipe) and run it (run_recipe) so the list refreshes by itself.':undefined;}},
+ starter:{id:'starter',role:'editor',base:'editor',text:'Stage: first pages. With the data loaded so far, save the main ranking (save_ranking, the criteria that have data now) and a basic entity template (set_entity_template: lead sentence, card, rankings and the sections the data supports). Preview one ranking and one entity page. Deeper design comes later.',
+  input:c=>({plan:c.r.plan,universe:c.r.universe}),budget:{rounds:18,calls:30},onFail:'stop',
+  accept:async c=>(await listRankingDefs(c.db,{topicId:c.topic.id})).length?undefined:'Save the main ranking (save_ranking) before reporting.'},
+ metrics:{id:'collect',role:'collector',base:'collector',text:'Stage: metrics. The universe is loaded; now load every planned metric (with history), each by a recipe that runs by itself, and fill coverage gaps. List every planned metric no reliable public source gives in unavailable (why, and the sources you tried); the editor decides what to do with each.',
+  input:c=>({plan:c.r.plan,survey:c.r.survey,universe:c.r.universe}),schema:COLLECT_SCHEMA,budget:{rounds:40,calls:90},passes:2,onFail:'skip',
+  accept:async c=>{const p=await recipeProblems(c);return p.length?'Your report cannot be accepted yet — fix these first (save_recipe with complete steps, then run_recipe until it succeeds): '+p.slice(0,8).join(' '):undefined;}},
+ resolve:{id:'resolve',role:'editor',base:'editor',text:'Stage: metrics the collector could not get. Decide each one — "replace" with a measure public data does support (name it in replacement), "drop" it, or "request_access" when a better source exists that needs a key or account (call request_access too). Record each decision with record_decision and update the plan.',
+  input:c=>({plan:c.r.plan,unavailable:unavailableOf(c)}),schema:RESOLVE_SCHEMA,budget:{rounds:12,calls:20},when:c=>unavailableOf(c).length>0,onFail:'skip'},
+ replace:{id:'replace',role:'collector',base:'collector',text:'Stage: replacement metrics. The editor replaced metrics you could not get with these: load each one by a recipe that runs by itself.',
+  input:c=>({plan:c.r.plan,replacements:replacementsOf(c)}),schema:COLLECT_SCHEMA,budget:{rounds:30,calls:60},when:c=>replacementsOf(c).length>0,onFail:'skip'},
+ design:{id:'design',role:'editor',base:'editor',text:'Stage: full design. Complete the template, the sub-rankings (established classifications only), composite indices and related rankings; preview every ranking and several entity pages and fix what is wrong.',
+  input:c=>({plan:c.r.plan,starter:c.r.starter,collector:lastReport(c.r.collect)}),budget:{rounds:32,calls:70},passes:2,onFail:'skip'},
+ repair:{id:'repair',role:'collector',base:'collector',text:'Stage: repair. A collection rule of this topic failed or drifted (team_state → plan shows the repair items with the error). Start from the source register: inspect the source again, fix the recipe or move it to the best recorded alternative (record_sources), run_recipe until it succeeds, retract data from a source you abandon, and close the repair items.',
+  input:c=>({}),budget:{rounds:30,calls:60},onFail:'stop',accept:async c=>{const p=await recipeProblems(c);return p.length?'Not repaired yet: '+p.slice(0,8).join(' '):undefined;}},
+ triage:{id:'triage',role:'editor',base:'editor',text:'Stage: readers\' requests. Read the inbox (read_inbox): turn the worthwhile queries into plan items (save_plan: ingest items for the collector, ranking items for yourself), propose subtopics where a request is a distinct sub-field (propose_subtopics), and mark every query read with your decision (triage_queries).',
+  input:c=>({}),budget:{rounds:14,calls:24},onFail:'stop'},
+ expandData:{id:'expand-data',role:'collector',base:'collector',text:'Stage: load what the plan asks for. Work the open ingest items of the plan (entities and metrics readers asked for), each by a recipe that runs by itself, and close them.',
+  input:c=>({triage:c.r.triage}),schema:COLLECT_SCHEMA,budget:{rounds:30,calls:70},onFail:'skip'},
+ expandDesign:{id:'expand-design',role:'editor',base:'editor',text:'Stage: pages for what readers asked. Add the rankings and template sections the new data supports; preview them and fix what is wrong.',
+  input:c=>({triage:c.r.triage,collector:c.r['expand-data']}),budget:{rounds:24,calls:50},onFail:'skip'},
+ sources:{id:'sources',role:'collector',base:'collector',text:'Stage: source review (every 90 days). Go through the source register (team_state → sources): open every chosen source again (still reachable, still current, same format), mark dead or superseded ones rejected and move their recipes to the best remaining source, look for new sources and markets not yet covered, and record every check with record_sources.',
+  input:c=>({}),budget:{rounds:24,calls:50},onFail:'stop',
+  accept:async c=>{const n=await count(c,"select count(*)::int n from sources where topic_id=$1::uuid and last_ok_at > now() - interval '1 day'",[c.topic.id]);return n>=1?undefined:'Record your checks with record_sources (every source you rechecked, chosen or rejected) before reporting.';}},
+} satisfies Record<string,Stage>;
+function unavailableOf(c:Ctx){const x=c.r.collect;return (Array.isArray(x)?x:[x]).flatMap(r=>(r as Report|undefined)?.unavailable||[]);}
+function replacementsOf(c:Ctx){return ((c.r.resolve as {decisions?:{action:string;replacement:string}[]}|undefined)?.decisions||[]).filter(d=>d.action==='replace'&&d.replacement.trim());}
+const WORKFLOWS:Record<WorkflowKind,{stages:Stage[];review:'full'|'none'}>={
+ build:{stages:[S.plan,S.survey,S.universe,S.starter,S.metrics,S.resolve,S.replace,S.design],review:'full'},
+ repair:{stages:[S.repair],review:'none'},
+ expand:{stages:[S.triage,S.expandData,S.expandDesign],review:'full'},
+ review:{stages:[],review:'full'},
+ sources:{stages:[S.sources],review:'none'},
+};
+async function runStage(c:Ctx,st:Stage):Promise<unknown>{
+ const agent=c.agents[st.role];const instructions=BASE[st.base]+'\n'+st.text;const schema=st.schema||REPORT_SCHEMA;
+ if(!st.passes||st.passes<=1)return ask(st.role,agent,c.topic.id,instructions,{...c.info,step:st.id,...st.input(c)},schema,c.log,st.budget,st.accept?()=>st.accept!(c):undefined);
+ // Long stages run in passes: each continues from the previous report, so one pass running out of budget is not fatal.
+ let report:Report={done:[],open:['everything'],notes:''};const reports:Report[]=[];
+ for(let i=0;i<st.passes&&report.open.length;i++){
+  try{report=await ask(st.role,agent,c.topic.id,instructions+(i?'\nContinue from your previous report: finish what is still open.':''),{...c.info,step:st.id,pass:i+1,...st.input(c),previous:i?report:undefined},schema,c.log,st.budget,st.accept?()=>st.accept!(c):undefined) as Report;}
+  catch(e){report={done:[],open:['pass '+(i+1)+' stopped: '+(e as Error).message.slice(0,300)],notes:''};}
+  reports.push(report);
+ }
+ return reports;
+}
+export async function runTopicTeam({slug,name,brief,kind='build',maxFixRounds=2,log=()=>{}}:{slug:string;name:string;brief:string;kind?:WorkflowKind;maxFixRounds?:number;log?:Log}){
  const db=await entityDb();
  const topic=await getTopic(db,slug)??await createTopic(db,{slug,name,description:brief});
- const editor=await spawnAgent('team-editor:'+slug,OWNER),collector=await spawnAgent('team-collector:'+slug,OWNER),reviewer=await spawnAgent('team-review:'+slug,OWNER);
- const topicInfo={topic:{slug,name,brief}};
- // Finished steps are kept (platform_state "team:<slug>") so a run cut off by a restart resumes after the last
- // finished step instead of starting over; a checkpoint older than 12 hours is not reused.
+ const agents={editor:await spawnAgent('team-editor:'+slug,OWNER),collector:await spawnAgent('team-collector:'+slug,OWNER),reviewer:await spawnAgent('team-review:'+slug,OWNER)};
+ // Checkpoints (platform_state "team:<slug>"): a run cut off by a restart resumes after its last finished stage;
+ // a checkpoint of another workflow or older than 12 hours is not reused.
  const {getState,setState}=await import('./manager');const key='team:'+slug;
  const saved=await getState(db,key).catch(()=>null);
- const fresh=saved&&typeof saved.at==='string'&&Date.now()-Date.parse(saved.at)<12*3600_000?saved as Record<string,unknown>:{};
- const done:Record<string,unknown>={...fresh};
- const step=async<T,>(name:string,run:()=>Promise<T>):Promise<T>=>{
-  if(name in done){log({event:'resumed',step:name});return done[name] as T;}
-  const out=await run();done[name]=out;done.at=new Date().toISOString();await setState(db,key,done).catch(()=>{});return out;
- };
- // A fixed workflow: every stage has one deliverable, a call budget and an acceptance check, and is checkpointed.
- // Pages become visible after stage 4 (entities loaded and a first ranking), then metrics and design deepen them.
- const plan=await step('plan',()=>ask('editor',editor,topic.id,EDITOR_PLAN+'\nStage 1 of the team workflow (plan): decide the entity types, each type\'s universe and expected size, the main ranking and its criteria, and the sources to try. Be concise; do not collect data yourself.',{...topicInfo,step:'plan'},PLAN_SCHEMA,log,{rounds:14,calls:24}));
- const types=async()=>(await listEntityTypes(db,topic.id)).map(t=>t.type);
- const countOf=async(list:string[])=>list.length?Number((await db.query<{n:number}>('select count(*)::int n from entities where type = any($1::text[])',[list])).rows[0]?.n||0):0;
- const plannedTypes=((plan as {types?:{type:string}[]}).types||[]).map(t=>String(t.type||'').toLowerCase().replace(/[^a-z0-9]+/g,'_')).filter(Boolean);
- // Stage 2: source survey — the register holds the candidates and the universe source is chosen.
- const survey=await step('survey',()=>ask('collector',collector,topic.id,COLLECTOR+'\nStage 2 of the team workflow (source survey): do ONLY step 0 — survey and record sources (record_sources), choose the source of the universe (the full list of entities) and the best source per planned metric. Do not load entities yet. Report the chosen sources.',
-  {...topicInfo,step:'survey',plan},REPORT_SCHEMA,log,{rounds:18,calls:30},
-  async()=>{const n=Number((await db.query<{n:number}>('select count(*)::int n from sources where topic_id=$1::uuid',[topic.id])).rows[0]?.n||0);return n>=3?undefined:'Record at least 3 candidate sources with record_sources (chosen or rejected, with why) before reporting; '+n+' recorded so far.';}));
- // Stage 3: load the universe — every entity with its standard ids, picture, links and introduction, by a recipe.
- const universe=await step('universe',()=>ask('collector',collector,topic.id,COLLECTOR+'\nStage 3 of the team workflow (load the universe): load the full list of entities now — names, standard ids, the main attributes, picture, official website, Wikipedia and introduction — with entity_upsert or bulk_import (with the admission standard), save it as a recipe (save_recipe) and run it once (run_recipe). Set the entity schema. Metrics come in the next stage; load the ones the universe source already gives.',
-  {...topicInfo,step:'universe',plan,survey},REPORT_SCHEMA,log,{rounds:24,calls:40},
-  async()=>{const list=[...new Set([...plannedTypes,...await types()])];const n=await countOf(list);const r=Number((await db.query<{n:number}>('select count(*)::int n from recipes where type = any($1::text[])',[list])).rows[0]?.n||0);
-   return n<1?'No entities are loaded yet for '+(list.join(', ')||'the planned types')+'. Load the universe (entity_upsert or bulk_import) before reporting.':r<1?'Save the loading steps as a recipe (save_recipe) and run it (run_recipe) so the list refreshes by itself.':undefined;}));
- // Stage 4: a first ranking and a basic template — the topic's pages are visible from here on.
- const starter=await step('starter',()=>ask('editor',editor,topic.id,EDITOR_BUILD+'\nStage 4 of the team workflow (first pages): with the data loaded so far, save the main ranking (save_ranking, the criteria that have data now) and a basic entity template (set_entity_template: lead sentence, card, rankings and the sections the data supports). Preview one ranking and one entity page. Deeper design comes later.',
-  {...topicInfo,step:'starter',plan,universe},REPORT_SCHEMA,log,{rounds:18,calls:30},
-  async()=>{const n=(await listRankingDefs(db,{topicId:topic.id})).length;return n?undefined:'Save the main ranking (save_ranking) before reporting.';}));
- // Collector and editor work in passes: each pass continues from the plan's open items and the previous report,
- // so a long job survives one pass running out of time or budget.
- const passes=async(role:Role,agent:Agent,instructions:string,step:string,extra:Record<string,unknown>,budget:{rounds:number;calls:number},max=3,schema:Record<string,unknown>=REPORT_SCHEMA)=>{
-  let report:{done:string[];open:string[];notes:string;unavailable?:{metric:string;why:string;tried:string}[]}={done:[],open:['everything'],notes:''};const reports=[];
-  for(let i=0;i<max&&report.open.length;i++){
-   try{report=await ask(role,agent,topic.id,instructions+(i?'\nContinue from your previous report: finish what is still open.':''),{...topicInfo,step,pass:i+1,...extra,previous:i?report:undefined},schema,log,budget) as typeof report;}
-   catch(e){report={done:[],open:['pass '+(i+1)+' stopped: '+(e as Error).message.slice(0,300)],notes:''};}
-   reports.push(report);
+ const fresh=saved&&typeof saved.at==='string'&&Date.now()-Date.parse(saved.at)<12*3600_000&&(saved.kind??'build')===kind?saved as Record<string,unknown>:{};
+ const c:Ctx={db,topic:{id:topic.id,slug},info:{topic:{slug,name,brief}},r:{...fresh},log,agents};
+ const save=async()=>{c.r.at=new Date().toISOString();c.r.kind=kind;await setState(db,key,c.r).catch(()=>{});};
+ log({event:'workflow_started',kind});
+ for(const st of WORKFLOWS[kind].stages){
+  if(st.id in c.r){log({event:'resumed',step:st.id});continue;}
+  if(st.when&&!st.when(c)){continue;}
+  log({event:'stage_started',step:st.id,role:st.role});
+  try{c.r[st.id]=await runStage(c,st);await save();log({event:'stage_finished',step:st.id});}
+  catch(e){
+   const msg=(e as Error).message.slice(0,500);log({event:'stage_failed',step:st.id,error:msg});
+   if(st.onFail==='stop'){
+    const {raiseIssue}=await import('@/app/ops/issues');
+    await raiseIssue(db,{source:'team',topic:slug,severity:'major',title:'Team stopped at stage '+st.id+' ('+kind+')',detail:msg,fingerprint:'team-stage:'+slug+':'+st.id}).catch(()=>{});
+    await db.query('delete from platform_state where key=$1::text',[key]).catch(()=>{});
+    throw e;
+   }
+   c.r[st.id]={skipped:msg};await save();
   }
-  return reports;
- };
- // Stage 5: metrics — every planned metric loaded by a recipe that has run (the collector's default check).
- const collected=await step('collect',()=>passes('collector',collector,COLLECTOR+'\nStage 5 of the team workflow (metrics): the universe is loaded; now load every planned metric (with history), each by a recipe that runs by itself, and fill coverage gaps. List every planned metric no reliable public source gives in unavailable (why, and the sources you tried); the editor decides what to do with each.',
-  'collect',{plan,survey,universe},{rounds:40,calls:90},2,COLLECT_SCHEMA));
- // Stage 5b: planned metrics the collector could not get go to the editor, who decides each one — a replacement
- // metric, dropping it, or asking the operators for access to the source that has it — and records the decisions;
- // the collector then loads the replacements in one more pass.
- const unavailable=collected.flatMap(r=>(r as {unavailable?:{metric:string;why:string;tried:string}[]}).unavailable||[]);
- if(unavailable.length){
-  const resolved=await step('resolve',()=>ask('editor',editor,topic.id,EDITOR_BUILD+'\nStage 5b of the team workflow (metrics the collector could not get): decide each one — "replace" with a measure that public data does support (name it in replacement), "drop" it, or "request_access" when a better source exists that needs a key or account (call request_access too). Record each decision with record_decision and update the plan.',
-   {...topicInfo,step:'resolve',plan,unavailable},RESOLVE_SCHEMA,log,{rounds:12,calls:20}) as Promise<{decisions:{metric:string;action:string;replacement:string;why:string}[]}>);
-  const replacements=resolved.decisions.filter(d=>d.action==='replace'&&d.replacement.trim());
-  if(replacements.length)collected.push(...await step('replace',()=>passes('collector',collector,COLLECTOR+'\nThe editor replaced metrics you could not get with these: load each one by a recipe that runs by itself.',
-   'replace',{plan,replacements},{rounds:30,calls:60},1,COLLECT_SCHEMA)));
  }
- // Stage 6: full design — template, sub-rankings, composite indices, previews.
- const built=await step('design',()=>passes('editor',editor,EDITOR_BUILD+'\nStage 6 of the team workflow (full design): complete the template, the sub-rankings (established classifications only), composite indices and related rankings; preview every ranking and several entity pages and fix what is wrong.',
-  'design',{plan,starter,collector:collected[collected.length-1]},{rounds:32,calls:70},2));
- // Stage 7: review (then fix rounds and, if still stuck, the manager's ruling).
- let verdict=await ask('reviewer',reviewer,topic.id,REVIEWER,{...topicInfo,step:'review',plan},VERDICT_SCHEMA,log,{rounds:32,calls:70}) as {approved:boolean;issues:{owner:string;severity:string}[];summary:string};
+ const result=WORKFLOWS[kind].review==='full'?await reviewLoop(c,maxFixRounds):{verdict:{approved:true,issues:[],summary:kind+' finished'},rounds:[],ruling:null,platformIssues:[]};
+ log({event:'team_finished',kind,approved:result.verdict.approved});
+ await db.query('delete from platform_state where key=$1::text',[key]).catch(()=>{});
+ return {topic:topic.slug,kind,stages:c.r,...result};
+}
+// The shared review loop: review → fix rounds routed by owner (at most maxFixRounds) → the manager's binding ruling
+// → publish what is approved (or has only minor issues); platform defects become operator issues.
+async function reviewLoop(c:Ctx,maxFixRounds:number){
+ const {db,topic,info,log,agents:{editor,collector,reviewer}}=c;const slug=topic.slug;
+ let verdict=await ask('reviewer',reviewer,topic.id,REVIEWER,{...info,step:'review',plan:c.r.plan},VERDICT_SCHEMA,log,{rounds:32,calls:70}) as {approved:boolean;issues:{owner:string;severity:string}[];summary:string};
  const rounds:unknown[]=[];
  const teamIssues=()=>verdict.issues.filter(x=>x.owner!=='platform'&&x.severity!=='minor');
  for(let i=0;i<maxFixRounds&&!verdict.approved&&teamIssues().length;i++){
   const forCollector=verdict.issues.filter(x=>x.owner==='collector'),forEditor=verdict.issues.filter(x=>x.owner==='editor');
   const fix:Record<string,unknown>={};
-  if(forCollector.length)fix.collector=await ask('collector',collector,topic.id,COLLECTOR+'\nThe reviewer sent these issues back to you: fix every one, then report.',{...topicInfo,step:'fix',issues:forCollector},REPORT_SCHEMA,log,{rounds:30,calls:70});
-  if(forEditor.length||forCollector.length)fix.editor=await ask('editor',editor,topic.id,EDITOR_BUILD+'\nThe reviewer sent these issues back (the collector has fixed its own): fix every one of yours, recheck the pages, then report.',{...topicInfo,step:'fix',issues:forEditor,collectorIssues:forCollector},REPORT_SCHEMA,log,{rounds:24,calls:50});
+  if(forCollector.length)fix.collector=await ask('collector',collector,topic.id,COLLECTOR+'\nThe reviewer sent these issues back to you: fix every one, then report.',{...info,step:'fix',issues:forCollector},REPORT_SCHEMA,log,{rounds:30,calls:70}).catch(e=>({failed:(e as Error).message}));
+  if(forEditor.length||forCollector.length)fix.editor=await ask('editor',editor,topic.id,EDITOR_BUILD+'\nThe reviewer sent these issues back (the collector has fixed its own): fix every one of yours, recheck the pages, then report.',{...info,step:'fix',issues:forEditor},REPORT_SCHEMA,log,{rounds:24,calls:50}).catch(e=>({failed:(e as Error).message}));
   rounds.push(fix);
-  verdict=await ask('reviewer',reviewer,topic.id,REVIEWER+'\nThis is a re-review after fixes: check the earlier issues first, then everything again.',{...topicInfo,step:'re-review',previous:verdict},VERDICT_SCHEMA,log,{rounds:32,calls:70}) as typeof verdict;
+  verdict=await ask('reviewer',reviewer,topic.id,REVIEWER+'\nThis is a re-review after fixes: check the earlier issues first, then everything again.',{...info,step:'re-review',previous:verdict},VERDICT_SCHEMA,log,{rounds:32,calls:70}) as typeof verdict;
  }
- // Publish only what the reviewer approved; otherwise everything stays draft (visible, not in the sitemap).
- // Still stuck after the fix rounds: the manager rules on the remaining issues, the team applies the rulings once,
- // and the reviewer re-reviews bound by them.
  let ruling:unknown=null;
  if(!verdict.approved&&teamIssues().length){
   const manager=await spawnAgent('team-manager',OWNER);
-  ruling=await ask('manager',manager,topic.id,MANAGER,{...topicInfo,step:'arbitrate',issues:teamIssues(),reviewerSummary:verdict.summary},RULING_SCHEMA,log,{rounds:24,calls:40});
-  const mustDo=(ruling as {rulings:{ruling:string}[]}).rulings.some(r=>r.ruling==='reviewer_right');
-  if(mustDo){
-   await ask('collector',collector,topic.id,COLLECTOR+'\nThe manager ruled on the open issues (binding). Do what the rulings require of you, then report.',{...topicInfo,step:'apply-ruling',ruling},REPORT_SCHEMA,log,{rounds:30,calls:70});
-   await ask('editor',editor,topic.id,EDITOR_BUILD+'\nThe manager ruled on the open issues (binding). Do what the rulings require of you, recheck the pages, then report.',{...topicInfo,step:'apply-ruling',ruling},REPORT_SCHEMA,log,{rounds:24,calls:50});
+  ruling=await ask('manager',manager,topic.id,MANAGER,{...info,step:'arbitrate',issues:teamIssues(),reviewerSummary:verdict.summary},RULING_SCHEMA,log,{rounds:24,calls:40});
+  if((ruling as {rulings:{ruling:string}[]}).rulings.some(r=>r.ruling==='reviewer_right')){
+   await ask('collector',collector,topic.id,COLLECTOR+'\nThe manager ruled on the open issues (binding). Do what the rulings require of you, then report.',{...info,step:'apply-ruling',ruling},REPORT_SCHEMA,log,{rounds:30,calls:70}).catch(()=>null);
+   await ask('editor',editor,topic.id,EDITOR_BUILD+'\nThe manager ruled on the open issues (binding). Do what the rulings require of you, recheck the pages, then report.',{...info,step:'apply-ruling',ruling},REPORT_SCHEMA,log,{rounds:24,calls:50}).catch(()=>null);
   }
-  verdict=await ask('reviewer',reviewer,topic.id,REVIEWER+'\nThe manager has ruled on the disputed issues; the rulings are recorded decisions and bind you. Re-review everything against them.',{...topicInfo,step:'review-after-ruling',ruling},VERDICT_SCHEMA,log,{rounds:32,calls:70}) as typeof verdict;
+  verdict=await ask('reviewer',reviewer,topic.id,REVIEWER+'\nThe manager has ruled on the disputed issues; the rulings are recorded decisions and bind you. Re-review everything against them.',{...info,step:'review-after-ruling',ruling},VERDICT_SCHEMA,log,{rounds:32,calls:70}) as typeof verdict;
  }
- // Platform defects are reported to the operators (log and result), never fixed by the team.
  const platformIssues=verdict.issues.filter(x=>x.owner==='platform');if(platformIssues.length)log({event:'platform_issues',issues:platformIssues});
  {const {raiseIssue}=await import('@/app/ops/issues');
   for(const x of platformIssues as unknown as {severity:string;target?:string;problem?:string;fix?:string}[])
@@ -258,11 +304,7 @@ export async function runTopicTeam({slug,name,brief,maxFixRounds=2,log=()=>{}}:{
  if(verdict.approved||!teamIssues().length){
   for(const r of await listRankingDefs(db,{topicId:topic.id}))await setStatus(db,'ranking',r.slug,'published');
   for(const t of await listEntityTypes(db,topic.id))await setStatus(db,'type',t.type,'published');
+  await placeTopic(slug,log).catch(e=>log({event:'topic_place_failed',error:(e as Error).message}));
  }
- // A newly published topic gets its place in the navigation tree.
- if(verdict.approved||!teamIssues().length)await placeTopic(slug,log).catch(e=>log({event:'topic_place_failed',error:(e as Error).message}));
- log({event:'team_finished',approved:verdict.approved});
- // The run finished: its checkpoint is cleared (the next run of this team starts fresh).
- await db.query('delete from platform_state where key=$1::text',[key]).catch(()=>{});
- return {topic:topic.slug,plan,collected,built,fixRounds:rounds,ruling,verdict,platformIssues};
+ return {verdict,rounds,ruling,platformIssues};
 }
