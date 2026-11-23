@@ -33,7 +33,18 @@ export async function localizeContent<T>(db:Queryable,model:T,locale:string):Pro
   const r=await db.query<{hash:string;text:string|null;status:string}>('select hash, text, status from translations where lang=$1::text and hash = any($2::text[])',[locale,hashes]);
   const got=new Map(r.rows.map(x=>[x.hash,x]));const missing:[string,string][]=[];
   list.forEach((s,i)=>{const g=got.get(hashes[i]);if(g?.status==='done'&&g.text)map.set(s,g.text);else if(!g)missing.push([hashes[i],s]);});
-  if(missing.length)await db.query(`insert into translations(lang,hash,source) select $1::text, x.h, x.s from unnest($2::text[],$3::text[]) as x(h,s) on conflict do nothing`,[locale,missing.map(m=>m[0]),missing.map(m=>m[1])]);
+  if(missing.length){
+   await db.query(`insert into translations(lang,hash,source) select $1::text, x.h, x.s from unnest($2::text[],$3::text[]) as x(h,s) on conflict do nothing`,[locale,missing.map(m=>m[0]),missing.map(m=>m[1])]);
+   // The first reader of a page in this language should not see English: a small batch is translated right away
+   // (CONTENT_SYNC_LIMIT texts within CONTENT_SYNC_MS); a larger one, or a slow or failed call, waits for the heartbeat.
+   const limit=Number(process.env.CONTENT_SYNC_LIMIT||80),ms=Number(process.env.CONTENT_SYNC_MS||6000);
+   if(missing.length<=limit&&limit>0){
+    const name=LOCALES.find(l=>l.code===locale)?.name||locale;
+    const got=await Promise.race([translateBatch(missing.map(m=>m[1]),locale,name).catch(()=>null),new Promise<null>(r=>setTimeout(()=>r(null),ms))]);
+    if(got)for(const [h,src] of missing){const t=got[src];if(typeof t==='string'&&t.trim()){map.set(src,t.trim());
+     await db.query(`update translations set text=$3::text, status='done', updated_at=now() where lang=$1::text and hash=$2::text`,[locale,h,t.trim().slice(0,4000)]).catch(()=>{});}}
+   }
+  }
  }catch{return {model,complete:false};}
  return {model:apply(model,map) as T,complete:map.size>=list.length};
 }
@@ -66,4 +77,19 @@ async function translateBatch(texts:string[],lang:string,name:string):Promise<Re
  const text=(r.output||[]).flatMap(o=>'content' in o&&Array.isArray(o.content)?o.content:[]).map((c:{type?:string;text?:string})=>c.type==='output_text'?c.text||'':'').join('');
  const parsed=JSON.parse(text.replace(/^```(?:json)?\s*|\s*```$/g,'')||'{}') as {items?:{source:string;text:string}[]};
  return Object.fromEntries((parsed.items||[]).map(x=>[x.source,x.text]));
+}
+
+// Pre-translation: the tree's topic names and descriptions are queued for the most-read languages ahead of readers,
+// so browsing topics never waits. Once a day; only what is not queued or translated yet.
+export const PRETRANSLATE=['zh','es','hi','ar','pt','fr','ja','ru','de','id','bn','ko','tr','vi','it','ur','fa','th','pl','zh-hant'];
+export async function queueTreeTranslations(db:Queryable,langs=PRETRANSLATE):Promise<number>{
+ const rows=(await db.query<{name:string;description:string}>("select name, description from topics where status <> 'archived'")).rows;
+ const texts=[...new Set(rows.flatMap(r=>[r.name,r.description]).map(x=>String(x||'').trim()).filter(translatable))];
+ let n=0;
+ for(const lang of langs){
+  for(let i=0;i<texts.length;i+=2000){const part=texts.slice(i,i+2000);
+   const r=await db.query(`insert into translations(lang,hash,source) select $1::text, x.h, x.s from unnest($2::text[],$3::text[]) as x(h,s) on conflict do nothing returning 1`,[lang,part.map(hashOf),part]);
+   n+=r.rows.length;}
+ }
+ return n;
 }
