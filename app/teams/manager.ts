@@ -57,7 +57,7 @@ export async function scheduleMaintenance(db:Queryable):Promise<string[]>{
   // Routine reviews follow readers: a new topic comes back after a week (the first pass covers the basics), a
   // popular one weekly, one with some readers every two weeks, a quiet one monthly.
   const reviewDays=t.passes<=1?7:t.views>=100?7:t.views>=10?14:30;
-  const why=t.repairs>0&&hours>3?{p:3,note:'repair: a collection rule is waiting'}:t.inbox>=5&&hours>24?{p:2,note:`expand: ${t.inbox} reader queries waiting`}
+  const why=t.repairs>0&&hours>3?{p:3,note:'repair: a collection rule is waiting'}:t.inbox>=3&&hours>12?{p:2,note:`expand: ${t.inbox} reader queries waiting`}
    :hours>reviewDays*24?{p:t.views>=100?1:0,note:`review (every ${reviewDays} days; ${t.views} views in 30 days)`}
    // The source register is reviewed every 90 days: sources still alive and current, new sources and markets found.
    :hours>24&&(!t.sources_at||Date.now()-Date.parse(t.sources_at)>SOURCE_REVIEW_DAYS*86400_000)?{p:0,note:'source review: the source register is '+(t.sources_at?'over '+SOURCE_REVIEW_DAYS+' days old':'empty')}:null;
