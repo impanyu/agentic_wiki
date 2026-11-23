@@ -55,12 +55,12 @@ const issues=(owner)=>({approved:false,issues:[{owner,severity:'major',problem:'
 test('build: plan → survey → universe → starter → collect → design → review → publish when nothing is missing',async()=>{
  const calls=team({'reviewer:review':approved,'editor:plan':{types:[],rankings:[]}});
  const c=ctx();c.r._maxFixRounds=2;await ch.WORKFLOWS.build.run(c.r,c);
- assert.deepEqual(calls,['editor:plan','collector:survey','collector:universe','editor:starter','collector:collect','editor:design','reviewer:review']);
+ assert.deepEqual(calls,['editor:plan','collector:survey','collector:universe','editor:starter','collector:collect','reviewer:early-review','editor:design','reviewer:review']);
 });
 test('build: unavailable metrics go to the editor to decide, replacements back to the collector',async()=>{
  const calls=team({'collector:collect':{done:[],open:[],notes:'',unavailable:[{metric:'x',why:'none',tried:'a'}]},'editor:resolve':{decisions:[{metric:'x',action:'replace',replacement:'y',why:''}]},'reviewer:review':approved});
  const c=ctx();c.r._maxFixRounds=2;await ch.WORKFLOWS.build.run(c.r,c);
- assert.deepEqual(calls.slice(4),['collector:collect','editor:resolve','collector:replace','editor:design','reviewer:review']);
+ assert.deepEqual(calls.slice(4),['collector:collect','reviewer:early-review','editor:resolve','collector:replace','editor:design','reviewer:review']);
 });
 test('review loop: issues go to their owners for at most the fix rounds, then the manager rules and the reviewer reviews once more',async()=>{
  const calls=team({'reviewer:review':issues('collector'),'reviewer:re-review':issues('collector'),'manager':{rulings:[{ruling:'reviewer_right'}],brief:''},'reviewer:review-after-ruling':issues('collector')});
@@ -78,4 +78,11 @@ test('review loop: issues go to their owners for at most the fix rounds, then th
 test('repair and source review have no review loop',async()=>{
  const calls=team({});const c=ctx();await ch.WORKFLOWS.repair.run(c.r,c);await ch.WORKFLOWS.sources.run(c.r,c);
  assert.deepEqual(calls,['collector:repair','collector:sources']);
+});
+
+test('a ranking the reviewer passes is published at once, before the rest of the topic',async()=>{
+ const published=[];globalThis.__published=published;
+ team({'reviewer:early-review':{approved:false,ready:['phone-rankings'],issues:[{owner:'editor',severity:'major',problem:'x'}],summary:''},'reviewer:review':approved});
+ const src=readFileSync('app/teams/charter.ts','utf8');assert.match(src,/await publishReady\(c,verdict as Verdict\)/);
+ const d=ch.charter().find(w=>w.id==='build');assert.deepEqual(d.edges.find(e=>e.from==='collect').to,['early-review']);
 });

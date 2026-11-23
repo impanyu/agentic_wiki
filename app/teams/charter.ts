@@ -65,8 +65,8 @@ const COLLECT_SCHEMA={type:'object',additionalProperties:false,required:['done',
 const RESOLVE_SCHEMA={type:'object',additionalProperties:false,required:['decisions'],properties:{
  decisions:{type:'array',items:{type:'object',additionalProperties:false,required:['metric','action','replacement','why'],properties:{
   metric:{type:'string'},action:{type:'string',enum:['replace','drop','request_access']},replacement:{type:'string'},why:{type:'string'}}}}}};
-const VERDICT_SCHEMA={type:'object',additionalProperties:false,required:['approved','issues','summary'],properties:{
- approved:{type:'boolean'},summary:{type:'string'},
+const VERDICT_SCHEMA={type:'object',additionalProperties:false,required:['approved','ready','issues','summary'],properties:{
+ approved:{type:'boolean'},summary:{type:'string'},ready:{type:'array',items:{type:'string'}},
  issues:{type:'array',items:{type:'object',additionalProperties:false,required:['severity','owner','target','problem','fix'],properties:{
   severity:{type:'string',enum:['blocker','major','minor']},owner:{type:'string',enum:['editor','collector','platform']},target:{type:'string'},problem:{type:'string'},fix:{type:'string'}}}}}};
 
@@ -110,6 +110,7 @@ const REVIEWER=`You are the independent reviewer of this topic team. Check the w
 Judge against the platform rules, the brief and the team's recorded decisions (team_state → topic.decisions): a recorded decision is not an issue unless it serves readers badly — then say why and what decision would be better.
 Every review gathers fresh evidence with your tools (team_state, coverage, preview_page, entity_get, the sources) — never repeat an earlier verdict without rechecking. Do not raise issues that contradict the platform rules above (e.g. more than 12 criteria in a ranking).
 Judge first as a reader: does each page and ranking answer what a reader comparing these entities wants? Route every issue to the member who can fix it, directly: data, metric and index defects (wrong or missing values, an index computed or weighted against its stated method, top places that swing on small weight changes, an unclear methodology) → collector; an index or measure that does not answer what readers need (the wrong concept, a missing aspect, the wrong question) → editor, who restates the requirement for the collector; templates, rankings and presentation → editor.
+Each ranking is published on its own as soon as it passes: list in ready the slug of every ranking that is ready for readers now — the ranking and the entity pages of its type have no blocking or major issue — even when other parts of the topic are not done or not approved.
 Return approved=true only when nothing blocking or major remains for the team; list every issue with its owner (collector for data/recipes/schema/metrics/indices, editor for templates/rankings/plan) and a concrete fix. A defect of the page renderer itself (wrong formatting the template does not control) has owner "platform": report it, but it does not block approval.`;
 
 
@@ -182,7 +183,7 @@ const S={
  replace:{id:'replace',role:'collector',title:'load replacement metrics',base:'collector',tools:['team_state','coverage','list_public_sources','call_public_source','fetch_data','extract_tables','query_data','describe_data','crawl_pages','extract_fields','llm_extract','entity_upsert','bulk_import','entity_get','entity_search','metric_table','define_metric','compute_metric','metric_sensitivity','set_entity_schema','save_recipe','run_recipe','retract_observations','record_sources','request_access','report_issue'],text:'Stage: replacement metrics. The editor replaced metrics you could not get with these: load each one by a recipe that runs by itself.',
   input:c=>({plan:c.r.plan,replacements:replacementsOf(c)}),schema:COLLECT_SCHEMA,budget:{rounds:30,calls:60},onFail:'skip'},
  design:{id:'design',role:'editor',title:'rankings, sub-rankings, templates',base:'editor',text:'Stage: full design. Complete the template, the sub-rankings (established classifications only: by kind — discipline, field, industry, category, sport, genre — wherever the entities fall into classes; by country, region and city wherever place matters; by market for products), the composite indices the collector built as criteria, and related rankings; preview every ranking and several entity pages and fix what is wrong.',
-  input:c=>({plan:c.r.plan,starter:c.r.starter,collector:lastReport(c.r.collect)}),budget:{rounds:32,calls:70},passes:2,onFail:'skip'},
+  input:c=>({plan:c.r.plan,starter:c.r.starter,collector:lastReport(c.r.collect),earlyReview:c.r['early-review']}),budget:{rounds:32,calls:70},passes:2,onFail:'skip'},
  repair:{id:'repair',role:'collector',title:'repair a failed recipe',base:'collector',text:'Stage: repair. A collection rule of this topic failed or drifted (team_state → plan shows the repair items with the error). Start from the source register: inspect the source again, fix the recipe or move it to the best recorded alternative (record_sources), run_recipe until it succeeds, retract data from a source you abandon, and close the repair items.',
   input:c=>({}),budget:{rounds:30,calls:60},onFail:'stop',accept:async c=>{const p=await recipeProblems(c);return p.length?'Not repaired yet: '+p.slice(0,8).join(' '):undefined;}},
  triage:{id:'triage',role:'editor',title:'read the readers requests',base:'editor',text:'Stage: readers\' requests. Read the inbox (read_inbox) and treat the queries as signals of demand, not tickets: for each group of related queries, (1) find the need behind it ("best tractor for a small vineyard" means a narrow/vineyard tractor segment), (2) generalise to the neighbouring needs the same readers will have (orchard, compact and hill-farm tractors) and plan those too, (3) plan the entities and metrics the data lacks (save_plan: ingest items for the collector, ranking items for yourself — sub-rankings by established segments), (4) propose subtopics where the queries point to a distinct sub-field (propose_subtopics, with the classification basis), and (5) mark every query read with your decision (triage_queries: planned, generalised into …, or out of scope and why).',
@@ -222,7 +223,22 @@ const stage=(st:Stage):Node=>({id:st.id,role:st.role,title:st.title,onFail:st.on
 
 // ───────────── the review loop (shared) ─────────────
 type Issue={owner:string;severity:string;target?:string;problem?:string;fix?:string};
-type Verdict={approved:boolean;issues:Issue[];summary:string};
+type Verdict={approved:boolean;ready?:string[];issues:Issue[];summary:string};
+// A ranking the reviewer passed is published at once, with the entity pages of its type (never unpublished here).
+async function publishReady(c:Ctx,v:Verdict){
+ const ready=new Set(v.ready||[]);if(!ready.size)return [];
+ const defs=(await listRankingDefs(c.db,{topicId:c.topic.id})).filter(r=>ready.has(r.slug));
+ for(const r of defs){if(r.status!=='published')await setStatus(c.db,'ranking',r.slug,'published');if(r.scope.type)await setStatus(c.db,'type',r.scope.type,'published');}
+ if(defs.length){c.log({event:'published',rankings:defs.map(r=>r.slug)});await placeTopic(c.topic.slug,c.log).catch(()=>{});}
+ return defs.map(r=>r.slug);
+}
+// Early in a build: the reviewer checks what is already on pages (the first rankings) so a ranking that passes is
+// published without waiting for the rest of the topic.
+const earlyReview:Node={id:'early-review',role:'reviewer',title:'review the first rankings, publish those that pass',onFail:'skip',run:async(s,c)=>{
+ const verdict=await teamAsk('reviewer',c.agents.reviewer,c.topic.id,REVIEWER+'\nThis is an early review: the topic is still being built. Judge only the rankings already saved and the entity pages of their types; list in ready those that can go to readers now. Your issues go to the team as notes for the rest of the build.',{...c.info,step:'early-review',plan:s.plan},VERDICT_SCHEMA,c.log,{rounds:24,calls:50}) as Verdict;
+ const published=await publishReady(c,verdict);
+ return {'early-review':{published,issues:verdict.issues,summary:verdict.summary}};
+}};
 const teamIssues=(v:Verdict|undefined)=>(v?.issues||[]).filter(x=>x.owner!=='platform'&&x.severity!=='minor');
 const review:Node={id:'review',role:'reviewer',title:'independent review',onFail:'stop',run:async(s,c)=>{
  const base={...c.info};const reviewer=c.agents.reviewer;
@@ -231,6 +247,7 @@ const review:Node={id:'review',role:'reviewer',title:'independent review',onFail
   :visits(s,'fix')>0
   ?await teamAsk('reviewer',reviewer,c.topic.id,REVIEWER+'\nThis is a re-review after fixes: check the earlier issues first, then everything again.',{...base,step:'re-review',previous:s.verdict},VERDICT_SCHEMA,c.log,{rounds:32,calls:70})
   :await teamAsk('reviewer',reviewer,c.topic.id,REVIEWER,{...base,step:'review',plan:s.plan},VERDICT_SCHEMA,c.log,{rounds:32,calls:70});
+ await publishReady(c,verdict as Verdict);
  return {verdict};
 }};
 // Issues go to their owner: the collector fixes the data first, then the editor fixes the pages over it.
@@ -281,9 +298,9 @@ const unavailable=(s:TeamState)=>{const x=s.collect;return (Array.isArray(x)?x:[
 const replacements=(s:TeamState)=>((s.resolve as {decisions?:{action:string;replacement:string}[]}|undefined)?.decisions||[]).filter(d=>d.action==='replace'&&d.replacement.trim());
 const build=withReview(new Workflow<TeamState,Ctx>('build','Build a new topic')
  .node(stage(S.plan)).node(stage(S.survey)).node(stage(S.universe)).node(stage(S.starter)).node(stage(S.metrics))
- .node(stage(S.resolve)).node(stage(S.replace)).node(stage(S.design))
- .then('plan','survey','universe','starter','collect')
- .branch('collect',['resolve','design'],s=>unavailable(s).length?'resolve':'design','metrics the collector could not get?')
+ .node(earlyReview).node(stage(S.resolve)).node(stage(S.replace)).node(stage(S.design))
+ .then('plan','survey','universe','starter','collect','early-review')
+ .branch('early-review',['resolve','design'],s=>unavailable(s).length?'resolve':'design','metrics the collector could not get?')
  .branch('resolve',['replace','design'],s=>replacements(s).length?'replace':'design','replacements chosen?')
  .then('replace','design'),'design');
 const repair=new Workflow<TeamState,Ctx>('repair','Repair a failed collection rule').node(stage(S.repair)).then('repair',END);
