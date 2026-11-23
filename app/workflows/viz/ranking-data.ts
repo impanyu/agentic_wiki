@@ -203,6 +203,21 @@ export function rowPeriods(rows:unknown,key:string):string[]{
  const s=new Set<string>();for(const r of Array.isArray(rows)?rows:[])if(isObj(r)){const p=periodText(r[key]);if(p)s.add(p);}
  return [...s].sort((a,b)=>comparePeriods(b,a));
 }
+// The rows the latest view needs: for each entity, the row holding each criterion's most recent value (plus the rows
+// of one extra period, for a page opened on ?year=). rowsAt(…, latest) over them gives the same table as over all rows,
+// so a page can send these first and fetch the full history afterwards.
+export function latestRows(rows:Obj[],o:{nameKey:string;periodKey:string;keys:string[];period?:string}):Obj[]{
+ const by=new Map<string,Obj[]>();
+ for(const r of rows){const n=text(r[o.nameKey]);if(!n)continue;const l=by.get(n);if(l)l.push(r);else by.set(n,[r]);}
+ const keep=new Set<Obj>();
+ for(const list of by.values()){
+  list.sort((a,b)=>comparePeriods(periodText(b[o.periodKey]),periodText(a[o.periodKey])));
+  keep.add(list[0]);
+  for(const k of o.keys){const r=list.find(x=>parseNumber(x[k])!=null);if(r)keep.add(r);}
+  if(o.period)for(const r of list)if(periodText(r[o.periodKey])===o.period)keep.add(r);
+ }
+ return rows.filter(r=>keep.has(r));
+}
 // One row per entity for a period: the entity's row of that period, or — for "latest" — each criterion's most
 // recent value. Each row records the period of each value in __period.<key>.
 export function rowsAt(rows:unknown,o:{nameKey:string;periodKey:string;period:string;keys:string[]}):Obj[]{

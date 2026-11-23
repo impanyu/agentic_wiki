@@ -17,7 +17,7 @@ import {assembleRankingPage,entityPath,rankingPath} from '@/app/seo/assemble';
 import {propsRankingBlock,rankCriterion,blockPeriods,rankedView,rankingChartSvgs} from '@/app/seo/ranking-views';
 import {jsonLd} from '@/app/seo/structured-data';
 import {questionKey} from '@/app/seo/urls';
-import {linkParts} from '@/app/workflows/viz/ranking-data';
+import {linkParts,latestRows} from '@/app/workflows/viz/ranking-data';
 import {DbShell,RankingBody} from './view';
 import {pathMaps,nodeTrail,nodeChildren,popularRankings} from '@/app/entity-db/pages';
 import {Breadcrumbs,RankingGrid} from '@/app/explore';
@@ -36,15 +36,21 @@ const load=cache((slug:string)=>rankingData.get(slug,()=>loadUncached(slug)));
 async function loadUncached(slug:string){
  const db=await entityDb();const input=await loadRankingPage(db,slug);if(!input)return null;
  const model=assembleRankingPage(input,'en');
- const props:Record<string,unknown>={criteria:model.criteria,rows:model.rows,default:model.defaultKey,periodKey:'period',
+ const full:Record<string,unknown>={criteria:model.criteria,rows:model.rows,default:model.defaultKey,periodKey:'period',
   ...(model.groupKey?{groupKey:model.groupKey}:{}),...(Array.isArray(input.def.config.views)?{views:input.def.config.views}:{}),
   ...(model.sources.length?{source:model.sources.join('; ')}:{})};
- const block=propsRankingBlock(props)!;
+ const block=propsRankingBlock(full)!;
+ // The page carries only the rows of the latest view; a long history (every year of every entity) is fetched by
+ // the browser afterwards from /rankings/<slug>/history.json, so the page itself stays small.
+ const keys=model.criteria.map(c=>c.key);
+ const slim=latestRows(model.rows,{nameKey:'name',periodKey:'period',keys});
+ const history=slim.length<model.rows.length*0.7;
+ const props=history?{...full,rows:slim,history:true}:full;
  // Members link to their pages; one without a page (too little data yet) is plain text.
  const pages=await withPages(db,model.rows.map(r=>String(r.entity_id||'')));
  const askTargets:Record<string,string>={};
  for(const r of model.rows){const n=String(r.name||''),t=String(r.type||''),id=String(r.entity_id||'');if(n&&t&&pages.has(id)&&!askTargets[questionKey(n)])askTargets[questionKey(n)]=entityPath(t,n,pages.get(id));}
- return {input,model,props,block,state:{rows:model.rows},askTargets};
+ return {input,model,props,block,state:{rows:model.rows},askTargets,history,keys};
 }
 async function view(props:Props){
  const [{slug},q]=await Promise.all([props.params,props.searchParams]);
@@ -76,7 +82,9 @@ export async function generateMetadata(props:Props):Promise<Metadata>{
 }
 export async function RankingPage(props:Props){
  const v=await view(props);if(!v)notFound();
- const {input,model,props:rawProps,block,state,askTargets,rank,criterion,year,period,base,internal,maps,path,slug}=v;
+ const {input,model,block,state,askTargets,rank,criterion,year,period,base,internal,maps,path,slug}=v;
+ // A page opened on ?year= also carries that year's rows (its HTML is that year's table).
+ const rawProps=v.history&&period?{...v.props,rows:latestRows(model.rows,{nameKey:'name',periodKey:'period',keys:v.keys,period})}:v.props;
  const {locale,dict,t}=await serverUi();const L=<T,>(v:T)=>localizeLinks(canonicalLinks(v,maps),locale);
  // The page's own words in the reader's language (queued for translation when not translated yet; rows keep their names).
  const loc=(await localizeContent(await entityDb(),{name:v.name,baseTitle:model.title,lead:model.lead,titles:Object.entries(v.titles).map(([key,title])=>({key,title})),
@@ -108,4 +116,14 @@ export async function RankingPage(props:Props){
    {loc.related.length>0&&<section aria-labelledby="related-rankings"><h2 id="related-rankings">{t('Related rankings')}</h2><ul>{loc.related.map(r=><li key={r.href}><a href={L(r.href)}>{r.title}</a></li>)}</ul></section>}
   </DbShell>
  </>;
+}
+
+// The full history of a ranking (every entity and period), in the reader's language, packed: fetched by the page.
+const histories=ttlCache<unknown>(10*60_000,100,24*3600_000);
+export async function rankingHistory(slug:string,locale:string){
+ const data=await load(slug);if(!data)return null;
+ return histories.get(slug+'|'+locale,async()=>{
+  const rows=locale==='en'?data.model.rows:((await localizeContent(await entityDb(),{props:{rows:data.model.rows}},locale)).model.props.rows as Record<string,unknown>[]);
+  return packRows(rows);
+ });
 }
