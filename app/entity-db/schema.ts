@@ -253,6 +253,33 @@ export const MIGRATIONS:Migration[]=[
   'drop trigger if exists observations_changed_del on observations',
   'create trigger observations_changed_del after delete on observations referencing old table as changed for each statement execute function note_data_change()',
  ]},
+ // Page dependencies beyond a type's observations: a relation added or removed changes both entities' pages
+ // (dirty_entities, read by the page refresher); a metric's definition (label, unit, description, order) changes the
+ // pages of every type that has values of it (data_changes). Append-only notes, no row locks.
+ {version:19,name:'page dependencies',statements:()=>[
+  'create table if not exists dirty_entities(id uuid not null, at timestamptz not null default now())',
+  'create index if not exists dirty_entities_at on dirty_entities(at)',
+  `create or replace function note_relation_change() returns trigger language plpgsql as $f$
+   begin
+    insert into dirty_entities(id) select subject_id from changed union select object_id from changed;
+    return null;
+   end $f$`,
+  'drop trigger if exists relations_changed_ins on relations',
+  'create trigger relations_changed_ins after insert on relations referencing new table as changed for each statement execute function note_relation_change()',
+  'drop trigger if exists relations_changed_upd on relations',
+  'create trigger relations_changed_upd after update on relations referencing new table as changed for each statement execute function note_relation_change()',
+  'drop trigger if exists relations_changed_del on relations',
+  'create trigger relations_changed_del after delete on relations referencing old table as changed for each statement execute function note_relation_change()',
+  `create or replace function note_metric_change() returns trigger language plpgsql as $f$
+   begin
+    insert into data_changes(type) select distinct e.type from n join o on o.key = n.key and o.version = n.version
+     and (to_jsonb(o) - array['updated_at','created_at','used']) is distinct from (to_jsonb(n) - array['updated_at','created_at','used'])
+     join observations ob on ob.metric = n.key join entities e on e.id = ob.entity_id;
+    return null;
+   end $f$`,
+  'drop trigger if exists metrics_changed on metrics',
+  'create trigger metrics_changed after update on metrics referencing old table as o new table as n for each statement execute function note_metric_change()',
+ ]},
 ];
 export const SCHEMA_VERSION=MIGRATIONS[MIGRATIONS.length-1].version;
 

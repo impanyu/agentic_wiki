@@ -213,7 +213,8 @@ test('sitemap lists rankings with their criteria views and entities of listed ty
 });
 
 test('pages are precomputed: stored on first build, served from the copy, rebuilt after their data changes',async()=>{
- write('snapshot-refresh',readFileSync('app/entity-db/snapshot-refresh.ts','utf8'));
+ process.env.PRETRANSLATE_LOCALES='';// no translation service here
+ write('snapshot-refresh',readFileSync('app/entity-db/snapshot-refresh.ts','utf8'),{'@/app/seo/assemble':'./pure.mjs'});
  const refresh=await import(new URL('snapshot-refresh.mjs',out));
  const first=await pages.loadRankingPage(db,'country-rankings');
  const row=(await db.query("select type, built_at from page_data where kind='ranking' and key='country-rankings'")).rows[0];
@@ -228,6 +229,10 @@ test('pages are precomputed: stored on first build, served from the copy, rebuil
  await db.query("update page_data set built_at = now() - interval '1 hour' where kind='ranking'");
  const r=await refresh.refreshSnapshots(db,{budgetMs:20000,workers:1});assert.ok(r.built>=1);
  const after=await pages.loadRankingPage(db,'country-rankings');assert.notDeepEqual(after.rows,first.rows,'rebuilt with the new value');
+ // A relation added marks both entities' pages for rebuilding.
+ const fr=(await db.query("select id from entities where type='country' and name='France'")).rows[0].id;
+ await db.query("insert into relations(subject_id,predicate,object_id) values ($1::uuid,'borders',$2::uuid) on conflict do nothing",[de,fr]);
+ const dirty=(await db.query('select count(distinct id)::int n from dirty_entities where id = any($1::uuid[])',[[de,fr]])).rows[0].n;assert.equal(dirty,2);
  const ent=await pages.loadEntityPage(db,'country','germany',{fresh:true});assert.equal(ent.data.entity.name,'Germany');
  assert.ok((await db.query("select 1 from page_data where kind='entity' and key=$1::text",[de])).rows.length,'entity pages are stored too');
 });

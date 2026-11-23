@@ -2,8 +2,8 @@ import type {Queryable} from './client';
 // Precomputed pages. Each ranking and entity page's data is computed once, when its data changes, and stored in
 // page_data; a page view reads that one row instead of querying observations. The worker keeps the rows current
 // (app/entity-db/snapshot-refresh.ts): a page is rebuilt after its data changes (observations of its type, the entity
-// itself, its ranking definition or type template), and at least daily. A page with no row yet is built on its first
-// view and stored.
+// itself, its relations, its ranking definition, type template or metric definitions); a weekly refresh when the
+// server is idle covers the rest. A page with no row yet is built on its first view and stored.
 export type SnapshotKind='ranking'|'entity';
 export async function readSnapshot<T>(db:Queryable,kind:SnapshotKind,key:string):Promise<T|null>{
  try{const r=await db.query<{data:T}>('select data from page_data where kind = $1::text and key = $2::text',[kind,key]);return r.rows[0]?.data??null;}
