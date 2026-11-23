@@ -62,9 +62,12 @@ export function median(values:number[]):number|null{
 }
 
 // Sums are meaningless for rates and averages (percent, decimal): those show the average.
-export function summarize(ranked:Entry[],missing:Entry[],c:Pick<Criterion,'format'>):Summary{
+export function summarize(ranked:Entry[],missing:Entry[],c:Pick<Criterion,'format'>&{unit?:string}):Summary{
  const vals=ranked.map(e=>e.value!);const sum=vals.reduce((a,b)=>a+b,0);
- const aggregate=c.format==='percent'||c.format==='decimal'?'average':'sum';
+ // Shares of a total only make sense for quantities that add up (people, money, tonnes, area, counts); a height, a
+ // length, a speed, a temperature, a rate per something, a score or an age is averaged instead.
+ const intensive=/^(m|km|cm|mm|ft|mi|in|nmi|°[cf]?|k|km\/h|m\/s|mph|kn|years?|yr|hpa|db|ghz|mhz|hz|nits|ppi|mp|mah|kg\/m3)$|per |\/|score|index|rating|ratio|rank|grade|density|rate/i;
+ const aggregate=c.format==='percent'||c.format==='decimal'||intensive.test(String(c.unit||'').trim())?'average':'sum';
  return {top:ranked[0]??null,median:median(vals),aggregate,aggregateValue:vals.length?aggregate==='sum'?sum:sum/vals.length:null,ranked:ranked.length,total:ranked.length+missing.length,
   max:vals.length?Math.max(...vals):0,min:vals.length?Math.min(...vals):0};
 }
