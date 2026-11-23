@@ -6,9 +6,14 @@ const out=new URL('../node_modules/.cache/outbound-test/',import.meta.url);mkdir
 const load=async(f,name)=>{writeFileSync(new URL(name,out),ts.transpileModule(readFileSync(f,'utf8'),{compilerOptions:{module:ts.ModuleKind.ESNext,target:ts.ScriptTarget.ES2022}}).outputText);return import(new URL(name,out));};
 const {outboundLinks}=await load('app/seo/outbound.ts','outbound.mjs');
 
-test('outbound links: official site and purchase page first, then reference works; only web addresses',()=>{
- const l=outboundLinks({attributes:{region:'Europe',wikipedia:'https://en.wikipedia.org/wiki/Germany',website:'https://www.deutschland.de/',buy_url:'https://store.example.com/p/1',note:'javascript:alert(1)'},ids:{wikidata:'Q183',iso3:'DEU'}});
- assert.deepEqual(l.map(x=>[x.label,x.host,x.primary]),[['Official website','deutschland.de',true],['Buy','store.example.com',true],['Wikipedia','en.wikipedia.org',false],['Wikidata','wikidata.org',false]]);
+test('outbound links: the 1–3 a reader needs first, chosen by kind of entity; only web addresses',()=>{
+ const country=outboundLinks({type:'country',attributes:{region:'Europe',wikipedia:'https://en.wikipedia.org/wiki/Germany',website:'https://www.deutschland.de/',lat:51,lon:10,note:'javascript:alert(1)'},ids:{wikidata:'Q183',iso3:'DEU'}});
+ assert.deepEqual(country.map(x=>[x.label,x.host,x.primary]),[['Official website','deutschland.de',true],['Wikipedia','en.wikipedia.org',false],['Map','openstreetmap.org',false]]);
+ const product=outboundLinks({type:'smartphone',attributes:{product_url:'https://www.apple.com/iphone-17/',buy_url:['https://www.amazon.com/dp/X','https://www.jd.com/1.html','https://www.amazon.com/dp/Y'],wikipedia:'https://en.wikipedia.org/wiki/IPhone_17'},ids:{}});
+ assert.deepEqual(product.map(x=>x.label),['Product page','Amazon','JD.com'],'product page, then two different stores');
+ const person=outboundLinks({type:'football_player',attributes:{wikipedia:'https://en.wikipedia.org/wiki/X',instagram:'https://www.instagram.com/x/',website:'https://x.example/'},ids:{wikidata:'Q1'}});
+ assert.deepEqual(person.map(x=>x.label),['Official website','Wikipedia','Instagram']);
+ assert.deepEqual(outboundLinks({type:'city',attributes:{},ids:{wikidata:'Q64'}}).map(x=>x.label),['Wikidata'],'Wikidata only when nothing better exists');
  assert.deepEqual(outboundLinks({attributes:{},ids:{}}),[]);
 });
 
