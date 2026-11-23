@@ -103,6 +103,9 @@ export function autoViews(o:{additive:boolean;geo:GeoKind|null;criteria:number;g
 export const VIEW_LABELS:Record<RankingViewKind,string>={bar:'Bars',trend:'Over time',bump:'Rank over time',race:'Race',treemap:'Treemap',donut:'Donut',sunburst:'Sunburst',map:'Map',map3d:'3D map',scatter:'Scatter',
  lorenz:'Concentration',distribution:'Distribution',boxplot:'By group',heatmap:'Heatmap',parallel:'Parallel',slope:'Rank shift',radar:'Radar'};
 // Box heights per view (px); maps size themselves by aspect.
+// Height of the horizontal bar view: one row per entity (at most BAR_WINDOW rows; more scroll).
+export const BAR_WINDOW=20;
+export const barChartHeight=(rows:number)=>Math.max(220,Math.min(Math.max(rows,1),BAR_WINDOW)*26+24);
 export const VIEW_HEIGHT:Partial<Record<RankingViewKind,number>>={trend:440,bump:480,race:520,treemap:440,donut:360,sunburst:460,map3d:480,scatter:440,lorenz:380,distribution:360,boxplot:400,heatmap:560,parallel:440,slope:560,radar:440};
 export function pickViews(raw:unknown,auto:RankingViewKind[]):RankingViewKind[]{
  if(!Array.isArray(raw))return auto;
@@ -381,7 +384,8 @@ export type ViewInput={view:RankingViewKind;c:Criterion;criteria:Criterion[];ent
 export function viewOption(i:ViewInput):Record<string,unknown>|null{
  const {c,ranked,fmt,axisFmt,labels}=i;
  switch(i.view){
-  case 'bar':{const shown=i.allBars?ranked:ranked.slice(0,i.top);return shown.length?columnOption({shown,c,fmt,axisFmt,window:i.allBars?i.window:undefined,noData:labels.noData}):null;}
+  // Horizontal bars, rank 1 at the top (names read in full, long tails scroll).
+  case 'bar':{const shown=i.allBars?ranked:ranked.slice(0,i.top);return shown.length?barOption({shown,c,fmt,axisFmt,colorOf:e=>{const r=e.rank??0;return r>=1&&r<=3?MEDAL[r-1]:'#4f7cff';},window:i.allBars?BAR_WINDOW:undefined,noData:labels.noData}):null;}
   case 'trend':return i.history?trendOption({ranked,c,history:i.history,axisFmt,fmt}):null;
   case 'bump':return i.history?bumpOption({ranked,c,history:i.history}):null;
   case 'race':return i.history?raceOption({c,history:i.history,fmt,axisFmt}):null;

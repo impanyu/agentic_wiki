@@ -12,7 +12,7 @@ import './ranking.css';
 
 type ECharts=typeof import('echarts');
 type Chart=ReturnType<ECharts['init']>;
-import {PALETTE,MAP_BOTTOM,errMessage,rgba,NEG,columnOption,viewOption,autoViews,pickViews,VIEW_LABELS,VIEW_HEIGHT,chartKey,type RankingViewKind} from './ranking-chart';
+import {PALETTE,MAP_BOTTOM,errMessage,rgba,NEG,columnOption,viewOption,barChartHeight,BAR_WINDOW,autoViews,pickViews,VIEW_LABELS,VIEW_HEIGHT,chartKey,type RankingViewKind} from './ranking-chart';
 
 // Same prebuilt bundle as the echart component, so the page shares one echarts instance.
 let echartsP:Promise<ECharts>|null=null;
@@ -156,7 +156,7 @@ export default function Ranking({props,setValue,fire,ctx}:VizProps){
  // Bar chart: the top N, or every entity with a scroll window.
  const barShown=allBars?chartRanked:chartRanked.slice(0,top);
  const windowSize=Math.max(8,Math.floor((height-24)/28));
- const barHeight=Math.min(height,380);
+ const barHeight=barChartHeight(allBars?BAR_WINDOW:barShown.length);
  const columnWindow=30;
  // One shared builder for every view (the server uses it too, for the SVG of the first view).
  const opt=useMemo(()=>c?viewOption({view:active,c,criteria,entries,ranked:chartRanked,missing,history:timeSeries,fmt,axisFmt,locale,top,allBars,window:columnWindow,other:yC,

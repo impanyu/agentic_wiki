@@ -1,6 +1,6 @@
 import {blockWorkflow} from '@/app/workflows/component-block';
 import {normalizeCriteria,toEntries,rankEntries,makeFormatter,summarize,groupsOf,periodKeyOf,rowPeriods,rowsAt,seriesOf,LATEST,type Criterion} from '@/app/workflows/viz/ranking-data';
-import {viewOption,autoViews,pickViews,chartKey,VIEW_HEIGHT,type RankingViewKind} from '@/app/workflows/viz/ranking-chart';
+import {viewOption,autoViews,pickViews,chartKey,VIEW_HEIGHT,barChartHeight,type RankingViewKind} from '@/app/workflows/viz/ranking-chart';
 import {geoKind,geoKeyOf,registerGeo,pointOf,geoAspect,setGeoFetcher} from '@/app/workflows/viz/ranking-geo';
 import {readFile} from 'node:fs/promises';
 import {join} from 'node:path';
@@ -92,7 +92,7 @@ export async function rankingChartSvgs(blocks:RankingBlock[],preloaded:Record<st
     geo:kind&&g?{kind,map:g.name,names:g.names,keyOf:geoKeyOf(kind,g),pointOf:e=>pointOf(e.row),aspectScale:g.aspectScale}:null,
     labels:{others:'Others',noData:'—',topHold:(k,pct)=>`Top ${k} hold ${pct}`,entities:'Entities by rank',count:'count',median:'Median'}});
    if(!option)continue;
-   const h=first==='bar'?Math.min(height,380):first==='map'&&kind?Math.round(WIDTH/geoAspect(kind,g))+MAP_EXTRA:VIEW_HEIGHT[first]??420;
+   const h=first==='bar'?barChartHeight(Math.min(top,ranked.length)):first==='map'&&kind?Math.round(WIDTH/geoAspect(kind,g))+MAP_EXTRA:VIEW_HEIGHT[first]??420;
    const chart=echarts.init(null as unknown as HTMLElement,undefined,{renderer:'svg',ssr:true,width:WIDTH,height:h});
    try{chart.setOption(themeOption({...option,animation:false},dark) as never);
     // Scales with its box: a viewBox instead of fixed pixels.
