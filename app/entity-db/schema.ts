@@ -212,6 +212,14 @@ export const MIGRATIONS:Migration[]=[
   `create table if not exists topic_stats(id uuid primary key, rankings integer not null default 0, types integer not null default 0,
     pages integer not null default 0, updated_at timestamptz not null default now())`,
  ]},
+ // Model pool: our own GPUs (a lab machine, HCC Swan jobs) answer agents' model calls by pulling them from this queue
+ // over outbound HTTPS (no inbound ports or tunnels on their side).
+ {version:16,name:'model pool',statements:()=>[
+  `create table if not exists llm_jobs(id uuid primary key default gen_random_uuid(), model text not null, body jsonb not null, status text not null default 'queued',
+    claimed_by text, claimed_at timestamptz, result jsonb, error text, created_at timestamptz not null default now(), finished_at timestamptz)`,
+  "create index if not exists llm_jobs_queued on llm_jobs(model, created_at) where status = 'queued'",
+  'create table if not exists llm_workers(id text primary key, models text[] not null, info jsonb not null default \'{}\'::jsonb, last_seen timestamptz not null default now())',
+ ]},
 ];
 export const SCHEMA_VERSION=MIGRATIONS[MIGRATIONS.length-1].version;
 

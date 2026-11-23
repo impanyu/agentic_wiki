@@ -6,7 +6,7 @@
 // unknown limits are left undefined (only reactive 429 handling applies).
 import type {TaskClass} from './types';
 
-export type ProviderId='openai'|'nrp'|'gemini'|'openrouter'|'groq'|'deepseek';
+export type ProviderId='openai'|'nrp'|'gemini'|'openrouter'|'groq'|'deepseek'|'pool';
 export type ProviderConfig={id:ProviderId;kind:'responses'|'chat';base:string;keyEnv:string;premium?:boolean;
  // Default cooldown after a 429 without Retry-After. OpenAI is 0: one TPM spike must not block production.
  cooldownMs:number;headers?:Record<string,string>};
@@ -23,6 +23,8 @@ export const BASE_CATALOG:Catalog={
  providers:{
   openai:{id:'openai',kind:'responses',base:'https://api.openai.com/v1',keyEnv:'OPENAI_API_KEY',premium:true,cooldownMs:0},
   nrp:{id:'nrp',kind:'chat',base:'https://ellm.nrp-nautilus.io/v1',keyEnv:'NRP_LLM_TOKEN',cooldownMs:20000},
+  // Our own GPUs (app/llm/pool.ts): offered only while a worker serving the model is connected; free.
+  pool:{id:'pool',kind:'chat',base:'',keyEnv:'',cooldownMs:15000},
   // DeepSeek's own API (paid, capped per day by DEEPSEEK_DAILY_USD): the builders' model on its own servers.
   deepseek:{id:'deepseek',kind:'chat',base:'https://api.deepseek.com',keyEnv:'DEEPSEEK_API_KEY',cooldownMs:20000},
   gemini:{id:'gemini',kind:'chat',base:'https://generativelanguage.googleapis.com/v1beta/openai',keyEnv:'GEMINI_API_KEY',cooldownMs:30000},
@@ -38,6 +40,7 @@ export const BASE_CATALOG:Catalog={
   // also caps 48k output tokens/minute per token and model (HTTP 429, handled by the cooldown). Long requests (>35% of
   // context) are limited to 1 at a time. We stay a little under the published limits.
   m('nrp:qwen3','nrp','qwen3','qwen',chat({vision:true,context:262144,maxOutput:32768,thinkTags:true}),{concurrency:12},{timeoutMs:120000}),
+  m('pool:local','pool','local','local',chat({context:131072,maxOutput:16384}),{concurrency:64},{timeoutMs:300000}),
   m('deepseek:v4-flash','deepseek','deepseek-v4-flash','deepseek',chat({context:131072,maxOutput:32768}),{concurrency:64},{timeoutMs:120000}),
   m('nrp:deepseek-v4-flash','nrp','deepseek-v4-flash','deepseek',chat({context:131072,maxOutput:32768}),{concurrency:12},{timeoutMs:120000}),
   m('nrp:glm-5','nrp','glm-5','glm',chat({context:131072,maxOutput:32768,thinkTags:true}),{concurrency:2},{timeoutMs:120000}),
@@ -62,13 +65,13 @@ export const BASE_CATALOG:Catalog={
   premium:['openai'],
   // Builders' chain (team editors and collectors): the strongest open models first, the commercial model last.
   // Ordered by NRP's published standing (Artificial Analysis Intelligence Index): DeepSeek V4.1 Flash, then GLM-5.
-  agent:['deepseek:v4-flash','nrp:deepseek-v4-flash','nrp:glm-5','nrp:minimax','nrp:qwen3','nrp:kimi','gemini:gemini-4-hydrogen','openrouter:nemotron-3-ultra','groq:gpt-oss-120b','openai'],
+  agent:['pool:local','deepseek:v4-flash','nrp:deepseek-v4-flash','nrp:glm-5','nrp:minimax','nrp:qwen3','nrp:kimi','gemini:gemini-4-hydrogen','openrouter:nemotron-3-ultra','groq:gpt-oss-120b','openai'],
   fast:['gemini:gemini-3.8-flash-lite','nrp:gpt-oss','openai'],
   // Page translation (background).
   // A reader is waiting (a page's first view in a language): only models that answer in seconds.
   instant:['gemini:gemini-3.8-flash-lite','openai'],
   // Never the builders' models (deepseek, glm-5, minimax, qwen3, kimi): translation must not slow the teams down.
-  translate:['gemini:gemini-3.8-flash-lite','nrp:gemma','nrp:gpt-oss','openai'],
+  translate:['gemini:gemini-3.8-flash-lite','pool:local','nrp:gemma','nrp:gpt-oss','openai'],
   vision:['nrp:qwen3','nrp:gemma','gemini:gemini-3.8-flash','openrouter:nemotron-3.5-super-vl','openai'],
  },
  // premium -> (over budget or failing) -> the free part of this chain.

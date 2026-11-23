@@ -1,0 +1,36 @@
+import {entityDb} from '@/app/entity-db/client';
+// The model pool: requests for a pool model wait in llm_jobs until one of our own GPU workers (scripts/llm-pool-worker.mjs
+// on a lab machine or an HCC Swan job) claims and answers it. A pool model is offered to the agents only while a
+// worker serving it has checked in within the last 90 seconds; a request nobody claims within 20 s goes back to the
+// rest of the chain.
+let live:{at:number;models:Set<string>;loading:boolean}={at:0,models:new Set(),loading:false};
+function refresh(){
+ if(live.loading||Date.now()-live.at<15_000)return;live.loading=true;
+ entityDb().then(db=>db.query<{models:string[]}>("select models from llm_workers where last_seen > now() - interval '90 seconds'"))
+  .then(r=>{live={at:Date.now(),models:new Set(r.rows.flatMap(x=>x.models)),loading:false};})
+  .catch(()=>{live.loading=false;live.at=Date.now();});
+}
+export function poolAvailable(model:string){refresh();return live.models.has(model);}
+export async function poolRun(model:string,body:Record<string,unknown>,timeoutMs:number,signal?:AbortSignal):Promise<any>{
+ const db=await entityDb();
+ const id=(await db.query<{id:string}>('insert into llm_jobs(model, body) values ($1::text, $2::jsonb) returning id',[model,JSON.stringify(body)])).rows[0].id;
+ const t0=Date.now();
+ try{
+  for(;;){
+   if(signal?.aborted)throw Error('aborted');
+   await new Promise(r=>setTimeout(r,400));
+   const j=(await db.query<{status:string;result:unknown;error:string|null}>('select status, result, error from llm_jobs where id=$1::uuid',[id])).rows[0];
+   if(!j)throw Error('pool job vanished');
+   if(j.status==='done')return j.result;
+   if(j.status==='failed')throw Error('pool worker: '+String(j.error||'failed').slice(0,300));
+   if(j.status==='queued'&&Date.now()-t0>20_000){
+    const gone=(await db.query("delete from llm_jobs where id=$1::uuid and status='queued' returning 1",[id])).rows.length;
+    if(gone)throw Error('pool busy: no worker took the request within 20 s');
+   }
+   if(Date.now()-t0>timeoutMs)throw Error('pool timeout');
+  }
+ }finally{
+  // Answered or abandoned jobs are kept an hour for inspection, then removed.
+  void db.query("delete from llm_jobs where created_at < now() - interval '1 hour'").catch(()=>{});
+ }
+}

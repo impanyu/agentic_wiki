@@ -11,6 +11,7 @@ import type {LLMRequest,LLMResponse,OutputItem,StreamHandlers,TaskClass,InputIte
 export type UsageRow={createdAt:string;month:string;class:TaskClass;provider:string;model:string;status:string;latencyMs:number;inputTokens:number;cachedTokens:number;outputTokens:number;costUsd:number;webSearches:number;fallbackReason:string|null};
 export type UsageStore={record(row:UsageRow):Promise<void>;monthSpend(month:string):Promise<number>;daySpend?(day:string,provider:string):Promise<number>};
 export type Deps={
+ pool?:{available(model:string):boolean;run(model:string,body:Record<string,unknown>,timeoutMs:number,signal?:AbortSignal):Promise<any>};
  env:(name:string)=>string|undefined;fetch:typeof fetch;usage:UsageStore;now?:()=>number;
  openaiDefaults?:(body:Record<string,any>)=>Record<string,unknown>;
  readEvents?:(stream:ReadableStream<Uint8Array>)=>AsyncIterable<Record<string,unknown>>;
@@ -28,7 +29,7 @@ export function createLLM(deps:Deps){
  let cached:{raw:string|undefined;catalog:Catalog}|null=null;
  const catalog=()=>{const raw=deps.env('LLM_CATALOG_OVERRIDES');if(!cached||cached.raw!==raw)cached={raw,catalog:loadCatalog(raw)};return cached.catalog;};
  const key=(entry:ModelEntry)=>deps.env(catalog().providers[entry.provider].keyEnv)||'';
- const configured=(entry:ModelEntry)=>!!key(entry);
+ const configured=(entry:ModelEntry)=>entry.provider==='pool'?!!deps.pool?.available(entry.model):!!key(entry);
 
  // ---------- budget ----------
  let spendCache:{month:string;value:number;loadedAt:number}|null=null;
@@ -99,8 +100,14 @@ export function createLLM(deps:Deps){
  }
  async function chatOnce(entry:ModelEntry,body:LLMRequest,webSearchEnabled:boolean,signal?:AbortSignal){
   const provider=catalog().providers[entry.provider];
+  let data:any;
+  if(entry.provider==='pool'){
+   try{data=await deps.pool!.run(entry.model,toChat(body,entry,{webSearch:webSearchEnabled}) as Record<string,unknown>,entry.timeoutMs||300000,signal);}
+   catch(e){const m=(e as Error).message;throw new ProviderError(/timeout/.test(m)?'timeout':/busy/.test(m)?'rate':'server',m,/busy/.test(m)?15000:null);}
+  }else{
   const response=await post(provider.base+'/chat/completions',{Authorization:'Bearer '+key(entry),...(provider.headers||{})},toChat(body,entry,{webSearch:webSearchEnabled}),entry.timeoutMs||120000,signal);
-  let data:any;try{data=await response.json();}catch{throw new ProviderError('server','invalid JSON body');}
+  try{data=await response.json();}catch{throw new ProviderError('server','invalid JSON body');}
+  }
   if(data?.error)throw new ProviderError('server','provider error: '+JSON.stringify(data.error).slice(0,300));
   if(!Array.isArray(data?.choices)||!data.choices.length)throw new ProviderError('server','no choices');
   return fromChat(data,{json:!!body.text?.format&&body.text.format.type!=='text'});

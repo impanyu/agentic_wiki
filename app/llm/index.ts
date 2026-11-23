@@ -21,11 +21,16 @@ const usage={
   return Number(row?.spent||0);
  },
 };
+// The pool's availability is read synchronously; the module loads on first use.
+let poolMod:typeof import('./pool')|null=null;void import('./pool').then(m=>{poolMod=m;}).catch(()=>{});
+const poolAvailableSync=(m:string)=>!!poolMod?.poolAvailable(m);
 const state=globalThis as typeof globalThis&{agenticLLM?:ReturnType<typeof createLLM>};
 function llm(){
  return state.agenticLLM??=createLLM({
   env:name=>(env as unknown as Record<string,string|undefined>)[name]||process.env[name],
   fetch:(...args)=>fetch(...args),usage,readEvents,
+  // Our own GPUs (lab machine, HCC jobs) through the pull queue.
+  pool:{available:m=>poolAvailableSync(m),run:(m,b,t,s)=>import('./pool').then(p=>p.poolRun(m,b,t,s))},
   // Same defaults the direct OpenAI helper applied: explicit effort for known model families.
   openaiDefaults:body=>reasoningOptions(String(body.model||'')),
  });
