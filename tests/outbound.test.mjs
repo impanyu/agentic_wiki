@@ -10,7 +10,7 @@ test('outbound links: the 1–3 a reader needs first, chosen by kind of entity; 
  const country=outboundLinks({type:'country',attributes:{region:'Europe',wikipedia:'https://en.wikipedia.org/wiki/Germany',website:'https://www.deutschland.de/',lat:51,lon:10,note:'javascript:alert(1)'},ids:{wikidata:'Q183',iso3:'DEU'}});
  assert.deepEqual(country.map(x=>[x.label,x.host,x.primary]),[['Official website','deutschland.de',true],['Wikipedia','en.wikipedia.org',false],['Map','openstreetmap.org',false]]);
  const product=outboundLinks({type:'smartphone',attributes:{product_url:'https://www.apple.com/iphone-17/',buy_url:['https://www.amazon.com/dp/X','https://www.jd.com/1.html','https://www.amazon.com/dp/Y'],wikipedia:'https://en.wikipedia.org/wiki/IPhone_17'},ids:{}});
- assert.deepEqual(product.map(x=>x.label),['Product page','Amazon','JD.com'],'product page, then two different stores');
+ assert.deepEqual(product.map(x=>x.label),['Product page','Wikipedia','Amazon'],'its own page, then Wikipedia, then a store');
  const person=outboundLinks({type:'football_player',attributes:{wikipedia:'https://en.wikipedia.org/wiki/X',instagram:'https://www.instagram.com/x/',website:'https://x.example/'},ids:{wikidata:'Q1'}});
  assert.deepEqual(person.map(x=>x.label),['Official website','Wikipedia','Instagram']);
  assert.deepEqual(outboundLinks({type:'city',attributes:{},ids:{wikidata:'Q64'}}).map(x=>x.href),['https://www.wikidata.org/wiki/Special:GoToLinkedPage/enwiki/Q64'],'a Wikidata id leads to the Wikipedia article');

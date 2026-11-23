@@ -32,14 +32,16 @@ const KEYS:[RegExp,Kind][]=[
  [/app_?store|play_?store|steam/,'app'],[/quote|investor|stock/,'quote'],
 ];
 // What a reader of each kind of entity needs first.
+// Always its own homepage first (for a product, its product page), then Wikipedia, then what suits the kind.
 const ORDER:Record<string,Kind[]>={
- person:['official','wikipedia','social','profile','media'],
- product:['product','store','official','wikipedia'],
- organization:['official','wikipedia','social','quote'],
+ person:['official','wikipedia','profile','social','media'],
+ product:['product','official','wikipedia','store'],
+ organization:['official','wikipedia','quote','social'],
  place:['official','wikipedia','map'],
- work:['official','media','app','code','paper','wikipedia','profile','store'],
- other:['official','product','store','wikipedia','social','media','app','code','paper','profile','quote','map'],
+ work:['official','wikipedia','media','app','code','paper','profile','store'],
+ other:['official','product','wikipedia','store','profile','social','media','app','code','paper','quote','map'],
 };
+const KINDS:Kind[]=['official','product','store','wikipedia','social','profile','media','code','paper','app','quote','map','other'];
 const PERSON=/(person|people|player|actor|actress|singer|musician|artist|athlete|creator|influencer|youtuber|streamer|scientist|researcher|author|writer|politician|leader|official|coach|driver|director|chef|model|ceo|founder|footballer|cricketer|golfer|boxer|fighter|vtuber|presenter|comedian|economist|judge|astronaut)/;
 const PLACE=/(country|city|town|region|state|province|district|county|municipality|place|park|mountain|lake|river|island|beach|attraction|site|landmark|airport|port|station|trail|campground|resort|destination|neighbou?rhood|village)/;
 const WORK=/(film|movie|series|show|book|novel|song|album|game|app|software|package|repo|paper|podcast|video|channel|anime|manga|drama|framework|library|language)/;
@@ -70,9 +72,12 @@ const ID_LINKS:[RegExp,(v:string)=>string|null,string,Kind][]=[
  [/^spotify$/,v=>/^[A-Za-z0-9]{22}$/.test(v)?'https://open.spotify.com/artist/'+v:null,'Spotify','media'],
  [/^(ticker|stock)$/,v=>/^[A-Z.\-]{1,10}$/.test(v)?'https://finance.yahoo.com/quote/'+v:null,'Stock quote','quote'],
 ];
-export function outboundLinks(entity:{type?:string;name?:string;attributes:Record<string,unknown>;ids:Record<string,string>},max=3):OutboundLink[]{
+// prefer: the editor's order for this type (template.links, e.g. ["official","profile","wikipedia"]), else by kind.
+export function outboundLinks(entity:{type?:string;name?:string;attributes:Record<string,unknown>;ids:Record<string,string>},max=3,prefer?:unknown):OutboundLink[]{
  const attrs=entity.attributes||{};
- const kind=entityKind(String(entity.type||''),attrs),order=ORDER[kind];
+ const kind=entityKind(String(entity.type||''),attrs);
+ const custom=Array.isArray(prefer)?prefer.filter((k):k is Kind=>KINDS.includes(k as Kind)):[];
+ const order=custom.length?[...custom,...ORDER[kind].filter(k=>!custom.includes(k))]:ORDER[kind];
  const found:{kind:Kind;label:string;href:string;host:string}[]=[];
  const add=(href:string,key:string)=>{
   let u:URL;try{u=new URL(href);}catch{return;}

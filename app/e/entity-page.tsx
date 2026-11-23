@@ -61,7 +61,7 @@ export async function EntityPage(props:Props){
  const {locale,dict,t}=await serverUi();
  // A short introduction (the collector's, or the lead of the Wikipedia article, credited).
  const introSource=typeof e.attributes?.description_source==='string'?String(e.attributes.description_source):'';
- const links=outboundLinks(e);
+ const links=outboundLinks(e,3,(d.type.template as {links?:unknown}|null)?.links);
  const {model:{model,kicker,intro,links:linkLabels}}=await localized(data.model,d.type.label,locale,e.description||'',links.map(l=>l.label).join('\n'));
  // Mentions of other entities with pages link to them (Wikipedia-style), first mention only, never the page itself.
  const link=await autolinker(await entityDb(),path);
