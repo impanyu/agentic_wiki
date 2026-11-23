@@ -72,7 +72,9 @@ export function Trend({props,ctx}:VizProps){
   [series,locale,props.format,props.decimals,props.currency]);
  const area=props.area!==false&&series.length<=2;
  const option=useMemo(()=>series.length?trendOption({series,periods,annotations,log,area,fmts,axisFmts}):null,[series,periods,annotations,log,area,fmts,axisFmts]);
- const height=heightOf(props.height,320);
+ // Two measures drawn as stacked panels need more room than one line.
+ const stacked=series.length===2&&(new Set(series.map(x=>x.unit??'')).size===2||(()=>{const m=series.map(x=>Math.max(...x.points.map(p=>Math.abs(p.value)),0));return Math.max(...m)/Math.max(1e-9,Math.min(...m))>20;})());
+ const height=Math.round(heightOf(props.height,320)*(stacked?1.45:1));
  if(!series.length)return <figure className="wf-viz wf-ev"><EvHead props={props}/><div className="wf-ev-empty">{t('No data')}</div></figure>;
  const sw=640,sh=Math.max(120,height-40);const fb=trendPaths(series,sw,sh,log);
  return <figure className="wf-viz wf-ev wf-ev-trend">
@@ -145,9 +147,10 @@ export function RelationGraph({props,ctx}:VizProps){
  </dl>;
  return <figure className="wf-viz wf-ev wf-ev-graph">
   <EvHead props={props}/>
-  <EvChart option={option} height={height} label={t('Relations of {name}',{name:center})}
+  {/* A handful of relations reads better as a list than as a near-empty network. */}
+  {rels.length>=6&&<EvChart option={option} height={height} label={t('Relations of {name}',{name:center})}
    onClick={p=>{if(p.dataType!=='node')return;follow(graph.nodes[p.dataIndex]?.href);}}
-   fallback={<div className="wf-viz-loading wf-ev-shimmer" aria-busy="true"/>}/>
+   fallback={<div className="wf-viz-loading wf-ev-shimmer" aria-busy="true"/>}/>}
   {list}
   <EvSource props={props} t={t}/>
  </figure>;

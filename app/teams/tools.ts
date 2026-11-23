@@ -125,7 +125,10 @@ async function previewPage(path:string){
  const title=/<title>([^<]*)<\/title>/.exec(html)?.[1]||'';
  const body=html.replace(/<script[\s\S]*?<\/script>/g,'').replace(/<style[\s\S]*?<\/style>/g,'');
  const text=body.replace(/<svg[\s\S]*?<\/svg>/g,' ').replace(/<[^>]+>/g,' ').replace(/&amp;/g,'&').replace(/&#x27;|&#39;/g,"'").replace(/&quot;/g,'"').replace(/\s+/g,' ').trim();
- return {status:r.status,url:siteUrl()+p,title,rows:(body.match(/<tr[\s>]/g)||[]).length,charts:(body.match(/wf-rank-svg|role="img"/g)||[]).length,links:(body.match(/<a\s/g)||[]).length,text:text.slice(0,8000)};
+ // Each server-drawn chart as text (its labels, axis ticks and series names), so the reviewer can judge it: repeated
+ // tick labels, two units on one chart, an empty or near-empty chart.
+ const chartTexts=[...body.matchAll(/<svg[\s\S]*?<\/svg>/g)].map(m=>[...m[0].matchAll(/<text[^>]*>([^<]*)<\/text>/g)].map(t=>t[1].replace(/&amp;/g,'&').trim()).filter(Boolean)).filter(l=>l.length).slice(0,12).map(l=>l.slice(0,60).join(' | '));
+ return {status:r.status,url:siteUrl()+p,title,rows:(body.match(/<tr[\s>]/g)||[]).length,charts:(body.match(/wf-rank-svg|role="img"/g)||[]).length,chartTexts,links:(body.match(/<a\s/g)||[]).length,text:text.slice(0,8000)};
 }
 
 export async function runTeamTool(role:Role,name:string,args:Record<string,unknown>,ctx:AgentContext,topicId:string|null,signal?:AbortSignal):Promise<{data:unknown}>{

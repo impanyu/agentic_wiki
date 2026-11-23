@@ -9,31 +9,47 @@ const EV_TOOLTIP={confine:true,renderMode:'html',backgroundColor:'#fff',borderWi
  extraCssText:'border-radius:12px;box-shadow:0 12px 32px -8px rgba(15,23,42,.22),0 2px 6px rgba(15,23,42,.06);'};
 const evRgba=(hex:string,a:number)=>{const n=parseInt(hex.slice(1),16);return `rgba(${n>>16&255},${n>>8&255},${n&255},${a})`;};
 const evAxisLabel={color:'#94a3b8',fontSize:10.5,fontFamily:EV_FONT};
+// Axis ticks of a narrow range ("1.41B … 1.43B") need more digits than the compact format gives, or every tick reads
+// the same: when two ticks would print alike, show them with enough significant digits to tell them apart.
+function tickFormatter(values:number[],fmt:EvFmt):(v:number)=>string{
+ const v=values.filter(Number.isFinite);if(!v.length)return x=>fmt(x);
+ const lo=Math.min(...v),hi=Math.max(...v),span=hi-lo,mag=Math.max(Math.abs(lo),Math.abs(hi));
+ if(!(span>0)||span/mag>0.2)return x=>fmt(x);
+ const sig=Math.min(6,Math.max(3,2+Math.ceil(Math.log10(mag/span))));
+ const nf=new Intl.NumberFormat('en',{notation:'compact',maximumSignificantDigits:sig});
+ // Keep the formatter's prefix and suffix (a currency sign, a unit) around the more precise number.
+ return x=>{const f=fmt(x),c=nf.format(x),m=/^([^\d-]*)(-?[\d.,]+\s?[KMBT]?)(.*)$/.exec(f);return m?m[1]+c+m[3]:c;};
+}
 
 // Lines over shared periods (a category axis in time order); one series fills its area. The component's
 // summary line names the series in their colors, so there is no legend. Two series in
 // different units get a second y axis. Annotations are dashed vertical markers with a label.
 export function trendOption(o:{series:Series[];periods:string[];annotations:Annotation[];log:boolean;area:boolean;fmts:EvFmt[];axisFmts:EvFmt[]}){
  const units=[...new Set(o.series.map(s=>s.unit??''))];
- const dual=o.series.length===2&&units.length===2;
+ // Two measures in different units (or of very different size) are drawn as two stacked panels sharing the time
+ // axis, never as one chart on two y axes (which suggests a relation the scales invent).
+ const sizes=o.series.map(s=>Math.max(...s.points.map(p=>Math.abs(p.value)),0));
+ const dual=o.series.length===2&&(units.length===2||Math.max(...sizes)/Math.max(1e-9,Math.min(...sizes))>20);
  const at=(s:Series)=>{const m=new Map(s.points.map(p=>[p.period,p.value]));return o.periods.map(p=>m.has(p)?m.get(p)!:null);};
  const many=o.periods.length>40;
- const yAxis=(i:number)=>({type:o.log?'log':'value',scale:!o.log,splitNumber:4,position:i?'right':'left',
-  name:dual?units[i]:o.series.length===1?o.series[0].unit??'':units.length===1?units[0]:'',nameTextStyle:{color:'#94a3b8',fontSize:11,align:i?'right':'left'},
-  axisLabel:{...evAxisLabel,formatter:(v:number)=>o.axisFmts[dual?i:0](v)},splitLine:{show:!i,lineStyle:{color:'#eef1f6',type:'dashed'}},axisLine:{show:false},axisTick:{show:false}});
+ const values=(i:number)=>dual?o.series[i].points.map(p=>p.value):o.series.flatMap(s=>s.points.map(p=>p.value));
+ const yAxis=(i:number)=>({type:o.log?'log':'value',scale:!o.log,splitNumber:dual?3:4,...(dual?{gridIndex:i}:{}),position:'left',
+  name:dual?o.series[i].label:o.series.length===1?o.series[0].unit??'':units.length===1?units[0]:'',nameTextStyle:{color:'#94a3b8',fontSize:11,align:'left'},
+  axisLabel:{...evAxisLabel,formatter:tickFormatter(values(i),o.axisFmts[dual?i:0])},splitLine:{show:true,lineStyle:{color:'#eef1f6',type:'dashed'}},axisLine:{show:false},axisTick:{show:false}});
  return {textStyle:{fontFamily:EV_FONT},aria:{enabled:true},color:EV_PALETTE,animationDuration:900,
-  grid:{left:8,right:dual?8:18,top:28,bottom:many?44:8,containLabel:true},
+  grid:dual?[{left:8,right:18,top:28,height:'34%',containLabel:true},{left:8,right:18,top:'58%',bottom:many?44:8,containLabel:true}]:{left:8,right:18,top:28,bottom:many?44:8,containLabel:true},
+  ...(dual?{axisPointer:{link:[{xAxisIndex:'all'}]}}:{}),
   tooltip:{...EV_TOOLTIP,trigger:'axis',axisPointer:{type:'line',lineStyle:{color:'#cbd5e1'}},
    formatter:(ps:any[])=>{if(!ps?.length)return '';const head=`<div style="font-weight:600;color:#0f172a;margin-bottom:4px">${escapeHtml(String(ps[0].axisValue))}</div>`;
     return head+ps.filter(p=>p.value!=null).map(p=>`<div style="display:flex;align-items:center;gap:8px;justify-content:space-between;min-width:150px"><span style="color:#64748b">${p.marker}${escapeHtml(p.seriesName||'')}</span><b>${escapeHtml(o.fmts[p.seriesIndex]?.(p.value)??String(p.value))}</b></div>`).join('');}},
-  xAxis:{type:'category',boundaryGap:false,data:o.periods,axisLine:{lineStyle:{color:'#e2e8f0'}},axisTick:{show:false},axisLabel:{...evAxisLabel,hideOverlap:true}},
+  xAxis:dual?[0,1].map(i=>({type:'category',gridIndex:i,boundaryGap:false,data:o.periods,axisLine:{lineStyle:{color:'#e2e8f0'}},axisTick:{show:false},axisLabel:{...evAxisLabel,hideOverlap:true,show:i===1}})):{type:'category',boundaryGap:false,data:o.periods,axisLine:{lineStyle:{color:'#e2e8f0'}},axisTick:{show:false},axisLabel:{...evAxisLabel,hideOverlap:true}},
   yAxis:dual?[yAxis(0),yAxis(1)]:yAxis(0),
-  dataZoom:many?[{type:'inside',filterMode:'none'},{type:'slider',bottom:6,height:14,showDetail:false,brushSelect:false,borderColor:'transparent',backgroundColor:'#f1f5f9',fillerColor:'rgba(79,124,255,.18)',dataBackground:{lineStyle:{color:'#cbd5e1'},areaStyle:{color:'#e2e8f0'}}}]:[],
+  dataZoom:many?[{type:'inside',filterMode:'none',xAxisIndex:dual?[0,1]:0},{type:'slider',...(dual?{xAxisIndex:[0,1]}:{}),bottom:6,height:14,showDetail:false,brushSelect:false,borderColor:'transparent',backgroundColor:'#f1f5f9',fillerColor:'rgba(79,124,255,.18)',dataBackground:{lineStyle:{color:'#cbd5e1'},areaStyle:{color:'#e2e8f0'}}}]:[],
   series:o.series.map((s,i)=>{const color=EV_PALETTE[i%EV_PALETTE.length];return {
-   type:'line',name:s.label,data:at(s),yAxisIndex:dual?i:0,connectNulls:true,smooth:.15,
+   type:'line',name:s.label,data:at(s),...(dual?{xAxisIndex:i,yAxisIndex:i}:{}),connectNulls:true,smooth:.15,
    showSymbol:o.periods.length<=24,symbol:'circle',symbolSize:6,lineStyle:{width:2.4,color},itemStyle:{color,borderColor:'#fff',borderWidth:1.5},
    emphasis:{focus:'series'},
-   ...(o.area&&(o.series.length===1||i===0)?{areaStyle:{color:{type:'linear',x:0,y:0,x2:0,y2:1,colorStops:[{offset:0,color:evRgba(color,.28)},{offset:1,color:evRgba(color,0)}]}}}:{}),
+   ...(o.area&&(o.series.length===1||i===0||dual)?{areaStyle:{color:{type:'linear',x:0,y:0,x2:0,y2:1,colorStops:[{offset:0,color:evRgba(color,.28)},{offset:1,color:evRgba(color,0)}]}}}:{}),
    ...(i===0&&o.annotations.length?{markLine:{symbol:'none',silent:true,animation:false,
     lineStyle:{color:'#94a3b8',type:'dashed',width:1},
     label:{show:true,position:'insideEndTop',color:'#475569',fontSize:10.5,fontFamily:EV_FONT,backgroundColor:'rgba(255,255,255,.85)',padding:[2,4],borderRadius:4,formatter:(p:any)=>p.data?.name??''},
