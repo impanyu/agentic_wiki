@@ -99,3 +99,10 @@ export async function translateContent(){
  if(n)console.log('[translate]',n,'texts');
  return n;
 }
+
+// Entity introductions and pictures from Wikipedia where collectors left them out (a few each minute).
+export async function enrichEntities(){
+ const db=await entityDb();const {fillIntroductions}=await import('./enrich');
+ const n=await fillIntroductions(db,Number(process.env.INTRO_PER_TICK||8)).catch(e=>{console.error('[intro] failed',(e as Error).message);return 0;});
+ if(n)console.log('[intro]',n,'entities');return n;
+}
