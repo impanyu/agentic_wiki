@@ -127,7 +127,12 @@ export async function teamRunCalls(db:Queryable,id:string){
 export type Decision={at:string;by:string;conflict:string;decision:string;why:string};
 export async function topicBrief(db:Queryable,topicId:string){
  const r=(await db.query('select name, description, scope from topics where id=$1::uuid',[topicId])).rows[0];
- return {name:String(r?.name||''),brief:String(r?.description||''),decisions:((obj(r?.scope).decisions as Decision[])||[])};
+ const sc=obj(r?.scope);
+ // The topic's predefined entity type (from the tree's class schema) and, for a subset such as a country's cities,
+ // the filter that narrows the global type; the type's effective schema is in team_state → types.
+ const type=typeof sc.type==='string'?sc.type:undefined;let schema:Record<string,unknown>|undefined;
+ if(type){const {effectiveType}=await import('@/app/entity-db/inherit');const e=await effectiveType(db,type).catch(()=>null);if(e)schema={type,extends:e.extends,...e.schema};}
+ return {name:String(r?.name||''),brief:String(sc.brief||r?.description||''),decisions:((sc.decisions as Decision[])||[]),...(type?{entityType:type}:{}),...(sc.filter?{filter:sc.filter}:{}),...(schema?{schema}:{})};
 }
 export async function recordDecision(db:Queryable,topicId:string,d:Omit<Decision,'at'>){
  const entry={...d,at:new Date().toISOString()};
