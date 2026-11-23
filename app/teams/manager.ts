@@ -105,10 +105,14 @@ export async function runManagerDaily(log:Log=()=>{}):Promise<{decisions:number;
 // Starts queued teams while fewer than TEAM_CONCURRENCY run (default 2) and this month's model spending is under
 // TEAM_MONTHLY_BUDGET_USD (default 200). A run interrupted by a restart goes back to the queue.
 const running=new Set<string>();
+let recovered=false;
 export async function runTeamQueue(spentUsd:()=>Promise<number>,log:(slug:string,e:Record<string,unknown>)=>void=()=>{}):Promise<string[]>{
  const db=await entityDb();
  const max=Math.max(0,Number(process.env.TEAM_CONCURRENCY||2)),cap=Number(process.env.TEAM_MONTHLY_BUDGET_USD||200);
- await db.query(`update team_queue set status='queued', note='restarted' where status='running' and started_at < now() - interval '4 hours' and not (slug = any($1::text[]))`,[[...running]]);
+ // Teams marked running that this process did not start were cut off by a restart (a deploy): back to the queue at
+ // once on the first tick, else after 4 hours.
+ await db.query(`update team_queue set status='queued', note='restarted' where status='running' and ($2::boolean or started_at < now() - interval '4 hours') and not (slug = any($1::text[]))`,[[...running],!recovered]);
+ recovered=true;
  const started:string[]=[];
  while(running.size<max){
   if(await spentUsd()>=cap){log('queue',{event:'queue_paused',reason:'monthly budget reached',cap});

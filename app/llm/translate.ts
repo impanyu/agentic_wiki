@@ -37,7 +37,10 @@ export function jsonInstruction(format:NonNullable<ResponsesBody['text']>['forma
 export type ChatRequest={model:string;messages:any[];tools?:any[];tool_choice?:any;response_format?:any;max_tokens?:number;reasoning_effort?:string;[key:string]:unknown};
 export function toChat(body:ResponsesBody,entry:ModelEntry,options:{webSearch:boolean}):ChatRequest{
  const caps=entry.caps,format=body.text?.format,messages:any[]=[];
- const nativeSchema=format?.type==='json_schema'&&caps.jsonSchema,nativeObject=format?.type==='json_object'&&caps.jsonObject;
+ // With tools, the schema goes into the instructions instead of response_format: vLLM-served models (NRP) decode the
+ // whole reply against a response_format schema, which rules out tool calls — the agent answered at once without working.
+ const hasTools=(body.tools||[]).length>0;
+ const nativeSchema=format?.type==='json_schema'&&caps.jsonSchema&&!hasTools,nativeObject=format?.type==='json_object'&&caps.jsonObject&&!hasTools;
  const system=(body.instructions||'')+(format&&format.type!=='text'&&!nativeSchema?jsonInstruction(format):'');
  if(system.trim())messages.push({role:'system',content:system.trim()});
  const pending=new Set<string>(),deferred:any[]=[],early=new Map<string,string>();let open:any=null;
