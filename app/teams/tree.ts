@@ -6,7 +6,7 @@ import {enqueueTeam} from './manager';
 // the design (what is ranked, the full set, the criteria readers care about, likely sources). The scheduler
 // starts the teams by priority within the concurrency and spending limits.
 export type TreeNode={slug:string;name:string;kind?:'knowledge'|'commercial';description?:string;children?:TreeNode[];
- entity?:string;universe?:string;criteria?:string[];sources?:string[];priority?:number};
+ entity?:string;universe?:string;criteria?:string[];sources?:string[];priority?:number;scale?:string};
 
 export function leafBrief(n:TreeNode):string{
  const lines=[n.description||n.name,
@@ -14,6 +14,7 @@ export function leafBrief(n:TreeNode):string{
   n.universe&&`The full set: ${n.universe}.`,
   n.criteria?.length&&`Criteria readers care about (raw measures and at least one composite index): ${n.criteria.join('; ')}.`,
   n.sources?.length&&`Likely sources: ${n.sources.join('; ')}.`,
+  n.scale&&Number(n.scale)>=1e5&&`The full source is large (about ${Number(n.scale).toLocaleString('en-US')} records): load it with bulk_import and an admission standard — store only those that can rank (top 1,000 of some ranking) or pass an objective notability threshold.`,
   n.kind==='commercial'&&'This is a commercial topic: readers come to decide what to buy. Every entity needs its official product photo and its official product or purchase page; rank on the criteria buyers compare, with a value-for-money index; add subsets by price band and use case.'];
  return lines.filter(Boolean).join('\n');
 }
