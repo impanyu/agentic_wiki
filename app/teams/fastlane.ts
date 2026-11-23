@@ -21,7 +21,7 @@ const qid=(uri:string)=>uri.replace(/^.*\//,'');
 const PID=/^P\d+$/,QID=/^Q\d+$/;
 // Unit items → the unit strings the platform understands (units.ts normalises them further).
 const UNITS:Record<string,string>={Q199:'',Q11573:'m',Q828224:'km',Q25343:'m2',Q712226:'km2',Q11570:'kg',Q191118:'t',Q11574:'s',Q11579:'K',Q25517:'m3',
- Q4917:'USD',Q4916:'EUR',Q25224:'GBP',Q8146:'JPY',Q39099:'CNY',Q80524:'INR',Q11573000:'m',Q25269:'W',Q25236:'W',Q6574:'MW',Q25406:'J',Q11582:'L',Q182098:'kWh',Q3332822:'m/s',Q180154:'km/h',Q11229:'%',Q174728:'cm',Q11577:'mm'};
+ Q4917:'USD',Q794261:'m3/s',Q3332095:'m3/s',Q4916:'EUR',Q25224:'GBP',Q8146:'JPY',Q39099:'CNY',Q80524:'INR',Q11573000:'m',Q25269:'W',Q25236:'W',Q6574:'MW',Q25406:'J',Q11582:'L',Q182098:'kWh',Q3332822:'m/s',Q180154:'km/h',Q11229:'%',Q174728:'cm',Q11577:'mm'};
 
 // The measure's name is Wikidata's own label of the property (never the model's), so a value can never be shown
 // under a wrong name; the key follows from it (P2196 "students count" → students_count).
@@ -140,9 +140,11 @@ export async function fastLaneTopic(db:EntityDb,t:Topic):Promise<{ok:boolean;rea
  const info=new Map<string,{name:string;wikipedia?:string;image?:string;website?:string}>();
  for(let i=0;i<items.length;i+=250){for(const [k,v] of await details(items.slice(i,i+250),signal))info.set(k,v);}
  const metrics=p.metrics.filter(m=>per.has(m.key));
- const unitOf=(k:string)=>{const v=per.get(k)!.values().next().value as Val|undefined;const u=v?(UNITS[v.unit]??''):'';return u==='m2'?'km2':u;};
+ // Long distances (a median over 10 km: rivers, roads, borders) read in kilometres; heights stay in metres.
+ const longLength=new Set([...per].filter(([,vals])=>{const v=vals.values().next().value as Val|undefined;if(!v||UNITS[v.unit]!=='m')return false;const s=[...vals.values()].map(x=>x.v).sort((a,b)=>a-b);return s[Math.floor(s.length/2)]>10_000;}).map(([k])=>k));
+ const unitOf=(k:string)=>{const v=per.get(k)!.values().next().value as Val|undefined;const u=v?(UNITS[v.unit]??''):'';return u==='m2'?'km2':longLength.has(k)?'km':u;};
  // Areas read in square metres are shown in square kilometres.
- for(const [k,vals] of per){const v=vals.values().next().value as Val|undefined;if(v&&UNITS[v.unit]==='m2')for(const x of vals.values())x.v=x.v/1e6;}
+ for(const [k,vals] of per){const v=vals.values().next().value as Val|undefined;if(v&&UNITS[v.unit]==='m2')for(const x of vals.values())x.v=x.v/1e6;else if(longLength.has(k))for(const x of vals.values())x.v=x.v/1000;}
  const year=String(new Date().getUTCFullYear());
  const rows=items.filter(id=>info.has(id)&&!/^Q\d+$/.test(info.get(id)!.name)).map(id=>{const d=info.get(id)!;const row:Record<string,unknown>={name:d.name,wikidata:id,...(d.wikipedia?{wikipedia:d.wikipedia}:{}),...(d.website?{website:d.website}:{}),...(d.image?{image:d.image}:{})};
   for(const m of metrics){const v=per.get(m.key)!.get(id);if(v){row['m_'+m.key]=v.v;row['p_'+m.key]=v.year||year;}}return row;});
