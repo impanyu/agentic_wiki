@@ -254,7 +254,7 @@ test('agent tools: entity_upsert from a dataset, entity_search, entity_get, metr
  const ctx={userId:'u1',language:'en',ownerId:'u1',visibility:'public',agent:{id:'editor-1'}};
  const ds=await datasets.saveDataset('editor-1',{title:'Islands',source:'https://example.org/islands',rows:[
   {Island:'Ilha A',qid:'Q1001',Area:'1,200',Pop:500,Ocean:'Atlantic',Year:2020},{Island:'Ilha B',qid:'Q1002',Area:'800',Pop:900,Ocean:'Pacific',Year:2020},{Island:'Ilha C',qid:'Q1003',Area:'800',Pop:'',Ocean:'Pacific',Year:2020}]});
- assert.equal(tools.entityTools.length,8);
+ assert.equal(tools.entityTools.length,9);
  for(const t of tools.entityTools){assert.deepEqual(t.parameters.required,Object.keys(t.parameters.properties));assert.ok(t.description.includes('xample'),t.name+' has an example');}
  const up=await tools.runEntityTool('entity_upsert',{datasetId:ds.datasetId,type:'Island',nameColumn:'Island',idColumns:'{"wikidata":"qid"}',aliasColumns:'',descriptionColumn:'',attributeColumns:'Ocean=ocean',metricColumns:'{"Area":{"metric":"island_area","unit":"km2","period":"Year"},"Pop":{"metric":"island_pop","unit":"people","period":"2020"}}',relationColumns:'',source:'',topicId:''},ctx);
  assert.equal(up.data.inserted,3);assert.equal(up.data.observations,5);

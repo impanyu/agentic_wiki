@@ -8,7 +8,7 @@ import {recordRecipeRun,type Recipe} from './config';
 // model. "$<step id>" in an argument is replaced by that step's dataset id (or the step's value at a
 // path: "$src.dataset.datasetId"). Only collection tools may run: public sources, fetching and
 // table tools, and loading into the entity database.
-export const RECIPE_TOOLS=['call_public_source','fetch_data','extract_tables','query_data','describe_data','crawl_pages','browse_page','extract_fields','entity_upsert','define_metric','compute_metric'] as const;
+export const RECIPE_TOOLS=['call_public_source','fetch_data','extract_tables','query_data','describe_data','crawl_pages','browse_page','extract_fields','entity_upsert','bulk_import','define_metric','compute_metric'] as const;
 type Step={id:string;tool:string;args:Record<string,unknown>};
 export type StepResult={id:string;tool:string;ok:boolean;ms:number;summary?:unknown;error?:string};
 
@@ -34,7 +34,7 @@ export function checkRecipe(steps:Step[]):string[]{
  steps.forEach((s,i)=>{if(!FETCHERS.includes(s.tool))return;
   const used=steps.slice(i+1).some(t=>refs(t.args,new Set()).has(s.id));
   if(!used)problems.push('Step "'+s.id+'" ('+s.tool+') fetches data that no later step uses: load it (entity_upsert with datasetId "$'+s.id+'") or join it into a step that is loaded.');});
- if(!steps.some(s=>s.tool==='entity_upsert'||s.tool==='compute_metric'))problems.push('The recipe never loads anything: end with entity_upsert.');
+ if(!steps.some(s=>s.tool==='entity_upsert'||s.tool==='bulk_import'||s.tool==='compute_metric'))problems.push('The recipe never loads anything: end with entity_upsert.');
  return problems;
 }
 const datasetOf=(v:unknown):string|undefined=>{
@@ -55,6 +55,7 @@ function resolveArgs(v:unknown,out:Map<string,unknown>):unknown{
 // Compact summary of a step's result for logs and the agent (counts, columns, errors; never rows).
 function summary(tool:string,data:unknown):unknown{
  if(!data||typeof data!=='object')return data;const o=data as Record<string,unknown>;
+ if(tool==='bulk_import'){const {files,scanned,admitted,loaded,inserted,merged,observations,cutoffs,partial,done}=o;return {files,scanned,admitted,rows:loaded,inserted,merged,observations,cutoffs,partial,done};}
  if(tool==='entity_upsert'){const {rows,inserted,merged,skipped,observations,relations,unresolved,idConflicts,errors,units}=o;return {rows,inserted,merged,skipped,observations,relations,unresolved,idConflicts,errors,units};}
  const d=(o.dataset as Record<string,unknown>)||o;
  if(tool==='extract_fields')return {datasetId:datasetOf(o),rowCount:o.rowCount,pages:o.pages,fillRates:o.fillRates,errors:o.errors};
@@ -70,10 +71,11 @@ export async function runSteps(stepsRaw:unknown,ctx:AgentContext,signal?:AbortSi
     const source=String(args.source??args.sourceId??''),tool=String(args.action??args.tool??'');
     const params=args.params??args.arguments??(typeof args.argumentsJson==='string'?JSON.parse(args.argumentsJson):{});
     data=await callPublicSource(source,tool,params,ctx,signal);
-   }else if(s.tool==='entity_upsert'||s.tool==='define_metric'||s.tool==='compute_metric'){
+   }else if(s.tool==='entity_upsert'||s.tool==='bulk_import'||s.tool==='define_metric'||s.tool==='compute_metric'){
     // Entity tools take every argument; missing ones mean "not given".
     const defaults:Record<string,Record<string,unknown>>={
      entity_upsert:{idColumns:'',aliasColumns:'',descriptionColumn:'',attributeColumns:'',metricColumns:'',relationColumns:'',source:'',topicId:''},
+     bulk_import:{url:'',indexUrl:'',indexPattern:'',commentPrefix:'',fields:'',where:'',keepTop:'',maxRows:0,idColumns:'',aliasColumns:'',descriptionColumn:'',attributeColumns:'',metricColumns:'',relationColumns:'',source:'',topicId:''},
      define_metric:{label:'',unit:'',description:'',methodology:'',order:'',format:'',definition:''},compute_metric:{version:0}};
     const norm=Object.fromEntries(Object.entries({...defaults[s.tool],...args}).map(([k,v])=>[k,v&&typeof v==='object'?JSON.stringify(v):v]));
     data=(await runEntityTool(s.tool,norm,ctx,signal)).data;
@@ -97,10 +99,16 @@ export function driftOf(prev:StepResult[]|undefined,now:StepResult[]):string[]{
  }
  return out;
 }
+// A bulk source is loaded over several runs: while a bulk_import step is partial the recipe stays due (the next
+// heartbeat continues it), and drift is only judged on complete runs.
+export const isPartial=(steps:StepResult[])=>steps.some(s=>s.tool==='bulk_import'&&(s.summary as {partial?:boolean}|undefined)?.partial);
 export async function runRecipe(db:Queryable,recipe:Recipe,signal?:AbortSignal){
  const run=await runSteps(recipe.steps,crawlerContext(recipe),signal);
- const drift=run.ok?driftOf((recipe.lastResult as {steps?:StepResult[]}|null)?.steps,run.steps):[];
- const result={...run,ok:run.ok&&!drift.length,...(drift.length?{drift}:{})};
+ const partial=run.ok&&isPartial(run.steps);
+ const drift=run.ok&&!partial?driftOf((recipe.lastResult as {steps?:StepResult[]}|null)?.steps,run.steps):[];
+ const result={...run,ok:run.ok&&!drift.length,...(drift.length?{drift}:{}),...(partial?{partial:true}:{})};
+ // A partial run keeps the last complete result for drift checks and leaves the recipe due.
+ if(partial){await db.query("update recipes set last_run_at=null, status='active', updated_at=now() where id=$1::uuid",[recipe.id]);return result;}
  await recordRecipeRun(db,recipe.id,result.ok,result);
  return result;
 }
