@@ -29,9 +29,35 @@ export async function setState(db:Queryable,key:string,value:Record<string,unkno
  await db.query('insert into platform_state(key,value,updated_at) values ($1::text,$2::jsonb,now()) on conflict (key) do update set value=excluded.value, updated_at=now()',[key,JSON.stringify(value)]);
 }
 // A topic team waits in the queue (a slug already queued or done is left alone).
-export async function enqueueTeam(db:Queryable,{slug,name,brief,parentSlug=null,priority=0}:{slug:string;name:string;brief:string;parentSlug?:string|null;priority?:number}):Promise<boolean>{
- const r=await db.query(`insert into team_queue(slug,name,brief,parent_slug,priority) values ($1::text,$2::text,$3::text,$4::text,$5::int) on conflict (slug) do nothing returning slug`,[slug,name.slice(0,200),brief.slice(0,4000),parentSlug,priority]);
+// A topic already queued or running is left alone; one that ran before is queued again (a later pass).
+export async function enqueueTeam(db:Queryable,{slug,name,brief,parentSlug=null,priority=0,note=''}:{slug:string;name:string;brief:string;parentSlug?:string|null;priority?:number;note?:string}):Promise<boolean>{
+ const r=await db.query(`insert into team_queue(slug,name,brief,parent_slug,priority,note) values ($1::text,$2::text,$3::text,$4::text,$5::int,$6::text)
+  on conflict (slug) do update set status='queued', priority=excluded.priority, note=excluded.note, brief=excluded.brief, created_at=now(), started_at=null, finished_at=null
+  where team_queue.status in ('done','failed') returning slug`,[slug,name.slice(0,200),brief.slice(0,4000),parentSlug,priority,note.slice(0,300)]);
  return r.rows.length>0;
+}
+
+// Teams come back to their topic: soon when something needs them (a collection rule waiting for repair, readers'
+// queries piling up in the editor's inbox), and for a routine review as often as readers use the topic.
+export async function scheduleMaintenance(db:Queryable):Promise<string[]>{
+ const due=(await db.query<{slug:string;name:string;description:string;repairs:number;inbox:number;last:string|null;passes:number;views:number}>(`select t.slug, t.name, t.description,
+   (select count(*)::int from roadmap_items r join editors e on e.id = r.editor_id where e.topic_id = t.id and r.kind = 'refresh' and r.status = 'pending') repairs,
+   (select count(*)::int from inbox i join editors e on e.id = i.editor_id where e.topic_id = t.id and i.triaged_at is null) inbox,
+   greatest((select max(coalesce(q.finished_at, q.started_at)) from team_queue q where q.slug = t.slug),(select max(tr.started_at) from team_runs tr where tr.topic_id = t.id))::text last,
+   (select count(*)::int from team_runs tr where tr.topic_id = t.id and tr.role = 'reviewer') passes,
+   (select coalesce(sum(v.n),0)::int from ranking_views v join rankings rk on rk.slug = v.slug where rk.topic_id = t.id and v.day > current_date - 30) views
+  from topics t where t.status = 'active' and exists (select 1 from rankings r where r.topic_id = t.id and r.slug is not null)`).catch(()=>({rows:[]}))).rows;
+ const queued:string[]=[];
+ for(const t of due){
+  const lastAt=t.last?Date.parse(t.last):0,hours=(Date.now()-lastAt)/3600_000;
+  // Routine reviews follow readers: a new topic comes back after a week (the first pass covers the basics), a
+  // popular one weekly, one with some readers every two weeks, a quiet one monthly.
+  const reviewDays=t.passes<=1?7:t.views>=100?7:t.views>=10?14:30;
+  const why=t.repairs>0&&hours>3?{p:3,note:'repair: a collection rule is waiting'}:t.inbox>=5&&hours>24?{p:2,note:`expand: ${t.inbox} reader queries waiting`}
+   :hours>reviewDays*24?{p:t.views>=100?1:0,note:`review (every ${reviewDays} days; ${t.views} views in 30 days)`}:null;
+  if(why&&await enqueueTeam(db,{slug:t.slug,name:t.name,brief:t.description,priority:why.p,note:why.note}))queued.push(t.slug+' ('+why.note+')');
+ }
+ return queued;
 }
 
 // Once a day, when readers' searches are waiting.
@@ -85,14 +111,19 @@ export async function runTeamQueue(spentUsd:()=>Promise<number>,log:(slug:string
  await db.query(`update team_queue set status='queued', note='restarted' where status='running' and started_at < now() - interval '4 hours' and not (slug = any($1::text[]))`,[[...running]]);
  const started:string[]=[];
  while(running.size<max){
-  if(await spentUsd()>=cap){log('queue',{event:'queue_paused',reason:'monthly budget reached',cap});break;}
+  if(await spentUsd()>=cap){log('queue',{event:'queue_paused',reason:'monthly budget reached',cap});
+   const {raiseIssue}=await import('@/app/ops/issues');
+   await raiseIssue(db,{source:'scheduler',severity:'major',title:'Team queue paused: monthly model budget reached',detail:`This month's model spending reached TEAM_MONTHLY_BUDGET_USD (${cap}). Queued teams wait until next month unless the budget is raised.`,fingerprint:'budget:'+new Date().toISOString().slice(0,7)}).catch(()=>{});
+   break;}
   const next=(await db.query<{slug:string;name:string;brief:string}>(`update team_queue set status='running', started_at=now() where slug = (select slug from team_queue where status='queued' order by priority desc, created_at limit 1 for update skip locked) returning slug, name, brief`)).rows[0];
   if(!next)break;
   running.add(next.slug);started.push(next.slug);
   const {runTopicTeam}=await import('./run');
   void runTopicTeam({slug:next.slug,name:next.name,brief:next.brief,log:e=>log(next.slug,e)})
    .then(res=>db.query(`update team_queue set status='done', finished_at=now(), note=$2::text where slug=$1::text`,[next.slug,res.verdict.approved?'approved':'not approved']))
-   .catch(e=>db.query(`update team_queue set status='failed', finished_at=now(), note=$2::text where slug=$1::text`,[next.slug,String((e as Error).message).slice(0,500)]))
+   .catch(async e=>{await db.query(`update team_queue set status='failed', finished_at=now(), note=$2::text where slug=$1::text`,[next.slug,String((e as Error).message).slice(0,500)]);
+    const {raiseIssue}=await import('@/app/ops/issues');
+    await raiseIssue(db,{source:'scheduler',topic:next.slug,severity:'major',title:'Team run crashed',detail:String((e as Error).stack||e).slice(0,4000),fingerprint:'team-crash:'+next.slug}).catch(()=>{});})
    .finally(()=>running.delete(next.slug));
  }
  return started;

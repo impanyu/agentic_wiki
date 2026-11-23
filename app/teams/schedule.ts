@@ -26,6 +26,8 @@ export async function runDueRecipes(limit=1){
   for(const r of ready.slice(0,limit)){
    const result=await runRecipe(db,r).catch(e=>({ok:false,steps:[],error:(e as Error).message}));ran++;
    if(!result.ok)await reportFailure(r,result).catch(e=>console.error('crawler: report failed',(e as Error).message));
+   // Fresh data: the editors' indices over this type are recomputed from it at once.
+   else await recomputeIndices(r.type).catch(e=>console.error('crawler: index recompute failed',(e as Error).message));
    console.log('[crawler]',r.type+'/'+r.name,result.ok?'ok':'failed');
   }
   return {ran};
@@ -34,7 +36,12 @@ export async function runDueRecipes(limit=1){
 async function reportFailure(r:Recipe,result:{steps?:{id:string;ok:boolean;error?:string}[];drift?:string[];error?:string}){
  const db=await entityDb();const t=await getEntityType(db,r.type);const editorId=await topicEditorId(db,t?.topicId??null);if(!editorId)return;
  const title='Repair recipe '+r.type+'/'+r.name;
- if((await listRoadmap(db,editorId)).some(i=>i.title===title&&(i.status==='pending'||i.status==='running')))return;
+ // Failing again before the editor's team repaired it: the operators hear of it (one issue per recipe).
+ if((await listRoadmap(db,editorId)).some(i=>i.title===title&&(i.status==='pending'||i.status==='running'))){
+  const {raiseIssue}=await import('@/app/ops/issues');const f=result.steps?.find(s=>!s.ok);
+  await raiseIssue(db,{source:'crawler',topic:r.type,severity:'major',title:'Recipe keeps failing: '+r.type+'/'+r.name,
+   detail:'It failed again while its repair is still waiting for the team.\nFailed step: '+(f?.id??'-')+'\nError: '+String(f?.error||result.error||'-')+(result.drift?.length?'\nDrift: '+result.drift.join('; '):''),fingerprint:'recipe:'+r.type+'/'+r.name}).catch(()=>{});
+  return;}
  const failed=result.steps?.find(s=>!s.ok);
  await addRoadmapItem(db,{editorId,kind:'refresh',title,priority:85,origin:'review',
   spec:{recipe:r.name,type:r.type,failedStep:failed?.id,error:failed?.error||result.error||null,drift:result.drift||null,
@@ -53,12 +60,26 @@ export async function fillVectors(){
 }
 
 // The manager's daily review and the team queue, on the same heartbeat (one review at a time).
-let reviewing=false;
+let reviewing=false,lastMaintenance=0;
 export async function manageTeams(){
  const {entityDb}=await import('@/app/entity-db/client');const {managerDue,runManagerDaily,runTeamQueue}=await import('./manager');
  const {llmSpend}=await import('@/app/llm');
  const db=await entityDb();
  if(!reviewing&&await managerDue(db)){reviewing=true;void runManagerDaily(e=>console.log('[manager]',JSON.stringify(e))).catch(e=>console.error('[manager] failed',(e as Error).message)).finally(()=>{reviewing=false;});}
+ // At most hourly: teams return to topics that need them.
+ const now=Date.now();if(now-lastMaintenance>3600_000){lastMaintenance=now;const {scheduleMaintenance}=await import('./manager');const q=await scheduleMaintenance(db).catch(e=>{console.error('[queue] maintenance failed',(e as Error).message);return [];});if(q.length)console.log('[queue] queued',q.join(', '));}
  const started=await runTeamQueue(async()=>(await llmSpend()).spentUsd,(slug,e)=>console.log('[team:'+slug+']',JSON.stringify(e)));
  if(started.length)console.log('[queue] started',started.join(', '));
+}
+
+// Recomputes every published derived metric (an editor's index) whose scope is this entity type.
+export async function recomputeIndices(type:string):Promise<string[]>{
+ const {computeDerivedMetric}=await import('@/app/entity-db/repo');
+ const db=await entityDb();
+ const rows=(await db.query<{key:string;version:number}>(`select distinct on (key) key, version from metrics where kind = 'derived' and status = 'published'
+  and definition->'scope'->>'type' = $1::text order by key, version desc`,[type])).rows;
+ const done:string[]=[];
+ for(const m of rows){try{await computeDerivedMetric(db,m.key,m.version);done.push(m.key);}catch(e){console.warn('index',m.key,(e as Error).message);}}
+ if(done.length)console.log('[crawler] recomputed indices',type,done.join(', '));
+ return done;
 }

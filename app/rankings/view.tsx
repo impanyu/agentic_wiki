@@ -4,7 +4,7 @@ import {usePathname} from 'next/navigation';
 import {questionKey} from '@/app/seo/urls';
 import {Layers,ArrowRight,Trophy} from 'lucide-react';
 import {UiContext,useStaticUi,useUi} from '@/app/i18n/client';
-import {localePath,dirOf} from '@/app/i18n/locales';
+import {localePath,dirOf,splitLocale} from '@/app/i18n/locales';
 import {LanguageSwitcher} from '@/app/i18n/switcher';
 import {SearchBox} from '@/app/search-box';
 import {NodeGrid,recordVisit,RecentlyViewed} from '@/app/explore';
@@ -27,7 +27,11 @@ export function DbShell({locale='en',dictionary={},askTargets,className,query=''
  const here=usePathname()||'/';
  const ui=useStaticUi(locale,dictionary),{t}=ui;
  // Remember this page in the reader's history (this device only).
- useEffect(()=>{if(/template-search/.test(className))return;const kind=/template-ranking/.test(className)?'ranking':/template-entity/.test(className)?'entity':'topic';
+ useEffect(()=>{const kind=/template-search/.test(className)?'search':/template-ranking/.test(className)?'ranking':/template-entity/.test(className)?'entity':'topic';
+  // One view per page per session, counted for the operators (the address without its language).
+  const path=splitLocale(location.pathname).path,k='rw-pv:'+path;let seen=false;try{seen=!!sessionStorage.getItem(k);sessionStorage.setItem(k,'1');}catch{}
+  if(!seen)void fetch('/api/views',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({kind,path}),keepalive:true}).catch(()=>{});
+  if(kind==='search')return;
   recordVisit({title:document.title.replace(/ · [^·]+$/,''),href:location.pathname+location.search,kind});},[className]);
  return <UiContext.Provider value={ui}><AskTargets.Provider value={askTargets}><div className="browser-shell" lang={locale} dir={dirOf(locale)}>
   <header className="browser-toolbar">
@@ -35,7 +39,8 @@ export function DbShell({locale='en',dictionary={},askTargets,className,query=''
    <SearchBox initial={query}/>
    <LanguageSwitcher/>
    <ThemeToggle label={t('Switch theme')}/>
-   <a className="account-link" href={account?'/auth/signout':'/auth/google?return_to='+encodeURIComponent(here)} title={account?t('Signed in as ')+account.name:t('Sign in with Google')}>{account?t('Sign out'):t('Sign in')}</a>
+   {account?<a className="account-link signed-in" href={localePath('/me',locale)} title={t('Signed in as ')+account.name}><span className="account-avatar" aria-hidden="true">{account.name.slice(0,1).toUpperCase()}</span><span className="account-name">{account.name.split(' ')[0]}</span></a>
+    :<a className="account-link" href={'/auth/google?return_to='+encodeURIComponent(here)} title={t('Sign in with Google')}>{t('Sign in')}</a>}
   </header>
   <main className="browser-content">
    {/* Page content is written in English for now; the interface around it is in the reader's language. */}

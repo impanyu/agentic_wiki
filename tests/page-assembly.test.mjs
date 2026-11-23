@@ -341,3 +341,33 @@ test('search: suggestions by name with no model (entities, rankings, criterion v
  const row=(await db.query("select norm, locale, results, handled from search_log where query='best perfumes'")).rows[0];
  assert.deepEqual({...row},{norm:'best perfumes',locale:'zh',results:0,handled:false});
 });
+
+test('issues: one record per problem, repeats counted, resolved then reopened when it happens again; admin queries run',async()=>{
+ writeFileSync(new URL('issues.mjs',out),tr(readFileSync('app/ops/issues.ts','utf8')).replace("await import('./notify')","({notifyIssue:async()=>false})"));
+ const {raiseIssue,listIssues,resolveIssue,issueCounts}=await import(new URL('issues.mjs',out));
+ const a=await raiseIssue(db,{source:'agent:collector',topic:'countries',severity:'major',title:'Source needs a login',detail:'tried 3 times'});
+ const b=await raiseIssue(db,{source:'agent:collector',topic:'countries',severity:'blocker',title:'Source needs a login',detail:'again'});
+ assert.equal(a.isNew,true);assert.equal(b.isNew,false);assert.equal(b.issue.id,a.issue.id);assert.equal(b.issue.occurrences,2);assert.equal(b.issue.severity,'blocker','a repeat can only raise the severity');
+ assert.deepEqual(await issueCounts(db),{blocker:1});
+ await resolveIssue(db,a.issue.id,{status:'resolved',resolution:'added a key',by:'ops@example.org'});
+ assert.equal((await listIssues(db)).length,0);assert.equal((await listIssues(db,{status:'resolved'}))[0].resolution,'added a key');
+ const c=await raiseIssue(db,{source:'agent:collector',topic:'countries',title:'Source needs a login'});
+ assert.equal(c.issue.status,'open','it happened again');
+ // The admin page's queries (app/ops/admin.ts) run on this schema.
+ for(const sql of [
+  "select count(*)::int n from team_queue where status='queued'","select coalesce(sum(n),0)::bigint n from page_views where day > current_date - 7",
+  "select to_char(day,'YYYY-MM-DD') as day, kind, sum(n)::int n from page_views where day > current_date - 30 group by day, kind order by day",
+  "select max(query) query, count(*)::int n, bool_and(handled) handled from search_log where results=0 and at > now() - (30 || ' days')::interval group by norm order by n desc limit 30",
+  "select t.slug topic, r.role, r.status, round(r.cost_usd::numeric,3) cost, to_char(r.started_at,'YYYY-MM-DD HH24:MI') started, extract(epoch from (coalesce(r.finished_at, now()) - r.started_at))::int seconds from team_runs r left join topics t on t.id = r.topic_id order by r.started_at desc limit 60",
+  "select type, name, case when last_result is null then 'never run' when (last_result->>'ok')::boolean then 'ok' else 'failed' end status, to_char(last_run_at,'YYYY-MM-DD HH24:MI') last_run, left(coalesce(last_result->>'error',''),200) error from recipes order by last_run_at desc nulls last limit 60",
+ ])await db.query(sql);
+ assert.equal(await pages.recordPageView(db,'entity','/e/14/germany'),true);assert.equal(await pages.recordPageView(db,'bogus','/x'),false);
+});
+
+test('the team maintenance query (app/teams/manager.ts) runs on this schema',async()=>{
+ const src=readFileSync('app/teams/manager.ts','utf8');
+ const sql=/const due=\(await db\.query<[^>]+>\(`([\s\S]*?)`\)/.exec(src)[1];
+ const rows=(await db.query(sql)).rows;
+ assert.ok(rows.some(r=>r.slug==='countries'),'a topic with a ranking is considered');
+ assert.ok(rows.every(r=>typeof r.views==='number'&&typeof r.passes==='number'));
+});

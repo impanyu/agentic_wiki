@@ -470,3 +470,10 @@ export async function logSearch(db:Queryable,query:string,locale:string,results:
  const q=query.trim().slice(0,300);if(!q)return;
  await db.query('insert into search_log(query, norm, locale, results) values ($1::text, $2::text, $3::text, $4::int)',[q,norm(q),locale.slice(0,8),results]);
 }
+// One reader view of any page (browsers only, once per page per session), by its address without the language.
+const VIEW_KINDS=new Set(['ranking','entity','topic','search','home']);
+export async function recordPageView(db:Queryable,kind:string,path:string):Promise<boolean>{
+ if(!VIEW_KINDS.has(kind)||!/^\/[^\s]{0,299}$/.test(path))return false;
+ await db.query('insert into page_views(kind, key, day, n) values ($1::text, $2::text, current_date, 1) on conflict (kind, key, day) do update set n = page_views.n + 1',[kind,path]);
+ return true;
+}

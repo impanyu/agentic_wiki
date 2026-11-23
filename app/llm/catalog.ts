@@ -53,7 +53,8 @@ export const BASE_CATALOG:Catalog={
  ]),
  chains:{
   premium:['openai'],
-  agent:['nrp:qwen3','nrp:deepseek-v4-flash','nrp:glm-5','gemini:gemini-4-hydrogen','openrouter:nemotron-3-ultra','groq:gpt-oss-120b','openai'],
+  // Builders' chain (team editors and collectors): the strongest open models first, the commercial model last.
+  agent:['nrp:glm-5','nrp:kimi','nrp:deepseek-v4-flash','nrp:qwen3','gemini:gemini-4-hydrogen','openrouter:nemotron-3-ultra','groq:gpt-oss-120b','openai'],
   fast:['gemini:gemini-3.8-flash-lite','nrp:gpt-oss','openai'],
   vision:['nrp:qwen3','nrp:gemma','gemini:gemini-3.8-flash','openrouter:nemotron-3.5-super-vl','openai'],
  },

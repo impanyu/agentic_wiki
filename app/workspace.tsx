@@ -463,9 +463,10 @@ export default function Workspace({ user, signIn, signOut, nodes=[], popular=[],
       {!PUBLIC_EDITION&&<ConnectorPanel/>}
       {PUBLIC_EDITION&&<LanguageSwitcher/>}
       <ThemeToggle label={t("Switch theme")}/>
-      <a className="account-link" href={user ? signOut : signIn} target="_top" title={user ? t("Signed in as ") + user.name : t("Sign in with Google")}>
+      {PUBLIC_EDITION&&user?<a className="account-link signed-in" href={localePath('/me',locale)} title={t("Signed in as ") + user.name}><span className="account-avatar" aria-hidden="true">{user.name.slice(0,1).toUpperCase()}</span><span className="account-name">{user.name.split(' ')[0]}</span></a>
+      :<a className="account-link" href={user ? signOut : signIn} target="_top" title={user ? t("Signed in as ") + user.name : t("Sign in with Google")}>
         {user ? t("Sign out") : t("Sign in")}
-      </a>
+      </a>}
     </header>
     <p className="sr-only" id="address-help">{t("Type a question and press Enter to open its answer below. Press Control K or Command K to select the address bar.")}</p>
     <main className="browser-content" aria-busy={busy}>

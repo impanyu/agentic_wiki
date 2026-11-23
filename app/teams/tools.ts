@@ -38,13 +38,14 @@ const teamTools={
  record_decision:tool('record_decision','Record how a conflict was resolved — between the brief and the platform rules, between the brief and what the data allows, or between team members — so the reviewer judges the work against it. conflict: what clashed. decision: what was done. why: the reason readers are served best this way.',{conflict:string,decision:string,why:string}),
  set_topic_brief:tool('set_topic_brief','Manager: rewrite the topic brief (what the topic covers and what its pages must offer). The team works from it from the next step on.',{brief:string}),
  retract_observations:tool('retract_observations','Collector: withdraw observations the team has ruled out, e.g. a metric loaded from a less authoritative or superseded source. Removes every observation of one metric for one entity type whose source starts with source, or (keepSource) every one whose source does NOT start with keepSource; period limits it to one period. Snapshots, ranks and pages update at once. Read the source names with entity_get first, and fix the recipe that loaded them or they return on its next run. Use empty strings for unused fields.',{type:string,metric:string,source:string,keepSource:string,period:string}),
+ report_issue:tool('report_issue','Report a problem you cannot solve yourself to the human operators (it appears on the admin page and they are notified): a source that needs a login, payment or a key; a site that blocks automated reading; a platform feature or tool that is missing or broken; rules that contradict each other. Say what you tried. Do not report what you can fix yourself; keep working on the rest. severity: blocker (the topic cannot progress), major, minor.',{title:string,detail:string,severity:string}),
  preview_page:tool('preview_page','Open a page of this site as a reader or crawler sees it (server-rendered HTML, no scripts): returns status, title, the visible text (first 8,000 characters), the number of table rows, charts and links. path: e.g. "/rankings/country-rankings", "/rankings/country-rankings?year=2005", "/e/country/france".',{path:string}),
 };
 const ROLE_TOOLS:Record<Role,string[]>={
- collector:['team_state','coverage','set_entity_schema','save_recipe','run_recipe','retract_observations','close_plan_items'],
- editor:['team_state','coverage','set_entity_template','save_ranking','save_plan','close_plan_items','missing_pages','read_inbox','triage_queries','record_decision','preview_page'],
- reviewer:['team_state','coverage','preview_page'],
- manager:['team_state','coverage','preview_page','record_decision','set_topic_brief'],
+ collector:['team_state','coverage','set_entity_schema','save_recipe','run_recipe','retract_observations','close_plan_items','report_issue'],
+ editor:['team_state','coverage','set_entity_template','save_ranking','save_plan','close_plan_items','missing_pages','read_inbox','triage_queries','record_decision','preview_page','report_issue'],
+ reviewer:['team_state','coverage','preview_page','report_issue'],
+ manager:['team_state','coverage','preview_page','record_decision','set_topic_brief','report_issue'],
 };
 // Data tools without save_data (that writes Page files); the reviewer reads, never writes.
 const EXPLORE=[...publicSourceTools,...dataTools.filter(t=>t.name!=='save_data')];
@@ -133,6 +134,10 @@ export async function runTeamTool(role:Role,name:string,args:Record<string,unkno
    const r=await saveRecipe(db,{type:String(args.type),name:String(args.name),description:String(args.description||''),steps,schedule:String(args.schedule||''),createdBy:who});
    return {data:{saved:true,type:r.type,name:r.name,steps:r.steps.length,schedule:r.schedule}};}
   case 'retract_observations':return {data:await retractObservations(db,{type:String(args.type||''),metric:String(args.metric||''),source:String(args.source||'')||undefined,keepSource:String(args.keepSource||'')||undefined,period:String(args.period||'')||undefined})};
+  case 'report_issue':{const {raiseIssue}=await import('@/app/ops/issues');const t=topicId?(await db.query<{slug:string}>('select slug from topics where id=$1::uuid',[topicId])).rows[0]?.slug??'':'';
+   const sev=['blocker','major','minor'].includes(String(args.severity))?String(args.severity) as 'blocker'|'major'|'minor':'major';
+   const r=await raiseIssue(db,{source:'agent:'+role,topic:t,severity:sev,title:String(args.title||'').slice(0,300),detail:String(args.detail||'')});
+   return {data:{reported:true,id:r.issue.id,repeat:!r.isNew}};}
   case 'run_recipe':{const r=await getRecipe(db,String(args.type),String(args.name));if(!r)throw Error('No recipe '+args.type+'/'+args.name+'.');return {data:await runRecipe(db,r,signal)};}
   case 'save_ranking':{const def=await saveRankingDef(db,{slug:String(args.slug),title:String(args.title),scope:json(args.scopeJson,'scopeJson'),criteria:String(args.criteria||'').split(','),config:json(args.configJson||'{}','configJson'),topicId});
    // The ranking's view vectors are ready before anyone searches for it (the heartbeat retries a failure).

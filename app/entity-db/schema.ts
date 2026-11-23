@@ -181,6 +181,17 @@ export const MIGRATIONS:Migration[]=[
   'create index if not exists team_queue_next on team_queue(priority desc, created_at) where status = \'queued\'',
   'create table if not exists platform_state(key text primary key, value jsonb not null default \'{}\'::jsonb, updated_at timestamptz not null default now())',
  ]},
+ // Problems the agents and the automation cannot solve themselves, for the operators (one row per distinct
+ // problem; a repeat raises its count), and reader views of every kind of page per day.
+ {version:12,name:'issues and page views',statements:()=>[
+  `create table if not exists issues(id bigserial primary key, fingerprint text not null unique, source text not null, topic text not null default '',
+    severity text not null default 'major' check (severity in ('blocker','major','minor')), title text not null, detail text not null default '',
+    status text not null default 'open' check (status in ('open','resolved','ignored')), occurrences integer not null default 1,
+    resolution text not null default '', resolved_by text not null default '', notified_at timestamptz,
+    created_at timestamptz not null default now(), last_seen_at timestamptz not null default now(), resolved_at timestamptz)`,
+  'create index if not exists issues_open on issues(last_seen_at desc) where status = \'open\'',
+  'create table if not exists page_views(kind text not null, key text not null, day date not null default current_date, n integer not null default 0, primary key (kind, key, day))',
+ ]},
 ];
 export const SCHEMA_VERSION=MIGRATIONS[MIGRATIONS.length-1].version;
 

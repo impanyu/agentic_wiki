@@ -19,7 +19,7 @@ function PublicHome({nodes,popular}:{nodes:NodeCard[];popular:FeaturedRanking[]}
  return <div className="rw-home">
   <section className="rw-hero">
    <h1><em>RankWiki</em></h1>
-   <p>{t('Rank anything.')}</p>
+   <p>{t('Rank everything.')}</p>
   </section>
   <NodeGrid nodes={nodes}/>
   <RankingGrid rankings={popular} title={t('Popular rankings')}/>
