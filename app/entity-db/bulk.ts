@@ -137,7 +137,12 @@ export async function runBulk(db:EntityDb,s:BulkSpec,ctx:AgentContext,signal:Abo
   if(r.errors?.length&&counts.errors.length<10)counts.errors.push(...r.errors.slice(0,10-counts.errors.length).map(String));
   p.loaded+=batch.length;batch=[];};
  const save=async()=>{if(!persist)return;await mkdir(stateDir(),{recursive:true});await writeFile(file,JSON.stringify({...p,files:urls.length}));};
- const limit=s.maxRows||Infinity;let stop=false;
+ // maxRows bounds a trial run only; a saved (scheduled) load reads the whole source.
+ const limit=persist?Infinity:(s.maxRows||Infinity);let stop=false;
+ // A gzip shard cannot be entered in the middle: resuming inside one means downloading and skipping everything
+ // before the position again. A load over several shards therefore finishes the shard it is in before it stops
+ // (up to 3× its budget); a single huge file stops on the budget and resumes by line.
+ const midShardBudget=urls.length>1?budgetMs*3:budgetMs;
  for(;p.file<urls.length&&!stop;p.file++,p.line=0){
   // A shard is read whole before the position moves on, so a top-N never double counts a resumed shard.
   const resumeLine=top?0:p.line;
@@ -146,9 +151,10 @@ export async function runBulk(db:EntityDb,s:BulkSpec,ctx:AgentContext,signal:Abo
    p.scanned++;p.line=line;
    if(admits(row,s.where)){p.admitted++;if(top)top.add(row);else{batch.push(row);if(batch.length>=BATCH){await flush();await save();}}}
    if(p.scanned>=limit){stop=true;break;}
-   if(!top&&Date.now()-t0>budgetMs){stop=true;break;}
+   if(!top&&Date.now()-t0>midShardBudget){stop=true;break;}
   }
   if(stop)break;
+  if(!top&&urls.length>1&&Date.now()-t0>budgetMs){p.file++;p.line=0;stop=true;break;}
   if(top&&persist){await mkdir(stateDir(),{recursive:true});await writeFile(topFile,JSON.stringify(top.final()));}
   if(top&&Date.now()-t0>budgetMs){p.file++;p.line=0;stop=true;break;}
  }
