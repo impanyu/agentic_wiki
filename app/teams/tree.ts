@@ -15,6 +15,7 @@ export function leafBrief(n:TreeNode):string{
   n.criteria?.length&&`Criteria readers care about (raw measures and at least one composite index): ${n.criteria.join('; ')}.`,
   n.sources?.length&&`Likely sources: ${n.sources.join('; ')}.`,
   n.scale&&Number(n.scale)>=1e5&&`The full source is large (about ${Number(n.scale).toLocaleString('en-US')} records): load it with bulk_import and an admission standard — store only those that can rank (top 1,000 of some ranking) or pass an objective notability threshold.`,
+  n.kind==='commercial'&&'The full set is worldwide: the universe above is a starting point, not a limit — include the local brands and products of every major market (China, India, Japan, Korea, Southeast Asia, Latin America, Africa, the Middle East, Europe), found through local-language searches and local retailers and regulators.',
   n.kind==='commercial'&&'This is a commercial topic: readers come to decide what to buy. Every entity needs its official product photo and its official product or purchase page; rank on the criteria buyers compare, with a value-for-money index; add subsets by price band and use case.'];
  return lines.filter(Boolean).join('\n');
 }

@@ -10011,7 +10011,7 @@
       "kind": "commercial",
       "description": "Every tablet compared and ranked on price, benchmark score and more.",
       "entity": "tablet",
-      "universe": "all current models sold by Amazon, Best Buy and Walmart (US) plus the full current catalogs of the leading manufacturers",
+      "universe": "all current models sold by the major retailers of every large market (Amazon, Walmart, Best Buy, JD.com, Tmall, Flipkart, Rakuten, Coupang, Mercado Libre, Jumia, Noon) plus the full current catalogs of the leading global and local manufacturers",
       "criteria": [
        "price",
        "benchmark score",
@@ -10137,7 +10137,7 @@
       "kind": "commercial",
       "description": "Every smartwatch compared and ranked on price, battery days and more.",
       "entity": "smartwatch",
-      "universe": "all current models sold by Amazon, Best Buy and Walmart (US) plus the full current catalogs of the leading manufacturers",
+      "universe": "all current models sold by the major retailers of every large market (Amazon, Walmart, Best Buy, JD.com, Tmall, Flipkart, Rakuten, Coupang, Mercado Libre, Jumia, Noon) plus the full current catalogs of the leading global and local manufacturers",
       "criteria": [
        "price",
        "battery days",
@@ -10185,7 +10185,7 @@
       "kind": "commercial",
       "description": "Every fitness tracker compared and ranked on price, battery days and more.",
       "entity": "fitness tracker",
-      "universe": "all current models sold by Amazon, Best Buy and Walmart (US) plus the full current catalogs of the leading manufacturers",
+      "universe": "all current models sold by the major retailers of every large market (Amazon, Walmart, Best Buy, JD.com, Tmall, Flipkart, Rakuten, Coupang, Mercado Libre, Jumia, Noon) plus the full current catalogs of the leading global and local manufacturers",
       "criteria": [
        "price",
        "battery days",
@@ -10262,7 +10262,7 @@
       "kind": "commercial",
       "description": "Every laptop compared and ranked on price, CPU benchmark and more.",
       "entity": "laptop",
-      "universe": "all current models sold by Amazon, Best Buy and Walmart (US) plus the full current catalogs of the leading manufacturers",
+      "universe": "all current models sold by the major retailers of every large market (Amazon, Walmart, Best Buy, JD.com, Tmall, Flipkart, Rakuten, Coupang, Mercado Libre, Jumia, Noon) plus the full current catalogs of the leading global and local manufacturers",
       "criteria": [
        "price",
        "CPU benchmark",
@@ -10288,7 +10288,7 @@
       "kind": "commercial",
       "description": "Every gaming laptop compared and ranked on price, GPU and more.",
       "entity": "gaming laptop",
-      "universe": "all current models sold by Amazon, Best Buy and Walmart (US) plus the full current catalogs of the leading manufacturers",
+      "universe": "all current models sold by the major retailers of every large market (Amazon, Walmart, Best Buy, JD.com, Tmall, Flipkart, Rakuten, Coupang, Mercado Libre, Jumia, Noon) plus the full current catalogs of the leading global and local manufacturers",
       "criteria": [
        "price",
        "GPU (TGP)",
@@ -10359,7 +10359,7 @@
       "kind": "commercial",
       "description": "Every monitor compared and ranked on price, size and more.",
       "entity": "monitor",
-      "universe": "all current models sold by Amazon, Best Buy and Walmart (US) plus the full current catalogs of the leading manufacturers",
+      "universe": "all current models sold by the major retailers of every large market (Amazon, Walmart, Best Buy, JD.com, Tmall, Flipkart, Rakuten, Coupang, Mercado Libre, Jumia, Noon) plus the full current catalogs of the leading global and local manufacturers",
       "criteria": [
        "price",
        "size",
@@ -10702,7 +10702,7 @@
       "kind": "commercial",
       "description": "Every computer mouse compared and ranked on price, weight and more.",
       "entity": "computer mouse",
-      "universe": "all current models sold by Amazon, Best Buy and Walmart (US) plus the full current catalogs of the leading manufacturers",
+      "universe": "all current models sold by the major retailers of every large market (Amazon, Walmart, Best Buy, JD.com, Tmall, Flipkart, Rakuten, Coupang, Mercado Libre, Jumia, Noon) plus the full current catalogs of the leading global and local manufacturers",
       "criteria": [
        "price",
        "weight",
@@ -10727,7 +10727,7 @@
       "kind": "commercial",
       "description": "Every webcam compared and ranked on price, resolution and more.",
       "entity": "webcam",
-      "universe": "all current models sold by Amazon, Best Buy and Walmart (US) plus the full current catalogs of the leading manufacturers",
+      "universe": "all current models sold by the major retailers of every large market (Amazon, Walmart, Best Buy, JD.com, Tmall, Flipkart, Rakuten, Coupang, Mercado Libre, Jumia, Noon) plus the full current catalogs of the leading global and local manufacturers",
       "criteria": [
        "price",
        "resolution",
@@ -10750,7 +10750,7 @@
       "kind": "commercial",
       "description": "Every printer compared and ranked on price, cost per page and more.",
       "entity": "printer",
-      "universe": "all current models sold by Amazon, Best Buy and Walmart (US) plus the full current catalogs of the leading manufacturers",
+      "universe": "all current models sold by the major retailers of every large market (Amazon, Walmart, Best Buy, JD.com, Tmall, Flipkart, Rakuten, Coupang, Mercado Libre, Jumia, Noon) plus the full current catalogs of the leading global and local manufacturers",
       "criteria": [
        "price",
        "cost per page",
@@ -10906,7 +10906,7 @@
       "kind": "commercial",
       "description": "Every Wi-Fi router compared and ranked on price, Wi-Fi standard and more.",
       "entity": "Wi-Fi router",
-      "universe": "all current models sold by Amazon, Best Buy and Walmart (US) plus the full current catalogs of the leading manufacturers",
+      "universe": "all current models sold by the major retailers of every large market (Amazon, Walmart, Best Buy, JD.com, Tmall, Flipkart, Rakuten, Coupang, Mercado Libre, Jumia, Noon) plus the full current catalogs of the leading global and local manufacturers",
       "criteria": [
        "price",
        "Wi-Fi standard",
@@ -10931,7 +10931,7 @@
       "kind": "commercial",
       "description": "Every mesh Wi-Fi system compared and ranked on price, nodes and more.",
       "entity": "mesh Wi-Fi system",
-      "universe": "all current models sold by Amazon, Best Buy and Walmart (US) plus the full current catalogs of the leading manufacturers",
+      "universe": "all current models sold by the major retailers of every large market (Amazon, Walmart, Best Buy, JD.com, Tmall, Flipkart, Rakuten, Coupang, Mercado Libre, Jumia, Noon) plus the full current catalogs of the leading global and local manufacturers",
       "criteria": [
        "price",
        "nodes",
@@ -10992,7 +10992,7 @@
         "kind": "commercial",
         "description": "Every headphone compared and ranked on price, noise cancelling and more.",
         "entity": "headphone",
-        "universe": "all current models sold by Amazon, Best Buy and Walmart (US) plus the full current catalogs of the leading manufacturers",
+        "universe": "all current models sold by the major retailers of every large market (Amazon, Walmart, Best Buy, JD.com, Tmall, Flipkart, Rakuten, Coupang, Mercado Libre, Jumia, Noon) plus the full current catalogs of the leading global and local manufacturers",
         "criteria": [
          "price",
          "noise cancelling",
@@ -11016,7 +11016,7 @@
         "kind": "commercial",
         "description": "Every pair of wireless earbuds compared and ranked on price, noise cancelling and more.",
         "entity": "pair of wireless earbuds",
-        "universe": "all current models sold by Amazon, Best Buy and Walmart (US) plus the full current catalogs of the leading manufacturers",
+        "universe": "all current models sold by the major retailers of every large market (Amazon, Walmart, Best Buy, JD.com, Tmall, Flipkart, Rakuten, Coupang, Mercado Libre, Jumia, Noon) plus the full current catalogs of the leading global and local manufacturers",
         "criteria": [
          "price",
          "noise cancelling",
@@ -11116,7 +11116,7 @@
         "kind": "commercial",
         "description": "Every Bluetooth speaker compared and ranked on price, loudness and more.",
         "entity": "Bluetooth speaker",
-        "universe": "all current models sold by Amazon, Best Buy and Walmart (US) plus the full current catalogs of the leading manufacturers",
+        "universe": "all current models sold by the major retailers of every large market (Amazon, Walmart, Best Buy, JD.com, Tmall, Flipkart, Rakuten, Coupang, Mercado Libre, Jumia, Noon) plus the full current catalogs of the leading global and local manufacturers",
         "criteria": [
          "price",
          "loudness",
@@ -11139,7 +11139,7 @@
         "kind": "commercial",
         "description": "Every soundbar compared and ranked on price, channels and more.",
         "entity": "soundbar",
-        "universe": "all current models sold by Amazon, Best Buy and Walmart (US) plus the full current catalogs of the leading manufacturers",
+        "universe": "all current models sold by the major retailers of every large market (Amazon, Walmart, Best Buy, JD.com, Tmall, Flipkart, Rakuten, Coupang, Mercado Libre, Jumia, Noon) plus the full current catalogs of the leading global and local manufacturers",
         "criteria": [
          "price",
          "channels",
@@ -11232,7 +11232,7 @@
         "kind": "commercial",
         "description": "Every smart speaker compared and ranked on price, sound score and more.",
         "entity": "smart speaker",
-        "universe": "all current models sold by Amazon, Best Buy and Walmart (US) plus the full current catalogs of the leading manufacturers",
+        "universe": "all current models sold by the major retailers of every large market (Amazon, Walmart, Best Buy, JD.com, Tmall, Flipkart, Rakuten, Coupang, Mercado Libre, Jumia, Noon) plus the full current catalogs of the leading global and local manufacturers",
         "criteria": [
          "price",
          "sound score",
@@ -11494,7 +11494,7 @@
       "kind": "commercial",
       "description": "Every TV compared and ranked on price, panel type and more.",
       "entity": "TV",
-      "universe": "all current models sold by Amazon, Best Buy and Walmart (US) plus the full current catalogs of the leading manufacturers",
+      "universe": "all current models sold by the major retailers of every large market (Amazon, Walmart, Best Buy, JD.com, Tmall, Flipkart, Rakuten, Coupang, Mercado Libre, Jumia, Noon) plus the full current catalogs of the leading global and local manufacturers",
       "criteria": [
        "price",
        "panel type",
@@ -11520,7 +11520,7 @@
       "kind": "commercial",
       "description": "Every projector compared and ranked on price, brightness and more.",
       "entity": "projector",
-      "universe": "all current models sold by Amazon, Best Buy and Walmart (US) plus the full current catalogs of the leading manufacturers",
+      "universe": "all current models sold by the major retailers of every large market (Amazon, Walmart, Best Buy, JD.com, Tmall, Flipkart, Rakuten, Coupang, Mercado Libre, Jumia, Noon) plus the full current catalogs of the leading global and local manufacturers",
       "criteria": [
        "price",
        "brightness (ANSI lumens)",
@@ -11831,7 +11831,7 @@
       "kind": "commercial",
       "description": "Every gaming headset compared and ranked on price, mic quality and more.",
       "entity": "gaming headset",
-      "universe": "all current models sold by Amazon, Best Buy and Walmart (US) plus the full current catalogs of the leading manufacturers",
+      "universe": "all current models sold by the major retailers of every large market (Amazon, Walmart, Best Buy, JD.com, Tmall, Flipkart, Rakuten, Coupang, Mercado Libre, Jumia, Noon) plus the full current catalogs of the leading global and local manufacturers",
       "criteria": [
        "price",
        "mic quality",
@@ -12000,7 +12000,7 @@
       "kind": "commercial",
       "description": "Every smart thermostat compared and ranked on price, energy savings claim and more.",
       "entity": "smart thermostat",
-      "universe": "all current models sold by Amazon, Best Buy and Walmart (US) plus the full current catalogs of the leading manufacturers",
+      "universe": "all current models sold by the major retailers of every large market (Amazon, Walmart, Best Buy, JD.com, Tmall, Flipkart, Rakuten, Coupang, Mercado Libre, Jumia, Noon) plus the full current catalogs of the leading global and local manufacturers",
       "criteria": [
        "price",
        "energy savings claim",
@@ -12023,7 +12023,7 @@
       "kind": "commercial",
       "description": "Every video doorbell compared and ranked on price, resolution and more.",
       "entity": "video doorbell",
-      "universe": "all current models sold by Amazon, Best Buy and Walmart (US) plus the full current catalogs of the leading manufacturers",
+      "universe": "all current models sold by the major retailers of every large market (Amazon, Walmart, Best Buy, JD.com, Tmall, Flipkart, Rakuten, Coupang, Mercado Libre, Jumia, Noon) plus the full current catalogs of the leading global and local manufacturers",
       "criteria": [
        "price",
        "resolution",
@@ -12045,7 +12045,7 @@
       "kind": "commercial",
       "description": "Every security camera compared and ranked on price, resolution and more.",
       "entity": "security camera",
-      "universe": "all current models sold by Amazon, Best Buy and Walmart (US) plus the full current catalogs of the leading manufacturers",
+      "universe": "all current models sold by the major retailers of every large market (Amazon, Walmart, Best Buy, JD.com, Tmall, Flipkart, Rakuten, Coupang, Mercado Libre, Jumia, Noon) plus the full current catalogs of the leading global and local manufacturers",
       "criteria": [
        "price",
        "resolution",
@@ -12070,7 +12070,7 @@
       "kind": "commercial",
       "description": "Every smart lock compared and ranked on price, unlock methods and more.",
       "entity": "smart lock",
-      "universe": "all current models sold by Amazon, Best Buy and Walmart (US) plus the full current catalogs of the leading manufacturers",
+      "universe": "all current models sold by the major retailers of every large market (Amazon, Walmart, Best Buy, JD.com, Tmall, Flipkart, Rakuten, Coupang, Mercado Libre, Jumia, Noon) plus the full current catalogs of the leading global and local manufacturers",
       "criteria": [
        "price",
        "unlock methods",
@@ -12093,7 +12093,7 @@
       "kind": "commercial",
       "description": "Every smart bulb compared and ranked on price per bulb, brightness lumens and more.",
       "entity": "smart bulb",
-      "universe": "all current models sold by Amazon, Best Buy and Walmart (US) plus the full current catalogs of the leading manufacturers",
+      "universe": "all current models sold by the major retailers of every large market (Amazon, Walmart, Best Buy, JD.com, Tmall, Flipkart, Rakuten, Coupang, Mercado Libre, Jumia, Noon) plus the full current catalogs of the leading global and local manufacturers",
       "criteria": [
        "price per bulb",
        "brightness lumens",
@@ -12114,7 +12114,7 @@
       "kind": "commercial",
       "description": "Every smart plug or hub compared and ranked on price, protocol and more.",
       "entity": "smart plug or hub",
-      "universe": "all current models sold by Amazon, Best Buy and Walmart (US) plus the full current catalogs of the leading manufacturers",
+      "universe": "all current models sold by the major retailers of every large market (Amazon, Walmart, Best Buy, JD.com, Tmall, Flipkart, Rakuten, Coupang, Mercado Libre, Jumia, Noon) plus the full current catalogs of the leading global and local manufacturers",
       "criteria": [
        "price",
        "protocol (Matter/Zigbee/Thread)",
@@ -12413,7 +12413,7 @@
       "kind": "commercial",
       "description": "Every drip coffee maker compared and ranked on price, SCA certification and more.",
       "entity": "drip coffee maker",
-      "universe": "all current models sold by Amazon, Best Buy and Walmart (US) plus the full current catalogs of the leading manufacturers",
+      "universe": "all current models sold by the major retailers of every large market (Amazon, Walmart, Best Buy, JD.com, Tmall, Flipkart, Rakuten, Coupang, Mercado Libre, Jumia, Noon) plus the full current catalogs of the leading global and local manufacturers",
       "criteria": [
        "price",
        "SCA certification",
@@ -12764,7 +12764,7 @@
         "kind": "commercial",
         "description": "Every air fryer compared and ranked on price, capacity and more.",
         "entity": "air fryer",
-        "universe": "all current models sold by Amazon, Best Buy and Walmart (US) plus the full current catalogs of the leading manufacturers",
+        "universe": "all current models sold by the major retailers of every large market (Amazon, Walmart, Best Buy, JD.com, Tmall, Flipkart, Rakuten, Coupang, Mercado Libre, Jumia, Noon) plus the full current catalogs of the leading global and local manufacturers",
         "criteria": [
          "price",
          "capacity",
@@ -12788,7 +12788,7 @@
         "kind": "commercial",
         "description": "Every blender compared and ranked on price, motor power and more.",
         "entity": "blender",
-        "universe": "all current models sold by Amazon, Best Buy and Walmart (US) plus the full current catalogs of the leading manufacturers",
+        "universe": "all current models sold by the major retailers of every large market (Amazon, Walmart, Best Buy, JD.com, Tmall, Flipkart, Rakuten, Coupang, Mercado Libre, Jumia, Noon) plus the full current catalogs of the leading global and local manufacturers",
         "criteria": [
          "price",
          "motor power",
@@ -12811,7 +12811,7 @@
         "kind": "commercial",
         "description": "Every stand mixer compared and ranked on price, bowl capacity and more.",
         "entity": "stand mixer",
-        "universe": "all current models sold by Amazon, Best Buy and Walmart (US) plus the full current catalogs of the leading manufacturers",
+        "universe": "all current models sold by the major retailers of every large market (Amazon, Walmart, Best Buy, JD.com, Tmall, Flipkart, Rakuten, Coupang, Mercado Libre, Jumia, Noon) plus the full current catalogs of the leading global and local manufacturers",
         "criteria": [
          "price",
          "bowl capacity",
@@ -12834,7 +12834,7 @@
         "kind": "commercial",
         "description": "Every food processor compared and ranked on price, capacity and more.",
         "entity": "food processor",
-        "universe": "all current models sold by Amazon, Best Buy and Walmart (US) plus the full current catalogs of the leading manufacturers",
+        "universe": "all current models sold by the major retailers of every large market (Amazon, Walmart, Best Buy, JD.com, Tmall, Flipkart, Rakuten, Coupang, Mercado Libre, Jumia, Noon) plus the full current catalogs of the leading global and local manufacturers",
         "criteria": [
          "price",
          "capacity",
@@ -12855,7 +12855,7 @@
         "kind": "commercial",
         "description": "Every multicooker compared and ranked on price, capacity and more.",
         "entity": "multicooker",
-        "universe": "all current models sold by Amazon, Best Buy and Walmart (US) plus the full current catalogs of the leading manufacturers",
+        "universe": "all current models sold by the major retailers of every large market (Amazon, Walmart, Best Buy, JD.com, Tmall, Flipkart, Rakuten, Coupang, Mercado Libre, Jumia, Noon) plus the full current catalogs of the leading global and local manufacturers",
         "criteria": [
          "price",
          "capacity",
@@ -12898,7 +12898,7 @@
         "kind": "commercial",
         "description": "Every countertop oven compared and ranked on price, capacity and more.",
         "entity": "countertop oven",
-        "universe": "all current models sold by Amazon, Best Buy and Walmart (US) plus the full current catalogs of the leading manufacturers",
+        "universe": "all current models sold by the major retailers of every large market (Amazon, Walmart, Best Buy, JD.com, Tmall, Flipkart, Rakuten, Coupang, Mercado Libre, Jumia, Noon) plus the full current catalogs of the leading global and local manufacturers",
         "criteria": [
          "price",
          "capacity",
@@ -12919,7 +12919,7 @@
         "kind": "commercial",
         "description": "Every microwave compared and ranked on price, capacity and more.",
         "entity": "microwave",
-        "universe": "all current models sold by Amazon, Best Buy and Walmart (US) plus the full current catalogs of the leading manufacturers",
+        "universe": "all current models sold by the major retailers of every large market (Amazon, Walmart, Best Buy, JD.com, Tmall, Flipkart, Rakuten, Coupang, Mercado Libre, Jumia, Noon) plus the full current catalogs of the leading global and local manufacturers",
         "criteria": [
          "price",
          "capacity",
@@ -12941,7 +12941,7 @@
         "kind": "commercial",
         "description": "Every electric kettle compared and ranked on price, capacity and more.",
         "entity": "electric kettle",
-        "universe": "all current models sold by Amazon, Best Buy and Walmart (US) plus the full current catalogs of the leading manufacturers",
+        "universe": "all current models sold by the major retailers of every large market (Amazon, Walmart, Best Buy, JD.com, Tmall, Flipkart, Rakuten, Coupang, Mercado Libre, Jumia, Noon) plus the full current catalogs of the leading global and local manufacturers",
         "criteria": [
          "price",
          "capacity",
@@ -12962,7 +12962,7 @@
         "kind": "commercial",
         "description": "Every juicer compared and ranked on price, type and more.",
         "entity": "juicer",
-        "universe": "all current models sold by Amazon, Best Buy and Walmart (US) plus the full current catalogs of the leading manufacturers",
+        "universe": "all current models sold by the major retailers of every large market (Amazon, Walmart, Best Buy, JD.com, Tmall, Flipkart, Rakuten, Coupang, Mercado Libre, Jumia, Noon) plus the full current catalogs of the leading global and local manufacturers",
         "criteria": [
          "price",
          "type (masticating/centrifugal)",
@@ -12983,7 +12983,7 @@
         "kind": "commercial",
         "description": "Every sous vide cooker compared and ranked on price, wattage and more.",
         "entity": "sous vide cooker",
-        "universe": "all current models sold by Amazon, Best Buy and Walmart (US) plus the full current catalogs of the leading manufacturers",
+        "universe": "all current models sold by the major retailers of every large market (Amazon, Walmart, Best Buy, JD.com, Tmall, Flipkart, Rakuten, Coupang, Mercado Libre, Jumia, Noon) plus the full current catalogs of the leading global and local manufacturers",
         "criteria": [
          "price",
          "wattage",
@@ -13056,7 +13056,7 @@
         "kind": "commercial",
         "description": "Every refrigerator compared and ranked on price, capacity and more.",
         "entity": "refrigerator",
-        "universe": "all current models sold by Amazon, Best Buy and Walmart (US) plus the full current catalogs of the leading manufacturers",
+        "universe": "all current models sold by the major retailers of every large market (Amazon, Walmart, Best Buy, JD.com, Tmall, Flipkart, Rakuten, Coupang, Mercado Libre, Jumia, Noon) plus the full current catalogs of the leading global and local manufacturers",
         "criteria": [
          "price",
          "capacity",
@@ -13081,7 +13081,7 @@
         "kind": "commercial",
         "description": "Every dishwasher compared and ranked on price, noise dB and more.",
         "entity": "dishwasher",
-        "universe": "all current models sold by Amazon, Best Buy and Walmart (US) plus the full current catalogs of the leading manufacturers",
+        "universe": "all current models sold by the major retailers of every large market (Amazon, Walmart, Best Buy, JD.com, Tmall, Flipkart, Rakuten, Coupang, Mercado Libre, Jumia, Noon) plus the full current catalogs of the leading global and local manufacturers",
         "criteria": [
          "price",
          "noise dB",
@@ -13105,7 +13105,7 @@
         "kind": "commercial",
         "description": "Every range compared and ranked on price, fuel and more.",
         "entity": "range",
-        "universe": "all current models sold by Amazon, Best Buy and Walmart (US) plus the full current catalogs of the leading manufacturers",
+        "universe": "all current models sold by the major retailers of every large market (Amazon, Walmart, Best Buy, JD.com, Tmall, Flipkart, Rakuten, Coupang, Mercado Libre, Jumia, Noon) plus the full current catalogs of the leading global and local manufacturers",
         "criteria": [
          "price",
          "fuel (gas/electric/induction)",
@@ -13223,7 +13223,7 @@
       "kind": "commercial",
       "description": "Every cookware set compared and ranked on price, material and more.",
       "entity": "cookware set",
-      "universe": "all current models sold by Amazon, Best Buy and Walmart (US) plus the full current catalogs of the leading manufacturers",
+      "universe": "all current models sold by the major retailers of every large market (Amazon, Walmart, Best Buy, JD.com, Tmall, Flipkart, Rakuten, Coupang, Mercado Libre, Jumia, Noon) plus the full current catalogs of the leading global and local manufacturers",
       "criteria": [
        "price",
        "material",
@@ -13246,7 +13246,7 @@
       "kind": "commercial",
       "description": "Every nonstick pan compared and ranked on price, coating type and more.",
       "entity": "nonstick pan",
-      "universe": "all current models sold by Amazon, Best Buy and Walmart (US) plus the full current catalogs of the leading manufacturers",
+      "universe": "all current models sold by the major retailers of every large market (Amazon, Walmart, Best Buy, JD.com, Tmall, Flipkart, Rakuten, Coupang, Mercado Libre, Jumia, Noon) plus the full current catalogs of the leading global and local manufacturers",
       "criteria": [
        "price",
        "coating type",
@@ -13324,7 +13324,7 @@
         "kind": "commercial",
         "description": "Every robot vacuum compared and ranked on price, suction and more.",
         "entity": "robot vacuum",
-        "universe": "all current models sold by Amazon, Best Buy and Walmart (US) plus the full current catalogs of the leading manufacturers",
+        "universe": "all current models sold by the major retailers of every large market (Amazon, Walmart, Best Buy, JD.com, Tmall, Flipkart, Rakuten, Coupang, Mercado Libre, Jumia, Noon) plus the full current catalogs of the leading global and local manufacturers",
         "criteria": [
          "price",
          "suction (Pa)",
@@ -13349,7 +13349,7 @@
         "kind": "commercial",
         "description": "Every cordless vacuum compared and ranked on price, suction and more.",
         "entity": "cordless vacuum",
-        "universe": "all current models sold by Amazon, Best Buy and Walmart (US) plus the full current catalogs of the leading manufacturers",
+        "universe": "all current models sold by the major retailers of every large market (Amazon, Walmart, Best Buy, JD.com, Tmall, Flipkart, Rakuten, Coupang, Mercado Libre, Jumia, Noon) plus the full current catalogs of the leading global and local manufacturers",
         "criteria": [
          "price",
          "suction (AW)",
@@ -13372,7 +13372,7 @@
         "kind": "commercial",
         "description": "Every upright or canister vacuum compared and ranked on price, airflow and more.",
         "entity": "upright or canister vacuum",
-        "universe": "all current models sold by Amazon, Best Buy and Walmart (US) plus the full current catalogs of the leading manufacturers",
+        "universe": "all current models sold by the major retailers of every large market (Amazon, Walmart, Best Buy, JD.com, Tmall, Flipkart, Rakuten, Coupang, Mercado Libre, Jumia, Noon) plus the full current catalogs of the leading global and local manufacturers",
         "criteria": [
          "price",
          "airflow",
@@ -13393,7 +13393,7 @@
         "kind": "commercial",
         "description": "Every floor washer compared and ranked on price, tank size and more.",
         "entity": "floor washer",
-        "universe": "all current models sold by Amazon, Best Buy and Walmart (US) plus the full current catalogs of the leading manufacturers",
+        "universe": "all current models sold by the major retailers of every large market (Amazon, Walmart, Best Buy, JD.com, Tmall, Flipkart, Rakuten, Coupang, Mercado Libre, Jumia, Noon) plus the full current catalogs of the leading global and local manufacturers",
         "criteria": [
          "price",
          "tank size",
@@ -13422,7 +13422,7 @@
         "kind": "commercial",
         "description": "Every washing machine compared and ranked on price, capacity and more.",
         "entity": "washing machine",
-        "universe": "all current models sold by Amazon, Best Buy and Walmart (US) plus the full current catalogs of the leading manufacturers",
+        "universe": "all current models sold by the major retailers of every large market (Amazon, Walmart, Best Buy, JD.com, Tmall, Flipkart, Rakuten, Coupang, Mercado Libre, Jumia, Noon) plus the full current catalogs of the leading global and local manufacturers",
         "criteria": [
          "price",
          "capacity",
@@ -13447,7 +13447,7 @@
         "kind": "commercial",
         "description": "Every clothes dryer compared and ranked on price, type and more.",
         "entity": "clothes dryer",
-        "universe": "all current models sold by Amazon, Best Buy and Walmart (US) plus the full current catalogs of the leading manufacturers",
+        "universe": "all current models sold by the major retailers of every large market (Amazon, Walmart, Best Buy, JD.com, Tmall, Flipkart, Rakuten, Coupang, Mercado Libre, Jumia, Noon) plus the full current catalogs of the leading global and local manufacturers",
         "criteria": [
          "price",
          "type (heat pump/vented)",
@@ -13477,7 +13477,7 @@
         "kind": "commercial",
         "description": "Every air purifier compared and ranked on price, CADR and more.",
         "entity": "air purifier",
-        "universe": "all current models sold by Amazon, Best Buy and Walmart (US) plus the full current catalogs of the leading manufacturers",
+        "universe": "all current models sold by the major retailers of every large market (Amazon, Walmart, Best Buy, JD.com, Tmall, Flipkart, Rakuten, Coupang, Mercado Libre, Jumia, Noon) plus the full current catalogs of the leading global and local manufacturers",
         "criteria": [
          "price",
          "CADR",
@@ -13502,7 +13502,7 @@
         "kind": "commercial",
         "description": "Every dehumidifier compared and ranked on price, pints per day and more.",
         "entity": "dehumidifier",
-        "universe": "all current models sold by Amazon, Best Buy and Walmart (US) plus the full current catalogs of the leading manufacturers",
+        "universe": "all current models sold by the major retailers of every large market (Amazon, Walmart, Best Buy, JD.com, Tmall, Flipkart, Rakuten, Coupang, Mercado Libre, Jumia, Noon) plus the full current catalogs of the leading global and local manufacturers",
         "criteria": [
          "price",
          "pints per day",
@@ -13524,7 +13524,7 @@
         "kind": "commercial",
         "description": "Every humidifier compared and ranked on price, output and more.",
         "entity": "humidifier",
-        "universe": "all current models sold by Amazon, Best Buy and Walmart (US) plus the full current catalogs of the leading manufacturers",
+        "universe": "all current models sold by the major retailers of every large market (Amazon, Walmart, Best Buy, JD.com, Tmall, Flipkart, Rakuten, Coupang, Mercado Libre, Jumia, Noon) plus the full current catalogs of the leading global and local manufacturers",
         "criteria": [
          "price",
          "output",
@@ -13545,7 +13545,7 @@
         "kind": "commercial",
         "description": "Every air conditioner compared and ranked on price, BTU and more.",
         "entity": "air conditioner",
-        "universe": "window, portable and mini-split units sold in the US and EU",
+        "universe": "window, portable and mini-split units sold in any major market worldwide and EU",
         "criteria": [
          "price",
          "BTU",
@@ -13591,7 +13591,7 @@
         "kind": "commercial",
         "description": "Every space heater compared and ranked on price, wattage and more.",
         "entity": "space heater",
-        "universe": "all current models sold by Amazon, Best Buy and Walmart (US) plus the full current catalogs of the leading manufacturers",
+        "universe": "all current models sold by the major retailers of every large market (Amazon, Walmart, Best Buy, JD.com, Tmall, Flipkart, Rakuten, Coupang, Mercado Libre, Jumia, Noon) plus the full current catalogs of the leading global and local manufacturers",
         "criteria": [
          "price",
          "wattage",
@@ -13613,7 +13613,7 @@
         "kind": "commercial",
         "description": "Every fan compared and ranked on price, airflow CFM and more.",
         "entity": "fan",
-        "universe": "all current models sold by Amazon, Best Buy and Walmart (US) plus the full current catalogs of the leading manufacturers",
+        "universe": "all current models sold by the major retailers of every large market (Amazon, Walmart, Best Buy, JD.com, Tmall, Flipkart, Rakuten, Coupang, Mercado Libre, Jumia, Noon) plus the full current catalogs of the leading global and local manufacturers",
         "criteria": [
          "price",
          "airflow CFM",
@@ -13713,7 +13713,7 @@
       "kind": "commercial",
       "description": "Every pillow compared and ranked on price, fill and more.",
       "entity": "pillow",
-      "universe": "all current models sold by Amazon, Best Buy and Walmart (US) plus the full current catalogs of the leading manufacturers",
+      "universe": "all current models sold by the major retailers of every large market (Amazon, Walmart, Best Buy, JD.com, Tmall, Flipkart, Rakuten, Coupang, Mercado Libre, Jumia, Noon) plus the full current catalogs of the leading global and local manufacturers",
       "criteria": [
        "price",
        "fill",
@@ -13734,7 +13734,7 @@
       "kind": "commercial",
       "description": "Every sheet set compared and ranked on price, material and more.",
       "entity": "sheet set",
-      "universe": "all current models sold by Amazon, Best Buy and Walmart (US) plus the full current catalogs of the leading manufacturers",
+      "universe": "all current models sold by the major retailers of every large market (Amazon, Walmart, Best Buy, JD.com, Tmall, Flipkart, Rakuten, Coupang, Mercado Libre, Jumia, Noon) plus the full current catalogs of the leading global and local manufacturers",
       "criteria": [
        "price",
        "material",
@@ -13777,7 +13777,7 @@
       "kind": "commercial",
       "description": "Every mattress topper compared and ranked on price, material and more.",
       "entity": "mattress topper",
-      "universe": "all current models sold by Amazon, Best Buy and Walmart (US) plus the full current catalogs of the leading manufacturers",
+      "universe": "all current models sold by the major retailers of every large market (Amazon, Walmart, Best Buy, JD.com, Tmall, Flipkart, Rakuten, Coupang, Mercado Libre, Jumia, Noon) plus the full current catalogs of the leading global and local manufacturers",
       "criteria": [
        "price",
        "material",
@@ -14293,7 +14293,7 @@
       "kind": "commercial",
       "description": "Every tool set compared and ranked on price, pieces and more.",
       "entity": "tool set",
-      "universe": "all current models sold by Amazon, Best Buy and Walmart (US) plus the full current catalogs of the leading manufacturers",
+      "universe": "all current models sold by the major retailers of every large market (Amazon, Walmart, Best Buy, JD.com, Tmall, Flipkart, Rakuten, Coupang, Mercado Libre, Jumia, Noon) plus the full current catalogs of the leading global and local manufacturers",
       "criteria": [
        "price",
        "pieces",
@@ -14314,7 +14314,7 @@
       "kind": "commercial",
       "description": "Every pressure washer compared and ranked on price, PSI and more.",
       "entity": "pressure washer",
-      "universe": "all current models sold by Amazon, Best Buy and Walmart (US) plus the full current catalogs of the leading manufacturers",
+      "universe": "all current models sold by the major retailers of every large market (Amazon, Walmart, Best Buy, JD.com, Tmall, Flipkart, Rakuten, Coupang, Mercado Libre, Jumia, Noon) plus the full current catalogs of the leading global and local manufacturers",
       "criteria": [
        "price",
        "PSI",
@@ -14359,7 +14359,7 @@
       "kind": "commercial",
       "description": "Every ladder compared and ranked on price, height and more.",
       "entity": "ladder",
-      "universe": "all current models sold by Amazon, Best Buy and Walmart (US) plus the full current catalogs of the leading manufacturers",
+      "universe": "all current models sold by the major retailers of every large market (Amazon, Walmart, Best Buy, JD.com, Tmall, Flipkart, Rakuten, Coupang, Mercado Libre, Jumia, Noon) plus the full current catalogs of the leading global and local manufacturers",
       "criteria": [
        "price",
        "height",
@@ -14380,7 +14380,7 @@
       "kind": "commercial",
       "description": "Welding machines compared on process, amperage and duty cycle.",
       "entity": "product",
-      "universe": "every MIG, TIG, stick and multiprocess welder sold in the US",
+      "universe": "every MIG, TIG, stick and multiprocess welder sold in any major market worldwide",
       "criteria": [
        "processes",
        "max amperage and duty cycle at rated amps",
@@ -14401,7 +14401,7 @@
       "kind": "commercial",
       "description": "Air compressors compared on CFM, tank and noise.",
       "entity": "product",
-      "universe": "every portable and stationary air compressor sold in the US",
+      "universe": "every portable and stationary air compressor sold in any major market worldwide",
       "criteria": [
        "CFM at 90 PSI and tank (gal)",
        "noise (dB)",
@@ -14443,7 +14443,7 @@
       "kind": "commercial",
       "description": "Vending machines compared on capacity, payments and price.",
       "entity": "product",
-      "universe": "every snack, drink, combo and smart-fridge vending machine sold in the US",
+      "universe": "every snack, drink, combo and smart-fridge vending machine sold in any major market worldwide",
       "criteria": [
        "selections and capacity",
        "cashless payment support",
@@ -14516,7 +14516,7 @@
       "kind": "commercial",
       "description": "Every grill compared and ranked on price, cooking area and more.",
       "entity": "grill",
-      "universe": "all current models sold by Amazon, Best Buy and Walmart (US) plus the full current catalogs of the leading manufacturers",
+      "universe": "all current models sold by the major retailers of every large market (Amazon, Walmart, Best Buy, JD.com, Tmall, Flipkart, Rakuten, Coupang, Mercado Libre, Jumia, Noon) plus the full current catalogs of the leading global and local manufacturers",
       "criteria": [
        "price",
        "cooking area",
@@ -14562,7 +14562,7 @@
       "kind": "commercial",
       "description": "Every leaf blower or trimmer compared and ranked on price, CFM / cutting width and more.",
       "entity": "leaf blower or trimmer",
-      "universe": "all current models sold by Amazon, Best Buy and Walmart (US) plus the full current catalogs of the leading manufacturers",
+      "universe": "all current models sold by the major retailers of every large market (Amazon, Walmart, Best Buy, JD.com, Tmall, Flipkart, Rakuten, Coupang, Mercado Libre, Jumia, Noon) plus the full current catalogs of the leading global and local manufacturers",
       "criteria": [
        "price",
        "CFM / cutting width",
@@ -14583,7 +14583,7 @@
       "kind": "commercial",
       "description": "Every chainsaw compared and ranked on price, bar length and more.",
       "entity": "chainsaw",
-      "universe": "all current models sold by Amazon, Best Buy and Walmart (US) plus the full current catalogs of the leading manufacturers",
+      "universe": "all current models sold by the major retailers of every large market (Amazon, Walmart, Best Buy, JD.com, Tmall, Flipkart, Rakuten, Coupang, Mercado Libre, Jumia, Noon) plus the full current catalogs of the leading global and local manufacturers",
       "criteria": [
        "price",
        "bar length",
@@ -14671,7 +14671,7 @@
       "kind": "commercial",
       "description": "Every garden tool compared and ranked on price, material and more.",
       "entity": "garden tool",
-      "universe": "all current models sold by Amazon, Best Buy and Walmart (US) plus the full current catalogs of the leading manufacturers",
+      "universe": "all current models sold by the major retailers of every large market (Amazon, Walmart, Best Buy, JD.com, Tmall, Flipkart, Rakuten, Coupang, Mercado Libre, Jumia, Noon) plus the full current catalogs of the leading global and local manufacturers",
       "criteria": [
        "price",
        "material",
@@ -14691,7 +14691,7 @@
       "kind": "commercial",
       "description": "Every patio furniture set compared and ranked on price, material and more.",
       "entity": "patio furniture set",
-      "universe": "all current models sold by Amazon, Best Buy and Walmart (US) plus the full current catalogs of the leading manufacturers",
+      "universe": "all current models sold by the major retailers of every large market (Amazon, Walmart, Best Buy, JD.com, Tmall, Flipkart, Rakuten, Coupang, Mercado Libre, Jumia, Noon) plus the full current catalogs of the leading global and local manufacturers",
       "criteria": [
        "price",
        "material",
@@ -14755,7 +14755,7 @@
       "kind": "commercial",
       "description": "Snow blowers compared on clearing width, power and price.",
       "entity": "product",
-      "universe": "every single-, two- and three-stage snow blower sold in the US",
+      "universe": "every single-, two- and three-stage snow blower sold in any major market worldwide",
       "criteria": [
        "stages and clearing width",
        "engine cc or battery voltage",
@@ -14797,7 +14797,7 @@
       "kind": "commercial",
       "description": "Above-ground pools and robotic pool cleaners compared.",
       "entity": "product",
-      "universe": "every above-ground pool and robotic pool cleaner sold in the US",
+      "universe": "every above-ground pool and robotic pool cleaner sold in any major market worldwide",
       "criteria": [
        "size/volume or cleaning coverage",
        "material and filter",
@@ -14818,7 +14818,7 @@
       "kind": "commercial",
       "description": "Trampolines and swing sets compared on safety standard and price.",
       "entity": "product",
-      "universe": "every backyard trampoline and playset sold in the US",
+      "universe": "every backyard trampoline and playset sold in any major market worldwide",
       "criteria": [
        "size and weight limit",
        "ASTM F381 / F1148 compliance",
@@ -14840,7 +14840,7 @@
       "kind": "commercial",
       "description": "Personal weather stations compared on sensors, accuracy and price.",
       "entity": "product",
-      "universe": "every personal weather station sold in the US",
+      "universe": "every personal weather station sold in any major market worldwide",
       "criteria": [
        "sensors included",
        "stated accuracy",
@@ -15252,7 +15252,7 @@
       "kind": "commercial",
       "description": "Every safe compared and ranked on price, fire rating and more.",
       "entity": "safe",
-      "universe": "all current models sold by Amazon, Best Buy and Walmart (US) plus the full current catalogs of the leading manufacturers",
+      "universe": "all current models sold by the major retailers of every large market (Amazon, Walmart, Best Buy, JD.com, Tmall, Flipkart, Rakuten, Coupang, Mercado Libre, Jumia, Noon) plus the full current catalogs of the leading global and local manufacturers",
       "criteria": [
        "price",
        "fire rating",
@@ -15274,7 +15274,7 @@
       "kind": "commercial",
       "description": "Every smoke or CO alarm compared and ranked on price, sensor type and more.",
       "entity": "smoke or CO alarm",
-      "universe": "UL-listed alarms sold in the US",
+      "universe": "UL-listed alarms sold in any major market worldwide",
       "criteria": [
        "price",
        "sensor type",
@@ -15296,7 +15296,7 @@
       "kind": "commercial",
       "description": "Bidet attachments and seats compared on features and price.",
       "entity": "product",
-      "universe": "every bidet attachment, seat and integrated smart toilet sold in the US",
+      "universe": "every bidet attachment, seat and integrated smart toilet sold in any major market worldwide",
       "criteria": [
        "type and warm water",
        "dryer and deodorizer",
@@ -15338,7 +15338,7 @@
       "kind": "commercial",
       "description": "Sump pumps compared on flow, head and price.",
       "entity": "product",
-      "universe": "every sump, effluent and well pump sold in the US",
+      "universe": "every sump, effluent and well pump sold in any major market worldwide",
       "criteria": [
        "gallons per hour at 10 ft head",
        "hp and switch type",
@@ -15380,7 +15380,7 @@
       "kind": "commercial",
       "description": "Home saunas and cold-plunge tubs compared on specs and price.",
       "entity": "product",
-      "universe": "every home sauna and cold-plunge tub sold in the US",
+      "universe": "every home sauna and cold-plunge tub sold in any major market worldwide",
       "criteria": [
        "type (traditional, infrared, barrel) or chiller temp",
        "capacity (persons)",
@@ -15402,7 +15402,7 @@
       "kind": "commercial",
       "description": "Long-shelf-life emergency food kits compared on calories and price.",
       "entity": "product",
-      "universe": "every emergency/survival food kit sold in the US",
+      "universe": "every emergency/survival food kit sold in any major market worldwide",
       "criteria": [
        "total calories and servings",
        "shelf life (years)",
@@ -15442,7 +15442,7 @@
       "kind": "commercial",
       "description": "1.4G consumer fireworks compared on duration, shots and price.",
       "entity": "product",
-      "universe": "every consumer (1.4G) firework product sold in the US",
+      "universe": "every consumer (1.4G) firework product sold in any major market worldwide",
       "criteria": [
        "type (cake, fountain, rocket) and shots",
        "duration (s)",
@@ -16019,7 +16019,7 @@
       "kind": "commercial",
       "description": "Every body care product compared and ranked on price per ml, ingredients and more.",
       "entity": "body care product",
-      "universe": "all current models sold by Amazon, Best Buy and Walmart (US) plus the full current catalogs of the leading manufacturers",
+      "universe": "all current models sold by the major retailers of every large market (Amazon, Walmart, Best Buy, JD.com, Tmall, Flipkart, Rakuten, Coupang, Mercado Libre, Jumia, Noon) plus the full current catalogs of the leading global and local manufacturers",
       "criteria": [
        "price per ml",
        "ingredients",
@@ -16318,7 +16318,7 @@
       "kind": "commercial",
       "description": "Every mascara compared and ranked on price, waterproof and more.",
       "entity": "mascara",
-      "universe": "all current models sold by Amazon, Best Buy and Walmart (US) plus the full current catalogs of the leading manufacturers",
+      "universe": "all current models sold by the major retailers of every large market (Amazon, Walmart, Best Buy, JD.com, Tmall, Flipkart, Rakuten, Coupang, Mercado Libre, Jumia, Noon) plus the full current catalogs of the leading global and local manufacturers",
       "criteria": [
        "price",
        "waterproof",
@@ -16340,7 +16340,7 @@
       "kind": "commercial",
       "description": "Every lip product compared and ranked on price, shade count and more.",
       "entity": "lip product",
-      "universe": "all current models sold by Amazon, Best Buy and Walmart (US) plus the full current catalogs of the leading manufacturers",
+      "universe": "all current models sold by the major retailers of every large market (Amazon, Walmart, Best Buy, JD.com, Tmall, Flipkart, Rakuten, Coupang, Mercado Libre, Jumia, Noon) plus the full current catalogs of the leading global and local manufacturers",
       "criteria": [
        "price",
        "shade count",
@@ -16361,7 +16361,7 @@
       "kind": "commercial",
       "description": "Every eyeshadow palette compared and ranked on price per gram, shades and more.",
       "entity": "eyeshadow palette",
-      "universe": "all current models sold by Amazon, Best Buy and Walmart (US) plus the full current catalogs of the leading manufacturers",
+      "universe": "all current models sold by the major retailers of every large market (Amazon, Walmart, Best Buy, JD.com, Tmall, Flipkart, Rakuten, Coupang, Mercado Libre, Jumia, Noon) plus the full current catalogs of the leading global and local manufacturers",
       "criteria": [
        "price per gram",
        "shades",
@@ -16638,7 +16638,7 @@
       "kind": "commercial",
       "description": "Every shampoo compared and ranked on price per ml, sulfate-free and more.",
       "entity": "shampoo",
-      "universe": "all current models sold by Amazon, Best Buy and Walmart (US) plus the full current catalogs of the leading manufacturers",
+      "universe": "all current models sold by the major retailers of every large market (Amazon, Walmart, Best Buy, JD.com, Tmall, Flipkart, Rakuten, Coupang, Mercado Libre, Jumia, Noon) plus the full current catalogs of the leading global and local manufacturers",
       "criteria": [
        "price per ml",
        "sulfate-free",
@@ -16660,7 +16660,7 @@
       "kind": "commercial",
       "description": "Every hair dryer compared and ranked on price, wattage and more.",
       "entity": "hair dryer",
-      "universe": "all current models sold by Amazon, Best Buy and Walmart (US) plus the full current catalogs of the leading manufacturers",
+      "universe": "all current models sold by the major retailers of every large market (Amazon, Walmart, Best Buy, JD.com, Tmall, Flipkart, Rakuten, Coupang, Mercado Libre, Jumia, Noon) plus the full current catalogs of the leading global and local manufacturers",
       "criteria": [
        "price",
        "wattage",
@@ -16682,7 +16682,7 @@
       "kind": "commercial",
       "description": "Every hair styling tool compared and ranked on price, max temperature and more.",
       "entity": "hair styling tool",
-      "universe": "all current models sold by Amazon, Best Buy and Walmart (US) plus the full current catalogs of the leading manufacturers",
+      "universe": "all current models sold by the major retailers of every large market (Amazon, Walmart, Best Buy, JD.com, Tmall, Flipkart, Rakuten, Coupang, Mercado Libre, Jumia, Noon) plus the full current catalogs of the leading global and local manufacturers",
       "criteria": [
        "price",
        "max temperature",
@@ -16703,7 +16703,7 @@
       "kind": "commercial",
       "description": "Every clipper or trimmer compared and ranked on price, runtime and more.",
       "entity": "clipper or trimmer",
-      "universe": "all current models sold by Amazon, Best Buy and Walmart (US) plus the full current catalogs of the leading manufacturers",
+      "universe": "all current models sold by the major retailers of every large market (Amazon, Walmart, Best Buy, JD.com, Tmall, Flipkart, Rakuten, Coupang, Mercado Libre, Jumia, Noon) plus the full current catalogs of the leading global and local manufacturers",
       "criteria": [
        "price",
        "runtime",
@@ -17234,7 +17234,7 @@
       "kind": "commercial",
       "description": "Every electric shaver compared and ranked on price, closeness and more.",
       "entity": "electric shaver",
-      "universe": "all current models sold by Amazon, Best Buy and Walmart (US) plus the full current catalogs of the leading manufacturers",
+      "universe": "all current models sold by the major retailers of every large market (Amazon, Walmart, Best Buy, JD.com, Tmall, Flipkart, Rakuten, Coupang, Mercado Libre, Jumia, Noon) plus the full current catalogs of the leading global and local manufacturers",
       "criteria": [
        "price",
        "closeness",
@@ -17277,7 +17277,7 @@
       "kind": "commercial",
       "description": "Every electric toothbrush compared and ranked on price, brush-head cost per year and more.",
       "entity": "electric toothbrush",
-      "universe": "all current models sold by Amazon, Best Buy and Walmart (US) plus the full current catalogs of the leading manufacturers",
+      "universe": "all current models sold by the major retailers of every large market (Amazon, Walmart, Best Buy, JD.com, Tmall, Flipkart, Rakuten, Coupang, Mercado Libre, Jumia, Noon) plus the full current catalogs of the leading global and local manufacturers",
       "criteria": [
        "price",
        "brush-head cost per year",
@@ -17300,7 +17300,7 @@
       "kind": "commercial",
       "description": "Every water flosser compared and ranked on price, pressure settings and more.",
       "entity": "water flosser",
-      "universe": "all current models sold by Amazon, Best Buy and Walmart (US) plus the full current catalogs of the leading manufacturers",
+      "universe": "all current models sold by the major retailers of every large market (Amazon, Walmart, Best Buy, JD.com, Tmall, Flipkart, Rakuten, Coupang, Mercado Libre, Jumia, Noon) plus the full current catalogs of the leading global and local manufacturers",
       "criteria": [
        "price",
        "pressure settings",
@@ -17322,7 +17322,7 @@
       "kind": "commercial",
       "description": "Every toothpaste compared and ranked on fluoride ppm, RDA abrasivity and more.",
       "entity": "toothpaste",
-      "universe": "all current models sold by Amazon, Best Buy and Walmart (US) plus the full current catalogs of the leading manufacturers",
+      "universe": "all current models sold by the major retailers of every large market (Amazon, Walmart, Best Buy, JD.com, Tmall, Flipkart, Rakuten, Coupang, Mercado Libre, Jumia, Noon) plus the full current catalogs of the leading global and local manufacturers",
       "criteria": [
        "fluoride ppm",
        "RDA abrasivity",
@@ -17344,7 +17344,7 @@
       "kind": "commercial",
       "description": "Every deodorant compared and ranked on price, aluminium-free and more.",
       "entity": "deodorant",
-      "universe": "all current models sold by Amazon, Best Buy and Walmart (US) plus the full current catalogs of the leading manufacturers",
+      "universe": "all current models sold by the major retailers of every large market (Amazon, Walmart, Best Buy, JD.com, Tmall, Flipkart, Rakuten, Coupang, Mercado Libre, Jumia, Noon) plus the full current catalogs of the leading global and local manufacturers",
       "criteria": [
        "price",
        "aluminium-free",
@@ -17597,7 +17597,7 @@
       "kind": "commercial",
       "description": "Every sandal compared and ranked on price, arch support and more.",
       "entity": "sandal",
-      "universe": "all current models sold by Amazon, Best Buy and Walmart (US) plus the full current catalogs of the leading manufacturers",
+      "universe": "all current models sold by the major retailers of every large market (Amazon, Walmart, Best Buy, JD.com, Tmall, Flipkart, Rakuten, Coupang, Mercado Libre, Jumia, Noon) plus the full current catalogs of the leading global and local manufacturers",
       "criteria": [
        "price",
        "arch support",
@@ -17648,7 +17648,7 @@
       "kind": "commercial",
       "description": "Every basic T-shirt compared and ranked on price, fabric weight and more.",
       "entity": "basic T-shirt",
-      "universe": "all current models sold by Amazon, Best Buy and Walmart (US) plus the full current catalogs of the leading manufacturers",
+      "universe": "all current models sold by the major retailers of every large market (Amazon, Walmart, Best Buy, JD.com, Tmall, Flipkart, Rakuten, Coupang, Mercado Libre, Jumia, Noon) plus the full current catalogs of the leading global and local manufacturers",
       "criteria": [
        "price",
        "fabric weight (GSM)",
@@ -17736,7 +17736,7 @@
       "kind": "commercial",
       "description": "Every underwear or sock product compared and ranked on price, material and more.",
       "entity": "underwear or sock product",
-      "universe": "all current models sold by Amazon, Best Buy and Walmart (US) plus the full current catalogs of the leading manufacturers",
+      "universe": "all current models sold by the major retailers of every large market (Amazon, Walmart, Best Buy, JD.com, Tmall, Flipkart, Rakuten, Coupang, Mercado Libre, Jumia, Noon) plus the full current catalogs of the leading global and local manufacturers",
       "criteria": [
        "price",
        "material",
@@ -18240,7 +18240,7 @@
       "kind": "commercial",
       "description": "Every pair of sunglasses compared and ranked on price, lens type and more.",
       "entity": "pair of sunglasses",
-      "universe": "all current models sold by Amazon, Best Buy and Walmart (US) plus the full current catalogs of the leading manufacturers",
+      "universe": "all current models sold by the major retailers of every large market (Amazon, Walmart, Best Buy, JD.com, Tmall, Flipkart, Rakuten, Coupang, Mercado Libre, Jumia, Noon) plus the full current catalogs of the leading global and local manufacturers",
       "criteria": [
        "price",
        "lens type",
@@ -18624,7 +18624,7 @@
       "kind": "commercial",
       "description": "Every treadmill compared and ranked on price, motor HP and more.",
       "entity": "treadmill",
-      "universe": "all current models sold by Amazon, Best Buy and Walmart (US) plus the full current catalogs of the leading manufacturers",
+      "universe": "all current models sold by the major retailers of every large market (Amazon, Walmart, Best Buy, JD.com, Tmall, Flipkart, Rakuten, Coupang, Mercado Libre, Jumia, Noon) plus the full current catalogs of the leading global and local manufacturers",
       "criteria": [
        "price",
        "motor HP",
@@ -18648,7 +18648,7 @@
       "kind": "commercial",
       "description": "Every exercise bike compared and ranked on price, resistance type and more.",
       "entity": "exercise bike",
-      "universe": "all current models sold by Amazon, Best Buy and Walmart (US) plus the full current catalogs of the leading manufacturers",
+      "universe": "all current models sold by the major retailers of every large market (Amazon, Walmart, Best Buy, JD.com, Tmall, Flipkart, Rakuten, Coupang, Mercado Libre, Jumia, Noon) plus the full current catalogs of the leading global and local manufacturers",
       "criteria": [
        "price",
        "resistance type",
@@ -18669,7 +18669,7 @@
       "kind": "commercial",
       "description": "Every rowing machine compared and ranked on price, resistance type and more.",
       "entity": "rowing machine",
-      "universe": "all current models sold by Amazon, Best Buy and Walmart (US) plus the full current catalogs of the leading manufacturers",
+      "universe": "all current models sold by the major retailers of every large market (Amazon, Walmart, Best Buy, JD.com, Tmall, Flipkart, Rakuten, Coupang, Mercado Libre, Jumia, Noon) plus the full current catalogs of the leading global and local manufacturers",
       "criteria": [
        "price",
        "resistance type",
@@ -18713,7 +18713,7 @@
       "kind": "commercial",
       "description": "Every dumbbell set compared and ranked on price, weight range and more.",
       "entity": "dumbbell set",
-      "universe": "all current models sold by Amazon, Best Buy and Walmart (US) plus the full current catalogs of the leading manufacturers",
+      "universe": "all current models sold by the major retailers of every large market (Amazon, Walmart, Best Buy, JD.com, Tmall, Flipkart, Rakuten, Coupang, Mercado Libre, Jumia, Noon) plus the full current catalogs of the leading global and local manufacturers",
       "criteria": [
        "price",
        "weight range",
@@ -18756,7 +18756,7 @@
       "kind": "commercial",
       "description": "Every massage gun compared and ranked on price, stall force and more.",
       "entity": "massage gun",
-      "universe": "all current models sold by Amazon, Best Buy and Walmart (US) plus the full current catalogs of the leading manufacturers",
+      "universe": "all current models sold by the major retailers of every large market (Amazon, Walmart, Best Buy, JD.com, Tmall, Flipkart, Rakuten, Coupang, Mercado Libre, Jumia, Noon) plus the full current catalogs of the leading global and local manufacturers",
       "criteria": [
        "price",
        "stall force",
@@ -18777,7 +18777,7 @@
       "kind": "commercial",
       "description": "Every yoga mat compared and ranked on price, thickness and more.",
       "entity": "yoga mat",
-      "universe": "all current models sold by Amazon, Best Buy and Walmart (US) plus the full current catalogs of the leading manufacturers",
+      "universe": "all current models sold by the major retailers of every large market (Amazon, Walmart, Best Buy, JD.com, Tmall, Flipkart, Rakuten, Coupang, Mercado Libre, Jumia, Noon) plus the full current catalogs of the leading global and local manufacturers",
       "criteria": [
        "price",
        "thickness",
@@ -19255,7 +19255,7 @@
       "kind": "commercial",
       "description": "Every electrolyte product compared and ranked on sodium mg, sugar and more.",
       "entity": "electrolyte product",
-      "universe": "all current models sold by Amazon, Best Buy and Walmart (US) plus the full current catalogs of the leading manufacturers",
+      "universe": "all current models sold by the major retailers of every large market (Amazon, Walmart, Best Buy, JD.com, Tmall, Flipkart, Rakuten, Coupang, Mercado Libre, Jumia, Noon) plus the full current catalogs of the leading global and local manufacturers",
       "criteria": [
        "sodium mg",
        "sugar",
@@ -19306,7 +19306,7 @@
       "kind": "commercial",
       "description": "Every hearing aid compared and ranked on price, OTC/prescription and more.",
       "entity": "hearing aid",
-      "universe": "OTC and prescription hearing aids sold in the US",
+      "universe": "OTC and prescription hearing aids sold in any major market worldwide",
       "criteria": [
        "price",
        "OTC/prescription",
@@ -19349,7 +19349,7 @@
       "kind": "commercial",
       "description": "Every smart scale compared and ranked on price, metrics and more.",
       "entity": "smart scale",
-      "universe": "all current models sold by Amazon, Best Buy and Walmart (US) plus the full current catalogs of the leading manufacturers",
+      "universe": "all current models sold by the major retailers of every large market (Amazon, Walmart, Best Buy, JD.com, Tmall, Flipkart, Rakuten, Coupang, Mercado Libre, Jumia, Noon) plus the full current catalogs of the leading global and local manufacturers",
       "criteria": [
        "price",
        "metrics",
@@ -19700,7 +19700,7 @@
       "kind": "commercial",
       "description": "Every cooler compared and ranked on price, ice retention days and more.",
       "entity": "cooler",
-      "universe": "all current models sold by Amazon, Best Buy and Walmart (US) plus the full current catalogs of the leading manufacturers",
+      "universe": "all current models sold by the major retailers of every large market (Amazon, Walmart, Best Buy, JD.com, Tmall, Flipkart, Rakuten, Coupang, Mercado Libre, Jumia, Noon) plus the full current catalogs of the leading global and local manufacturers",
       "criteria": [
        "price",
        "ice retention days",
@@ -24373,7 +24373,7 @@
       "kind": "commercial",
       "description": "Metal detectors compared on frequency, depth and price.",
       "entity": "product",
-      "universe": "every hobby and gold-prospecting metal detector sold in the US",
+      "universe": "every hobby and gold-prospecting metal detector sold in any major market worldwide",
       "criteria": [
        "technology (VLF, multi-frequency, PI)",
        "operating frequencies",
@@ -24519,7 +24519,7 @@
       "kind": "commercial",
       "description": "Amateur radio transceivers compared on bands, power and price.",
       "entity": "product",
-      "universe": "every amateur radio transceiver (HF, VHF/UHF, handheld, SDR) sold in the US",
+      "universe": "every amateur radio transceiver (HF, VHF/UHF, handheld, SDR) sold in any major market worldwide",
       "criteria": [
        "bands and modes",
        "output power (W)",
@@ -24541,7 +24541,7 @@
       "kind": "commercial",
       "description": "Graphing and scientific calculators compared on features, exam rules and price.",
       "entity": "product",
-      "universe": "every graphing, scientific and financial calculator sold in the US",
+      "universe": "every graphing, scientific and financial calculator sold in any major market worldwide",
       "criteria": [
        "type and CAS",
        "exam approval (SAT, ACT, AP, IB)",
@@ -26823,7 +26823,7 @@
       "kind": "commercial",
       "description": "Every instant coffee compared and ranked on taste rating, price per cup and more.",
       "entity": "instant coffee",
-      "universe": "all current models sold by Amazon, Best Buy and Walmart (US) plus the full current catalogs of the leading manufacturers",
+      "universe": "all current models sold by the major retailers of every large market (Amazon, Walmart, Best Buy, JD.com, Tmall, Flipkart, Rakuten, Coupang, Mercado Libre, Jumia, Noon) plus the full current catalogs of the leading global and local manufacturers",
       "criteria": [
        "taste rating",
        "price per cup",
@@ -28002,7 +28002,7 @@
       "kind": "commercial",
       "description": "Every olive oil compared and ranked on competition awards, polyphenols and more.",
       "entity": "olive oil",
-      "universe": "extra-virgin olive oils sold in the US/EU plus award winners",
+      "universe": "extra-virgin olive oils sold in any major market worldwide/EU plus award winners",
       "criteria": [
        "competition awards",
        "polyphenols",
@@ -29315,7 +29315,7 @@
         "kind": "commercial",
         "description": "Every sport and supersport motorcycle compared on published specs, price and recalls.",
         "entity": "motorcycle model",
-        "universe": "every current-model-year sport and supersport motorcycle sold in the US or EU",
+        "universe": "every current-model-year sport and supersport motorcycle sold in any major market worldwide or EU",
         "criteria": [
          "displacement and claimed hp",
          "wet weight",
@@ -29337,7 +29337,7 @@
         "kind": "commercial",
         "description": "Every adventure and dual-sport motorcycle compared on published specs, price and recalls.",
         "entity": "motorcycle model",
-        "universe": "every current-model-year adventure and dual-sport motorcycle sold in the US or EU",
+        "universe": "every current-model-year adventure and dual-sport motorcycle sold in any major market worldwide or EU",
         "criteria": [
          "displacement and hp",
          "wet weight and seat height",
@@ -29359,7 +29359,7 @@
         "kind": "commercial",
         "description": "Every cruiser and bobber motorcycle compared on published specs, price and recalls.",
         "entity": "motorcycle model",
-        "universe": "every current-model-year cruiser and bobber motorcycle sold in the US or EU",
+        "universe": "every current-model-year cruiser and bobber motorcycle sold in any major market worldwide or EU",
         "criteria": [
          "displacement and torque",
          "seat height and weight",
@@ -29380,7 +29380,7 @@
         "kind": "commercial",
         "description": "Every touring and sport-touring motorcycle compared on published specs, price and recalls.",
         "entity": "motorcycle model",
-        "universe": "every current-model-year touring and sport-touring motorcycle sold in the US or EU",
+        "universe": "every current-model-year touring and sport-touring motorcycle sold in any major market worldwide or EU",
         "criteria": [
          "displacement and hp",
          "luggage capacity and fuel range",
@@ -29401,7 +29401,7 @@
         "kind": "commercial",
         "description": "Every naked or standard motorcycle compared on published specs, price and recalls.",
         "entity": "motorcycle model",
-        "universe": "every current-model-year naked or standard motorcycle sold in the US or EU",
+        "universe": "every current-model-year naked or standard motorcycle sold in any major market worldwide or EU",
         "criteria": [
          "displacement and hp",
          "wet weight and seat height",
@@ -29422,7 +29422,7 @@
         "kind": "commercial",
         "description": "Every motocross, enduro and trail dirt bike compared on published specs, price and recalls.",
         "entity": "motorcycle model",
-        "universe": "every current-model-year motocross, enduro and trail dirt bike sold in the US or EU",
+        "universe": "every current-model-year motocross, enduro and trail dirt bike sold in any major market worldwide or EU",
         "criteria": [
          "displacement and stroke",
          "weight and seat height",
@@ -29444,7 +29444,7 @@
         "kind": "commercial",
         "description": "Every electric motorcycle compared on published specs, price and recalls.",
         "entity": "motorcycle model",
-        "universe": "every current-model-year electric motorcycle sold in the US or EU",
+        "universe": "every current-model-year electric motorcycle sold in any major market worldwide or EU",
         "criteria": [
          "battery kWh and range (city/highway)",
          "DC fast-charge support",
@@ -29466,7 +29466,7 @@
         "kind": "commercial",
         "description": "Every gas or electric scooter and moped (50–400 cc) compared on published specs, price and recalls.",
         "entity": "motorcycle model",
-        "universe": "every current-model-year gas or electric scooter and moped (50–400 cc) sold in the US or EU",
+        "universe": "every current-model-year gas or electric scooter and moped (50–400 cc) sold in any major market worldwide or EU",
         "criteria": [
          "displacement or motor kW",
          "top speed and fuel economy",
@@ -29487,7 +29487,7 @@
         "kind": "commercial",
         "description": "Every three-wheeled motorcycle or autocycle compared on published specs, price and recalls.",
         "entity": "motorcycle model",
-        "universe": "every current-model-year three-wheeled motorcycle or autocycle sold in the US or EU",
+        "universe": "every current-model-year three-wheeled motorcycle or autocycle sold in any major market worldwide or EU",
         "criteria": [
          "layout (1F2R/2F1R)",
          "displacement and weight",
@@ -29510,7 +29510,7 @@
       "kind": "commercial",
       "description": "Cargo bikes and longtails compared on load, motor and price.",
       "entity": "product",
-      "universe": "every cargo, longtail and box bike (electric and acoustic) sold in the US/EU",
+      "universe": "every cargo, longtail and box bike (electric and acoustic) sold in any major market worldwide/EU",
       "criteria": [
        "layout (longtail, front-box, trike)",
        "payload and passenger capacity",
@@ -29540,7 +29540,7 @@
       "kind": "commercial",
       "description": "Every tyre compared and ranked on price, UTQG treadwear and more.",
       "entity": "tyre",
-      "universe": "passenger tyres sold in the US and EU",
+      "universe": "passenger tyres sold in any major market worldwide and EU",
       "criteria": [
        "price",
        "UTQG treadwear",
@@ -29565,7 +29565,7 @@
       "kind": "commercial",
       "description": "Every dash cam compared and ranked on price, resolution and more.",
       "entity": "dash cam",
-      "universe": "all current models sold by Amazon, Best Buy and Walmart (US) plus the full current catalogs of the leading manufacturers",
+      "universe": "all current models sold by the major retailers of every large market (Amazon, Walmart, Best Buy, JD.com, Tmall, Flipkart, Rakuten, Coupang, Mercado Libre, Jumia, Noon) plus the full current catalogs of the leading global and local manufacturers",
       "criteria": [
        "price",
        "resolution",
@@ -29607,7 +29607,7 @@
       "kind": "commercial",
       "description": "Every jump starter compared and ranked on price, peak amps and more.",
       "entity": "jump starter",
-      "universe": "all current models sold by Amazon, Best Buy and Walmart (US) plus the full current catalogs of the leading manufacturers",
+      "universe": "all current models sold by the major retailers of every large market (Amazon, Walmart, Best Buy, JD.com, Tmall, Flipkart, Rakuten, Coupang, Mercado Libre, Jumia, Noon) plus the full current catalogs of the leading global and local manufacturers",
       "criteria": [
        "price",
        "peak amps",
@@ -30464,7 +30464,7 @@
       "kind": "commercial",
       "description": "Chartplotters, radars and VHF radios compared.",
       "entity": "product",
-      "universe": "every chartplotter, marine radar and fixed or handheld VHF radio sold in the US",
+      "universe": "every chartplotter, marine radar and fixed or handheld VHF radio sold in any major market worldwide",
       "criteria": [
        "screen size and sonar/radar capability",
        "DSC and AIS (VHF)",
@@ -31005,7 +31005,7 @@
       "kind": "commercial",
       "description": "Pilot headsets compared on ANR, certification and price.",
       "entity": "product",
-      "universe": "every aviation headset sold in the US",
+      "universe": "every aviation headset sold in any major market worldwide",
       "criteria": [
        "passive NRR and active noise reduction",
        "TSO-C139a certification",
@@ -31193,7 +31193,7 @@
       "kind": "commercial",
       "description": "ATVs compared on engine, capacity and price.",
       "entity": "vehicle model",
-      "universe": "every ATV sold in the US",
+      "universe": "every ATV sold in any major market worldwide",
       "criteria": [
        "displacement and drive (2WD/4WD)",
        "rack and towing capacity",
@@ -31215,7 +31215,7 @@
       "kind": "commercial",
       "description": "UTVs compared on power, seats, cargo and price.",
       "entity": "vehicle model",
-      "universe": "every UTV / side-by-side sold in the US",
+      "universe": "every UTV / side-by-side sold in any major market worldwide",
       "criteria": [
        "hp and seats",
        "bed and towing capacity",
@@ -31258,7 +31258,7 @@
       "kind": "commercial",
       "description": "Golf carts and street-legal LSVs compared.",
       "entity": "vehicle model",
-      "universe": "every golf cart and low-speed vehicle sold in the US",
+      "universe": "every golf cart and low-speed vehicle sold in any major market worldwide",
       "criteria": [
        "gas/electric and battery type",
        "seats and range",
@@ -31280,7 +31280,7 @@
       "kind": "commercial",
       "description": "Consumer go-karts and mini bikes compared.",
       "entity": "product",
-      "universe": "every consumer go-kart and mini bike sold in the US",
+      "universe": "every consumer go-kart and mini bike sold in any major market worldwide",
       "criteria": [
        "engine (cc) or motor and top speed",
        "age rating",
@@ -31354,7 +31354,7 @@
       "kind": "commercial",
       "description": "Forklifts compared on capacity, power and price.",
       "entity": "machine model",
-      "universe": "every forklift model sold in North America or Europe",
+      "universe": "every forklift model sold in any major market worldwide",
       "criteria": [
        "rated capacity and lift height",
        "power (LPG, diesel, electric, lithium)",
@@ -31481,7 +31481,7 @@
       "kind": "commercial",
       "description": "Every car seat compared and ranked on price, NHTSA ease-of-use rating and more.",
       "entity": "car seat",
-      "universe": "seats sold in the US and EU",
+      "universe": "seats sold in any major market worldwide and EU",
       "criteria": [
        "price",
        "NHTSA ease-of-use rating",
@@ -31505,7 +31505,7 @@
       "kind": "commercial",
       "description": "Every baby monitor compared and ranked on price, video and more.",
       "entity": "baby monitor",
-      "universe": "all current models sold by Amazon, Best Buy and Walmart (US) plus the full current catalogs of the leading manufacturers",
+      "universe": "all current models sold by the major retailers of every large market (Amazon, Walmart, Best Buy, JD.com, Tmall, Flipkart, Rakuten, Coupang, Mercado Libre, Jumia, Noon) plus the full current catalogs of the leading global and local manufacturers",
       "criteria": [
        "price",
        "video",
@@ -31527,7 +31527,7 @@
       "kind": "commercial",
       "description": "Every crib or bassinet compared and ranked on price, certifications and more.",
       "entity": "crib or bassinet",
-      "universe": "all current models sold by Amazon, Best Buy and Walmart (US) plus the full current catalogs of the leading manufacturers",
+      "universe": "all current models sold by the major retailers of every large market (Amazon, Walmart, Best Buy, JD.com, Tmall, Flipkart, Rakuten, Coupang, Mercado Libre, Jumia, Noon) plus the full current catalogs of the leading global and local manufacturers",
       "criteria": [
        "price",
        "certifications",
@@ -31549,7 +31549,7 @@
       "kind": "commercial",
       "description": "Every diaper compared and ranked on price per diaper, absorbency and more.",
       "entity": "diaper",
-      "universe": "all current models sold by Amazon, Best Buy and Walmart (US) plus the full current catalogs of the leading manufacturers",
+      "universe": "all current models sold by the major retailers of every large market (Amazon, Walmart, Best Buy, JD.com, Tmall, Flipkart, Rakuten, Coupang, Mercado Libre, Jumia, Noon) plus the full current catalogs of the leading global and local manufacturers",
       "criteria": [
        "price per diaper",
        "absorbency",
@@ -31612,7 +31612,7 @@
       "kind": "commercial",
       "description": "Every high chair compared and ranked on price, adjustability and more.",
       "entity": "high chair",
-      "universe": "all current models sold by Amazon, Best Buy and Walmart (US) plus the full current catalogs of the leading manufacturers",
+      "universe": "all current models sold by the major retailers of every large market (Amazon, Walmart, Best Buy, JD.com, Tmall, Flipkart, Rakuten, Coupang, Mercado Libre, Jumia, Noon) plus the full current catalogs of the leading global and local manufacturers",
       "criteria": [
        "price",
        "adjustability",
@@ -32022,7 +32022,7 @@
       "kind": "commercial",
       "description": "Every kids' device compared and ranked on price, parental controls and more.",
       "entity": "kids' device",
-      "universe": "all current models sold by Amazon, Best Buy and Walmart (US) plus the full current catalogs of the leading manufacturers",
+      "universe": "all current models sold by the major retailers of every large market (Amazon, Walmart, Best Buy, JD.com, Tmall, Flipkart, Rakuten, Coupang, Mercado Libre, Jumia, Noon) plus the full current catalogs of the leading global and local manufacturers",
       "criteria": [
        "price",
        "parental controls",
@@ -32042,7 +32042,7 @@
       "kind": "commercial",
       "description": "Every kids' ride-on compared and ranked on price, age range and more.",
       "entity": "kids' ride-on",
-      "universe": "all current models sold by Amazon, Best Buy and Walmart (US) plus the full current catalogs of the leading manufacturers",
+      "universe": "all current models sold by the major retailers of every large market (Amazon, Walmart, Best Buy, JD.com, Tmall, Flipkart, Rakuten, Coupang, Mercado Libre, Jumia, Noon) plus the full current catalogs of the leading global and local manufacturers",
       "criteria": [
        "price",
        "age range",
@@ -32063,7 +32063,7 @@
       "kind": "commercial",
       "description": "Every school backpack compared and ranked on price, capacity and more.",
       "entity": "school backpack",
-      "universe": "all current models sold by Amazon, Best Buy and Walmart (US) plus the full current catalogs of the leading manufacturers",
+      "universe": "all current models sold by the major retailers of every large market (Amazon, Walmart, Best Buy, JD.com, Tmall, Flipkart, Rakuten, Coupang, Mercado Libre, Jumia, Noon) plus the full current catalogs of the leading global and local manufacturers",
       "criteria": [
        "price",
        "capacity",
@@ -32388,7 +32388,7 @@
       "kind": "commercial",
       "description": "Every cat litter compared and ranked on price per litre, clumping and more.",
       "entity": "cat litter",
-      "universe": "all current models sold by Amazon, Best Buy and Walmart (US) plus the full current catalogs of the leading manufacturers",
+      "universe": "all current models sold by the major retailers of every large market (Amazon, Walmart, Best Buy, JD.com, Tmall, Flipkart, Rakuten, Coupang, Mercado Libre, Jumia, Noon) plus the full current catalogs of the leading global and local manufacturers",
       "criteria": [
        "price per litre",
        "clumping",
@@ -32431,7 +32431,7 @@
       "kind": "commercial",
       "description": "Every dog bed or crate compared and ranked on price, size range and more.",
       "entity": "dog bed or crate",
-      "universe": "all current models sold by Amazon, Best Buy and Walmart (US) plus the full current catalogs of the leading manufacturers",
+      "universe": "all current models sold by the major retailers of every large market (Amazon, Walmart, Best Buy, JD.com, Tmall, Flipkart, Rakuten, Coupang, Mercado Libre, Jumia, Noon) plus the full current catalogs of the leading global and local manufacturers",
       "criteria": [
        "price",
        "size range",
@@ -32473,7 +32473,7 @@
       "kind": "commercial",
       "description": "Every dog toy compared and ranked on price, durability and more.",
       "entity": "dog toy",
-      "universe": "all current models sold by Amazon, Best Buy and Walmart (US) plus the full current catalogs of the leading manufacturers",
+      "universe": "all current models sold by the major retailers of every large market (Amazon, Walmart, Best Buy, JD.com, Tmall, Flipkart, Rakuten, Coupang, Mercado Libre, Jumia, Noon) plus the full current catalogs of the leading global and local manufacturers",
       "criteria": [
        "price",
        "durability",
@@ -39913,7 +39913,7 @@
       "kind": "commercial",
       "description": "Every fingertip or wrist pulse oximeter compared on FDA clearance, published specs, recall history and price (facts only, not medical advice).",
       "entity": "medical device",
-      "universe": "every fingertip or wrist pulse oximeter model cleared or approved by FDA, or CE-marked and sold in the US/EU",
+      "universe": "every fingertip or wrist pulse oximeter model cleared or approved by FDA, or CE-marked and sold in any major market worldwide/EU",
       "criteria": [
        "FDA clearance pathway and year (510(k), PMA, De Novo)",
        "stated SpO2 accuracy (Arms)",
@@ -39937,7 +39937,7 @@
       "kind": "commercial",
       "description": "Every clinical thermometer (oral, ear, forehead, rectal) compared on FDA clearance, published specs, recall history and price (facts only, not medical advice).",
       "entity": "medical device",
-      "universe": "every clinical thermometer (oral, ear, forehead, rectal) model cleared or approved by FDA, or CE-marked and sold in the US/EU",
+      "universe": "every clinical thermometer (oral, ear, forehead, rectal) model cleared or approved by FDA, or CE-marked and sold in any major market worldwide/EU",
       "criteria": [
        "FDA clearance pathway and year (510(k), PMA, De Novo)",
        "type and measurement time",
@@ -39961,7 +39961,7 @@
       "kind": "commercial",
       "description": "Every home nebulizer compared on FDA clearance, published specs, recall history and price (facts only, not medical advice).",
       "entity": "medical device",
-      "universe": "every home nebulizer model cleared or approved by FDA, or CE-marked and sold in the US/EU",
+      "universe": "every home nebulizer model cleared or approved by FDA, or CE-marked and sold in any major market worldwide/EU",
       "criteria": [
        "FDA clearance pathway and year (510(k), PMA, De Novo)",
        "type (jet, mesh, ultrasonic)",
@@ -39985,7 +39985,7 @@
       "kind": "commercial",
       "description": "Every insulin pump and automated insulin delivery system compared on FDA clearance, published specs, recall history and price (facts only, not medical advice).",
       "entity": "medical device",
-      "universe": "every insulin pump and automated insulin delivery system model cleared or approved by FDA, or CE-marked and sold in the US/EU",
+      "universe": "every insulin pump and automated insulin delivery system model cleared or approved by FDA, or CE-marked and sold in any major market worldwide/EU",
       "criteria": [
        "FDA clearance pathway and year (510(k), PMA, De Novo)",
        "CGM integration and automated-delivery algorithm",
@@ -40009,7 +40009,7 @@
       "kind": "commercial",
       "description": "Every personal ECG or heart-rhythm monitor compared on FDA clearance, published specs, recall history and price (facts only, not medical advice).",
       "entity": "medical device",
-      "universe": "every personal ECG or heart-rhythm monitor model cleared or approved by FDA, or CE-marked and sold in the US/EU",
+      "universe": "every personal ECG or heart-rhythm monitor model cleared or approved by FDA, or CE-marked and sold in any major market worldwide/EU",
       "criteria": [
        "FDA clearance pathway and year (510(k), PMA, De Novo)",
        "leads and FDA-cleared detections",
@@ -40032,7 +40032,7 @@
       "kind": "commercial",
       "description": "Every TENS or EMS unit compared on FDA clearance, published specs, recall history and price (facts only, not medical advice).",
       "entity": "medical device",
-      "universe": "every TENS or EMS unit model cleared or approved by FDA, or CE-marked and sold in the US/EU",
+      "universe": "every TENS or EMS unit model cleared or approved by FDA, or CE-marked and sold in any major market worldwide/EU",
       "criteria": [
        "FDA clearance pathway and year (510(k), PMA, De Novo)",
        "channels and programs",
@@ -40056,7 +40056,7 @@
       "kind": "commercial",
       "description": "Every home or portable oxygen concentrator compared on FDA clearance, published specs, recall history and price (facts only, not medical advice).",
       "entity": "medical device",
-      "universe": "every home or portable oxygen concentrator model cleared or approved by FDA, or CE-marked and sold in the US/EU",
+      "universe": "every home or portable oxygen concentrator model cleared or approved by FDA, or CE-marked and sold in any major market worldwide/EU",
       "criteria": [
        "FDA clearance pathway and year (510(k), PMA, De Novo)",
        "flow (L/min, continuous/pulse)",
@@ -40081,7 +40081,7 @@
       "kind": "commercial",
       "description": "Every at-home diagnostic test (COVID-19/flu, UTI, HIV, colorectal and others) compared on FDA clearance, published specs, recall history and price (facts only, not medical advice).",
       "entity": "medical device",
-      "universe": "every at-home diagnostic test (COVID-19/flu, UTI, HIV, colorectal and others) model cleared or approved by FDA, or CE-marked and sold in the US/EU",
+      "universe": "every at-home diagnostic test (COVID-19/flu, UTI, HIV, colorectal and others) model cleared or approved by FDA, or CE-marked and sold in any major market worldwide/EU",
       "criteria": [
        "FDA clearance pathway and year (510(k), PMA, De Novo)",
        "test type and analyte",
@@ -40105,7 +40105,7 @@
       "kind": "commercial",
       "description": "Every pregnancy or ovulation test compared on FDA clearance, published specs, recall history and price (facts only, not medical advice).",
       "entity": "medical device",
-      "universe": "every pregnancy or ovulation test model cleared or approved by FDA, or CE-marked and sold in the US/EU",
+      "universe": "every pregnancy or ovulation test model cleared or approved by FDA, or CE-marked and sold in any major market worldwide/EU",
       "criteria": [
        "FDA clearance pathway and year (510(k), PMA, De Novo)",
        "detection threshold (mIU/mL hCG or LH)",
@@ -40129,7 +40129,7 @@
       "kind": "commercial",
       "description": "Every light therapy lamp or red-light therapy device compared on FDA clearance, published specs, recall history and price (facts only, not medical advice).",
       "entity": "medical device",
-      "universe": "every light therapy lamp or red-light therapy device model cleared or approved by FDA, or CE-marked and sold in the US/EU",
+      "universe": "every light therapy lamp or red-light therapy device model cleared or approved by FDA, or CE-marked and sold in any major market worldwide/EU",
       "criteria": [
        "FDA clearance pathway and year (510(k), PMA, De Novo)",
        "lux at stated distance or irradiance (mW/cm²)",
@@ -40153,7 +40153,7 @@
       "kind": "commercial",
       "description": "Every personal emergency response system compared on FDA clearance, published specs, recall history and price (facts only, not medical advice).",
       "entity": "product",
-      "universe": "every personal emergency response system model cleared or approved by FDA, or CE-marked and sold in the US/EU",
+      "universe": "every personal emergency response system model cleared or approved by FDA, or CE-marked and sold in any major market worldwide/EU",
       "criteria": [
        "FDA clearance pathway and year (510(k), PMA, De Novo)",
        "fall detection",
@@ -40177,7 +40177,7 @@
       "kind": "commercial",
       "description": "Every automatic or connected pill dispenser compared on FDA clearance, published specs, recall history and price (facts only, not medical advice).",
       "entity": "medical device",
-      "universe": "every automatic or connected pill dispenser model cleared or approved by FDA, or CE-marked and sold in the US/EU",
+      "universe": "every automatic or connected pill dispenser model cleared or approved by FDA, or CE-marked and sold in any major market worldwide/EU",
       "criteria": [
        "FDA clearance pathway and year (510(k), PMA, De Novo)",
        "doses per day and capacity",
@@ -40201,7 +40201,7 @@
       "kind": "commercial",
       "description": "Every graduated compression stocking or sleeve compared on FDA clearance, published specs, recall history and price (facts only, not medical advice).",
       "entity": "medical device",
-      "universe": "every graduated compression stocking or sleeve model cleared or approved by FDA, or CE-marked and sold in the US/EU",
+      "universe": "every graduated compression stocking or sleeve model cleared or approved by FDA, or CE-marked and sold in any major market worldwide/EU",
       "criteria": [
        "FDA clearance pathway and year (510(k), PMA, De Novo)",
        "compression class (mmHg)",
@@ -40225,7 +40225,7 @@
       "kind": "commercial",
       "description": "Every personal breath alcohol tester compared on FDA clearance, published specs, recall history and price (facts only, not medical advice).",
       "entity": "medical device",
-      "universe": "every personal breath alcohol tester model cleared or approved by FDA, or CE-marked and sold in the US/EU",
+      "universe": "every personal breath alcohol tester model cleared or approved by FDA, or CE-marked and sold in any major market worldwide/EU",
       "criteria": [
        "FDA clearance pathway and year (510(k), PMA, De Novo)",
        "sensor type (fuel cell vs semiconductor)",
@@ -40258,7 +40258,7 @@
       "kind": "commercial",
       "description": "Every ultrasound system (cart, portable and handheld) compared on FDA clearance, published specs, recall history and price (facts only, not medical advice).",
       "entity": "medical device",
-      "universe": "every ultrasound system (cart, portable and handheld) model cleared or approved by FDA, or CE-marked and sold in the US/EU",
+      "universe": "every ultrasound system (cart, portable and handheld) model cleared or approved by FDA, or CE-marked and sold in any major market worldwide/EU",
       "criteria": [
        "FDA clearance pathway and year (510(k), PMA, De Novo)",
        "form factor and probes",
@@ -40282,7 +40282,7 @@
       "kind": "commercial",
       "description": "Every MRI scanner compared on FDA clearance, published specs, recall history and price (facts only, not medical advice).",
       "entity": "medical device",
-      "universe": "every MRI scanner model cleared or approved by FDA, or CE-marked and sold in the US/EU",
+      "universe": "every MRI scanner model cleared or approved by FDA, or CE-marked and sold in any major market worldwide/EU",
       "criteria": [
        "FDA clearance pathway and year (510(k), PMA, De Novo)",
        "field strength (T)",
@@ -40307,7 +40307,7 @@
       "kind": "commercial",
       "description": "Every CT scanner compared on FDA clearance, published specs, recall history and price (facts only, not medical advice).",
       "entity": "medical device",
-      "universe": "every CT scanner model cleared or approved by FDA, or CE-marked and sold in the US/EU",
+      "universe": "every CT scanner model cleared or approved by FDA, or CE-marked and sold in any major market worldwide/EU",
       "criteria": [
        "FDA clearance pathway and year (510(k), PMA, De Novo)",
        "slices and rotation time",
@@ -40331,7 +40331,7 @@
       "kind": "commercial",
       "description": "Every digital radiography and portable X-ray system compared on FDA clearance, published specs, recall history and price (facts only, not medical advice).",
       "entity": "medical device",
-      "universe": "every digital radiography and portable X-ray system model cleared or approved by FDA, or CE-marked and sold in the US/EU",
+      "universe": "every digital radiography and portable X-ray system model cleared or approved by FDA, or CE-marked and sold in any major market worldwide/EU",
       "criteria": [
        "FDA clearance pathway and year (510(k), PMA, De Novo)",
        "detector size and type",
@@ -40355,7 +40355,7 @@
       "kind": "commercial",
       "description": "Every bedside or transport patient monitor compared on FDA clearance, published specs, recall history and price (facts only, not medical advice).",
       "entity": "medical device",
-      "universe": "every bedside or transport patient monitor model cleared or approved by FDA, or CE-marked and sold in the US/EU",
+      "universe": "every bedside or transport patient monitor model cleared or approved by FDA, or CE-marked and sold in any major market worldwide/EU",
       "criteria": [
        "FDA clearance pathway and year (510(k), PMA, De Novo)",
        "parameters monitored",
@@ -40379,7 +40379,7 @@
       "kind": "commercial",
       "description": "Every infusion pump compared on FDA clearance, published specs, recall history and price (facts only, not medical advice).",
       "entity": "medical device",
-      "universe": "every infusion pump model cleared or approved by FDA, or CE-marked and sold in the US/EU",
+      "universe": "every infusion pump model cleared or approved by FDA, or CE-marked and sold in any major market worldwide/EU",
       "criteria": [
        "FDA clearance pathway and year (510(k), PMA, De Novo)",
        "pump type (large-volume, syringe, PCA, ambulatory)",
@@ -40403,7 +40403,7 @@
       "kind": "commercial",
       "description": "Every ICU, transport or home ventilator compared on FDA clearance, published specs, recall history and price (facts only, not medical advice).",
       "entity": "medical device",
-      "universe": "every ICU, transport or home ventilator model cleared or approved by FDA, or CE-marked and sold in the US/EU",
+      "universe": "every ICU, transport or home ventilator model cleared or approved by FDA, or CE-marked and sold in any major market worldwide/EU",
       "criteria": [
        "FDA clearance pathway and year (510(k), PMA, De Novo)",
        "modes supported",
@@ -40427,7 +40427,7 @@
       "kind": "commercial",
       "description": "Every automated external defibrillator compared on FDA clearance, published specs, recall history and price (facts only, not medical advice).",
       "entity": "medical device",
-      "universe": "every automated external defibrillator model cleared or approved by FDA, or CE-marked and sold in the US/EU",
+      "universe": "every automated external defibrillator model cleared or approved by FDA, or CE-marked and sold in any major market worldwide/EU",
       "criteria": [
        "FDA clearance pathway and year (510(k), PMA, De Novo)",
        "shock energy (J) and CPR feedback",
@@ -40451,7 +40451,7 @@
       "kind": "commercial",
       "description": "Every robotic surgical system compared on FDA clearance, published specs, recall history and price (facts only, not medical advice).",
       "entity": "medical device",
-      "universe": "every robotic surgical system model cleared or approved by FDA, or CE-marked and sold in the US/EU",
+      "universe": "every robotic surgical system model cleared or approved by FDA, or CE-marked and sold in any major market worldwide/EU",
       "criteria": [
        "FDA clearance pathway and year (510(k), PMA, De Novo)",
        "specialties cleared",
@@ -40475,7 +40475,7 @@
       "kind": "commercial",
       "description": "Every hospital or home-care bed compared on FDA clearance, published specs, recall history and price (facts only, not medical advice).",
       "entity": "medical device",
-      "universe": "every hospital or home-care bed model cleared or approved by FDA, or CE-marked and sold in the US/EU",
+      "universe": "every hospital or home-care bed model cleared or approved by FDA, or CE-marked and sold in any major market worldwide/EU",
       "criteria": [
        "FDA clearance pathway and year (510(k), PMA, De Novo)",
        "weight capacity",
@@ -40499,7 +40499,7 @@
       "kind": "commercial",
       "description": "Every endoscope (reusable and single-use) compared on FDA clearance, published specs, recall history and price (facts only, not medical advice).",
       "entity": "medical device",
-      "universe": "every endoscope (reusable and single-use) model cleared or approved by FDA, or CE-marked and sold in the US/EU",
+      "universe": "every endoscope (reusable and single-use) model cleared or approved by FDA, or CE-marked and sold in any major market worldwide/EU",
       "criteria": [
        "FDA clearance pathway and year (510(k), PMA, De Novo)",
        "type (duodenoscope, colonoscope, bronchoscope)",
@@ -40523,7 +40523,7 @@
       "kind": "commercial",
       "description": "Every clinical chemistry, hematology or molecular analyzer compared on FDA clearance, published specs, recall history and price (facts only, not medical advice).",
       "entity": "medical device",
-      "universe": "every clinical chemistry, hematology or molecular analyzer model cleared or approved by FDA, or CE-marked and sold in the US/EU",
+      "universe": "every clinical chemistry, hematology or molecular analyzer model cleared or approved by FDA, or CE-marked and sold in any major market worldwide/EU",
       "criteria": [
        "FDA clearance pathway and year (510(k), PMA, De Novo)",
        "throughput (tests per hour)",
@@ -40555,7 +40555,7 @@
       "kind": "commercial",
       "description": "Every pacemaker or implantable cardioverter-defibrillator compared on FDA clearance, published specs, recall history and price (facts only, not medical advice).",
       "entity": "medical device",
-      "universe": "every pacemaker or implantable cardioverter-defibrillator model cleared or approved by FDA, or CE-marked and sold in the US/EU",
+      "universe": "every pacemaker or implantable cardioverter-defibrillator model cleared or approved by FDA, or CE-marked and sold in any major market worldwide/EU",
       "criteria": [
        "FDA clearance pathway and year (510(k), PMA, De Novo)",
        "leadless vs transvenous",
@@ -40580,7 +40580,7 @@
       "kind": "commercial",
       "description": "Every hip or knee replacement implant system compared on FDA clearance, published specs, recall history and price (facts only, not medical advice).",
       "entity": "medical device",
-      "universe": "every hip or knee replacement implant system model cleared or approved by FDA, or CE-marked and sold in the US/EU",
+      "universe": "every hip or knee replacement implant system model cleared or approved by FDA, or CE-marked and sold in any major market worldwide/EU",
       "criteria": [
        "FDA clearance pathway and year (510(k), PMA, De Novo)",
        "materials and bearing surface",
@@ -40605,7 +40605,7 @@
       "kind": "commercial",
       "description": "Every cochlear implant system compared on FDA clearance, published specs, recall history and price (facts only, not medical advice).",
       "entity": "medical device",
-      "universe": "every cochlear implant system model cleared or approved by FDA, or CE-marked and sold in the US/EU",
+      "universe": "every cochlear implant system model cleared or approved by FDA, or CE-marked and sold in any major market worldwide/EU",
       "criteria": [
        "FDA clearance pathway and year (510(k), PMA, De Novo)",
        "electrode count",
@@ -40629,7 +40629,7 @@
       "kind": "commercial",
       "description": "Every intraocular lens for cataract surgery compared on FDA clearance, published specs, recall history and price (facts only, not medical advice).",
       "entity": "medical device",
-      "universe": "every intraocular lens for cataract surgery model cleared or approved by FDA, or CE-marked and sold in the US/EU",
+      "universe": "every intraocular lens for cataract surgery model cleared or approved by FDA, or CE-marked and sold in any major market worldwide/EU",
       "criteria": [
        "FDA clearance pathway and year (510(k), PMA, De Novo)",
        "lens type (monofocal, toric, multifocal, EDOF)",
@@ -40653,7 +40653,7 @@
       "kind": "commercial",
       "description": "Every breast implant compared on FDA clearance, published specs, recall history and price (facts only, not medical advice).",
       "entity": "medical device",
-      "universe": "every breast implant model cleared or approved by FDA, or CE-marked and sold in the US/EU",
+      "universe": "every breast implant model cleared or approved by FDA, or CE-marked and sold in any major market worldwide/EU",
       "criteria": [
        "FDA clearance pathway and year (510(k), PMA, De Novo)",
        "fill (saline, silicone) and shell texture",
@@ -40677,7 +40677,7 @@
       "kind": "commercial",
       "description": "Every dental implant system compared on FDA clearance, published specs, recall history and price (facts only, not medical advice).",
       "entity": "medical device",
-      "universe": "every dental implant system model cleared or approved by FDA, or CE-marked and sold in the US/EU",
+      "universe": "every dental implant system model cleared or approved by FDA, or CE-marked and sold in any major market worldwide/EU",
       "criteria": [
        "FDA clearance pathway and year (510(k), PMA, De Novo)",
        "material (titanium, zirconia)",
@@ -40709,7 +40709,7 @@
       "kind": "commercial",
       "description": "Every manual wheelchair compared on FDA clearance, published specs, recall history and price (facts only, not medical advice).",
       "entity": "medical device",
-      "universe": "every manual wheelchair model cleared or approved by FDA, or CE-marked and sold in the US/EU",
+      "universe": "every manual wheelchair model cleared or approved by FDA, or CE-marked and sold in any major market worldwide/EU",
       "criteria": [
        "FDA clearance pathway and year (510(k), PMA, De Novo)",
        "frame weight (kg)",
@@ -40734,7 +40734,7 @@
       "kind": "commercial",
       "description": "Every power wheelchair compared on FDA clearance, published specs, recall history and price (facts only, not medical advice).",
       "entity": "medical device",
-      "universe": "every power wheelchair model cleared or approved by FDA, or CE-marked and sold in the US/EU",
+      "universe": "every power wheelchair model cleared or approved by FDA, or CE-marked and sold in any major market worldwide/EU",
       "criteria": [
        "FDA clearance pathway and year (510(k), PMA, De Novo)",
        "range (km) and top speed",
@@ -40759,7 +40759,7 @@
       "kind": "commercial",
       "description": "Every mobility scooter compared on FDA clearance, published specs, recall history and price (facts only, not medical advice).",
       "entity": "medical device",
-      "universe": "every mobility scooter model cleared or approved by FDA, or CE-marked and sold in the US/EU",
+      "universe": "every mobility scooter model cleared or approved by FDA, or CE-marked and sold in any major market worldwide/EU",
       "criteria": [
        "FDA clearance pathway and year (510(k), PMA, De Novo)",
        "range and top speed",
@@ -40783,7 +40783,7 @@
       "kind": "commercial",
       "description": "Every rollator or walker compared on FDA clearance, published specs, recall history and price (facts only, not medical advice).",
       "entity": "medical device",
-      "universe": "every rollator or walker model cleared or approved by FDA, or CE-marked and sold in the US/EU",
+      "universe": "every rollator or walker model cleared or approved by FDA, or CE-marked and sold in any major market worldwide/EU",
       "criteria": [
        "FDA clearance pathway and year (510(k), PMA, De Novo)",
        "weight and weight capacity",
@@ -40807,7 +40807,7 @@
       "kind": "commercial",
       "description": "Every stairlift compared on FDA clearance, published specs, recall history and price (facts only, not medical advice).",
       "entity": "product",
-      "universe": "every stairlift model cleared or approved by FDA, or CE-marked and sold in the US/EU",
+      "universe": "every stairlift model cleared or approved by FDA, or CE-marked and sold in any major market worldwide/EU",
       "criteria": [
        "FDA clearance pathway and year (510(k), PMA, De Novo)",
        "straight vs curved rail",
@@ -40831,7 +40831,7 @@
       "kind": "commercial",
       "description": "Every patient lift (floor and ceiling) compared on FDA clearance, published specs, recall history and price (facts only, not medical advice).",
       "entity": "medical device",
-      "universe": "every patient lift (floor and ceiling) model cleared or approved by FDA, or CE-marked and sold in the US/EU",
+      "universe": "every patient lift (floor and ceiling) model cleared or approved by FDA, or CE-marked and sold in any major market worldwide/EU",
       "criteria": [
        "FDA clearance pathway and year (510(k), PMA, De Novo)",
        "lift capacity",
@@ -40905,7 +40905,7 @@
       "kind": "commercial",
       "description": "Lens solutions compared on type and price per day.",
       "entity": "product",
-      "universe": "every contact lens care solution sold in the US",
+      "universe": "every contact lens care solution sold in any major market worldwide",
       "criteria": [
        "type (multipurpose, hydrogen peroxide)",
        "compatible lens materials",
@@ -40974,7 +40974,7 @@
       "kind": "commercial",
       "description": "Flosses, picks and interdental brushes compared on price per use.",
       "entity": "product",
-      "universe": "every floss, floss pick and interdental brush sold in the US",
+      "universe": "every floss, floss pick and interdental brush sold in any major market worldwide",
       "criteria": [
        "type and material",
        "ADA Seal",
@@ -40996,7 +40996,7 @@
       "kind": "commercial",
       "description": "Mouthwashes compared on active ingredients and price per use.",
       "entity": "product",
-      "universe": "every mouthwash sold in the US",
+      "universe": "every mouthwash sold in any major market worldwide",
       "criteria": [
        "active ingredient (fluoride, CPC, essential oils, chlorhexidine)",
        "alcohol-free",
@@ -41060,7 +41060,7 @@
       "kind": "commercial",
       "description": "Manual toothbrushes compared on design and price.",
       "entity": "product",
-      "universe": "every manual toothbrush sold in the US",
+      "universe": "every manual toothbrush sold in any major market worldwide",
       "criteria": [
        "bristle firmness and head size",
        "ADA Seal",
@@ -41483,7 +41483,7 @@
       "kind": "commercial",
       "description": "Condoms compared on material, FDA clearance and price per unit.",
       "entity": "product",
-      "universe": "every condom sold in the US (FDA-cleared)",
+      "universe": "every condom sold in any major market worldwide (FDA-cleared)",
       "criteria": [
        "material (latex, polyisoprene, polyurethane)",
        "nominal width and thickness",
@@ -41504,7 +41504,7 @@
       "kind": "commercial",
       "description": "Pads, tampons, cups, discs and period underwear compared.",
       "entity": "product",
-      "universe": "every menstrual pad, tampon, cup, disc and period underwear sold in the US",
+      "universe": "every menstrual pad, tampon, cup, disc and period underwear sold in any major market worldwide",
       "criteria": [
        "type and absorbency rating",
        "FDA clearance (tampons, cups)",
@@ -41566,7 +41566,7 @@
       "kind": "commercial",
       "description": "First-aid kits compared on contents and standards.",
       "entity": "product",
-      "universe": "every first-aid kit sold in the US",
+      "universe": "every first-aid kit sold in any major market worldwide",
       "criteria": [
        "piece count",
        "ANSI/ISEA Z308.1 class A/B compliance",
@@ -41944,7 +41944,7 @@
       "kind": "commercial",
       "description": "9mm loads compared on published ballistics and price per round.",
       "entity": "ammunition product",
-      "universe": "every 9mm Luger factory load sold in the US",
+      "universe": "every 9mm Luger factory load sold in any major market worldwide",
       "criteria": [
        "bullet type and weight",
        "advertised velocity",
@@ -41964,7 +41964,7 @@
       "kind": "commercial",
       "description": ".22 LR loads compared on velocity and price per round.",
       "entity": "ammunition product",
-      "universe": "every .22 LR factory load sold in the US",
+      "universe": "every .22 LR factory load sold in any major market worldwide",
       "criteria": [
        "velocity class (subsonic, standard, high-velocity)",
        "bullet weight",
@@ -41983,7 +41983,7 @@
       "kind": "commercial",
       "description": ".223 Rem and 5.56 NATO loads compared.",
       "entity": "ammunition product",
-      "universe": "every .223 Rem and 5.56x45 factory load sold in the US",
+      "universe": "every .223 Rem and 5.56x45 factory load sold in any major market worldwide",
       "criteria": [
        "bullet type and weight",
        "advertised velocity",
@@ -42023,7 +42023,7 @@
       "kind": "commercial",
       "description": "Ammunition brands ranked on product range and price.",
       "entity": "brand",
-      "universe": "every ammunition brand sold in the US",
+      "universe": "every ammunition brand sold in any major market worldwide",
       "criteria": [
        "calibers covered",
        "product lines",
@@ -42043,7 +42043,7 @@
       "kind": "commercial",
       "description": "Reloading presses, scales and dies compared.",
       "entity": "product",
-      "universe": "every ammunition reloading press and powder measure sold in the US",
+      "universe": "every ammunition reloading press and powder measure sold in any major market worldwide",
       "criteria": [
        "press type (single-stage, turret, progressive)",
        "rounds per hour (maker stated)",
@@ -42070,7 +42070,7 @@
       "kind": "commercial",
       "description": "Every rifle scope compared on published specs, warranty and price.",
       "entity": "optic",
-      "universe": "every rifle scope model sold in the US",
+      "universe": "every rifle scope model sold in any major market worldwide",
       "criteria": [
        "magnification range and objective (mm)",
        "first vs second focal plane",
@@ -42092,7 +42092,7 @@
       "kind": "commercial",
       "description": "Every rifle red dot or holographic sight compared on published specs, warranty and price.",
       "entity": "optic",
-      "universe": "every rifle red dot or holographic sight model sold in the US",
+      "universe": "every rifle red dot or holographic sight model sold in any major market worldwide",
       "criteria": [
        "dot size (MOA) and battery life (h)",
        "weight",
@@ -42113,7 +42113,7 @@
       "kind": "commercial",
       "description": "Every pistol-mounted reflex sight compared on published specs, warranty and price.",
       "entity": "optic",
-      "universe": "every pistol-mounted reflex sight model sold in the US",
+      "universe": "every pistol-mounted reflex sight model sold in any major market worldwide",
       "criteria": [
        "footprint (RMR, RMSc, MOS)",
        "window size and battery life",
@@ -42134,7 +42134,7 @@
       "kind": "commercial",
       "description": "Every thermal riflescope or monocular compared on published specs, warranty and price.",
       "entity": "optic",
-      "universe": "every thermal riflescope or monocular model sold in the US",
+      "universe": "every thermal riflescope or monocular model sold in any major market worldwide",
       "criteria": [
        "sensor resolution and pixel pitch (µm)",
        "detection range",
@@ -42155,7 +42155,7 @@
       "kind": "commercial",
       "description": "Every night vision monocular, binocular or scope (analog and digital) compared on published specs, warranty and price.",
       "entity": "optic",
-      "universe": "every night vision monocular, binocular or scope (analog and digital) model sold in the US",
+      "universe": "every night vision monocular, binocular or scope (analog and digital) model sold in any major market worldwide",
       "criteria": [
        "generation / tube spec (FOM) or sensor",
        "ITAR export status",
@@ -42176,7 +42176,7 @@
       "kind": "commercial",
       "description": "Every laser rangefinder (hunting and golf) compared on published specs, warranty and price.",
       "entity": "optic",
-      "universe": "every laser rangefinder (hunting and golf) model sold in the US",
+      "universe": "every laser rangefinder (hunting and golf) model sold in any major market worldwide",
       "criteria": [
        "max range (yd) on reflective target",
        "angle compensation and ballistic calculator",
@@ -42197,7 +42197,7 @@
       "kind": "commercial",
       "description": "Every spotting scope compared on published specs, warranty and price.",
       "entity": "optic",
-      "universe": "every spotting scope model sold in the US",
+      "universe": "every spotting scope model sold in any major market worldwide",
       "criteria": [
        "magnification and objective",
        "glass type (ED/HD)",
@@ -42226,7 +42226,7 @@
       "kind": "commercial",
       "description": "Holsters compared on fit list, material and price.",
       "entity": "product",
-      "universe": "every holster brand and model sold in the US",
+      "universe": "every holster brand and model sold in any major market worldwide",
       "criteria": [
        "carry position (IWB, OWB, AIWB, chest)",
        "material",
@@ -42247,7 +42247,7 @@
       "kind": "commercial",
       "description": "Gun safes compared on certification, fire rating and price per cubic foot.",
       "entity": "product",
-      "universe": "every gun safe and long-gun cabinet sold in the US",
+      "universe": "every gun safe and long-gun cabinet sold in any major market worldwide",
       "criteria": [
        "UL RSC / TL rating",
        "fire rating (minutes at °F)",
@@ -42269,7 +42269,7 @@
       "kind": "commercial",
       "description": "Firearm suppressors compared on published specs and price.",
       "entity": "product",
-      "universe": "every suppressor model sold in the US through NFA channels",
+      "universe": "every suppressor model sold in any major market worldwide through NFA channels",
       "criteria": [
        "calibers rated",
        "length and weight",
@@ -42310,7 +42310,7 @@
       "kind": "commercial",
       "description": "Cleaning kits, solvents and lubricants compared.",
       "entity": "product",
-      "universe": "every gun-cleaning kit, solvent and lubricant sold in the US",
+      "universe": "every gun-cleaning kit, solvent and lubricant sold in any major market worldwide",
       "criteria": [
        "product type",
        "calibers covered",
@@ -42358,7 +42358,7 @@
       "kind": "commercial",
       "description": "Airguns compared on power plant, velocity and price.",
       "entity": "product",
-      "universe": "every air rifle and air pistol sold in the US",
+      "universe": "every air rifle and air pistol sold in any major market worldwide",
       "criteria": [
        "power plant (spring, gas-piston, PCP, CO2)",
        "caliber and velocity (fps)",
@@ -42378,7 +42378,7 @@
       "kind": "commercial",
       "description": "Airsoft guns compared on FPS, system and price.",
       "entity": "product",
-      "universe": "every airsoft gun sold in the US",
+      "universe": "every airsoft gun sold in any major market worldwide",
       "criteria": [
        "type (AEG, GBB, spring, HPA)",
        "FPS with 0.20 g BBs",
@@ -42398,7 +42398,7 @@
       "kind": "commercial",
       "description": "Paintball markers compared on operation and price.",
       "entity": "product",
-      "universe": "every paintball marker sold in the US",
+      "universe": "every paintball marker sold in any major market worldwide",
       "criteria": [
        "operation (mechanical, electro-pneumatic)",
        "weight",
@@ -42439,7 +42439,7 @@
       "kind": "commercial",
       "description": "Recurve, longbow and Olympic bows compared.",
       "entity": "product",
-      "universe": "every recurve, longbow and Olympic risers/limbs sold in the US",
+      "universe": "every recurve, longbow and Olympic risers/limbs sold in any major market worldwide",
       "criteria": [
        "type and length",
        "draw weight range",
@@ -42460,7 +42460,7 @@
       "kind": "commercial",
       "description": "Crossbows compared on speed, energy, width and price.",
       "entity": "product",
-      "universe": "every crossbow model sold in the US",
+      "universe": "every crossbow model sold in any major market worldwide",
       "criteria": [
        "advertised speed (fps) and kinetic energy (ft-lb)",
        "width cocked and weight",
@@ -42481,7 +42481,7 @@
       "kind": "commercial",
       "description": "Arrows and broadheads compared on specs and price per piece.",
       "entity": "product",
-      "universe": "every hunting and target arrow shaft and broadhead sold in the US",
+      "universe": "every hunting and target arrow shaft and broadhead sold in any major market worldwide",
       "criteria": [
        "spine, GPI and straightness (arrows)",
        "grain weight, cut diameter, fixed/mechanical (broadheads)",
@@ -42509,7 +42509,7 @@
       "kind": "commercial",
       "description": "Trail cameras compared on trigger, detection and cellular plans.",
       "entity": "product",
-      "universe": "every trail camera sold in the US",
+      "universe": "every trail camera sold in any major market worldwide",
       "criteria": [
        "trigger speed and detection range",
        "photo/video resolution",
@@ -42529,7 +42529,7 @@
       "kind": "commercial",
       "description": "Stands and blinds compared on rating, weight and price.",
       "entity": "product",
-      "universe": "every tree stand, saddle and ground blind sold in the US",
+      "universe": "every tree stand, saddle and ground blind sold in any major market worldwide",
       "criteria": [
        "TMA certification (tree stands)",
        "weight capacity and pack weight",
@@ -42550,7 +42550,7 @@
       "kind": "commercial",
       "description": "Calls for turkey, waterfowl, elk and predators compared.",
       "entity": "product",
-      "universe": "every game call and electronic caller sold in the US",
+      "universe": "every game call and electronic caller sold in any major market worldwide",
       "criteria": [
        "species and type",
        "electronic caller sound library",
@@ -42571,7 +42571,7 @@
       "kind": "commercial",
       "description": "Waterfowl, turkey and big-game decoys compared.",
       "entity": "product",
-      "universe": "every hunting decoy sold in the US",
+      "universe": "every hunting decoy sold in any major market worldwide",
       "criteria": [
        "species and type (full-body, shell, motion)",
        "weight",
@@ -46052,7 +46052,7 @@
       "kind": "commercial",
       "description": "Tractors compared on tested PTO power, fuel efficiency and price.",
       "entity": "tractor model",
-      "universe": "every agricultural and compact tractor model sold in North America or Europe",
+      "universe": "every agricultural and compact tractor model sold in any major market worldwide",
       "criteria": [
        "rated and PTO hp (Nebraska/OECD test)",
        "fuel efficiency (hp-h per gallon)",
