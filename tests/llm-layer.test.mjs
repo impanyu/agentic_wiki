@@ -213,12 +213,12 @@ test('the embedder is pinned to one model and dimension and never switches when 
   if(down)return reply(500,'down');
   return reply(200,{data:body.input.map((t,index)=>({index,embedding:Array.from({length:body.dimensions||4096},(_,i)=>i===0?1:0)})),usage:{total_tokens:5}});
  });
- const embed=h.llm.embedder();assert.equal(embed.model,'nrp:qwen3-embedding');assert.equal(embed.dims,768);
+ const embed=h.llm.embedder();assert.equal(embed.model,'openai:text-embedding-3-small');assert.equal(embed.dims,768);
  const vectors=await embed(['a','b']);assert.equal(vectors.length,2);assert.equal(vectors[0].length,768);
- assert.equal(h.calls[0].url,'https://ellm.nrp-nautilus.io/v1/embeddings');assert.equal(h.calls[0].body.dimensions,768);
+ assert.equal(h.calls[0].url,'https://api.openai.com/v1/embeddings');assert.equal(h.calls[0].body.dimensions,768);
  down=true;h.calls.length=0;
- await assert.rejects(embed(['c']),/EMBED_MODEL_UNAVAILABLE: nrp:qwen3-embedding/);
- assert.ok(h.calls.every(c=>c.url.startsWith('https://ellm.nrp-nautilus.io/')));assert.equal(h.calls.length,2);
+ await assert.rejects(embed(['c']),/EMBED_MODEL_UNAVAILABLE: openai:text-embedding-3-small/);
+ assert.ok(h.calls.every(c=>c.url.startsWith('https://api.openai.com/')));assert.equal(h.calls.length,2);
  // Explicit choice and dimension come from env; a missing key is an error, not a switch.
  const g=harness({GEMINI_API_KEY:'g',ENTITY_EMBED_MODEL:'nrp:qwen3-embedding',ENTITY_EMBED_DIM:'256'},()=>reply(200,{}));
  await assert.rejects(g.llm.embedder()(['x']),/not configured/);

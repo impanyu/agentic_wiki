@@ -42,7 +42,7 @@ export const BASE_CATALOG:Catalog={
   m('nrp:minimax','nrp','minimax','minimax',chat({vision:true,context:1000000,maxOutput:32768}),{concurrency:6},{timeoutMs:180000}),
   m('nrp:gemma','nrp','gemma','gemma',chat({vision:true,context:131072,maxOutput:8192}),{concurrency:6}),
   m('nrp:gpt-oss','nrp','gpt-oss','gpt-oss',chat({reasoningEffort:true,context:131072,maxOutput:16384}),{concurrency:12}),
-  m('nrp:qwen3-embedding','nrp','qwen3-embedding','qwen',chat({tools:false}),{concurrency:12},{embed:{dims:4096,supportsDimensions:true,matryoshka:true,maxBatch:64}}),
+  m('nrp:qwen3-embedding','nrp','qwen3-embedding','qwen',chat({tools:false}),{concurrency:12},{embed:{dims:4096,supportsDimensions:false,matryoshka:false,maxBatch:64}}),
   // Gemini API free tier; daily quotas reset at midnight Pacific time.
   m('gemini:gemini-4-hydrogen','gemini','gemini-4-hydrogen','gemini',chat({vision:true,reasoningEffort:true,context:1048576,maxOutput:65536}),{rpm:5,tpm:250000,rpd:100,dayReset:'pacific'},{timeoutMs:180000}),
   m('gemini:gemini-3.8-flash','gemini','gemini-3.8-flash','gemini',chat({vision:true,reasoningEffort:true,context:1048576,maxOutput:65536}),{rpm:10,tpm:250000,rpd:250,dayReset:'pacific'}),
@@ -68,7 +68,9 @@ export const BASE_CATALOG:Catalog={
  // The site's question/page-profile vectors were made with this exact model and size: never change.
  siteEmbed:{model:'openai:text-embedding-3-small',dims:512},
  // Default entity-index embedding model: the first whose provider is configured.
- defaultEmbed:['nrp:qwen3-embedding','gemini:gemini-embedding-2','openai:text-embedding-3-small'],
+ // NRP's qwen3-embedding is now Qwen3-VL-Embedding-8B, which refuses shortened (matryoshka) vectors, and the entity
+ // index was built with OpenAI vectors: one vector space, so OpenAI stays first.
+ defaultEmbed:['openai:text-embedding-3-small','gemini:gemini-embedding-2'],
 };
 
 function merge(base:any,patch:any):any{
