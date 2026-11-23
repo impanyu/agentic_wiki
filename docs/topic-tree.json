@@ -8712,6 +8712,187 @@
   "description": "Companies, brands, markets and the economy.",
   "children": [
    {
+    "slug": "markets-trends",
+    "name": "Markets and trends",
+    "kind": "commercial",
+    "description": "Which markets, niches and product categories are growing fastest, measured on public demand signals.",
+    "children": [
+     {
+      "slug": "emerging-niche-markets",
+      "name": "Emerging niche markets",
+      "kind": "commercial",
+      "description": "Emerging niche markets ranked by how fast public interest, communities and new products are growing.",
+      "entity": "niche market",
+      "universe": "consumer niches (a product category or hobby with its own buyers, e.g. pickleball paddles, cold plunges, mushroom kits, e-bikes for kids), at least every niche that has a RankWiki topic",
+      "criteria": [
+       "growth index = weighted 1-year growth of search interest, community size and new product launches",
+       "Wikipedia pageview growth (1 year)",
+       "community growth (subreddit subscribers)",
+       "crowdfunding money raised (1 year)",
+       "new products launched",
+       "market size estimate where public"
+      ],
+      "sources": [
+       "Wikimedia pageviews API",
+       "Reddit public subreddit data",
+       "Kickstarter and Indiegogo public project pages",
+       "RankWiki search log (unanswered and growing queries)",
+       "public market reports (summaries only)"
+      ],
+      "priority": 1
+     },
+     {
+      "slug": "fastest-growing-product-categories",
+      "name": "Fastest-growing product categories",
+      "kind": "commercial",
+      "description": "Product categories ranked by growth in interest, new launches and reviews.",
+      "entity": "product category",
+      "universe": "every product category with a RankWiki ranking, plus marketplace bestseller categories",
+      "criteria": [
+       "growth index = 1-year growth of search interest, reviews and new listings",
+       "new products in the last year",
+       "review count growth",
+       "median price change",
+       "search interest growth"
+      ],
+      "sources": [
+       "Wikimedia pageviews API",
+       "RankWiki entity and observation history",
+       "public marketplace bestseller category pages",
+       "US Census retail trade data"
+      ],
+      "priority": 1
+     },
+     {
+      "slug": "emerging-technologies",
+      "name": "Emerging technologies",
+      "kind": "commercial",
+      "description": "Emerging technologies ranked by momentum in research, patents, funding and public interest.",
+      "entity": "technology",
+      "universe": "technologies with a Wikipedia article and rising research, patent or startup activity (e.g. solid-state batteries, CRISPR therapies, eVTOL, humanoid robots)",
+      "criteria": [
+       "momentum index = growth of papers, patents, funding and public interest",
+       "paper count growth (OpenAlex concept)",
+       "patent filing growth (CPC class)",
+       "startup funding rounds (public announcements)",
+       "Wikipedia pageview growth"
+      ],
+      "sources": [
+       "OpenAlex concepts API",
+       "PatentsView and Google Patents Public Data",
+       "Wikimedia pageviews API",
+       "public funding announcements"
+      ],
+      "priority": 1
+     },
+     {
+      "slug": "fastest-growing-industries",
+      "name": "Fastest-growing industries",
+      "kind": "commercial",
+      "description": "Industries ranked by growth in jobs, firms and revenue from official statistics.",
+      "entity": "industry",
+      "universe": "every NAICS industry (6-digit) in US federal statistics and ISIC divisions elsewhere",
+      "criteria": [
+       "employment growth (5-year)",
+       "establishment count growth",
+       "revenue growth (Economic Census)",
+       "wage growth",
+       "growth index = average of employment, establishment and revenue growth"
+      ],
+      "sources": [
+       "BLS QCEW and CES",
+       "Census County Business Patterns",
+       "Census Economic Census",
+       "Eurostat structural business statistics"
+      ],
+      "priority": 2
+     },
+     {
+      "slug": "growing-hobbies",
+      "name": "Growing hobbies",
+      "kind": "commercial",
+      "description": "Hobbies ranked by how many people follow them and how fast they are growing.",
+      "entity": "hobby",
+      "universe": "hobbies and pastimes with a Wikipedia article or an active online community",
+      "criteria": [
+       "popularity index = community size × growth",
+       "community size",
+       "community growth (1 year)",
+       "Wikipedia pageview growth",
+       "participation surveys where public",
+       "gear market size"
+      ],
+      "sources": [
+       "Wikimedia pageviews API",
+       "Reddit public subreddit data",
+       "participation surveys (SFIA, national statistics)"
+      ],
+      "priority": 2
+     },
+     {
+      "slug": "consumer-trends",
+      "name": "Consumer trends",
+      "kind": "commercial",
+      "description": "Consumer trends ranked by growth and staying power of public interest.",
+      "entity": "consumer trend",
+      "universe": "named consumer trends and fads (e.g. cold plunging, sober curious, dupes, quiet luxury) with public coverage",
+      "criteria": [
+       "trend index = growth of public interest weighted by persistence",
+       "Wikipedia pageview growth",
+       "community growth",
+       "news mention growth",
+       "months since first spike"
+      ],
+      "sources": [
+       "Wikimedia pageviews API",
+       "GDELT news volume",
+       "Reddit public subreddit data"
+      ],
+      "priority": 2
+     },
+     {
+      "slug": "crowdfunding-categories",
+      "name": "Crowdfunding categories",
+      "kind": "commercial",
+      "description": "Crowdfunding categories ranked by money raised, success rate and growth.",
+      "entity": "crowdfunding category",
+      "universe": "every Kickstarter and Indiegogo category and subcategory",
+      "criteria": [
+       "money raised (1 year)",
+       "projects funded",
+       "success rate",
+       "growth index = 1-year growth of money raised",
+       "average pledge"
+      ],
+      "sources": [
+       "Kickstarter public category pages and stats",
+       "Indiegogo public explore pages"
+      ],
+      "priority": 3
+     },
+     {
+      "slug": "online-communities-growth",
+      "name": "Fastest-growing online communities",
+      "kind": "commercial",
+      "description": "Online communities ranked by size and growth, a leading signal for new niches.",
+      "entity": "online community",
+      "universe": "public subreddits, Discord servers with public listings, and forums with public member counts",
+      "criteria": [
+       "subscribers",
+       "1-year growth",
+       "growth index = growth × log(subscribers)",
+       "posts per day",
+       "topic"
+      ],
+      "sources": [
+       "Reddit public subreddit data",
+       "public Discord server directories"
+      ],
+      "priority": 3
+     }
+    ]
+   },
+   {
     "slug": "companies",
     "name": "Companies",
     "kind": "knowledge",
