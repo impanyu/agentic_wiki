@@ -31,7 +31,7 @@ export type Props={params:Promise<{slug:string}>;searchParams:Promise<Record<str
 const decode=(s:string)=>{try{return decodeURIComponent(s);}catch{return s;}};
 const one=(v:string|string[]|undefined)=>typeof v==='string'?v:undefined;
 // Ranking data and server-drawn charts are kept for ten minutes (data changes on the collectors' schedules).
-const rankingData=ttlCache<Awaited<ReturnType<typeof loadUncached>>>(10*60_000,60),chartSvgs=ttlCache<Record<string,string>>(10*60_000,300);
+const rankingData=ttlCache<Awaited<ReturnType<typeof loadUncached>>>(10*60_000,200,24*3600_000),chartSvgs=ttlCache<Record<string,string>>(10*60_000,600,24*3600_000);
 const load=cache((slug:string)=>rankingData.get(slug,()=>loadUncached(slug)));
 async function loadUncached(slug:string){
  const db=await entityDb();const input=await loadRankingPage(db,slug);if(!input)return null;

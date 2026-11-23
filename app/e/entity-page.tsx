@@ -29,7 +29,7 @@ export type Props={params:Promise<{type:string;slug:string}>};
 const decode=(s:string)=>{try{return decodeURIComponent(s);}catch{return s;}};
 const TYPE=/^[a-z][a-z0-9_]{0,40}$/;
 // /e/<num>/<slug> by number; /e/<type>/<slug> (older addresses) by type and name, redirected to the number.
-const entityData=ttlCache<Awaited<ReturnType<typeof loadUncached>>>(10*60_000,2000);
+const entityData=ttlCache<Awaited<ReturnType<typeof loadUncached>>>(10*60_000,3000,24*3600_000);
 const load=cache((first:string,slug:string)=>entityData.get(first+'/'+slug,()=>loadUncached(first,slug)));
 async function loadUncached(first:string,slug:string){
  const db=await entityDb();

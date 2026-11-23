@@ -19,4 +19,17 @@ const tick = () => fetch('http://127.0.0.1:' + (process.env.PORT || '3000') + '/
 // teams, crawler, translation and enrichment, so background work never slows readers' requests.
 if (process.env.RANKWIKI_ROLE !== 'web') setTimeout(() => { void tick(); setInterval(() => void tick(), 60000); }, 60000);
 // The web process warms its caches (the address map, the home page) before readers arrive.
-if (process.env.RANKWIKI_ROLE === 'web') setTimeout(() => { for (const p of ['/', '/zh']) void fetch('http://127.0.0.1:' + (process.env.PORT || '3000') + p, { signal: AbortSignal.timeout(60000) }).catch(() => {}); }, 4000);
+// Then every ten minutes it renders the pages readers use (the top-level topics and every page opened in the last two
+// weeks, in English and Chinese; /api/warm lists them), two at a time, so their caches are never cold or expired.
+const local = p => 'http://127.0.0.1:' + (process.env.PORT || '3000') + p;
+let warming = false;
+const warm = async () => {
+  if (warming) return; warming = true;
+  try {
+    const r = await fetch(local('/api/warm'), { headers: { 'x-live-agent-token': process.env.LIVE_AGENT_TICK_TOKEN }, signal: AbortSignal.timeout(30000) });
+    const paths = r.ok ? (await r.json()).paths || [] : ['/', '/zh'];
+    const queue = [...paths];
+    await Promise.all([0, 1].map(async () => { for (let p; (p = queue.shift()) !== undefined;) await fetch(local(p), { signal: AbortSignal.timeout(90000) }).then(x => x.arrayBuffer()).catch(() => {}); }));
+  } catch {} finally { warming = false; }
+};
+if (process.env.RANKWIKI_ROLE === 'web') { setTimeout(() => { void fetch(local('/'), { signal: AbortSignal.timeout(60000) }).catch(() => {}); }, 4000); setTimeout(() => { void warm(); setInterval(() => void warm(), 10 * 60000); }, 15000); }

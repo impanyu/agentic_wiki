@@ -73,7 +73,7 @@ async function teamState(type:string,topicId:string|null){
  const db=await entityDb();
  const editorId=await topicEditorId(db,topicId);
  const types=(await listEntityTypes(db,topicId)).filter(t=>!type||t.type===normalizeType(type));
- const counts=new Map((await db.query<{type:string;n:number}>('select type, count(*)::int n from entities group by type')).rows.map(r=>[r.type,Number(r.n)]));
+ const counts=await typeCounts(db);
  const metrics=(await db.query(`select o.metric, count(distinct o.entity_id)::int entities, min(o.period) first, max(o.period) last, m.label, m.unit, m.kind
   from observations o join entities e on e.id=o.entity_id left join metrics m on m.key=o.metric and m.version=1
   where $1::text is null or e.type=$1::text group by o.metric, m.label, m.unit, m.kind order by o.metric limit 200`,[type?normalizeType(type):null])).rows;
@@ -136,6 +136,14 @@ export async function coverage(typeRaw:string,metricsCsv:string,expected:number)
   // Data must stay fresh by itself: every metric needs a recipe that loads it, and every recipe must have run successfully.
   metricsWithoutRecipe:notInRecipes,recipes:recipeHealth,dataProblems,toVerify,
   recipeProblems:[...notInRecipes.map(m=>'No recipe loads metric '+m+': it will never be refreshed.'),...recipeHealth.filter(r=>r.lastOk!==true).map(r=>'Recipe '+r.name+(r.lastRunAt?' failed its last run.':' has never been run (run_recipe).')),...recipeHealth.flatMap(r=>r.problems.map(p=>r.name+': '+p))]};
+}
+// Entities per type (a full count of the entities table): shared by the teams' calls for a few minutes.
+let countsAt=0,countsP:Promise<Map<string,number>>|null=null;
+function typeCounts(db:{query:<T>(sql:string,params?:unknown[])=>Promise<{rows:T[]}>}):Promise<Map<string,number>>{
+ if(!countsP||Date.now()-countsAt>5*60_000){countsAt=Date.now();
+  countsP=db.query<{type:string;n:number}>('select type, count(*)::int n from entities group by type').then(r=>new Map(r.rows.map(x=>[x.type,Number(x.n)])));
+  countsP.catch(()=>{countsP=null;});}
+ return countsP;
 }
 async function previewPage(path:string){
  const p=String(path||'').trim();if(!/^\/[\w\-./?=&%]*$/.test(p)||p.startsWith('//'))throw Error('Give a site path such as /rankings/country-rankings.');

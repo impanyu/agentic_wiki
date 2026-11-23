@@ -23,7 +23,7 @@ import type {TopicBuild} from '@/app/entity-db/pages';
 // their leaders, and the kinds of entity pages it has. Rendered from the database; the manager keeps the tree.
 export type Props={params:Promise<{slug:string}>;legacy?:boolean};
 const decode=(s:string)=>{try{return decodeURIComponent(s);}catch{return s;}};
-const topicData=ttlCache<Awaited<ReturnType<typeof loadTopicNav>>>(5*60_000,500);
+const topicData=ttlCache<Awaited<ReturnType<typeof loadTopicNav>>>(5*60_000,2000,24*3600_000);
 const load=cache((slug:string)=>topicData.get(slug,async()=>loadTopicNav(await entityDb(),slug,{rankings:false})));
 
 export async function generateMetadata(props:Props):Promise<Metadata>{
