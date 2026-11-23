@@ -9,7 +9,7 @@ const UA='RankWiki/1.0 (https://rankwiki.aisoup.net; fast lane)';
 const SPARQL='https://query.wikidata.org/sparql';
 const MIN_ENTITIES=15,TOP=1000;
 type Metric={prop:string;key:string;label:string;order:'asc'|'desc'};
-type Plan={ok:boolean;reason:string;classes:string[];filters:{prop:string;value:string}[];title:string;typeLabel:string;plural:string;metrics:Metric[]};
+type Plan={ok:boolean;reason:string;classes:string[];filters:{prop:string;value:string}[];title:string;typeLabel:string;plural:string;metrics:Metric[];anchors:{name:string;value:number}[]};
 type Topic={id:string;slug:string;name:string;description:string;scope:Record<string,unknown>;trail:string};
 
 async function sparql(query:string,signal:AbortSignal):Promise<Record<string,{value:string;type:string}>[]>{
@@ -32,7 +32,8 @@ async function propertyLabels(props:string[],signal:AbortSignal):Promise<Map<str
 }
 async function plan(t:Topic,schemaMetrics:{key:string;label:string;unit?:string}[]):Promise<Plan>{
  const {respond}=await import('@/app/llm');
- const schema={type:'object',additionalProperties:false,required:['ok','reason','classes','filters','title','typeLabel','plural','metrics'],properties:{
+ const schema={type:'object',additionalProperties:false,required:['ok','reason','classes','filters','title','typeLabel','plural','metrics','anchors'],properties:{
+  anchors:{type:'array',items:{type:'object',additionalProperties:false,required:['name','value'],properties:{name:{type:'string'},value:{type:'number'}}}},
   ok:{type:'boolean'},reason:{type:'string'},classes:{type:'array',items:{type:'string'}},
   filters:{type:'array',items:{type:'object',additionalProperties:false,required:['prop','value'],properties:{prop:{type:'string'},value:{type:'string'}}}},
   title:{type:'string'},typeLabel:{type:'string'},plural:{type:'string'},
@@ -43,6 +44,7 @@ async function plan(t:Topic,schemaMetrics:{key:string;label:string;unit?:string}
 - filters: extra required statements narrowing the set, e.g. {"prop":"P17","value":"Q30"} for one country, {"prop":"P106","value":"Q937857"} for footballers among humans. Empty when none.
 - metrics: 1–8 Wikidata properties holding numbers that rank these entities, the most telling first (it decides who is listed): quantities such as elevation P2044, length P2043, area P2046, population P1082, height P2048, mass P2067, revenue P2139, employees P1128, students P2196, box office P2142, capacity P1083, speed P2052. key and label: any (the program replaces them with the property's Wikidata label); order: desc when more is better or more notable, asc when less ranks first.
 - title: the ranking's title (e.g. "Highest mountains", "Largest airports by passengers"); typeLabel and plural: the entity kind ("mountain", "mountains").
+- anchors: 3–5 of the best-known leaders of this ranking by the first metric, with their approximate true value in the property's SI unit (metres, square metres, kilograms, people, USD…) — e.g. for metro areas Tokyo 37000000, Delhi 33000000, Shanghai 29000000. The program checks that each is in the results with about this value; a missing leader or a value off by more than half means the class is incomplete or the data is in a wrong unit, and the topic is left to its team.
 - ok=false with a reason when Wikidata cannot rank this topic (no class with numeric data, abstract or local services, products without data).`,
   input:JSON.stringify({topic:t.name,description:t.description,path:t.trail,type:t.scope.type??null,measures:schemaMetrics.slice(0,40)})} as never);
  const text=(r.output||[]).flatMap((o:any)=>'content' in o&&Array.isArray(o.content)?o.content:[]).map((c:{type?:string;text?:string})=>c.type==='output_text'?c.text||'':'').join('');
@@ -50,6 +52,7 @@ async function plan(t:Topic,schemaMetrics:{key:string;label:string;unit?:string}
  p.classes=(p.classes||[]).filter(c=>QID.test(c)).slice(0,3);
  p.filters=(p.filters||[]).filter(f=>PID.test(f.prop)&&QID.test(f.value)).slice(0,3);
  p.metrics=(p.metrics||[]).filter(m=>PID.test(m.prop)&&/^[a-z][a-z0-9_]{1,60}$/.test(m.key)).slice(0,8);
+ p.anchors=(p.anchors||[]).filter(a=>a.name&&Number.isFinite(a.value)&&a.value>0).slice(0,5);
  return p;
 }
 type Val={v:number;unit:string;year:string};
@@ -116,6 +119,17 @@ export async function fastLaneTopic(db:EntityDb,t:Topic):Promise<{ok:boolean;rea
  const ranked=[...mainVals].sort((a,b)=>main.order==='asc'?a[1].v-b[1].v:b[1].v-a[1].v).slice(0,TOP);
  if(ranked.length<MIN_ENTITIES)return {ok:false,reason:`only ${ranked.length} entities with ${main.label} on Wikidata`};
  const items=ranked.map(([id])=>id);
+ // Anchors: the well-known leaders must be among the results with about their true value — else the class is
+ // incomplete (a "world" list without its leaders) or the values are in a wrong unit; the team builds it instead.
+ if(p.anchors.length<3)return {ok:false,reason:'no anchors to validate the result against'};
+ {const names=await details(items.slice(0,Math.min(items.length,300)),signal);const norm=(x:string)=>x.toLowerCase().normalize('NFKD').replace(/[^a-z0-9]+/g,' ').trim();
+  const byName=new Map<string,number>();for(const [id,d] of names){const v=mainVals.get(id)?.v;if(v!=null)byName.set(norm(d.name),v);}
+  const toSI=(v:number)=>{const u=mainVals.values().next().value?.unit;return u&&UNITS[u]==='m2'?v:v;};
+  for(const a of p.anchors){
+   const key=norm(a.name);const hit=[...byName].find(([n])=>n===key||n.startsWith(key+' ')||key.startsWith(n+' '));
+   if(!hit)return {ok:false,reason:`anchor "${a.name}" is not among the top results: the Wikidata class looks incomplete`};
+   const ratio=hit[1]/toSI(a.value);if(!(ratio>0.5&&ratio<2))return {ok:false,reason:`anchor "${a.name}" has ${hit[1]} on Wikidata, expected about ${a.value}: wrong unit or wrong data`};
+  }}
  const per=new Map<string,Map<string,Val>>([[main.key,mainVals]]);
  for(const m of p.metrics.slice(1)){
   const vals=new Map<string,Val>();
