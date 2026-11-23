@@ -131,12 +131,13 @@ async function loadEntityData(db:Queryable,id:string,type:string,canonical:boole
   type:{label:typeInfo.label,plural:typeInfo.plural,template:typeInfo.template},defs,metrics,relations,peers:{},rankings:[]};
  // Peers: every entity of the type ranked in the top 1,000 on the metrics the position, peer and radar sections show.
  const tpl=typeInfo.template||defaultTemplate(data);
- const peerKeys=templateMetrics(tpl).peer.filter(k=>metrics[k]).slice(0,12);
+ // The table is over the template's peer metrics (the same for every member, so it is shared), not the ones this entity has.
+ const allPeer=templateMetrics(tpl).peer.slice(0,12),peerKeys=allPeer.filter(k=>metrics[k]);
  if(peerKeys.length){
-  const t=await sharedTable(db,{type,metrics:peerKeys,period:'latest'});
+  const t=await sharedTable(db,{type,metrics:allPeer,period:'latest'}).catch(()=>sharedTable(db,{type,metrics:peerKeys,period:'latest'}));
   // Peers link to their pages (by number); one without a page is named only.
   const nums=await withPages(db,t.rows.map(r=>String(r.entity_id)));
-  for(const m of t.metrics)data.peers[m.key]=t.rows.filter(r=>typeof r[m.column]==='number'&&Number(r[m.column+'_rank'])<=RANK_LIMIT).map(r=>({name:String(r.name),value:Number(r[m.column]),
+  for(const m of t.metrics.filter(m=>metrics[m.key]))data.peers[m.key]=t.rows.filter(r=>typeof r[m.column]==='number'&&Number(r[m.column+'_rank'])<=RANK_LIMIT).map(r=>({name:String(r.name),value:Number(r[m.column]),
    ...(nums.has(String(r.entity_id))?{type:String(r.type),num:nums.get(String(r.entity_id))}:{})}));
  }
  data.rankings=await entityRankings(db,data,metrics);
