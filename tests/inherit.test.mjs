@@ -28,3 +28,15 @@ test('a type includes every type that extends it, at any depth (is-a)',async()=>
  assert.deepEqual(await inh.withSubtypes(db,'home_appliance'),['home_appliance','blender','pro_blender']);
  assert.deepEqual(await inh.withSubtypes(db,'pro_blender'),['pro_blender']);
 });
+test('interfaces (mixins): a type also has what its declared interfaces define, inherited down its line',async()=>{
+ const t=async(type,schema,template={})=>db.query("insert into entity_types(type,schema,template) values ($1,$2::jsonb,$3::jsonb)",[type,JSON.stringify(schema),JSON.stringify(template)]);
+ await t('iface_aircraft',{kind:'interface',metrics:[{key:'range_km'},{key:'max_altitude_m'}]},{sections:[{kind:'trend',metrics:['range_km']}]});
+ await t('military_equipment',{metrics:[{key:'units_in_service'}]});
+ await t('military_drone',{extends:'military_equipment',interfaces:['iface_aircraft'],metrics:[{key:'payload_kg'}]});
+ await t('mq9',{extends:'military_drone',metrics:[{key:'endurance_h'}]});
+ const e=await inh.effectiveType(db,'mq9');
+ assert.deepEqual(e.extends,['military_drone','military_equipment']);assert.deepEqual(e.interfaces,['iface_aircraft']);
+ assert.deepEqual(e.schema.metrics.map(m=>m.key),['units_in_service','range_km','max_altitude_m','payload_kg','endurance_h']);
+ assert.equal(e.template.sections.length,1,'interface sections come in too');
+ inh.clearTypeCache();assert.deepEqual(await inh.withSubtypes(db,'iface_aircraft'),['iface_aircraft'],'an interface does not pull its users into its rankings');
+});

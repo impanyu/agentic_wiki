@@ -30,9 +30,26 @@ export function mergeTemplates(chainGeneralFirst:Row[]):Row{
  const sections=unionBy(chainGeneralFirst.map(t=>arr(t.sections).map(s=>({...obj(s),key:String(obj(s).kind)+':'+JSON.stringify(obj(s).metrics??obj(s).title??'')}))) as unknown[][]).map(s=>{const {key:_k,...rest}=obj(s);return rest;});
  return {...own,lead,card,sections,...(own.page?{page:own.page}:{})};
 }
-export async function effectiveType(db:Queryable,type:string):Promise<{schema:Row;template:Row;extends:string[]}>{
+// Interfaces (mixins): besides its one parent, a type may declare interfaces (schema.interfaces: type names of kind
+// "interface"), each a set of attributes, metrics, indices, sections and sources it also has — a military drone is
+// military equipment that also has the aircraft interface. Interfaces declared anywhere on the line are inherited.
+// Effective = each type of the line, most general first, preceded by the interfaces it declares; only additions.
+export async function effectiveType(db:Queryable,type:string):Promise<{schema:Row;template:Row;extends:string[];interfaces:string[]}>{
  const chain=(await typeChain(db,type)).reverse();
- return {schema:mergeSchemas(chain.map(c=>c.schema)),template:chain.some(c=>Object.keys(c.template).length)?mergeTemplates(chain.map(c=>c.template)):{},extends:chain.slice(0,-1).map(c=>c.type).reverse()};
+ const layers:{schema:Row;template:Row}[]=[];const ifaces:string[]=[];
+ for(const c of chain){
+  for(const i of arr(c.schema.interfaces).map(String)){
+   if(ifaces.includes(i))continue;ifaces.push(i);
+   // An interface may itself extend another interface; its whole line comes in.
+   for(const l of (await typeChain(db,i)).reverse())layers.push({schema:{...l.schema,extends:undefined,interfaces:undefined,kind:undefined},template:l.template});
+  }
+  layers.push({schema:c.schema,template:c.template});
+ }
+ const schema=mergeSchemas(layers.map(l=>l.schema));schema.extends=chain.length>1?chain[chain.length-2].type:undefined;schema.interfaces=ifaces;
+ return {schema,template:layers.some(l=>Object.keys(l.template).length)?mergeTemplates(layers.map(l=>l.template)):{},extends:chain.slice(0,-1).map(c=>c.type).reverse(),interfaces:ifaces};
+}
+export async function listInterfaces(db:Queryable):Promise<{type:string;label:string;description:string}[]>{
+ return (await db.query<{type:string;label:string;description:string}>("select type, label, description from entity_types where schema->>'kind' = 'interface' order by type")).rows;
 }
 // The type a new type of this topic extends: the main type of the nearest topic above it that has one.
 export async function parentTypeFor(db:Queryable,topicId:string|null,self:string):Promise<string|null>{
