@@ -93,18 +93,48 @@ async function teamState(type:string,topicId:string|null){
   formats:'See docs/rankwiki-templates.md: template {lead:[patterns], card:[keys], sections:[{kind, …}]} with values metric.<key> period.<key> rank.<key> of.<key> change.<key> attr.<name> rel.<predicate> name type.label; schema {identity, metrics:[{key,label,unit,order,format,source,history}], attributes, relations, universe:{source, expected}}; ranking {slug,title,scope:{type,filters},criteria,config:{default,views,period,group,lead,about,related}}; recipe steps [{id, tool, args}] with "$<step id>".',
  };
 }
+// Observation checks of a type, cached until its data changes: kept while computed more than a minute after the
+// type's last noted change (data_changes notes at most one change per minute) and the entity count is the same.
+type ObsChecks={rows:Record<string,unknown>[];latest:{metric:string;period:string;n:number}[];lacking:{metric:string;names:string[]}[];
+ zeroMetrics:{metric:string;zeros:number;n:number}[];allZero:string[];extremes:{metric:string;name:string;value:number;med:number}[]};
+const obsCache=new Map<string,{at:number;value:Promise<ObsChecks>}>();
+async function observationChecks(db:Awaited<ReturnType<typeof entityDb>>,type:string,keys:string[],total:number):Promise<ObsChecks>{
+ const changed=(await db.query<{at:unknown}>('select max(at) at from data_changes where type = $1::text',[type]).catch(()=>({rows:[]as {at:unknown}[]}))).rows[0]?.at;
+ const changedAt=changed?new Date(String(changed)).getTime():0;
+ const key=type+'|'+keys.join(',')+'|'+total;const hit=obsCache.get(key);
+ if(hit&&hit.at>changedAt+60_000&&Date.now()-hit.at<6*3600_000)return hit.value;
+ const value=(async():Promise<ObsChecks>=>{
+  const zeroMetrics=(await db.query<{metric:string;zeros:number;n:number}>(`select o.metric, count(*) filter (where o.value=0)::int zeros, count(*)::int n from observations o join entities e on e.id=o.entity_id
+   where e.type=$1::text group by o.metric having count(*) filter (where o.value=0) >= greatest(5, count(*)/2)`,[type])).rows;
+  const allZero=(await db.query<{name:string}>(`select e.name from entities e where e.type=$1::text and exists (select 1 from observations o where o.entity_id=e.id)
+   and not exists (select 1 from observations o where o.entity_id=e.id and o.value<>0) order by e.name limit 10`,[type])).rows.map(r=>r.name);
+  const extremes=(await db.query<{metric:string;name:string;value:number;med:number}>(`with v as (select o.metric, e.name, o.value, row_number() over (partition by o.metric order by o.value desc) rn
+   from (select distinct on (o.entity_id, o.metric) o.entity_id, o.metric, o.value from observations o join entities t on t.id=o.entity_id where t.type=$1::text order by o.entity_id, o.metric, o.period desc) o join entities e on e.id=o.entity_id where o.value>0),
+  m as (select metric, percentile_cont(0.5) within group (order by value) med from v where rn<=20 group by metric having count(*)>=10)
+  select v.metric, v.name, v.value, m.med from v join m using (metric) where v.rn<=5 and v.value > 20*m.med order by v.metric, v.value desc limit 15`,[type])).rows;
+  const rows=(await db.query(`select o.metric, count(distinct o.entity_id)::int entities, min(o.period) first, max(o.period) last, count(*)::int observations
+   from observations o join entities e on e.id=o.entity_id where e.type=$1::text and (cardinality($2::text[])=0 or o.metric=any($2::text[])) group by o.metric order by o.metric`,[type,keys])).rows;
+  const ms=rows.map(r=>String(r.metric)),partial=rows.filter(r=>Number(r.entities)<total).map(r=>String(r.metric));
+  const latest=ms.length?(await db.query<{metric:string;period:string;n:number}>(`select metric, period, count(*)::int n from (select distinct on (o.entity_id, o.metric) o.metric, o.period
+   from observations o join entities e on e.id=o.entity_id where e.type=$1::text and o.metric=any($2::text[]) order by o.entity_id, o.metric, o.period desc) x group by metric, period`,[type,ms])).rows:[];
+  const lacking=partial.length?(await db.query<{metric:string;names:string[]}>(`select m.metric, coalesce(l.names,'{}') names from unnest($2::text[]) m(metric) cross join lateral
+   (select array_agg(name order by name) names from (select e.name from entities e where e.type=$1::text and not exists (select 1 from observations o where o.entity_id=e.id and o.metric=m.metric) order by e.name limit 12) z) l`,[type,partial])).rows:[];
+  return {rows,latest,lacking,zeroMetrics,allZero,extremes};
+ })();
+ obsCache.set(key,{at:Date.now(),value});value.catch(()=>{if(obsCache.get(key)?.value===value)obsCache.delete(key);});
+ while(obsCache.size>300)obsCache.delete(obsCache.keys().next().value!);
+ return value;
+}
 export async function coverage(typeRaw:string,metricsCsv:string,expected:number){
  const db=await entityDb(),type=normalizeType(typeRaw);
  const total=Number((await db.query<{n:number}>('select count(*)::int n from entities where type=$1::text',[type])).rows[0]?.n||0);
  const keys=metricsCsv.split(',').map(s=>s.trim()).filter(Boolean);
- const rows=(await db.query(`select o.metric, count(distinct o.entity_id)::int entities, min(o.period) first, max(o.period) last, count(*)::int observations
-  from observations o join entities e on e.id=o.entity_id where e.type=$1::text and (cardinality($2::text[])=0 or o.metric=any($2::text[])) group by o.metric order by o.metric`,[type,keys])).rows;
- const perMetric=[];
- for(const r of rows){
-  const lacking=(await db.query<{name:string}>(`select e.name from entities e where e.type=$1::text and not exists (select 1 from observations o where o.entity_id=e.id and o.metric=$2::text) order by e.name limit 12`,[type,r.metric])).rows.map(x=>x.name);
-  const latest=(await db.query<{period:string;n:number}>(`select period, count(*)::int n from (select distinct on (o.entity_id) o.period from observations o join entities e on e.id=o.entity_id where e.type=$1::text and o.metric=$2::text order by o.entity_id, o.period desc) x group by period order by period desc limit 5`,[type,r.metric])).rows;
-  perMetric.push({...r,coverage:total?Math.round(Number(r.entities)/total*1000)/10+'%':'0%',latestPeriods:latest,lacking});
- }
+ // The observation checks read every value of the type: computed once per change of the type's data (data_changes),
+ // not on every call (an editor's or collector's run calls coverage many times; a country type has ~1M values).
+ const obs=await observationChecks(db,type,keys,total);const rows=obs.rows;
+ const perMetric=rows.map(r=>({...r,coverage:total?Math.round(Number(r.entities)/total*1000)/10+'%':'0%',
+  latestPeriods:obs.latest.filter(x=>x.metric===r.metric).sort((a,b)=>a.period<b.period?1:-1).slice(0,5).map(x=>({period:x.period,n:x.n})),
+  lacking:obs.lacking.find(x=>x.metric===r.metric)?.names||[]}));
  // Metrics of the type that no recipe loads (they would never be refreshed), and recipes that never ran or failed.
  const recipes=await listRecipes(db,type);
  const loaded=new Set<string>();
@@ -117,20 +147,13 @@ export async function coverage(typeRaw:string,metricsCsv:string,expected:number)
  const noIds=Number((await db.query<{n:number}>(`select count(*)::int n from entities where type=$1::text and ids='{}'::jsonb`,[type])).rows[0]?.n||0);
  // Data checks (the collector's responsibility): a measure mostly zero (a wrong field or a failed parse), entities
  // whose every value is zero, and names that are not names (no letters, a web address, a sentence, very long).
- const zeroMetrics=(await db.query<{metric:string;zeros:number;n:number}>(`select o.metric, count(*) filter (where o.value=0)::int zeros, count(*)::int n from observations o join entities e on e.id=o.entity_id
-   where e.type=$1::text group by o.metric having count(*) filter (where o.value=0) >= greatest(5, count(*)/2)`,[type])).rows;
- const allZero=(await db.query<{name:string}>(`select e.name from entities e where e.type=$1::text and exists (select 1 from observations o where o.entity_id=e.id)
-   and not exists (select 1 from observations o where o.entity_id=e.id and o.value<>0) order by e.name limit 10`,[type])).rows.map(r=>r.name);
+ const zeroMetrics=obs.zeroMetrics,allZero=obs.allZero,extremes=obs.extremes;
  const oddNames=(await db.query<{name:string}>(`select name from entities where type=$1::text and (name !~ '[[:alpha:]]' or length(name)>120 or name ~* '^https?://|www\\.' or array_length(regexp_split_to_array(trim(name),'\\s+'),1)>9) order by name limit 10`,[type])).rows.map(r=>r.name);
  const dataProblems=[...zeroMetrics.map(z=>`Metric ${z.metric}: ${z.zeros} of ${z.n} values are 0 — check the field mapping or the parse (remove the wrong values and reload).`),
   ...(allZero.length?[`Entities whose every value is 0 (probably not real members, or loaded from a broken probe): ${allZero.join('; ')} — fix or remove them.`]:[]),
   ...(oddNames.length?[`Names that do not look like ${type} names: ${oddNames.join('; ')} — fix the name column or drop these rows.`]:[])];
  // Values far above the rest of the top (more than 20× the median of the top 20) are often a source's typo or wrong
  // unit: each must be checked against a second source before the ranking is published.
- const extremes=(await db.query<{metric:string;name:string;value:number;med:number}>(`with v as (select o.metric, e.name, o.value, row_number() over (partition by o.metric order by o.value desc) rn
-   from (select distinct on (o.entity_id, o.metric) o.entity_id, o.metric, o.value from observations o join entities t on t.id=o.entity_id where t.type=$1::text order by o.entity_id, o.metric, o.period desc) o join entities e on e.id=o.entity_id where o.value>0),
-  m as (select metric, percentile_cont(0.5) within group (order by value) med from v where rn<=20 group by metric having count(*)>=10)
-  select v.metric, v.name, v.value, m.med from v join m using (metric) where v.rn<=5 and v.value > 20*m.med order by v.metric, v.value desc limit 15`,[type])).rows;
  const toVerify=extremes.map(x=>`${x.name}: ${x.metric} = ${x.value} (the top 20's median is ${Math.round(x.med)}) — confirm with a second source, or correct it.`);
  return {type,entities:total,expected:expected||null,universeCoverage:expected?Math.round(total/expected*1000)/10+'%':null,entitiesWithoutStandardId:noIds,possibleDuplicates:dupes,metrics:perMetric,
   // Data must stay fresh by itself: every metric needs a recipe that loads it, and every recipe must have run successfully.

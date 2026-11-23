@@ -33,12 +33,13 @@ async function due(db:Queryable):Promise<Job[]>{
  await q(`with ch as (select type, max(at) at from data_changes where at > now() - interval '3 days' group by type)
    select p.key, p.type from ch join page_data p on p.kind = 'entity' and p.type = ch.type and p.built_at < ch.at
    where p.built_at < now() - interval '6 hours' order by p.built_at limit 300`,[],'entity');
- // Never built: rankings each pass (few), entities from a list refreshed every ten minutes.
+ // Never built: rankings each pass (few), entities from a list refreshed every ten minutes, grouped by type (members
+ // of a type share their peer and sub-ranking tables, computed once).
  await q(`select r.slug as key, coalesce(r.scope->>'type','') as type from rankings r where r.slug is not null and r.status = any($1::text[])
    and not exists (select 1 from page_data p where p.kind = 'ranking' and p.key = r.slug) limit 200`,[STATUSES],'ranking');
  if(!missing.length&&Date.now()-missingAt>10*60_000){missingAt=Date.now();
   const r=await db.query<{key:string;type:string}>(`select e.id::text as key, e.type from entities e where e.has_page
-    and not exists (select 1 from page_data p where p.kind = 'entity' and p.key = e.id::text) limit 5000`);
+    and not exists (select 1 from page_data p where p.kind = 'entity' and p.key = e.id::text) order by e.type limit 5000`);
   missing.push(...r.rows.map(x=>({kind:'entity' as const,key:String(x.key),type:String(x.type)})));}
  jobs.push(...missing.splice(0,400));
  await q(`select key, type from page_data where kind = 'ranking' and built_at < now() - interval '2 days' order by built_at limit 50`,[],'ranking');

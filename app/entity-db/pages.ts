@@ -114,7 +114,7 @@ export async function loadEntityPageByNum(db:Queryable,num:string,{fresh=false}:
 // The ranking tables entity pages show (peers over a type, each sub-ranking the entity is in) are the same for every
 // member of a type: computed once and shared for a few minutes, so a page of a large type is not 3 s of table scans.
 type MetricTableArgs=Parameters<typeof metricTable>[1];
-const typeTables=ttlCache<Awaited<ReturnType<typeof metricTable>>>(5*60_000,400,24*3600_000);
+const typeTables=ttlCache<Awaited<ReturnType<typeof metricTable>>>(5*60_000,3000,24*3600_000);
 const sharedTable=(db:Queryable,args:MetricTableArgs)=>typeTables.get(JSON.stringify(args),()=>metricTable(db,args));
 // By type and name (the older address form, and lookups by name).
 export async function loadEntityPage(db:Queryable,type:string,slug:string,{fresh=false}:{fresh?:boolean}={}):Promise<EntityPageLoad|null>{
