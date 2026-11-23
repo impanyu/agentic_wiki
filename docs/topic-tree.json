@@ -1805,6 +1805,98 @@
        "ICOMOS and IUCN evaluations"
       ],
       "priority": 3
+     },
+     {
+      "slug": "heritage-towns-villages",
+      "name": "Historic towns and villages",
+      "kind": "knowledge",
+      "description": "Officially designated historic towns and villages (Chinese historic towns, Mexico's Pueblos Mágicos, Plus Beaux Villages, Japan's preservation districts, Korea's folk villages) compared.",
+      "entity": "historic town or village",
+      "universe": "settlements on national historic-town designations",
+      "criteria": [
+       "designation",
+       "year designated",
+       "population",
+       "visitors per year",
+       "listed buildings",
+       "visitor pressure = visitors / population"
+      ],
+      "sources": [
+       "China MOHURD 历史文化名镇名村 list",
+       "SECTUR Pueblos Mágicos",
+       "Agency for Cultural Affairs 重要伝統的建造物群保存地区",
+       "Les Plus Beaux Villages de France"
+      ],
+      "priority": 2
+     },
+     {
+      "slug": "historic-gardens",
+      "name": "Historic and classical gardens",
+      "kind": "knowledge",
+      "description": "Chinese classical gardens, Japanese gardens, Persian gardens, Mughal gardens and European historic gardens compared.",
+      "entity": "historic garden",
+      "universe": "gardens on UNESCO, national scenic-beauty or national heritage lists",
+      "criteria": [
+       "style",
+       "area",
+       "founded",
+       "visitors",
+       "designation",
+       "visitors per hectare = visitors ÷ hectare"
+      ],
+      "sources": [
+       "UNESCO WHC",
+       "Japan Agency for Cultural Affairs special places of scenic beauty",
+       "China National Forestry and Grassland Administration",
+       "Wikidata"
+      ],
+      "priority": 2
+     },
+     {
+      "slug": "giahs-agricultural-heritage",
+      "name": "Agricultural heritage systems (rice terraces, oases, qanats)",
+      "kind": "knowledge",
+      "description": "Globally and nationally important agricultural heritage systems (Hani and Ifugao rice terraces, Subak, qanats, chinampas) compared.",
+      "entity": "agricultural heritage system",
+      "universe": "FAO GIAHS sites plus national agricultural heritage lists (China, Japan, Korea)",
+      "criteria": [
+       "area",
+       "year designated",
+       "farming households",
+       "crops",
+       "altitude range",
+       "heritage index = designation level x area"
+      ],
+      "sources": [
+       "FAO GIAHS (fao.org/giahs)",
+       "China MARA 中国重要农业文化遗产",
+       "Japan MAFF 日本農業遺産",
+       "UNESCO WHC"
+      ],
+      "priority": 3
+     },
+     {
+      "slug": "seaside-resort-towns",
+      "name": "Seaside resort towns",
+      "kind": "knowledge",
+      "description": "Resort towns (Antalya, Hurghada, Sochi, Golden Sands, Budva, Pattaya, Bali's Kuta, Varadero, Mar del Plata, Sanya, Goa) compared.",
+      "entity": "seaside resort town",
+      "universe": "coastal towns where tourism is the main economy",
+      "criteria": [
+       "tourist arrivals",
+       "hotel beds",
+       "sea temperature (summer)",
+       "Blue Flag beaches",
+       "tourists per resident",
+       "price index (hotel ADR)"
+      ],
+      "sources": [
+       "national tourism statistics",
+       "Blue Flag (blueflag.global)",
+       "Copernicus sea-surface temperature",
+       "OpenStreetMap"
+      ],
+      "priority": 2
      }
     ]
    },
@@ -2194,6 +2286,72 @@
          "tourism statistics"
         ],
         "priority": 3
+       },
+       {
+        "slug": "shinto-shrines",
+        "name": "Shinto shrines",
+        "kind": "knowledge",
+        "description": "Shinto shrines compared by visitors, age and heritage status.",
+        "entity": "Shinto shrine",
+        "universe": "shrines registered with the Jinja Honchō and major independent shrines",
+        "criteria": [
+         "annual visitors",
+         "founded",
+         "heritage designation",
+         "grounds area",
+         "festival attendance",
+         "visitors per hectare = visitors ÷ hectare"
+        ],
+        "sources": [
+         "Jinja Honchō shrine list",
+         "Agency for Cultural Affairs designations",
+         "Wikidata"
+        ],
+        "priority": 2
+       },
+       {
+        "slug": "taoist-folk-temples",
+        "name": "Taoist and Chinese folk temples",
+        "kind": "knowledge",
+        "description": "Taoist and Chinese folk temples compared by visitors, age and heritage status.",
+        "entity": "Taoist or Chinese folk-religion temple",
+        "universe": "registered Taoist temples (宫观) and folk temples in China, Taiwan, Hong Kong and Southeast Asia",
+        "criteria": [
+         "annual visitors",
+         "founded",
+         "heritage designation",
+         "grounds area",
+         "festival attendance",
+         "visitors per hectare = visitors ÷ hectare"
+        ],
+        "sources": [
+         "China State Administration for Religious Affairs registered sites",
+         "Taiwan Ministry of the Interior religious register",
+         "Wikidata"
+        ],
+        "priority": 2
+       },
+       {
+        "slug": "sufi-shrines-dargahs",
+        "name": "Sufi shrines and dargahs",
+        "kind": "knowledge",
+        "description": "Sufi shrines and dargahs compared by visitors, age and heritage status.",
+        "entity": "Sufi shrine",
+        "universe": "dargahs and Sufi tombs in South Asia, the Middle East, North and West Africa",
+        "criteria": [
+         "annual visitors",
+         "founded",
+         "heritage designation",
+         "grounds area",
+         "festival attendance",
+         "visitors per hectare = visitors ÷ hectare"
+        ],
+        "sources": [
+         "Pakistan Auqaf departments",
+         "Indian state Wakf boards",
+         "Wikidata"
+        ],
+        "priority": 2
        }
       ]
      },
@@ -3234,6 +3392,28 @@
        "DHV Geländedatenbank"
       ],
       "priority": 3
+     },
+     {
+      "slug": "hill-stations",
+      "name": "Hill stations and highland resort towns",
+      "kind": "knowledge",
+      "description": "Hill stations (Shimla, Darjeeling, Ooty, Murree, Nuwara Eliya, Dalat, Cameron Highlands, Baguio) compared.",
+      "entity": "hill station",
+      "universe": "highland resort towns of South and Southeast Asia and similar elsewhere",
+      "criteria": [
+       "elevation",
+       "summer average temperature",
+       "tourist arrivals",
+       "distance to nearest metro",
+       "cool-escape index = (metro summer temp − town summer temp) / travel hours"
+      ],
+      "sources": [
+       "Indian Ministry of Tourism state statistics",
+       "Meteostat climate normals",
+       "OpenStreetMap",
+       "Wikidata"
+      ],
+      "priority": 2
      }
     ]
    },
@@ -3344,6 +3524,28 @@
        "Pilgrim's Office Santiago statistics",
        "Council of Europe Cultural Routes",
        "national tourism boards",
+       "Wikidata"
+      ],
+      "priority": 2
+     },
+     {
+      "slug": "named-trains",
+      "name": "Named passenger trains",
+      "kind": "knowledge",
+      "description": "Named express trains (Rajdhani, Vande Bharat, Shatabdi, Shinkansen services, Trans-Siberian Rossiya, Tren Maya, Glacier Express) compared.",
+      "entity": "named train service",
+      "universe": "named long-distance passenger services on national railways",
+      "criteria": [
+       "route length",
+       "average speed",
+       "journey time",
+       "frequency",
+       "punctuality",
+       "value index = speed / fare per km"
+      ],
+      "sources": [
+       "Indian Railways NTES / erail.in",
+       "national railway timetables",
        "Wikidata"
       ],
       "priority": 2
@@ -7063,6 +7265,51 @@
        "ICOS Carbon Portal"
       ],
       "priority": 3
+     },
+     {
+      "slug": "dust-sandstorms",
+      "name": "Dust and sand storms",
+      "kind": "knowledge",
+      "description": "Major dust and sand storm events (East Asian yellow dust, haboobs, Saharan dust, Middle East shamal) compared.",
+      "entity": "dust storm event",
+      "universe": "dust storm events recorded by meteorological agencies and satellite products",
+      "criteria": [
+       "PM10 peak",
+       "area affected",
+       "duration",
+       "countries affected",
+       "flights cancelled",
+       "severity index = PM10 x area"
+      ],
+      "sources": [
+       "WMO SDS-WAS",
+       "China Meteorological Administration",
+       "Korea Meteorological Administration Asian dust records",
+       "NASA MODIS/MERRA-2"
+      ],
+      "priority": 3
+     },
+     {
+      "slug": "monsoon-seasons",
+      "name": "Monsoon seasons by region and year",
+      "kind": "knowledge",
+      "description": "Monsoon seasons (Indian summer monsoon, East Asian meiyu, West African monsoon) compared by year.",
+      "entity": "monsoon season (region x year)",
+      "universe": "regional monsoon seasons with official onset and rainfall records",
+      "criteria": [
+       "onset date",
+       "withdrawal date",
+       "seasonal rainfall",
+       "departure from normal",
+       "flood days",
+       "overall index = mean z-score of the criteria above"
+      ],
+      "sources": [
+       "India Meteorological Department",
+       "CMA / JMA rainy-season records",
+       "NOAA CPC"
+      ],
+      "priority": 2
      }
     ]
    },
@@ -7577,6 +7824,27 @@
        "Medscape compensation report"
       ],
       "priority": 1
+     },
+     {
+      "slug": "tropical-neglected-diseases",
+      "name": "Neglected tropical diseases",
+      "kind": "knowledge",
+      "description": "WHO neglected tropical diseases (dengue, schistosomiasis, leishmaniasis, Chagas, snakebite) compared by burden and elimination status.",
+      "entity": "neglected tropical disease",
+      "universe": "the WHO NTD list",
+      "criteria": [
+       "people requiring intervention",
+       "DALYs",
+       "countries endemic",
+       "countries certified eliminated",
+       "DALYs per case = DALYs ÷ case"
+      ],
+      "sources": [
+       "WHO Global Health Observatory NTD data",
+       "IHME GBD",
+       "WHO NTD road map"
+      ],
+      "priority": 2
      }
     ]
    },
@@ -9641,6 +9909,48 @@
        "Wikipedia list articles and infoboxes (MediaWiki API)"
       ],
       "priority": 3
+     },
+     {
+      "slug": "quran-reciters",
+      "name": "Quran reciters",
+      "kind": "knowledge",
+      "description": "Notable Quran reciters (qurra) ranked by listening, recordings and recognition.",
+      "entity": "Quran reciter",
+      "universe": "reciters with full published murattal recordings or imam posts at major mosques",
+      "criteria": [
+       "full recitations published",
+       "listens on Quran apps",
+       "YouTube subscribers",
+       "imamate at Haramain or major mosques",
+       "reach index = listens + subscribers"
+      ],
+      "sources": [
+       "mp3quran.net / Quran.com reciter catalogues",
+       "YouTube",
+       "Wikidata"
+      ],
+      "priority": 2
+     },
+     {
+      "slug": "traditional-rulers",
+      "name": "Traditional rulers and subnational monarchs",
+      "kind": "knowledge",
+      "description": "Traditional kings, sultans and chiefs (Oba of Benin, Asantehene, Sultan of Sokoto, Zulu king, Kabaka, Malaysian sultans, Indonesian sultans) compared.",
+      "entity": "traditional ruler (throne)",
+      "universe": "recognised traditional thrones and subnational monarchies",
+      "criteria": [
+       "population of realm",
+       "founding year of throne",
+       "legal recognition",
+       "current holder's reign years",
+       "continuity index = years since founding"
+      ],
+      "sources": [
+       "national houses of chiefs registers (Ghana, South Africa)",
+       "Malaysian Conference of Rulers",
+       "Wikidata"
+      ],
+      "priority": 2
      }
     ]
    },
@@ -10362,6 +10672,505 @@
          "Wikidata SPARQL endpoint (query.wikidata.org)"
         ],
         "priority": 3
+       },
+       {
+        "slug": "brazilian-music-artists",
+        "name": "Brazilian music artists (sertanejo, funk, MPB, pagode, forró)",
+        "kind": "knowledge",
+        "description": "Brazilian music artists (sertanejo, funk, MPB, pagode, forró) ranked by streams, chart record and certifications.",
+        "entity": "musician or group performing Brazilian popular music",
+        "universe": "artists with releases on the main local streaming platforms or charts",
+        "criteria": [
+         "monthly listeners",
+         "total streams",
+         "YouTube views",
+         "chart weeks",
+         "certifications",
+         "popularity index = z(streams) + z(YouTube views) + z(chart weeks)"
+        ],
+        "sources": [
+         "Spotify Brasil",
+         "Kworb",
+         "ECAD",
+         "Pro-Música Brasil certifications"
+        ],
+        "priority": 2
+       },
+       {
+        "slug": "regional-mexican-artists",
+        "name": "Regional Mexican artists (banda, norteño, corridos, mariachi)",
+        "kind": "knowledge",
+        "description": "Regional Mexican artists (banda, norteño, corridos, mariachi) ranked by streams, chart record and certifications.",
+        "entity": "regional Mexican musician or group",
+        "universe": "artists with releases on the main local streaming platforms or charts",
+        "criteria": [
+         "monthly listeners",
+         "total streams",
+         "YouTube views",
+         "chart weeks",
+         "certifications",
+         "popularity index = z(streams) + z(YouTube views) + z(chart weeks)"
+        ],
+        "sources": [
+         "Billboard Regional Mexican charts",
+         "Spotify",
+         "Kworb",
+         "AMPROFON"
+        ],
+        "priority": 2
+       },
+       {
+        "slug": "southern-african-artists",
+        "name": "Amapiano, gqom and southern African artists",
+        "kind": "knowledge",
+        "description": "Amapiano, gqom and southern African artists ranked by streams, chart record and certifications.",
+        "entity": "South African, Zimbabwean, Mozambican and neighbouring musician",
+        "universe": "artists with releases on the main local streaming platforms or charts",
+        "criteria": [
+         "monthly listeners",
+         "total streams",
+         "YouTube views",
+         "chart weeks",
+         "certifications",
+         "popularity index = z(streams) + z(YouTube views) + z(chart weeks)"
+        ],
+        "sources": [
+         "RiSA certifications",
+         "Spotify South Africa",
+         "Kworb",
+         "Apple Music charts"
+        ],
+        "priority": 2
+       },
+       {
+        "slug": "east-african-artists",
+        "name": "Bongo Flava, gengetone and East African artists",
+        "kind": "knowledge",
+        "description": "Bongo Flava, gengetone and East African artists ranked by streams, chart record and certifications.",
+        "entity": "Tanzanian, Kenyan, Ugandan, Rwandan and Ethiopian musician",
+        "universe": "artists with releases on the main local streaming platforms or charts",
+        "criteria": [
+         "monthly listeners",
+         "total streams",
+         "YouTube views",
+         "chart weeks",
+         "certifications",
+         "popularity index = z(streams) + z(YouTube views) + z(chart weeks)"
+        ],
+        "sources": [
+         "Boomplay charts",
+         "Spotify Kenya",
+         "YouTube Charts",
+         "Kworb"
+        ],
+        "priority": 2
+       },
+       {
+        "slug": "francophone-african-artists",
+        "name": "Francophone African artists (ndombolo, coupé-décalé, mbalax, rumba)",
+        "kind": "knowledge",
+        "description": "Francophone African artists (ndombolo, coupé-décalé, mbalax, rumba) ranked by streams, chart record and certifications.",
+        "entity": "musician from Francophone Africa",
+        "universe": "artists with releases on the main local streaming platforms or charts",
+        "criteria": [
+         "monthly listeners",
+         "total streams",
+         "YouTube views",
+         "chart weeks",
+         "certifications",
+         "popularity index = z(streams) + z(YouTube views) + z(chart weeks)"
+        ],
+        "sources": [
+         "SACEM",
+         "Boomplay and Spotify charts",
+         "YouTube Charts"
+        ],
+        "priority": 2
+       },
+       {
+        "slug": "indonesian-malay-artists",
+        "name": "Indonesian and Malaysian artists (dangdut, pop Indo, koplo)",
+        "kind": "knowledge",
+        "description": "Indonesian and Malaysian artists (dangdut, pop Indo, koplo) ranked by streams, chart record and certifications.",
+        "entity": "Indonesian, Malaysian or Bruneian musician",
+        "universe": "artists with releases on the main local streaming platforms or charts",
+        "criteria": [
+         "monthly listeners",
+         "total streams",
+         "YouTube views",
+         "chart weeks",
+         "certifications",
+         "popularity index = z(streams) + z(YouTube views) + z(chart weeks)"
+        ],
+        "sources": [
+         "Spotify Indonesia",
+         "YouTube Charts",
+         "Joox",
+         "ASIRI"
+        ],
+        "priority": 2
+       },
+       {
+        "slug": "thai-artists",
+        "name": "Thai artists (T-pop, luk thung, mor lam)",
+        "kind": "knowledge",
+        "description": "Thai artists (T-pop, luk thung, mor lam) ranked by streams, chart record and certifications.",
+        "entity": "Thai musician or group",
+        "universe": "artists with releases on the main local streaming platforms or charts",
+        "criteria": [
+         "monthly listeners",
+         "total streams",
+         "YouTube views",
+         "chart weeks",
+         "certifications",
+         "popularity index = z(streams) + z(YouTube views) + z(chart weeks)"
+        ],
+        "sources": [
+         "Spotify Thailand",
+         "YouTube Charts",
+         "Joox Thailand",
+         "Kworb"
+        ],
+        "priority": 2
+       },
+       {
+        "slug": "vietnamese-artists",
+        "name": "Vietnamese artists (V-pop, bolero)",
+        "kind": "knowledge",
+        "description": "Vietnamese artists (V-pop, bolero) ranked by streams, chart record and certifications.",
+        "entity": "Vietnamese musician or group",
+        "universe": "artists with releases on the main local streaming platforms or charts",
+        "criteria": [
+         "monthly listeners",
+         "total streams",
+         "YouTube views",
+         "chart weeks",
+         "certifications",
+         "popularity index = z(streams) + z(YouTube views) + z(chart weeks)"
+        ],
+        "sources": [
+         "Zing MP3 chart",
+         "Spotify Vietnam",
+         "YouTube Charts"
+        ],
+        "priority": 2
+       },
+       {
+        "slug": "filipino-opm-artists",
+        "name": "Filipino OPM and P-pop artists",
+        "kind": "knowledge",
+        "description": "Filipino OPM and P-pop artists ranked by streams, chart record and certifications.",
+        "entity": "Filipino musician or group",
+        "universe": "artists with releases on the main local streaming platforms or charts",
+        "criteria": [
+         "monthly listeners",
+         "total streams",
+         "YouTube views",
+         "chart weeks",
+         "certifications",
+         "popularity index = z(streams) + z(YouTube views) + z(chart weeks)"
+        ],
+        "sources": [
+         "Spotify Philippines",
+         "Billboard Philippines",
+         "PARI certifications",
+         "YouTube Charts"
+        ],
+        "priority": 2
+       },
+       {
+        "slug": "russian-language-artists",
+        "name": "Russian-language pop, rap, rock and shanson artists",
+        "kind": "knowledge",
+        "description": "Russian-language pop, rap, rock and shanson artists ranked by streams, chart record and certifications.",
+        "entity": "Russian-language musician or group",
+        "universe": "artists with releases on the main local streaming platforms or charts",
+        "criteria": [
+         "monthly listeners",
+         "total streams",
+         "YouTube views",
+         "chart weeks",
+         "certifications",
+         "popularity index = z(streams) + z(YouTube views) + z(chart weeks)"
+        ],
+        "sources": [
+         "Yandex Music",
+         "VK Music",
+         "Tophit",
+         "Kworb"
+        ],
+        "priority": 2
+       },
+       {
+        "slug": "central-asian-caucasus-artists",
+        "name": "Central Asian and Caucasus artists (Q-pop, Uzbek estrada, Georgian, Armenian, Azerbaijani)",
+        "kind": "knowledge",
+        "description": "Central Asian and Caucasus artists (Q-pop, Uzbek estrada, Georgian, Armenian, Azerbaijani) ranked by streams, chart record and certifications.",
+        "entity": "musician from Central Asia or the Caucasus",
+        "universe": "artists with releases on the main local streaming platforms or charts",
+        "criteria": [
+         "monthly listeners",
+         "total streams",
+         "YouTube views",
+         "chart weeks",
+         "certifications",
+         "popularity index = z(streams) + z(YouTube views) + z(chart weeks)"
+        ],
+        "sources": [
+         "Yandex Music",
+         "YouTube Charts",
+         "Spotify Kazakhstan"
+        ],
+        "priority": 2
+       },
+       {
+        "slug": "enka-trot-singers",
+        "name": "Enka and trot singers",
+        "kind": "knowledge",
+        "description": "Enka and trot singers ranked by streams, chart record and certifications.",
+        "entity": "Japanese enka or Korean trot singer",
+        "universe": "artists with releases on the main local streaming platforms or charts",
+        "criteria": [
+         "monthly listeners",
+         "total streams",
+         "YouTube views",
+         "chart weeks",
+         "certifications",
+         "popularity index = z(streams) + z(YouTube views) + z(chart weeks)"
+        ],
+        "sources": [
+         "Oricon",
+         "Circle Chart (Korea)",
+         "NHK Kōhaku appearances",
+         "Melon"
+        ],
+        "priority": 2
+       },
+       {
+        "slug": "vocaloid-producers",
+        "name": "Vocaloid and utaite producers",
+        "kind": "knowledge",
+        "description": "Vocaloid and utaite producers ranked by streams, chart record and certifications.",
+        "entity": "Vocaloid producer (Vocalo-P) or utaite",
+        "universe": "artists with releases on the main local streaming platforms or charts",
+        "criteria": [
+         "monthly listeners",
+         "total streams",
+         "YouTube views",
+         "chart weeks",
+         "certifications",
+         "popularity index = z(streams) + z(YouTube views) + z(chart weeks)"
+        ],
+        "sources": [
+         "Niconico",
+         "YouTube",
+         "Billboard Japan",
+         "Vocaloid database (vocadb.net)"
+        ],
+        "priority": 2
+       },
+       {
+        "slug": "balkan-folk-pop-artists",
+        "name": "Balkan folk-pop artists (turbo-folk, chalga, manele, laïko)",
+        "kind": "knowledge",
+        "description": "Balkan folk-pop artists (turbo-folk, chalga, manele, laïko) ranked by streams, chart record and certifications.",
+        "entity": "musician from the Balkans, Romania or Greece",
+        "universe": "artists with releases on the main local streaming platforms or charts",
+        "criteria": [
+         "monthly listeners",
+         "total streams",
+         "YouTube views",
+         "chart weeks",
+         "certifications",
+         "popularity index = z(streams) + z(YouTube views) + z(chart weeks)"
+        ],
+        "sources": [
+         "YouTube Charts",
+         "Spotify",
+         "Kworb",
+         "IFPI Greece"
+        ],
+        "priority": 2
+       },
+       {
+        "slug": "schlager-dansband-artists",
+        "name": "Schlager, dansband and disco polo artists",
+        "kind": "knowledge",
+        "description": "Schlager, dansband and disco polo artists ranked by streams, chart record and certifications.",
+        "entity": "schlager, dansband, volksmusik or disco polo musician",
+        "universe": "artists with releases on the main local streaming platforms or charts",
+        "criteria": [
+         "monthly listeners",
+         "total streams",
+         "YouTube views",
+         "chart weeks",
+         "certifications",
+         "popularity index = z(streams) + z(YouTube views) + z(chart weeks)"
+        ],
+        "sources": [
+         "GfK/Offizielle Charts",
+         "Sverigetopplistan",
+         "ZPAV",
+         "Spotify"
+        ],
+        "priority": 2
+       },
+       {
+        "slug": "central-eastern-european-artists",
+        "name": "Polish, Czech, Hungarian, Romanian, Ukrainian and Baltic pop artists",
+        "kind": "knowledge",
+        "description": "Polish, Czech, Hungarian, Romanian, Ukrainian and Baltic pop artists ranked by streams, chart record and certifications.",
+        "entity": "pop, rock or rap musician from Central and Eastern Europe",
+        "universe": "artists with releases on the main local streaming platforms or charts",
+        "criteria": [
+         "monthly listeners",
+         "total streams",
+         "YouTube views",
+         "chart weeks",
+         "certifications",
+         "popularity index = z(streams) + z(YouTube views) + z(chart weeks)"
+        ],
+        "sources": [
+         "ZPAV OLiS",
+         "IFPI ČNS",
+         "MAHASZ",
+         "Spotify"
+        ],
+        "priority": 2
+       },
+       {
+        "slug": "nordic-dutch-artists",
+        "name": "Nordic and Dutch/Flemish artists",
+        "kind": "knowledge",
+        "description": "Nordic and Dutch/Flemish artists ranked by streams, chart record and certifications.",
+        "entity": "musician from the Nordic countries, Netherlands or Flanders",
+        "universe": "artists with releases on the main local streaming platforms or charts",
+        "criteria": [
+         "monthly listeners",
+         "total streams",
+         "YouTube views",
+         "chart weeks",
+         "certifications",
+         "popularity index = z(streams) + z(YouTube views) + z(chart weeks)"
+        ],
+        "sources": [
+         "Sverigetopplistan",
+         "VG-lista",
+         "Dutch Top 40",
+         "Ultratop"
+        ],
+        "priority": 2
+       },
+       {
+        "slug": "punjabi-artists",
+        "name": "Punjabi and Indian independent artists",
+        "kind": "knowledge",
+        "description": "Punjabi and Indian independent artists ranked by streams, chart record and certifications.",
+        "entity": "Punjabi, Haryanvi, Bhojpuri or Indian indie musician",
+        "universe": "artists with releases on the main local streaming platforms or charts",
+        "criteria": [
+         "monthly listeners",
+         "total streams",
+         "YouTube views",
+         "chart weeks",
+         "certifications",
+         "popularity index = z(streams) + z(YouTube views) + z(chart weeks)"
+        ],
+        "sources": [
+         "Spotify India",
+         "YouTube Charts",
+         "JioSaavn",
+         "IMI"
+        ],
+        "priority": 2
+       },
+       {
+        "slug": "pakistani-bangladeshi-artists",
+        "name": "Pakistani and Bangladeshi artists (Coke Studio, qawwali, pop)",
+        "kind": "knowledge",
+        "description": "Pakistani and Bangladeshi artists (Coke Studio, qawwali, pop) ranked by streams, chart record and certifications.",
+        "entity": "Pakistani or Bangladeshi musician",
+        "universe": "artists with releases on the main local streaming platforms or charts",
+        "criteria": [
+         "monthly listeners",
+         "total streams",
+         "YouTube views",
+         "chart weeks",
+         "certifications",
+         "popularity index = z(streams) + z(YouTube views) + z(chart weeks)"
+        ],
+        "sources": [
+         "YouTube Charts",
+         "Spotify Pakistan",
+         "Coke Studio releases"
+        ],
+        "priority": 2
+       },
+       {
+        "slug": "khaleeji-maghreb-artists",
+        "name": "Khaleeji, Egyptian mahraganat and Maghreb rai artists",
+        "kind": "knowledge",
+        "description": "Khaleeji, Egyptian mahraganat and Maghreb rai artists ranked by streams, chart record and certifications.",
+        "entity": "Arabic-language musician",
+        "universe": "artists with releases on the main local streaming platforms or charts",
+        "criteria": [
+         "monthly listeners",
+         "total streams",
+         "YouTube views",
+         "chart weeks",
+         "certifications",
+         "popularity index = z(streams) + z(YouTube views) + z(chart weeks)"
+        ],
+        "sources": [
+         "Anghami charts",
+         "YouTube Charts",
+         "Spotify MENA",
+         "Billboard Arabia"
+        ],
+        "priority": 2
+       },
+       {
+        "slug": "religious-devotional-artists",
+        "name": "Gospel, nasheed, bhajan and qawwali artists",
+        "kind": "knowledge",
+        "description": "Religious and devotional music performers (African and Latin gospel, Islamic nasheed, Hindu bhajan and kirtan, Sufi qawwali, Christian contemporary) ranked.",
+        "entity": "devotional musician or group",
+        "universe": "artists whose catalogue is mainly religious or devotional music",
+        "criteria": [
+         "monthly listeners",
+         "YouTube views",
+         "chart weeks (gospel/devotional charts)",
+         "languages",
+         "popularity index = z(listeners) + z(views)"
+        ],
+        "sources": [
+         "YouTube Charts",
+         "Spotify / Boomplay / JioSaavn",
+         "Billboard gospel charts",
+         "Anghami"
+        ],
+        "priority": 2
+       },
+       {
+        "slug": "indian-classical-musicians",
+        "name": "Indian classical musicians",
+        "kind": "knowledge",
+        "description": "Hindustani and Carnatic vocalists and instrumentalists ranked by recognition and concerts.",
+        "entity": "Indian classical musician",
+        "universe": "Hindustani and Carnatic performers with national awards or major sabha appearances",
+        "criteria": [
+         "national awards (Padma, Sangeet Natak Akademi)",
+         "recordings",
+         "monthly listeners",
+         "major festival appearances",
+         "stature index = awards + listeners"
+        ],
+        "sources": [
+         "Sangeet Natak Akademi",
+         "Padma award lists",
+         "Spotify / JioSaavn"
+        ],
+        "priority": 3
        }
       ]
      },
@@ -10804,6 +11613,48 @@
        "Wikidata SPARQL endpoint (query.wikidata.org)"
       ],
       "priority": 3
+     },
+     {
+      "slug": "pageant-titleholders",
+      "name": "Pageant titleholders",
+      "kind": "knowledge",
+      "description": "Winners of major international pageants and their countries ranked.",
+      "entity": "pageant titleholder (public figure)",
+      "universe": "winners and placers of the Big Four international pageants",
+      "criteria": [
+       "title",
+       "year",
+       "country",
+       "placements by country",
+       "country success index = weighted placements per edition"
+      ],
+      "sources": [
+       "Global Beauties",
+       "organisation records",
+       "Wikidata"
+      ],
+      "priority": 3
+     },
+     {
+      "slug": "songwriters-lyricists",
+      "name": "Songwriters and lyricists",
+      "kind": "knowledge",
+      "description": "Songwriters and film lyricists (Javed Akhtar, Gulzar, Vincent Fang, Aki Yashiro, Kim Eana, Tom Jobim) ranked by hits and credits.",
+      "entity": "songwriter or lyricist",
+      "universe": "credited songwriters and lyricists in national charts and film music",
+      "criteria": [
+       "credited songs",
+       "chart hits",
+       "awards",
+       "streams of credited songs",
+       "hit rate = chart hits ÷ credited songs"
+      ],
+      "sources": [
+       "MusicBrainz",
+       "national collecting societies (IPRS, JASRAC, KOMCA, CASH)",
+       "chart archives"
+      ],
+      "priority": 2
      }
     ]
    },
@@ -11773,8 +12624,52 @@
        "Wikipedia list articles and infoboxes (MediaWiki API)"
       ],
       "priority": 3
+     },
+     {
+      "slug": "name-days",
+      "name": "Name days",
+      "kind": "knowledge",
+      "description": "Name-day calendars (Poland, Czechia, Slovakia, Hungary, Greece, Nordic and Baltic countries) and which names are celebrated when.",
+      "entity": "name day (name x country)",
+      "universe": "names on official or traditional name-day calendars",
+      "criteria": [
+       "date",
+       "country calendars it appears in",
+       "bearers in the country",
+       "Orthodox / Catholic saint link",
+       "popularity = bearers per 100k"
+      ],
+      "sources": [
+       "national name-day calendars (Svenska Akademien, Czech/Hungarian lists)",
+       "national statistics offices name counts",
+       "Wikidata"
+      ],
+      "priority": 3
      }
     ]
+   },
+   {
+    "slug": "ethnic-groups",
+    "name": "Ethnic groups and peoples",
+    "kind": "knowledge",
+    "description": "Ethnic groups and peoples of the world (Han, Hindustani, Bengali, Yoruba, Hausa, Igbo, Amhara, Zulu, Pashtun, Kurds, Javanese, Quechua) compared.",
+    "entity": "ethnic group",
+    "universe": "ethnic groups with population estimates in national censuses or Joshua Project/Ethnologue",
+    "criteria": [
+     "population",
+     "countries of residence",
+     "main language",
+     "main religion",
+     "share of national population",
+     "diaspora share = outside homeland / total"
+    ],
+    "sources": [
+     "national censuses",
+     "Ethnologue",
+     "Joshua Project",
+     "Wikidata"
+    ],
+    "priority": 1
    }
   ]
  },
@@ -12707,6 +13602,27 @@
        "FIFA referee lists"
       ],
       "priority": 3
+     },
+     {
+      "slug": "football-academies",
+      "name": "Football academies",
+      "kind": "knowledge",
+      "description": "Youth football academies (La Masia, Clairefontaine, Right to Dream, Aspire, Diambars, Ajax, Benfica Seixal) ranked by players produced.",
+      "entity": "football academy",
+      "universe": "club and independent academies producing professional players",
+      "criteria": [
+       "professional graduates",
+       "graduates in top-5 leagues",
+       "national team caps of graduates",
+       "transfer value of graduates",
+       "output index = graduates in top leagues ÷ intake"
+      ],
+      "sources": [
+       "CIES Football Observatory academy rankings",
+       "Transfermarkt",
+       "club reports"
+      ],
+      "priority": 2
      }
     ]
    },
@@ -14187,6 +15103,27 @@
        "Nielsen sports public reports"
       ],
       "priority": 3
+     },
+     {
+      "slug": "speedway-riders",
+      "name": "Speedway riders and teams",
+      "kind": "knowledge",
+      "description": "Motorcycle speedway riders and clubs (Poland's Ekstraliga, Sweden, Denmark, UK) ranked.",
+      "entity": "speedway rider or club",
+      "universe": "riders and clubs in the Speedway Grand Prix, PGE Ekstraliga, Elitserien and Premiership",
+      "criteria": [
+       "Grand Prix points",
+       "league average (heat points per heat)",
+       "titles",
+       "attendance (clubs)",
+       "form index = average x heats"
+      ],
+      "sources": [
+       "FIM Speedway GP results",
+       "PGE Ekstraliga statistics (speedwayekstraliga.pl)",
+       "Speedway Sweden"
+      ],
+      "priority": 3
      }
     ]
    },
@@ -14545,6 +15482,89 @@
        "BoxRec",
        "Wikipedia list articles and infoboxes (MediaWiki API)",
        "The Ring ratings archive"
+      ],
+      "priority": 3
+     },
+     {
+      "slug": "wushu-athletes",
+      "name": "Wushu and sanda athletes",
+      "kind": "knowledge",
+      "description": "Wushu taolu and sanda competitors ranked by world and national titles.",
+      "entity": "wushu athlete",
+      "universe": "athletes at IWUF World Championships, Asian Games and Chinese National Games",
+      "criteria": [
+       "world titles",
+       "Asian Games medals",
+       "national titles",
+       "active years",
+       "medal index = 3 gold + 2 silver + 1 bronze"
+      ],
+      "sources": [
+       "IWUF results",
+       "Asian Games results",
+       "Chinese Wushu Association"
+      ],
+      "priority": 3
+     },
+     {
+      "slug": "pencak-silat-athletes",
+      "name": "Pencak silat athletes",
+      "kind": "knowledge",
+      "description": "Pencak silat competitors ranked by world and SEA Games titles.",
+      "entity": "pencak silat athlete",
+      "universe": "athletes at PERSILAT World Championships, Asian Games and SEA Games",
+      "criteria": [
+       "world titles",
+       "SEA Games medals",
+       "Asian Games medals",
+       "medal index = 3 gold + 2 silver + 1 bronze"
+      ],
+      "sources": [
+       "PERSILAT results",
+       "SEA Games results",
+       "Asian Games results"
+      ],
+      "priority": 3
+     },
+     {
+      "slug": "pro-wrestling-promotions",
+      "name": "Professional wrestling promotions (lucha libre, puroresu)",
+      "kind": "knowledge",
+      "description": "Wrestling promotions (WWE, AAA, CMLL, NJPW, Stardom, AEW) compared.",
+      "entity": "wrestling promotion",
+      "universe": "active professional wrestling promotions with regular televised events",
+      "criteria": [
+       "events per year = events ÷ year",
+       "average attendance",
+       "TV / streaming reach",
+       "roster size",
+       "revenue per event"
+      ],
+      "sources": [
+       "Cagematch database",
+       "company reports (TKO, Bushiroad)",
+       "Wrestling Observer attendance data"
+      ],
+      "priority": 3
+     },
+     {
+      "slug": "muay-thai-stadiums-camps",
+      "name": "Muay Thai stadiums and camps",
+      "kind": "knowledge",
+      "description": "Muay Thai stadiums (Rajadamnern, Lumpinee) and training camps ranked.",
+      "entity": "Muay Thai stadium or camp",
+      "universe": "licensed stadiums and camps in Thailand and internationally",
+      "criteria": [
+       "champions produced",
+       "fights per year = fights ÷ year",
+       "founded",
+       "reviews",
+       "champions per decade"
+      ],
+      "sources": [
+       "Sports Authority of Thailand",
+       "Rajadamnern / Lumpinee results",
+       "Google reviews"
       ],
       "priority": 3
      }
@@ -15138,6 +16158,27 @@
        "Wikidata SPARQL endpoint (query.wikidata.org)"
       ],
       "priority": 3
+     },
+     {
+      "slug": "cricket-player-auctions",
+      "name": "Cricket league player auctions",
+      "kind": "knowledge",
+      "description": "IPL, WPL, PSL draft, BPL, SA20 and other franchise auction purchases ranked by price and value.",
+      "entity": "auction purchase (player x season)",
+      "universe": "players bought in franchise cricket auctions and drafts",
+      "criteria": [
+       "price",
+       "base price",
+       "premium = price ÷ base price",
+       "runs or wickets that season",
+       "cost per run or wicket"
+      ],
+      "sources": [
+       "IPL official auction results (iplt20.com)",
+       "PSL / BPL / SA20 draft results",
+       "ESPNcricinfo"
+      ],
+      "priority": 1
      }
     ]
    },
@@ -16017,6 +17058,28 @@
        "organiser statistics"
       ],
       "priority": 2
+     },
+     {
+      "slug": "national-sports-games",
+      "name": "National and regional multi-sport games",
+      "kind": "knowledge",
+      "description": "Domestic and regional games (China National Games, India National Games, SEA Games, Pan Arab Games, African Games, Bolivarian Games, Spartakiad) compared.",
+      "entity": "multi-sport event edition",
+      "universe": "editions of national and regional multi-sport games",
+      "criteria": [
+       "athletes",
+       "sports",
+       "nations or provinces",
+       "host city",
+       "budget",
+       "cost per athlete"
+      ],
+      "sources": [
+       "organising committee reports",
+       "Olympic Council of Asia / ANOCA / Panam Sports",
+       "Wikidata"
+      ],
+      "priority": 3
      }
     ]
    },
@@ -17798,6 +18861,48 @@
      "Wikidata"
     ],
     "priority": 2
+   },
+   {
+    "slug": "traditional-sports",
+    "name": "Traditional and indigenous sports",
+    "kind": "knowledge",
+    "description": "Traditional sports (buzkashi, kokpar, kho-kho, sepak raga, Mongolian bökh, oil wrestling, hurling, jai alai, Basque pelota, lucha canaria, dambe) compared.",
+    "entity": "traditional sport",
+    "universe": "sports with organised competitions listed by UNESCO or national federations",
+    "criteria": [
+     "practising countries",
+     "registered players",
+     "organised leagues",
+     "UNESCO ICH listing",
+     "vitality index = players x leagues"
+    ],
+    "sources": [
+     "UNESCO Traditional Sports and Games collection",
+     "national federations",
+     "Wikidata"
+    ],
+    "priority": 3
+   },
+   {
+    "slug": "public-race-sports-japan-korea",
+    "name": "Keirin, boat race and public race sports",
+    "kind": "knowledge",
+    "description": "Keirin, kyotei boat racing, auto race and Korean public cycle/boat racing venues and racers ranked.",
+    "entity": "venue or racer",
+    "universe": "venues and registered racers in Japan's and Korea's publicly run race sports",
+    "criteria": [
+     "annual turnover",
+     "races",
+     "prize money (racer)",
+     "win rate",
+     "turnover per race day = turnover ÷ race day"
+    ],
+    "sources": [
+     "JKA keirin statistics",
+     "BOAT RACE official (boatrace.jp)",
+     "Korea Sports Promotion Foundation"
+    ],
+    "priority": 3
    }
   ]
  },
@@ -18089,6 +19194,116 @@
          "Wikidata SPARQL endpoint (query.wikidata.org)"
         ],
         "priority": 3
+       },
+       {
+        "slug": "indian-regional-language-films",
+        "name": "Bengali, Marathi, Punjabi, Bhojpuri and other Indian films",
+        "kind": "knowledge",
+        "description": "Films in Indian languages beyond Hindi and the four southern languages, ranked by box office and ratings.",
+        "entity": "film",
+        "universe": "feature films in Bengali, Marathi, Punjabi, Gujarati, Bhojpuri, Odia, Assamese and other Indian languages certified by CBFC",
+        "criteria": [
+         "box office gross",
+         "IMDb rating",
+         "votes",
+         "National Film Award wins",
+         "popularity index = votes x rating"
+        ],
+        "sources": [
+         "CBFC certification records",
+         "Sacnilk / Box Office India",
+         "IMDb datasets",
+         "National Film Awards"
+        ],
+        "priority": 2
+       },
+       {
+        "slug": "pakistani-bangladeshi-films",
+        "name": "Pakistani and Bangladeshi films",
+        "kind": "knowledge",
+        "description": "Films from Pakistan (Lollywood) and Bangladesh (Dhallywood) ranked by box office and ratings.",
+        "entity": "film",
+        "universe": "feature films produced in Pakistan and Bangladesh",
+        "criteria": [
+         "domestic box office",
+         "IMDb rating",
+         "votes",
+         "awards",
+         "popularity index = votes x rating"
+        ],
+        "sources": [
+         "Central Board of Film Censors Pakistan",
+         "Bangladesh Film Certification Board",
+         "IMDb datasets",
+         "Wikidata"
+        ],
+        "priority": 3
+       },
+       {
+        "slug": "african-language-films",
+        "name": "Kannywood, Yoruba, Ghanaian, East African and South African films",
+        "kind": "knowledge",
+        "description": "African films beyond English-language Nollywood: Hausa Kannywood, Yoruba, Ghanaian, Swahili Bongo, Ethiopian, Francophone and South African cinema.",
+        "entity": "film",
+        "universe": "feature films produced in sub-Saharan Africa outside English-language Nollywood",
+        "criteria": [
+         "box office or streaming chart position",
+         "IMDb rating",
+         "festival selections (FESPACO, AMAA)",
+         "language",
+         "reach index = streaming chart weeks x rating"
+        ],
+        "sources": [
+         "NFVCB Nigeria / KFCB Kenya classification lists",
+         "FESPACO and AMAA award records",
+         "Netflix and Showmax top-10 archives",
+         "IMDb datasets"
+        ],
+        "priority": 2
+       },
+       {
+        "slug": "russian-soviet-films",
+        "name": "Russian, Soviet and CIS films",
+        "kind": "knowledge",
+        "description": "Films from Russia, the Soviet Union and CIS countries ranked by audience, ratings and awards.",
+        "entity": "film",
+        "universe": "feature films produced in the USSR, Russia, Belarus, Kazakhstan and other CIS states",
+        "criteria": [
+         "Kinopoisk rating",
+         "votes",
+         "Soviet-era audience (millions)",
+         "box office (EAIS)",
+         "awards (Nika, Golden Eagle)",
+         "popularity index = votes x rating"
+        ],
+        "sources": [
+         "Kinopoisk",
+         "EAIS box-office system (ekinobilet.fond-kino.ru)",
+         "Wikidata",
+         "IMDb datasets"
+        ],
+        "priority": 1
+       },
+       {
+        "slug": "iranian-films",
+        "name": "Iranian films",
+        "kind": "knowledge",
+        "description": "Iranian films ranked by domestic box office, festival record and ratings.",
+        "entity": "film",
+        "universe": "feature films produced in Iran",
+        "criteria": [
+         "domestic box office (Sinamaticket)",
+         "IMDb rating",
+         "international festival awards",
+         "Fajr awards",
+         "acclaim index = awards x rating"
+        ],
+        "sources": [
+         "Sinamaticket / Iranian box office reports",
+         "Fajr Film Festival records",
+         "IMDb datasets"
+        ],
+        "priority": 3
        }
       ]
      },
@@ -18358,6 +19573,133 @@
          "IMDb non-commercial datasets",
          "LUMIERE VOD / European Audiovisual Observatory",
          "Netflix engagement reports"
+        ],
+        "priority": 2
+       },
+       {
+        "slug": "arabic-tv-series",
+        "name": "Arabic TV series (Ramadan musalsalat)",
+        "kind": "knowledge",
+        "description": "Egyptian, Syrian, Gulf and other Arabic drama series ranked by viewership and ratings, especially the Ramadan season.",
+        "entity": "TV series",
+        "universe": "drama series produced in Arabic-speaking countries",
+        "criteria": [
+         "Ramadan season viewership rank",
+         "Shahid / Watch It streaming rank",
+         "IMDb rating",
+         "YouTube views",
+         "reach index = streaming rank score x rating"
+        ],
+        "sources": [
+         "Shahid and Watch It top lists",
+         "IPSOS / Parrot Analytics MENA reports",
+         "IMDb datasets",
+         "elcinema.com"
+        ],
+        "priority": 1
+       },
+       {
+        "slug": "iranian-tv-series",
+        "name": "Iranian TV and home-video series",
+        "kind": "knowledge",
+        "description": "Iranian television and VOD (Filimo, Namava) series ranked by audience and ratings.",
+        "entity": "TV series",
+        "universe": "series broadcast by IRIB or released on Iranian VOD platforms",
+        "criteria": [
+         "IRIB audience share",
+         "VOD ranking",
+         "IMDb rating",
+         "episodes",
+         "popularity index = audience x rating"
+        ],
+        "sources": [
+         "IRIB research centre audience polls",
+         "Filimo and Namava charts",
+         "IMDb datasets"
+        ],
+        "priority": 3
+       },
+       {
+        "slug": "russian-tv-series",
+        "name": "Russian and CIS TV series",
+        "kind": "knowledge",
+        "description": "Russian-language series ranked by ratings, streaming views and audience.",
+        "entity": "TV series",
+        "universe": "series produced in Russia and CIS for TV or streaming (Kinopoisk, Okko, Start, Wink)",
+        "criteria": [
+         "Kinopoisk rating",
+         "votes",
+         "Mediascope audience share",
+         "episodes",
+         "popularity index = votes x rating"
+        ],
+        "sources": [
+         "Kinopoisk",
+         "Mediascope ratings",
+         "Wikidata"
+        ],
+        "priority": 2
+       },
+       {
+        "slug": "southeast-asian-tv-series",
+        "name": "Indonesian sinetron, Filipino teleseryes and Vietnamese/Malay dramas",
+        "kind": "knowledge",
+        "description": "TV series from Indonesia, the Philippines, Malaysia and Vietnam ranked by ratings and streaming.",
+        "entity": "TV series",
+        "universe": "drama series produced in Indonesia, the Philippines, Malaysia, Vietnam and Myanmar",
+        "criteria": [
+         "Nielsen TV rating / share",
+         "streaming top-10 weeks",
+         "IMDb rating",
+         "YouTube views",
+         "reach index = rating share x streaming weeks"
+        ],
+        "sources": [
+         "Nielsen Indonesia / Kantar Media Philippines ratings",
+         "Netflix, Vidio, iQIYI top-10 archives",
+         "IMDb datasets"
+        ],
+        "priority": 2
+       },
+       {
+        "slug": "indian-web-series",
+        "name": "Indian web series",
+        "kind": "knowledge",
+        "description": "Indian OTT original series ranked by viewership, ratings and awards.",
+        "entity": "web series",
+        "universe": "original series on Indian OTT platforms (JioHotstar, Netflix India, Prime Video India, SonyLIV, ZEE5, MX Player)",
+        "criteria": [
+         "Ormax OTT audience reach",
+         "IMDb rating",
+         "votes",
+         "Filmfare OTT awards",
+         "popularity index = audience reach x rating"
+        ],
+        "sources": [
+         "Ormax Media OTT audience reports",
+         "IMDb datasets",
+         "Filmfare OTT Awards"
+        ],
+        "priority": 1
+       },
+       {
+        "slug": "african-tv-series",
+        "name": "African TV series and soaps",
+        "kind": "knowledge",
+        "description": "TV series from Nigeria, South Africa, Kenya, Ghana and Francophone Africa (Skeem Saam, Generations, Blood Sisters, Maîtresse d'un homme marié) compared.",
+        "entity": "TV series",
+        "universe": "drama series produced in sub-Saharan Africa",
+        "criteria": [
+         "audience (BRC / TAMS)",
+         "streaming top-10 weeks",
+         "IMDb rating",
+         "seasons",
+         "reach index = audience x seasons"
+        ],
+        "sources": [
+         "BRC Television Audience Measurement (South Africa)",
+         "Netflix / Showmax top-10 archives",
+         "IMDb datasets"
         ],
         "priority": 2
        }
@@ -18686,6 +20028,70 @@
        "IMDb awards (public pages)"
       ],
       "priority": 3
+     },
+     {
+      "slug": "tokusatsu-series",
+      "name": "Tokusatsu series",
+      "kind": "knowledge",
+      "description": "Japanese special-effects franchises and series (Kamen Rider, Super Sentai, Ultraman, Godzilla) ranked.",
+      "entity": "tokusatsu series or film",
+      "universe": "live-action special-effects TV series and films produced in Japan",
+      "criteria": [
+       "episodes",
+       "broadcast years",
+       "toy sales (Bandai IR)",
+       "ratings",
+       "franchise index = years x toy sales"
+      ],
+      "sources": [
+       "Bandai Namco IR character sales",
+       "Toei and Tsuburaya catalogues",
+       "Video Research ratings",
+       "Wikidata"
+      ],
+      "priority": 3
+     },
+     {
+      "slug": "anime-studios",
+      "name": "Anime studios",
+      "kind": "knowledge",
+      "description": "Japanese and other animation studios ranked by output, ratings and box office.",
+      "entity": "animation studio",
+      "universe": "studios credited as main producer on TV anime or anime films",
+      "criteria": [
+       "titles produced",
+       "average MyAnimeList score",
+       "box office of films",
+       "employees",
+       "quality-volume index = titles x average score"
+      ],
+      "sources": [
+       "AniList / MyAnimeList studio data",
+       "Association of Japanese Animations industry report",
+       "Japanese box office (Eiren)"
+      ],
+      "priority": 1
+     },
+     {
+      "slug": "asian-variety-shows",
+      "name": "Asian variety and survival shows",
+      "kind": "knowledge",
+      "description": "Variety, idol-survival and reality shows of China, Korea, Japan and Southeast Asia (Running Man, Produce 101, Keep Running, Gaki no Tsukai) compared.",
+      "entity": "variety show",
+      "universe": "variety, game and survival shows produced in East and Southeast Asia",
+      "criteria": [
+       "peak rating",
+       "streaming views",
+       "seasons",
+       "Douban / IMDb rating",
+       "reach index = rating x seasons"
+      ],
+      "sources": [
+       "Nielsen Korea / Video Research ratings",
+       "iQIYI / Mango TV / Tencent heat indices",
+       "Douban"
+      ],
+      "priority": 2
      }
     ]
    },
@@ -19159,6 +20565,28 @@
        "Anison Generation database",
        "VGMdb",
        "Oricon public rankings"
+      ],
+      "priority": 3
+     },
+     {
+      "slug": "ragas",
+      "name": "Ragas",
+      "kind": "knowledge",
+      "description": "Hindustani and Carnatic ragas compared by parent scale, time and popularity.",
+      "entity": "raga",
+      "universe": "ragas of Hindustani (thaat) and Carnatic (melakarta/janya) classical music",
+      "criteria": [
+       "parent scale (thaat/melakarta)",
+       "time of day",
+       "notes (arohana/avarohana)",
+       "recordings",
+       "film songs based on it",
+       "popularity index = recordings + film songs"
+      ],
+      "sources": [
+       "Sangeet Natak Akademi",
+       "Dunya / CompMusic Saraga datasets",
+       "Raga databases (ragasurabhi)"
       ],
       "priority": 3
      }
@@ -19659,6 +21087,249 @@
        "toastystats AO3 data"
       ],
       "priority": 3
+     },
+     {
+      "slug": "web-fiction-platforms",
+      "name": "Web fiction and serial-novel platforms",
+      "kind": "commercial",
+      "description": "Online fiction platforms (Qidian, Fanqie, Jinjiang, Wattpad, Pratilipi, KakaoPage, Syosetu, Dreame) compared.",
+      "entity": "web fiction platform",
+      "universe": "platforms publishing serialized fiction by many authors",
+      "criteria": [
+       "monthly active users",
+       "authors",
+       "works",
+       "pay model (free/ad vs paid chapters)",
+       "author earnings per 1,000 reads = author earnings ÷ 1,000 reads",
+       "languages"
+      ],
+      "sources": [
+       "China Audio-Video and Digital Publishing Association online literature report",
+       "company IR filings (China Literature)",
+       "Sensor Tower / data.ai",
+       "platform press releases"
+      ],
+      "priority": 2
+     },
+     {
+      "slug": "webcomic-platforms",
+      "name": "Webtoon and webcomic platforms",
+      "kind": "commercial",
+      "description": "Webcomic platforms (Naver Webtoon, KakaoPage, Piccoma, LINE Manga, Kuaikan, Bilibili Comics, Tapas) compared.",
+      "entity": "webcomic platform",
+      "universe": "apps and sites serializing digital comics",
+      "criteria": [
+       "monthly active users",
+       "revenue",
+       "series count",
+       "free-to-paid model",
+       "revenue per user = revenue / MAU",
+       "countries"
+      ],
+      "sources": [
+       "KOCCA webtoon industry report",
+       "Naver Webtoon / Kakao IR",
+       "Sensor Tower",
+       "Japan Electronic Publishing Association"
+      ],
+      "priority": 3
+     },
+     {
+      "slug": "indian-language-literature",
+      "name": "Indian-language literary works",
+      "kind": "knowledge",
+      "description": "Novels, poetry and plays in Hindi, Bengali, Tamil, Urdu, Malayalam and other Indian languages ranked by acclaim.",
+      "entity": "literary work",
+      "universe": "works in the 22 scheduled languages (and English by Indian authors) with Sahitya Akademi or Jnanpith recognition or wide readership",
+      "criteria": [
+       "Sahitya Akademi / Jnanpith award",
+       "translations",
+       "editions",
+       "Goodreads ratings",
+       "canon index = awards + translations"
+      ],
+      "sources": [
+       "Sahitya Akademi award lists",
+       "Bharatiya Jnanpith",
+       "Index Translationum",
+       "Goodreads"
+      ],
+      "priority": 2
+     },
+     {
+      "slug": "russian-classics",
+      "name": "Russian literary classics",
+      "kind": "knowledge",
+      "description": "Russian-language novels, poetry and plays ranked by school canon, editions and readership.",
+      "entity": "literary work",
+      "universe": "works of Russian and Soviet literature",
+      "criteria": [
+       "school curriculum inclusion",
+       "print runs",
+       "translations",
+       "LiveLib rating",
+       "canon index = curriculum + translations"
+      ],
+      "sources": [
+       "Russian school literature programme (FIPI)",
+       "Russian Book Chamber statistics",
+       "LiveLib",
+       "Index Translationum"
+      ],
+      "priority": 3
+     },
+     {
+      "slug": "national-literary-classics",
+      "name": "National literary classics (Polish, Greek, Persian, Arabic, Vietnamese, Turkish, Swahili and more)",
+      "kind": "knowledge",
+      "description": "The canonical works of each national literature ranked by school canon, translations and readership.",
+      "entity": "literary work",
+      "universe": "works taught as national classics in their home countries' school curricula",
+      "criteria": [
+       "curriculum inclusion",
+       "translations",
+       "editions",
+       "Goodreads ratings",
+       "canon index = curriculum + translations"
+      ],
+      "sources": [
+       "national school curricula",
+       "Index Translationum",
+       "Goodreads",
+       "Wikidata"
+      ],
+      "priority": 2
+     },
+     {
+      "slug": "wuxia-xianxia-novels",
+      "name": "Wuxia and xianxia novels",
+      "kind": "knowledge",
+      "description": "Martial-arts (wuxia) and cultivation (xianxia) novels from Jin Yong and Gu Long to web novels ranked.",
+      "entity": "wuxia or xianxia novel",
+      "universe": "published and serialized wuxia and xianxia fiction",
+      "criteria": [
+       "copies sold",
+       "adaptations",
+       "Douban rating",
+       "votes",
+       "popularity index = votes x rating"
+      ],
+      "sources": [
+       "Douban Books",
+       "Qidian rankings",
+       "Wikidata"
+      ],
+      "priority": 2
+     },
+     {
+      "slug": "quran-surahs",
+      "name": "Surahs of the Quran",
+      "kind": "knowledge",
+      "description": "The 114 surahs compared by length, revelation and recitation.",
+      "entity": "surah",
+      "universe": "the 114 chapters of the Quran",
+      "criteria": [
+       "verses",
+       "words",
+       "Meccan or Medinan",
+       "revelation order",
+       "juz",
+       "recitation popularity = listens on Quran apps ÷ length"
+      ],
+      "sources": [
+       "Tanzil Quran text (tanzil.net)",
+       "Quran.com API",
+       "King Fahd Complex"
+      ],
+      "priority": 1
+     },
+     {
+      "slug": "hadith-collections",
+      "name": "Hadith collections",
+      "kind": "knowledge",
+      "description": "Major Sunni and Shia hadith collections (Bukhari, Muslim, the Sunan, Muwatta, al-Kafi) compared.",
+      "entity": "hadith collection",
+      "universe": "canonical and widely cited hadith compilations",
+      "criteria": [
+       "hadith count",
+       "compiler",
+       "century compiled",
+       "share graded sahih",
+       "translations",
+       "authority index = sahih share x citations"
+      ],
+      "sources": [
+       "sunnah.com",
+       "Dorar.net",
+       "Wikidata"
+      ],
+      "priority": 2
+     },
+     {
+      "slug": "tafsir-works",
+      "name": "Tafsir (Quran commentaries)",
+      "kind": "knowledge",
+      "description": "Classical and modern Quran commentaries (Tabari, Ibn Kathir, Qurtubi, Jalalayn, Maariful Quran, Tafhim) compared.",
+      "entity": "tafsir work",
+      "universe": "published tafsir works in Arabic, Urdu, Persian, Turkish, Malay and English",
+      "criteria": [
+       "author",
+       "century",
+       "volumes",
+       "translations",
+       "school",
+       "reach index = translations x editions"
+      ],
+      "sources": [
+       "altafsir.com",
+       "quran.com tafsir catalogue",
+       "Wikidata"
+      ],
+      "priority": 3
+     },
+     {
+      "slug": "hindu-scriptures-texts",
+      "name": "Hindu, Sikh, Jain and Buddhist scriptures",
+      "kind": "knowledge",
+      "description": "Vedas, Upanishads, Puranas, Gita, Ramayana versions, Guru Granth Sahib, Agamas and Pali Canon texts compared.",
+      "entity": "scripture or text",
+      "universe": "canonical and widely read texts of Indian religions",
+      "criteria": [
+       "tradition",
+       "verses",
+       "dating",
+       "translations",
+       "modern editions",
+       "reach index = translations x editions"
+      ],
+      "sources": [
+       "GRETIL text archive",
+       "SuttaCentral",
+       "Gita Press catalogue",
+       "Wikidata"
+      ],
+      "priority": 2
+     },
+     {
+      "slug": "tang-song-poems",
+      "name": "Classical Chinese poems (Tang, Song, Yuan)",
+      "kind": "knowledge",
+      "description": "Classical Chinese poems and ci lyrics ranked by curriculum inclusion and citation.",
+      "entity": "classical Chinese poem",
+      "universe": "shi, ci and qu poems in 唐诗三百首, 宋词三百首 and school curricula",
+      "criteria": [
+       "school curriculum grade",
+       "anthology inclusion",
+       "citations / search interest",
+       "translations",
+       "canon index = curriculum + anthology + citations"
+      ],
+      "sources": [
+       "MOE curriculum (部编版) poem lists",
+       "chinese-poetry open dataset (GitHub)",
+       "Gushiwen (gushiwen.cn)"
+      ],
+      "priority": 2
      }
     ]
    },
@@ -20584,6 +22255,95 @@
        "national sign language acts"
       ],
       "priority": 2
+     },
+     {
+      "slug": "traditional-textiles",
+      "name": "Traditional textiles (batik, ikat, kente, songket, silk brocade)",
+      "kind": "knowledge",
+      "description": "Traditional textile techniques and named fabrics compared by origin, technique and heritage status.",
+      "entity": "textile tradition",
+      "universe": "named textile techniques and fabrics (batik, ikat, kente, adire, songket, Banarasi, Yunjin brocade, Uzbek adras, kilim)",
+      "criteria": [
+       "origin region",
+       "technique",
+       "UNESCO / GI status",
+       "artisans employed",
+       "price per metre",
+       "heritage index = listings + artisans"
+      ],
+      "sources": [
+       "UNESCO Intangible Cultural Heritage lists",
+       "WIPO / national GI registries",
+       "Wikidata"
+      ],
+      "priority": 2
+     },
+     {
+      "slug": "carpet-weaving-styles",
+      "name": "Oriental carpet and rug styles",
+      "kind": "knowledge",
+      "description": "Persian, Turkish, Caucasian, Afghan, Central Asian and Moroccan rug styles compared.",
+      "entity": "carpet style",
+      "universe": "named carpet and kilim types (Tabriz, Kashan, Isfahan, Heriz, Hereke, Bukhara, Beni Ourain)",
+      "criteria": [
+       "origin",
+       "knot type and density",
+       "materials",
+       "typical price per m²",
+       "auction record",
+       "value index = knot density / price per m²"
+      ],
+      "sources": [
+       "Iran National Carpet Center",
+       "UNESCO ICH listings",
+       "auction records (Christie's, Sotheby's)",
+       "Wikidata"
+      ],
+      "priority": 3
+     },
+     {
+      "slug": "folk-crafts-handicrafts",
+      "name": "Folk crafts and handicraft traditions",
+      "kind": "knowledge",
+      "description": "Named handicraft traditions (Talavera, alebrijes, matryoshka, Khokhloma, Gzhel, Delftware, Bolesławiec, Kutani, celadon, cloisonné, Kashmiri papier-mâché, Moroccan zellige) compared.",
+      "entity": "handicraft tradition",
+      "universe": "craft traditions protected as GI or intangible heritage, or with organised artisan production",
+      "criteria": [
+       "origin",
+       "artisans",
+       "GI / UNESCO status",
+       "export value",
+       "price range",
+       "heritage index = protection level x artisans"
+      ],
+      "sources": [
+       "UNESCO Intangible Cultural Heritage lists",
+       "WIPO / national GI registries (India GI Registry, IMPI)",
+       "national crafts councils",
+       "Wikidata"
+      ],
+      "priority": 2
+     },
+     {
+      "slug": "calligraphy-styles",
+      "name": "Calligraphy scripts and styles",
+      "kind": "knowledge",
+      "description": "Calligraphy styles (Arabic naskh, thuluth, nastaliq, kufic; Chinese seal, clerical, cursive; Japanese shodō; Korean seoye; Devanagari) compared.",
+      "entity": "calligraphy style",
+      "universe": "named calligraphic hands and scripts",
+      "criteria": [
+       "script",
+       "period of origin",
+       "UNESCO listing",
+       "master calligraphers",
+       "usage index = modern usage x heritage status"
+      ],
+      "sources": [
+       "UNESCO ICH (Arabic calligraphy, Chinese calligraphy)",
+       "IRCICA calligraphy competition records",
+       "Wikidata"
+      ],
+      "priority": 3
      }
     ]
    },
@@ -21189,6 +22949,28 @@
        "Pleiades"
       ],
       "priority": 2
+     },
+     {
+      "slug": "national-heroes-liberation",
+      "name": "Independence movements and national liberation struggles",
+      "kind": "knowledge",
+      "description": "Independence and liberation movements of Asia, Africa and Latin America compared.",
+      "entity": "independence movement",
+      "universe": "movements leading to the independence of modern states",
+      "criteria": [
+       "country",
+       "start and end years",
+       "leaders",
+       "casualties",
+       "duration in years",
+       "overall index = mean z-score of the criteria above"
+      ],
+      "sources": [
+       "Wikidata",
+       "Correlates of War",
+       "UN decolonization records"
+      ],
+      "priority": 3
      }
     ]
    },
@@ -21832,6 +23614,70 @@
        "Interpark/KOPIS (Korea Performing Arts Box Office)"
       ],
       "priority": 3
+     },
+     {
+      "slug": "samba-schools",
+      "name": "Samba schools",
+      "kind": "knowledge",
+      "description": "Rio de Janeiro and São Paulo samba schools ranked by carnival titles and parade scores.",
+      "entity": "samba school",
+      "universe": "samba schools in the Rio Grupo Especial/Série Ouro and São Paulo Grupo Especial",
+      "criteria": [
+       "carnival titles",
+       "latest parade score",
+       "league",
+       "years in top group",
+       "success index = titles + recent placings"
+      ],
+      "sources": [
+       "LIESA results (liesa.globo.com)",
+       "Liga SP results",
+       "Wikidata"
+      ],
+      "priority": 2
+     },
+     {
+      "slug": "wedding-traditions",
+      "name": "Wedding traditions and ceremonies",
+      "kind": "knowledge",
+      "description": "Wedding ceremonies and customs of the world compared (nikah, Hindu vivaha, Chinese tea ceremony, Yoruba engagement, Korean pyebaek).",
+      "entity": "wedding tradition",
+      "universe": "documented wedding rites of ethnic and religious groups",
+      "criteria": [
+       "region",
+       "religion",
+       "average cost (where surveyed)",
+       "duration in days",
+       "guests (typical)",
+       "cost per guest"
+      ],
+      "sources": [
+       "UNESCO ICH",
+       "national wedding cost surveys",
+       "ethnographic literature (Wikidata)"
+      ],
+      "priority": 3
+     },
+     {
+      "slug": "beauty-pageants",
+      "name": "Beauty pageants",
+      "kind": "knowledge",
+      "description": "International and national pageants (Miss Universe, Miss World, Miss International, Miss Grand, Binibining Pilipinas, Miss Venezuela, Femina Miss India) compared.",
+      "entity": "beauty pageant",
+      "universe": "international pageants and national pageants that send delegates to them",
+      "criteria": [
+       "countries competing",
+       "editions",
+       "broadcast reach",
+       "social followers",
+       "prestige index = countries x editions"
+      ],
+      "sources": [
+       "Global Beauties pageant rankings",
+       "organisation records",
+       "Wikidata"
+      ],
+      "priority": 2
      }
     ]
    }
@@ -22655,6 +24501,485 @@
        "Wikidata"
       ],
       "priority": 2
+     },
+     {
+      "slug": "entrance-exam-cutoffs",
+      "name": "Admission by national entrance exam",
+      "kind": "knowledge",
+      "description": "University programmes ranked by the score or rank needed to get in through each country's national entrance exam, as published by the exam and admission authorities.",
+      "children": [
+       {
+        "slug": "gaokao-admission-scores",
+        "name": "Gaokao admission score lines",
+        "kind": "knowledge",
+        "description": "Chinese universities ranked by their gaokao admission score and rank line in every province, by year and stream.",
+        "entity": "university admission line (university x province x stream)",
+        "universe": "every undergraduate admitting institution in each province's published admission records (本科批次), all 31 provinces, last 5 years",
+        "criteria": [
+         "minimum admission score",
+         "minimum admission rank (位次)",
+         "score above provincial batch line",
+         "planned enrolment",
+         "rank percentile = admission rank / candidates in province",
+         "line stability = st.dev. of rank over 5 years"
+        ],
+        "sources": [
+         "阳光高考 gaokao.chsi.com.cn",
+         "provincial education examination authorities (各省教育考试院) admission statistics",
+         "掌上高考 / 中国教育在线 gkcx.eol.cn score database"
+        ],
+        "priority": 1
+       },
+       {
+        "slug": "kaoyan-graduate-programs",
+        "name": "Kaoyan graduate programmes",
+        "kind": "knowledge",
+        "description": "Chinese master's programmes ranked by national postgraduate exam (考研) re-exam lines, applicants and admission ratio.",
+        "entity": "master's programme (university x major)",
+        "universe": "master's programmes recruiting through the national postgraduate entrance exam",
+        "criteria": [
+         "re-exam score line (复试线)",
+         "applicants",
+         "places",
+         "admission ratio = admitted / applicants",
+         "push-free share (推免比例)",
+         "discipline evaluation grade"
+        ],
+        "sources": [
+         "研招网 yz.chsi.com.cn",
+         "university graduate school admission notices",
+         "MOE discipline evaluation (学科评估) results"
+        ],
+        "priority": 2
+       },
+       {
+        "slug": "jee-engineering-colleges",
+        "name": "JEE engineering colleges (IIT, NIT, IIIT)",
+        "kind": "knowledge",
+        "description": "Indian engineering institutes ranked by JoSAA opening and closing ranks for every branch and category.",
+        "entity": "institute-branch seat pool",
+        "universe": "all IITs, NITs, IIITs and GFTIs in JoSAA counselling, every branch, category and round",
+        "criteria": [
+         "closing rank (open category)",
+         "opening rank",
+         "seats",
+         "median package",
+         "NIRF engineering rank",
+         "demand index = 1 / closing rank x seats"
+        ],
+        "sources": [
+         "JoSAA opening and closing ranks (josaa.nic.in)",
+         "NIRF India Rankings (nirfindia.org)",
+         "institute placement reports"
+        ],
+        "priority": 1
+       },
+       {
+        "slug": "neet-medical-colleges",
+        "name": "NEET medical colleges",
+        "kind": "knowledge",
+        "description": "Indian MBBS and BDS colleges ranked by NEET-UG cut-off ranks, fees and seats.",
+        "entity": "medical college",
+        "universe": "every MBBS/BDS college in MCC all-India and state quota counselling",
+        "criteria": [
+         "closing NEET rank (all-India quota)",
+         "MBBS seats",
+         "annual fee",
+         "cost per seat-year = fee x 5.5",
+         "NIRF medical rank",
+         "government vs private"
+        ],
+        "sources": [
+         "MCC counselling allotment data (mcc.nic.in)",
+         "National Medical Commission college list (nmc.org.in)",
+         "state counselling authorities"
+        ],
+        "priority": 1
+       },
+       {
+        "slug": "cat-mba-institutes",
+        "name": "CAT and MBA entrance institutes",
+        "kind": "knowledge",
+        "description": "Indian management schools ranked by CAT/XAT percentile cut-offs, fees and placements.",
+        "entity": "MBA institute",
+        "universe": "IIMs and AICTE-approved PGDM/MBA institutes accepting CAT, XAT, CMAT or GMAT",
+        "criteria": [
+         "CAT cut-off percentile",
+         "annual intake",
+         "total fee",
+         "median salary",
+         "ROI = median salary / total fee",
+         "NIRF management rank"
+        ],
+        "sources": [
+         "IIM admission policies and final placement reports",
+         "NIRF management rankings",
+         "AICTE approved institutions list"
+        ],
+        "priority": 2
+       },
+       {
+        "slug": "mdcat-medical-colleges-pakistan",
+        "name": "Pakistan MDCAT medical colleges",
+        "kind": "knowledge",
+        "description": "Pakistani medical and dental colleges ranked by MDCAT closing merit, seats and fees.",
+        "entity": "medical or dental college in Pakistan",
+        "universe": "PMDC-recognised MBBS/BDS colleges, public and private",
+        "criteria": [
+         "closing merit aggregate",
+         "seats",
+         "annual fee",
+         "cost per seat-year",
+         "affiliated university",
+         "public vs private"
+        ],
+        "sources": [
+         "PMDC recognised colleges list (pmdc.pk)",
+         "provincial admission merit lists (UHS, KMU, DUHS)",
+         "HEC Pakistan"
+        ],
+        "priority": 2
+       },
+       {
+        "slug": "suneung-university-cutoffs",
+        "name": "Korean university admission cut-offs (Suneung)",
+        "kind": "knowledge",
+        "description": "Korean university departments ranked by CSAT (수능) percentile cut-offs and competition ratio.",
+        "entity": "university department",
+        "universe": "regular-admission (정시) departments of 4-year Korean universities",
+        "criteria": [
+         "CSAT percentile cut-off (70% line)",
+         "competition ratio",
+         "places",
+         "enrolment rate",
+         "selectivity index = percentile x competition ratio"
+        ],
+        "sources": [
+         "대학어디가 adiga.kr",
+         "대학알리미 academyinfo.go.kr",
+         "KCUE admission statistics"
+        ],
+        "priority": 1
+       },
+       {
+        "slug": "japan-university-hensachi",
+        "name": "Japanese university selectivity (hensachi)",
+        "kind": "knowledge",
+        "description": "Japanese university faculties ranked by entrance-exam hensachi, Common Test score rate and applicant ratio.",
+        "entity": "university faculty",
+        "universe": "faculties of national, public and private universities in Japan",
+        "criteria": [
+         "hensachi (偏差値)",
+         "Common Test required score rate",
+         "applicants per place (倍率)",
+         "places",
+         "national/public/private",
+         "selectivity index = hensachi x log(倍率)"
+        ],
+        "sources": [
+         "大学入試センター statistics",
+         "university entrance data (大学ポートレート portraits.niad.ac.jp)",
+         "Kawaijuku / Benesse published hensachi tables"
+        ],
+        "priority": 1
+       },
+       {
+        "slug": "enem-sisu-courses",
+        "name": "Brazil ENEM / Sisu cut-off scores",
+        "kind": "knowledge",
+        "description": "Brazilian public university courses ranked by Sisu cut-off ENEM scores.",
+        "entity": "course offering (university x course x campus)",
+        "universe": "every course offered through Sisu and ProUni",
+        "criteria": [
+         "Sisu cut-off score (ampla concorrência)",
+         "places",
+         "candidates per place",
+         "MEC course grade (CPC)",
+         "demand index = candidates per place x cut-off z-score"
+        ],
+        "sources": [
+         "Sisu open data (dados.gov.br / acessounico.mec.gov.br)",
+         "INEP Censo da Educação Superior and CPC",
+         "e-MEC registry"
+        ],
+        "priority": 1
+       },
+       {
+        "slug": "yks-university-programs",
+        "name": "Turkey YKS university programmes",
+        "kind": "knowledge",
+        "description": "Turkish university programmes ranked by YKS base score and success rank.",
+        "entity": "university programme",
+        "universe": "every programme in the ÖSYM placement guide",
+        "criteria": [
+         "base score (taban puan)",
+         "success rank (başarı sırası)",
+         "quota",
+         "fill rate",
+         "graduate employment (Kariyer Kapısı)",
+         "selectivity = 1 / success rank"
+        ],
+        "sources": [
+         "YÖK Atlas (yokatlas.yok.gov.tr)",
+         "ÖSYM placement results",
+         "Cumhurbaşkanlığı Kariyer Kapısı"
+        ],
+        "priority": 1
+       },
+       {
+        "slug": "konkur-universities-iran",
+        "name": "Iran Konkur university programmes",
+        "kind": "knowledge",
+        "description": "Iranian university programmes ranked by Konkur admission rank and capacity.",
+        "entity": "university programme in Iran",
+        "universe": "daytime, evening and Azad programmes in Sanjesh selection booklets",
+        "criteria": [
+         "last admitted rank by region",
+         "capacity",
+         "programme type",
+         "university ISC rank",
+         "selectivity index = capacity-weighted inverse rank"
+        ],
+        "sources": [
+         "Sanjesh Organization (sanjesh.org)",
+         "Islamic World Science Citation Center university ranking",
+         "university admission announcements"
+        ],
+        "priority": 2
+       },
+       {
+        "slug": "egypt-tansik-faculties",
+        "name": "Egypt Thanaweya Amma faculty cut-offs (Tansik)",
+        "kind": "knowledge",
+        "description": "Egyptian university faculties ranked by Tansik minimum percentage for Thanaweya Amma graduates.",
+        "entity": "faculty (university x faculty)",
+        "universe": "public university faculties in the Egyptian coordination office (Tansik) stages",
+        "criteria": [
+         "minimum percentage (الحد الأدنى)",
+         "track (science/maths/arts)",
+         "places",
+         "stage",
+         "selectivity = minimum percentage rank"
+        ],
+        "sources": [
+         "Egypt Tanseek coordination (tansik.digital.gov.eg)",
+         "Ministry of Higher Education announcements",
+         "Supreme Council of Universities"
+        ],
+        "priority": 2
+       },
+       {
+        "slug": "jamb-universities-nigeria",
+        "name": "Nigeria JAMB university admissions",
+        "kind": "knowledge",
+        "description": "Nigerian universities ranked by UTME cut-off marks, applicants and admission rate.",
+        "entity": "Nigerian university",
+        "universe": "federal, state and private universities on the JAMB/NUC lists",
+        "criteria": [
+         "UTME cut-off mark",
+         "applicants (first choice)",
+         "admissions offered",
+         "admission rate = admitted / applicants",
+         "NUC accredited programmes",
+         "tuition"
+        ],
+        "sources": [
+         "JAMB policy meeting cut-off decisions and CAPS statistics",
+         "National Universities Commission (nuc.edu.ng)",
+         "university admission lists"
+        ],
+        "priority": 1
+       },
+       {
+        "slug": "kuccps-programmes-kenya",
+        "name": "Kenya KUCCPS degree programmes",
+        "kind": "knowledge",
+        "description": "Kenyan university degree programmes ranked by KUCCPS cluster cut-off points.",
+        "entity": "degree programme",
+        "universe": "programmes listed by the Kenya Universities and Colleges Central Placement Service",
+        "criteria": [
+         "cluster cut-off points",
+         "capacity",
+         "applicants",
+         "competition = applicants / capacity",
+         "government-sponsored vs self-sponsored"
+        ],
+        "sources": [
+         "KUCCPS student portal and cut-off lists (kuccps.ac.ke)",
+         "Commission for University Education",
+         "Higher Education Financing fund bands"
+        ],
+        "priority": 2
+       },
+       {
+        "slug": "vietnam-university-benchmarks",
+        "name": "Vietnam university benchmark scores",
+        "kind": "knowledge",
+        "description": "Vietnamese university majors ranked by điểm chuẩn benchmark scores from the national high-school exam.",
+        "entity": "university major",
+        "universe": "majors admitted on national high-school graduation exam scores",
+        "criteria": [
+         "benchmark score (điểm chuẩn)",
+         "subject combination",
+         "quota",
+         "tuition",
+         "score per tuition = benchmark / tuition index"
+        ],
+        "sources": [
+         "Ministry of Education and Training admission portal (thisinh.thitotnghiepthpt.edu.vn)",
+         "university admission announcements",
+         "VnExpress / Tuổi Trẻ benchmark tables"
+        ],
+        "priority": 2
+       },
+       {
+        "slug": "indonesia-snbt-programs",
+        "name": "Indonesia SNBP/SNBT study programmes",
+        "kind": "knowledge",
+        "description": "Indonesian state university study programmes ranked by applicants, capacity and acceptance rate in SNBT.",
+        "entity": "study programme (prodi)",
+        "universe": "programmes of state universities in SNPMB national selection",
+        "criteria": [
+         "capacity (daya tampung)",
+         "applicants (peminat)",
+         "acceptance rate = capacity / applicants",
+         "BAN-PT accreditation",
+         "UKT tuition band"
+        ],
+        "sources": [
+         "SNPMB (snpmb.bppp.kemdikbud.go.id)",
+         "PDDikti (pddikti.kemdiktisaintek.go.id)",
+         "BAN-PT accreditation directory"
+        ],
+        "priority": 2
+       },
+       {
+        "slug": "thailand-tcas-programs",
+        "name": "Thailand TCAS university programmes",
+        "kind": "knowledge",
+        "description": "Thai university programmes ranked by TCAS admission scores and competition.",
+        "entity": "university programme",
+        "universe": "programmes in the TCAS admission rounds",
+        "criteria": [
+         "minimum and maximum admission score",
+         "seats",
+         "applicants",
+         "competition ratio = applicants / seats",
+         "tuition per term"
+        ],
+        "sources": [
+         "mytcas.com",
+         "Council of University Presidents of Thailand",
+         "university admission announcements"
+        ],
+        "priority": 3
+       },
+       {
+        "slug": "ege-university-programs",
+        "name": "Russian EGE passing scores",
+        "kind": "knowledge",
+        "description": "Russian and CIS university programmes ranked by average and passing EGE score of budget-funded entrants.",
+        "entity": "university programme",
+        "universe": "bachelor and specialist programmes with state-funded places",
+        "criteria": [
+         "average EGE score of budget entrants",
+         "passing score",
+         "budget places",
+         "tuition for paid places",
+         "quality-of-admission index (HSE monitoring)"
+        ],
+        "sources": [
+         "HSE admission-quality monitoring (ege.hse.ru)",
+         "university admission committees",
+         "Minobrnauki monitoring of universities"
+        ],
+        "priority": 1
+       },
+       {
+        "slug": "unt-kazakhstan-programs",
+        "name": "Kazakhstan UNT grant programmes",
+        "kind": "knowledge",
+        "description": "Kazakh university programme groups ranked by minimum UNT score for state grants.",
+        "entity": "educational programme group",
+        "universe": "programme groups awarding state educational grants",
+        "criteria": [
+         "minimum grant score",
+         "grants allocated",
+         "applicants",
+         "competition = applicants / grants",
+         "university"
+        ],
+        "sources": [
+         "National Testing Center (testcenter.kz)",
+         "Ministry of Science and Higher Education grant results",
+         "university admission pages"
+        ],
+        "priority": 3
+       },
+       {
+        "slug": "greece-panhellenic-base-scores",
+        "name": "Greece Panhellenic base scores",
+        "kind": "knowledge",
+        "description": "Greek university departments ranked by Panhellenic exam base scores (βάσεις).",
+        "entity": "university department",
+        "universe": "every department admitting through the Panhellenic exams",
+        "criteria": [
+         "base score (βάση)",
+         "places",
+         "scientific field",
+         "minimum admission threshold (ΕΒΕ)",
+         "demand = base / field maximum"
+        ],
+        "sources": [
+         "Ministry of Education base scores (minedu.gov.gr)",
+         "ΕΛΣΤΑΤ higher-education statistics",
+         "HAHE accreditation"
+        ],
+        "priority": 2
+       },
+       {
+        "slug": "ukraine-nmt-programs",
+        "name": "Ukraine NMT university programmes",
+        "kind": "knowledge",
+        "description": "Ukrainian university programmes ranked by entrants' NMT scores and applications.",
+        "entity": "university programme",
+        "universe": "bachelor programmes in the Unified State Electronic Database on Education",
+        "criteria": [
+         "average NMT score of state-funded entrants",
+         "applications",
+         "state-funded places",
+         "competition = applications / places",
+         "tuition"
+        ],
+        "sources": [
+         "vstup.osvita.ua",
+         "Ukrainian Center for Educational Quality Assessment (testportal.gov.ua)",
+         "EDEBO open data"
+        ],
+        "priority": 2
+       },
+       {
+        "slug": "romania-poland-matura-admissions",
+        "name": "Central European matura-based admissions",
+        "kind": "knowledge",
+        "description": "Programmes in Poland, Romania, Czechia and Hungary ranked by matura/bac-based admission threshold and applicants per place.",
+        "entity": "university programme",
+        "universe": "programmes publishing threshold points or applicants per place (Poland IRK, Hungary felvi.hu, Romania, Czechia)",
+        "criteria": [
+         "threshold points",
+         "applicants per place",
+         "places",
+         "graduate earnings (ELA / Graduate tracking)",
+         "selectivity index = z(threshold) + z(applicants per place)"
+        ],
+        "sources": [
+         "felvi.hu ponthatárok",
+         "Polish ministry candidates-per-place statistics and ELA graduate tracking (ela.nauka.gov.pl)",
+         "Romanian university admission results"
+        ],
+        "priority": 3
+       }
+      ]
      }
     ]
    },
@@ -25006,7 +27331,30 @@
        "Wikidata SPARQL endpoint (query.wikidata.org)",
        "national statistical offices"
       ],
-      "priority": 2
+      "priority": 2,
+      "children": [
+       {
+        "slug": "furusato-nozei-municipalities",
+        "name": "Furusato nozei (hometown tax) municipalities",
+        "kind": "knowledge",
+        "description": "Japanese municipalities ranked by hometown-tax donations received and return gifts.",
+        "entity": "Japanese municipality",
+        "universe": "all 1,741 municipalities and 47 prefectures in MIC furusato nozei statistics",
+        "criteria": [
+         "donations received",
+         "number of donations",
+         "net inflow = received − residents' outflow",
+         "return-gift ratio",
+         "donations per resident"
+        ],
+        "sources": [
+         "MIC furusato nozei survey (soumu.go.jp)",
+         "municipal portals",
+         "e-Stat population"
+        ],
+        "priority": 2
+       }
+      ]
      },
      {
       "slug": "municipalities-worldwide",
@@ -25162,6 +27510,50 @@
        "Wikidata SPARQL endpoint (query.wikidata.org)"
       ],
       "priority": 3
+     },
+     {
+      "slug": "tanks-armored-vehicles",
+      "name": "Tanks and armoured vehicles",
+      "kind": "knowledge",
+      "description": "Main battle tanks, IFVs and APCs (T-72, T-90, Leopard 2, Abrams, K2, Type 99, Altay, Merkava) compared.",
+      "entity": "armoured vehicle type",
+      "universe": "armoured fighting vehicle types in service or production",
+      "criteria": [
+       "units produced",
+       "operators",
+       "weight",
+       "main armament",
+       "protection-mobility index = armour rating x power-to-weight",
+       "unit cost"
+      ],
+      "sources": [
+       "IISS Military Balance (public tables)",
+       "SIPRI arms transfers database",
+       "Oryx documented losses",
+       "Wikidata"
+      ],
+      "priority": 2
+     },
+     {
+      "slug": "digital-id-systems",
+      "name": "National digital ID systems",
+      "kind": "knowledge",
+      "description": "National identity systems (Aadhaar, NIN, KTP, Huduma Namba, NADRA CNIC, MyKad, PhilSys, CURP, e-Residency) compared.",
+      "entity": "national ID system",
+      "universe": "national ID and digital identity programmes",
+      "criteria": [
+       "people enrolled",
+       "coverage of adults",
+       "biometric",
+       "authentications per year",
+       "cost per enrolment"
+      ],
+      "sources": [
+       "World Bank ID4D dataset",
+       "UIDAI dashboards",
+       "NIMC / NADRA reports"
+      ],
+      "priority": 2
      }
     ]
    },
@@ -25686,6 +28078,28 @@
        "State of Sustainability Initiatives",
        "Fairtrade International monitoring reports",
        "scheme annual reports"
+      ],
+      "priority": 2
+     },
+     {
+      "slug": "zakat-waqf-institutions",
+      "name": "Zakat and waqf institutions",
+      "kind": "knowledge",
+      "description": "Zakat funds and waqf foundations (BAZNAS, Kuwait Zakat House, ZATCA, Pakistan Zakat, Diyanet Foundation, Awqaf departments) compared.",
+      "entity": "zakat or waqf institution",
+      "universe": "state and large private zakat collectors and waqf administrators",
+      "criteria": [
+       "annual collection",
+       "beneficiaries",
+       "countries of operation",
+       "admin cost share",
+       "collection per beneficiary = collection ÷ beneficiary"
+      ],
+      "sources": [
+       "BAZNAS national zakat statistics",
+       "Kuwait Zakat House reports",
+       "ZATCA",
+       "IRTI / IsDB reports"
       ],
       "priority": 2
      }
@@ -27388,6 +29802,27 @@
            "Wikidata"
           ],
           "priority": 3
+         },
+         {
+          "slug": "entertainment-agencies",
+          "name": "Talent and idol entertainment agencies",
+          "kind": "knowledge",
+          "description": "Entertainment agencies and labels managing idols and actors (HYBE, SM, JYP, YG, STARTO, Yoshimoto, Avex, Chinese talent agencies) compared.",
+          "entity": "entertainment agency",
+          "universe": "listed and major private talent agencies in Korea, Japan, China and Southeast Asia",
+          "criteria": [
+           "revenue",
+           "artists managed",
+           "album sales",
+           "operating margin",
+           "revenue per artist = revenue ÷ artists"
+          ],
+          "sources": [
+           "KRX / TSE filings",
+           "Circle Chart / Oricon sales",
+           "company reports"
+          ],
+          "priority": 2
          }
         ]
        },
@@ -27684,6 +30119,27 @@
          "national regulator data"
         ],
         "priority": 3
+       },
+       {
+        "slug": "microinsurance-providers",
+        "name": "Microinsurance and mobile insurance providers",
+        "kind": "commercial",
+        "description": "Low-cost microinsurance and mobile-delivered insurers (BIMA, Pula, ACRE Africa, Policybazaar micro, Indonesian Qoala) compared.",
+        "entity": "microinsurance provider",
+        "universe": "providers of micro, index and mobile insurance in emerging markets",
+        "criteria": [
+         "clients",
+         "countries",
+         "claims ratio",
+         "premium per month",
+         "claims paid per premium = claims ÷ premiums"
+        ],
+        "sources": [
+         "Microinsurance Network Landscape study",
+         "national insurance regulators",
+         "company reports"
+        ],
+        "priority": 3
        }
       ]
      },
@@ -27939,6 +30395,29 @@
         "priority": 2
        }
       ]
+     },
+     {
+      "slug": "apparel-factories",
+      "name": "Garment and apparel factories",
+      "kind": "knowledge",
+      "description": "Garment factories in Bangladesh, Vietnam, Cambodia, India, China and Turkey compared by workers, buyers and compliance.",
+      "entity": "apparel factory",
+      "universe": "factories disclosed in Open Supply Hub and brand supplier lists",
+      "criteria": [
+       "workers",
+       "brands supplied",
+       "certifications (BSCI, WRAP)",
+       "audit findings",
+       "workers per buyer",
+       "compliance index"
+      ],
+      "sources": [
+       "Open Supply Hub (opensupplyhub.org)",
+       "BGMEA member list",
+       "RMG Sustainability Council",
+       "Better Work reports"
+      ],
+      "priority": 2
      }
     ]
    },
@@ -28354,6 +30833,51 @@
        "WPIC"
       ],
       "priority": 2
+     },
+     {
+      "slug": "sukuk-issues",
+      "name": "Sukuk issues",
+      "kind": "knowledge",
+      "description": "Sukuk issues compared.",
+      "entity": "sukuk issue",
+      "universe": "sovereign and corporate sukuk issues worldwide",
+      "criteria": [
+       "issue size",
+       "structure (ijara, murabaha, wakala)",
+       "tenor",
+       "profit rate",
+       "rating",
+       "spread over benchmark",
+       "overall index = mean z-score of the criteria above"
+      ],
+      "sources": [
+       "IIFM Sukuk Report",
+       "Bursa Malaysia / Nasdaq Dubai listings",
+       "issuer prospectuses"
+      ],
+      "priority": 2
+     },
+     {
+      "slug": "parallel-exchange-rates",
+      "name": "Parallel and official exchange rates",
+      "kind": "knowledge",
+      "description": "Currencies with parallel or black-market rates (Argentina dólar blue, Nigeria, Egypt, Lebanon, Iran, Venezuela, Myanmar, Ethiopia) compared with official rates.",
+      "entity": "currency with a parallel market",
+      "universe": "currencies where a published parallel or street rate diverges from the official rate",
+      "criteria": [
+       "official rate",
+       "parallel rate",
+       "parallel premium = parallel ÷ official − 1",
+       "12-month depreciation",
+       "annual inflation"
+      ],
+      "sources": [
+       "central bank official rates",
+       "dolarhoy.com / Ámbito (Argentina)",
+       "bonbast.com (Iran)",
+       "IMF AREAER exchange arrangements"
+      ],
+      "priority": 2
      }
     ]
    },
@@ -28648,7 +31172,52 @@
        "CNINFO filings",
        "end-of-day price data"
       ],
-      "priority": 1
+      "priority": 1,
+      "children": [
+       {
+        "slug": "a-share-concept-sectors",
+        "name": "A-share concept sectors and themes",
+        "kind": "knowledge",
+        "description": "A-share concept sectors and themes compared and ranked.",
+        "entity": "A-share concept sector (概念板块)",
+        "universe": "theme and concept boards used by Chinese exchanges and data vendors (AI computing, low-altitude economy, humanoid robots, CPO, state-owned banks)",
+        "criteria": [
+         "constituents",
+         "YTD return",
+         "turnover",
+         "capital net inflow",
+         "momentum index = 20-day return x turnover rank"
+        ],
+        "sources": [
+         "East Money concept boards (eastmoney.com)",
+         "Tonghuashun / iFinD",
+         "SSE / SZSE data"
+        ],
+        "priority": 2
+       },
+       {
+        "slug": "china-convertible-bonds",
+        "name": "Chinese convertible bonds",
+        "kind": "knowledge",
+        "description": "Chinese convertible bonds compared and ranked.",
+        "entity": "convertible bond",
+        "universe": "convertible bonds listed on the Shanghai and Shenzhen exchanges",
+        "criteria": [
+         "price",
+         "conversion premium",
+         "yield to maturity",
+         "remaining size",
+         "credit rating",
+         "double-low index = price + premium x 100"
+        ],
+        "sources": [
+         "集思录 jisilu.cn",
+         "SSE / SZSE bond data",
+         "issuer prospectuses"
+        ],
+        "priority": 3
+       }
+      ]
      },
      {
       "slug": "hong-kong-stocks",
@@ -28863,6 +31432,27 @@
          "Stooq historical data"
         ],
         "priority": 3
+       },
+       {
+        "slug": "central-eastern-europe-stocks",
+        "name": "Central and Eastern European stocks",
+        "kind": "knowledge",
+        "description": "Central and Eastern European stocks compared and ranked.",
+        "entity": "company listed in Central/Eastern Europe",
+        "universe": "listed companies on Warsaw (GPW), Prague, Budapest, Bucharest (BVB), Zagreb, Ljubljana, Sofia, Athens and the Baltic exchanges",
+        "criteria": [
+         "market cap",
+         "1-yr total return",
+         "P/E",
+         "dividend yield",
+         "value-quality index = z(ROE) − z(P/E)"
+        ],
+        "sources": [
+         "GPW / BVB / BSE / PSE exchange data",
+         "company reports",
+         "stooq.pl price history"
+        ],
+        "priority": 2
        }
       ]
      },
@@ -29123,6 +31713,72 @@
          "Stooq historical data"
         ],
         "priority": 3
+       },
+       {
+        "slug": "russia-cis-stocks",
+        "name": "Russian, Kazakh and Uzbek stocks",
+        "kind": "knowledge",
+        "description": "Russian, Kazakh and Uzbek stocks compared and ranked.",
+        "entity": "company listed in Russia or Central Asia",
+        "universe": "companies listed on MOEX, SPB, KASE, AIX and Tashkent exchanges",
+        "criteria": [
+         "market cap",
+         "1-yr return",
+         "P/E",
+         "dividend yield",
+         "value index = dividend yield ÷ P/E"
+        ],
+        "sources": [
+         "Moscow Exchange (moex.com)",
+         "KASE (kase.kz)",
+         "AIX",
+         "smart-lab.ru fundamentals"
+        ],
+        "priority": 2
+       },
+       {
+        "slug": "african-stocks",
+        "name": "African stocks (Nigeria, Kenya, Egypt, Morocco, Ghana, BRVM)",
+        "kind": "knowledge",
+        "description": "African stocks (Nigeria, Kenya, Egypt, Morocco, Ghana, BRVM) compared and ranked.",
+        "entity": "company listed on an African exchange outside South Africa",
+        "universe": "companies on NGX, NSE Kenya, EGX, Casablanca, GSE, BRVM, DSE, LuSE, BSE Botswana",
+        "criteria": [
+         "market cap",
+         "1-yr return in USD",
+         "P/E",
+         "dividend yield",
+         "liquidity = daily turnover ÷ market cap"
+        ],
+        "sources": [
+         "NGX (ngxgroup.com)",
+         "Nairobi Securities Exchange",
+         "EGX",
+         "African Markets (african-markets.com)"
+        ],
+        "priority": 2
+       },
+       {
+        "slug": "turkey-iran-levant-stocks",
+        "name": "Turkish, Iranian, Jordanian and Pakistani stocks",
+        "kind": "knowledge",
+        "description": "Turkish, Iranian, Jordanian and Pakistani stocks compared and ranked.",
+        "entity": "company listed in Turkey, Iran, Jordan or Pakistan",
+        "universe": "companies on Borsa Istanbul, Tehran Stock Exchange, Amman, PSX and Beirut",
+        "criteria": [
+         "market cap",
+         "1-yr return (local and USD)",
+         "P/E",
+         "dividend yield",
+         "real return = USD return − US inflation"
+        ],
+        "sources": [
+         "Borsa Istanbul / KAP disclosures",
+         "TSETMC (Tehran)",
+         "PSX data portal",
+         "company reports"
+        ],
+        "priority": 2
        }
       ]
      },
@@ -29339,6 +31995,28 @@
        "Morningstar",
        "CEFA closed-end fund data",
        "trust factsheets"
+      ],
+      "priority": 2
+     },
+     {
+      "slug": "brazil-real-estate-funds-fii",
+      "name": "Brazilian real-estate funds (FIIs)",
+      "kind": "knowledge",
+      "description": "Brazilian real-estate funds (FIIs) compared and ranked.",
+      "entity": "fundo imobiliário",
+      "universe": "FIIs listed on B3",
+      "criteria": [
+       "dividend yield (12 m)",
+       "P/VP",
+       "liquidity",
+       "vacancy rate",
+       "segment",
+       "income index = dividend yield ÷ P/VP"
+      ],
+      "sources": [
+       "B3 listed funds data",
+       "CVM fund reports",
+       "Funds Explorer / Status Invest"
       ],
       "priority": 2
      }
@@ -29625,6 +32303,50 @@
        "World Bank WDI"
       ],
       "priority": 1
+     },
+     {
+      "slug": "rotating-savings-groups",
+      "name": "Rotating savings groups (stokvel, chama, susu, tanda, arisan, hui)",
+      "kind": "knowledge",
+      "description": "Informal rotating savings and credit traditions compared by country, members and size.",
+      "entity": "ROSCA tradition",
+      "universe": "named informal savings-group traditions documented by central banks and researchers",
+      "criteria": [
+       "countries",
+       "estimated members",
+       "estimated annual savings",
+       "formal-sector links",
+       "savings per member = savings ÷ member"
+      ],
+      "sources": [
+       "National Stokvel Association of South Africa",
+       "FinAccess Kenya surveys",
+       "World Bank Global Findex",
+       "Bank Indonesia"
+      ],
+      "priority": 3
+     },
+     {
+      "slug": "power-outages-by-country",
+      "name": "Power outages and load-shedding by country",
+      "kind": "knowledge",
+      "description": "Countries and cities ranked on electricity reliability (load-shedding in South Africa, Nigeria, Pakistan, Bangladesh, Lebanon).",
+      "entity": "country or city",
+      "universe": "countries in World Bank Enterprise Surveys and Doing Business reliability data",
+      "criteria": [
+       "outages per month",
+       "hours of outage per month",
+       "firms owning generators (%)",
+       "SAIDI",
+       "reliability index = 1 ÷ (1 + hours of outage)"
+      ],
+      "sources": [
+       "World Bank Enterprise Surveys",
+       "Eskom load-shedding schedules",
+       "national regulators (NERC, NEPRA)",
+       "IEA"
+      ],
+      "priority": 2
      }
     ]
    },
@@ -29925,6 +32647,71 @@
        "employer careers sites"
       ],
       "priority": 2
+     },
+     {
+      "slug": "overseas-recruitment-agencies",
+      "name": "Licensed overseas recruitment agencies",
+      "kind": "knowledge",
+      "description": "Licensed overseas recruitment agencies compared.",
+      "entity": "licensed recruitment agency",
+      "universe": "agencies licensed to deploy workers abroad (Philippines DMW, Nepal DoFE, Bangladesh BMET, Indonesia BP2MI, India eMigrate)",
+      "criteria": [
+       "licence status",
+       "workers deployed",
+       "destination countries",
+       "complaints / sanctions",
+       "complaints per 1,000 deployed = complaints ÷ 1,000 deployed"
+      ],
+      "sources": [
+       "DMW licensed agencies list",
+       "India eMigrate RA list",
+       "Nepal DoFE",
+       "BMET"
+      ],
+      "priority": 2
+     },
+     {
+      "slug": "labour-migration-destinations",
+      "name": "Labour migration destinations",
+      "kind": "knowledge",
+      "description": "Labour migration destinations compared.",
+      "entity": "destination country (for workers)",
+      "universe": "countries receiving migrant workers, by origin country",
+      "criteria": [
+       "migrant workers",
+       "average wage",
+       "recruitment cost",
+       "recruitment cost in months of wages",
+       "visa/kafala rules",
+       "overall index = mean z-score of the criteria above"
+      ],
+      "sources": [
+       "ILO / KNOMAD recruitment cost surveys",
+       "UN DESA migrant stock",
+       "national labour ministries"
+      ],
+      "priority": 2
+     },
+     {
+      "slug": "government-jobs-employers",
+      "name": "Public-sector employers and PSUs",
+      "kind": "knowledge",
+      "description": "Public-sector employers and PSUs compared.",
+      "entity": "public employer",
+      "universe": "large public employers (Indian Railways, PSUs, Chinese SOEs, national civil services) compared as workplaces",
+      "criteria": [
+       "employees",
+       "starting salary",
+       "applications per vacancy = applications ÷ vacancy",
+       "pension",
+       "salary per working hour"
+      ],
+      "sources": [
+       "DPE Public Enterprises Survey",
+       "SASAC",
+       "national pay commissions"
+      ],
+      "priority": 3
      }
     ]
    },
@@ -30188,6 +32975,52 @@
        "BIS residential property prices"
       ],
       "priority": 1
+     },
+     {
+      "slug": "apartment-complexes",
+      "name": "Apartment complexes",
+      "kind": "knowledge",
+      "description": "Large residential apartment complexes (Chinese 小区, Korean 아파트 단지, Hong Kong estates, Singapore condos and HDB estates) ranked by prices and transactions.",
+      "entity": "apartment complex",
+      "universe": "named residential complexes with public transaction records",
+      "criteria": [
+       "median price per m²",
+       "transactions per year",
+       "units",
+       "completion year",
+       "price-to-city-median ratio",
+       "liquidity = transactions / units"
+      ],
+      "sources": [
+       "MOLIT real-transaction data (rt.molit.go.kr)",
+       "HK Land Registry / Centaline CCL",
+       "Singapore URA and HDB resale data (data.gov.sg)",
+       "Lianjia / Beike listings"
+      ],
+      "priority": 2
+     },
+     {
+      "slug": "residential-development-projects",
+      "name": "Off-plan residential development projects",
+      "kind": "knowledge",
+      "description": "Large off-plan and presale residential projects (Dubai, Riyadh, Cairo New Capital, Istanbul, Chinese presales, Indian RERA projects) compared.",
+      "entity": "residential project",
+      "universe": "projects registered with property regulators (Dubai RERA/DLD, India state RERAs, China presale permits)",
+      "criteria": [
+       "units",
+       "launch price per m²",
+       "completion %",
+       "delay months",
+       "developer track record",
+       "delivery risk index = delay ÷ planned duration"
+      ],
+      "sources": [
+       "Dubai Land Department / Dubai Pulse open data",
+       "state RERA portals (MahaRERA)",
+       "China housing presale registries",
+       "developer disclosures"
+      ],
+      "priority": 2
      }
     ]
    },
@@ -30395,6 +33228,29 @@
        "World Bank Findex"
       ],
       "priority": 1
+     },
+     {
+      "slug": "industrial-parks",
+      "name": "Industrial parks and development zones",
+      "kind": "knowledge",
+      "description": "Industrial parks and development zones (Chinese national economic-technological development zones, Indian industrial estates, Vietnamese and Thai industrial estates, Gulf free zones) compared.",
+      "entity": "industrial park or development zone",
+      "universe": "parks on national registers of industrial zones",
+      "criteria": [
+       "area",
+       "tenant firms",
+       "output or GDP",
+       "FDI attracted",
+       "output per km² = output ÷ km²",
+       "national evaluation rank"
+      ],
+      "sources": [
+       "MOFCOM 国家级经开区 evaluation",
+       "Vietnam MPI industrial zone list",
+       "Thailand IEAT",
+       "India Industrial Land Bank (iilb.gov.in)"
+      ],
+      "priority": 2
      }
     ]
    },
@@ -37544,6 +40400,91 @@
        "Amazon Product Advertising API 5.0 (prices, ratings, review counts)"
       ],
       "priority": 3
+     },
+     {
+      "slug": "home-inverters-ups",
+      "name": "Home inverters and inverter batteries",
+      "kind": "commercial",
+      "description": "Home inverters and inverter batteries compared by price, performance and reviews.",
+      "entity": "home inverter or tubular battery",
+      "universe": "sine-wave home inverters and tubular batteries for power cuts (Luminous, Microtek, Exide, Livguard, Su-Kam)",
+      "criteria": [
+       "VA rating",
+       "backup hours at 500 W",
+       "price",
+       "battery warranty",
+       "price per backup Wh = price ÷ backup Wh"
+      ],
+      "sources": [
+       "BIS certification",
+       "manufacturer specs",
+       "Amazon India / Daraz reviews"
+      ],
+      "priority": 1
+     },
+     {
+      "slug": "voltage-stabilizers",
+      "name": "Voltage stabilizers",
+      "kind": "commercial",
+      "description": "Voltage stabilizers compared by price, performance and reviews.",
+      "entity": "voltage stabilizer",
+      "universe": "stabilizers for ACs, fridges and TVs (V-Guard, Microtek, Everest, Bluebird)",
+      "criteria": [
+       "input voltage range",
+       "capacity (kVA)",
+       "price",
+       "warranty",
+       "price per kVA = price ÷ kVA"
+      ],
+      "sources": [
+       "BIS IS 9815",
+       "manufacturer specs",
+       "retailer reviews"
+      ],
+      "priority": 2
+     },
+     {
+      "slug": "solar-home-systems",
+      "name": "Solar home systems and pay-as-you-go solar",
+      "kind": "commercial",
+      "description": "Solar home systems and pay-as-you-go solar compared by price, performance and reviews.",
+      "entity": "solar home system kit",
+      "universe": "off-grid solar kits (Sun King, d.light, BBOXX, M-KOPA, Zola, SolarNow)",
+      "criteria": [
+       "panel watts",
+       "battery Wh",
+       "appliances included",
+       "PAYG daily price",
+       "Lighting Global/VeraSol certified",
+       "cost per Wh delivered"
+      ],
+      "sources": [
+       "VeraSol / Lighting Global product database",
+       "GOGLA sales reports",
+       "company sites"
+      ],
+      "priority": 1
+     },
+     {
+      "slug": "solar-lanterns",
+      "name": "Solar lanterns and lights",
+      "kind": "commercial",
+      "description": "Solar lanterns and lights compared by price, performance and reviews.",
+      "entity": "solar lantern",
+      "universe": "portable solar lanterns and phone-charging lights",
+      "criteria": [
+       "lumens",
+       "run time",
+       "price",
+       "VeraSol certified",
+       "lumen-hours per currency unit = lumen-hours ÷ currency unit"
+      ],
+      "sources": [
+       "VeraSol product database",
+       "GOGLA",
+       "retailer listings"
+      ],
+      "priority": 2
      }
     ]
    },
@@ -37690,6 +40631,27 @@
        "Amazon Product Advertising API 5.0 (prices, ratings, review counts)"
       ],
       "priority": 3
+     },
+     {
+      "slug": "learning-machines-china",
+      "name": "Student learning machines",
+      "kind": "commercial",
+      "description": "Student learning machines compared by price, performance and reviews.",
+      "entity": "learning machine",
+      "universe": "Chinese 学习机 and point-reading devices (iFlytek, Youdao, Xueersi, BBK)",
+      "criteria": [
+       "price",
+       "curriculum coverage",
+       "screen eye-care certification",
+       "sales",
+       "price per subject covered = price ÷ subject covered"
+      ],
+      "sources": [
+       "JD / Tmall sales rankings",
+       "manufacturer specs",
+       "China Consumers Association tests"
+      ],
+      "priority": 2
      }
     ]
    }
@@ -39414,6 +42376,69 @@
          "manufacturer spec sheets and product pages"
         ],
         "priority": 3
+       },
+       {
+        "slug": "chapati-dosa-makers",
+        "name": "Idli, dosa and tandoor appliances",
+        "kind": "commercial",
+        "description": "Idli, dosa and tandoor appliances compared by price, performance and reviews.",
+        "entity": "South Asian cooking appliance",
+        "universe": "electric tandoors, idli steamers, dosa tawas, sandwich makers and induction kits for Indian kitchens",
+        "criteria": [
+         "power",
+         "capacity",
+         "price",
+         "rating",
+         "value index = rating / price"
+        ],
+        "sources": [
+         "BIS listings",
+         "Amazon India / Flipkart",
+         "manufacturer specs"
+        ],
+        "priority": 3
+       },
+       {
+        "slug": "karaoke-systems",
+        "name": "Karaoke systems and microphones",
+        "kind": "commercial",
+        "description": "Karaoke systems and microphones compared by price, performance and reviews.",
+        "entity": "karaoke system",
+        "universe": "home karaoke machines, Bluetooth mics and KTV systems",
+        "criteria": [
+         "song library",
+         "microphones",
+         "price",
+         "rating",
+         "value index = rating / price"
+        ],
+        "sources": [
+         "manufacturer specs",
+         "Lazada / Shopee / Amazon reviews",
+         "Taobao"
+        ],
+        "priority": 3
+       },
+       {
+        "slug": "samovars-tea-kettles",
+        "name": "Samovars, çaydanlık and tea urns",
+        "kind": "commercial",
+        "description": "Samovars, Turkish double teapots and electric tea urns compared.",
+        "entity": "tea urn or samovar",
+        "universe": "electric and traditional samovars, çaydanlık and tea makers (Arzum, Karaca, Tula samovars)",
+        "criteria": [
+         "capacity",
+         "power",
+         "material",
+         "price",
+         "price per litre = price ÷ litre"
+        ],
+        "sources": [
+         "manufacturer specs",
+         "Trendyol / Ozon / Amazon reviews",
+         "Tula samovar makers"
+        ],
+        "priority": 3
        }
       ]
      },
@@ -39823,6 +42848,27 @@
          "manufacturer spec sheets and product pages"
         ],
         "priority": 1
+       },
+       {
+        "slug": "kimchi-refrigerators",
+        "name": "Kimchi refrigerators",
+        "kind": "commercial",
+        "description": "Kimchi refrigerators compared by price, performance and reviews.",
+        "entity": "kimchi refrigerator model",
+        "universe": "Korean kimchi refrigerators (Samsung Bespoke, LG Dios, Winia Dimchae)",
+        "criteria": [
+         "capacity (l)",
+         "energy grade",
+         "price",
+         "compartments",
+         "price per litre = price ÷ litre"
+        ],
+        "sources": [
+         "Korea Energy Agency efficiency grades",
+         "Danawa price data",
+         "manufacturer specs"
+        ],
+        "priority": 2
        }
       ]
      },
@@ -40378,6 +43424,28 @@
        "manufacturer spec sheets and product pages"
       ],
       "priority": 2
+     },
+     {
+      "slug": "clay-pots-tagines",
+      "name": "Clay pots, tagines and traditional cookware",
+      "kind": "commercial",
+      "description": "Clay pots, tagines and traditional cookware compared by price, performance and reviews.",
+      "entity": "traditional cookware item",
+      "universe": "tagines, donabe, Chinese clay pots (砂锅), comals, kazans, karahis, handis, cazuelas",
+      "criteria": [
+       "material",
+       "capacity",
+       "stovetop compatibility",
+       "price",
+       "rating",
+       "value index = rating / price"
+      ],
+      "sources": [
+       "maker catalogues",
+       "Amazon / Rakuten / Taobao reviews",
+       "lead-safety tests"
+      ],
+      "priority": 3
      }
     ]
    },
@@ -41688,6 +44756,48 @@
          "manufacturer spec sheets and product pages"
         ],
         "priority": 3
+       },
+       {
+        "slug": "kotatsu-heated-mats",
+        "name": "Kotatsu, ondol mats and electric heated mats",
+        "kind": "commercial",
+        "description": "Kotatsu, ondol mats and electric heated mats compared by price, performance and reviews.",
+        "entity": "floor heating product",
+        "universe": "kotatsu tables, Korean electric/hot-water mats and heated carpets",
+        "criteria": [
+         "power (W)",
+         "size",
+         "EMF level",
+         "price",
+         "running cost per hour"
+        ],
+        "sources": [
+         "manufacturer specs",
+         "Kakaku.com / Danawa reviews",
+         "KC / PSE certification"
+        ],
+        "priority": 3
+       },
+       {
+        "slug": "rechargeable-fans-lights",
+        "name": "Rechargeable fans and emergency lights",
+        "kind": "commercial",
+        "description": "Battery-backed fans and lamps for load-shedding (Africa, South Asia) compared.",
+        "entity": "rechargeable fan or lamp",
+        "universe": "rechargeable table/stand fans and emergency lamps",
+        "criteria": [
+         "battery mAh",
+         "run time",
+         "price",
+         "rating",
+         "run-hours per currency unit = run-hours ÷ currency unit"
+        ],
+        "sources": [
+         "manufacturer specs",
+         "Jumia / Daraz reviews",
+         "retailer listings"
+        ],
+        "priority": 2
        }
       ]
      },
@@ -45122,6 +48232,27 @@
        "AmazingRibs reviews"
       ],
       "priority": 3
+     },
+     {
+      "slug": "bonsai-trees",
+      "name": "Bonsai and penjing",
+      "kind": "commercial",
+      "description": "Bonsai and penjing species and starter trees compared by difficulty and price.",
+      "entity": "bonsai species or tree",
+      "universe": "species commonly grown as bonsai and sold by nurseries",
+      "criteria": [
+       "difficulty",
+       "indoor/outdoor",
+       "growth rate",
+       "price of starter tree",
+       "care-to-price index"
+      ],
+      "sources": [
+       "Nippon Bonsai Association",
+       "nursery catalogues",
+       "American Bonsai Society species guides"
+      ],
+      "priority": 3
      }
     ]
    },
@@ -45860,6 +48991,48 @@
        "manufacturer spec sheets and product pages"
       ],
       "priority": 3
+     },
+     {
+      "slug": "mosquito-nets-repellents",
+      "name": "Mosquito nets, coils and repellents",
+      "kind": "commercial",
+      "description": "Mosquito nets, coils and repellents compared by price, performance and reviews.",
+      "entity": "mosquito protection product",
+      "universe": "long-lasting insecticidal nets, coils, liquid vaporisers and skin repellents (Good Knight, All Out, Baygon, Mortein, Odomos)",
+      "criteria": [
+       "active ingredient",
+       "WHO PQ listing (nets)",
+       "protection hours",
+       "price",
+       "cost per protected night"
+      ],
+      "sources": [
+       "WHO prequalified vector-control products",
+       "CIB&RC India registrations",
+       "retailer reviews"
+      ],
+      "priority": 2
+     },
+     {
+      "slug": "clean-cookstoves",
+      "name": "Clean cookstoves and LPG stoves",
+      "kind": "commercial",
+      "description": "Clean cookstoves and LPG stoves compared by price, performance and reviews.",
+      "entity": "cookstove model",
+      "universe": "improved biomass, charcoal, ethanol, LPG and electric cookstoves (BURN Jikokoa, Envirofit, Mimi Moto)",
+      "criteria": [
+       "ISO 19867 tier (emissions/efficiency)",
+       "price",
+       "fuel saving",
+       "fuel type",
+       "cost per meal"
+      ],
+      "sources": [
+       "Clean Cooking Alliance clean cooking catalog",
+       "ISO 19867 test results",
+       "manufacturer specs"
+      ],
+      "priority": 2
      }
     ]
    },
@@ -48142,6 +51315,48 @@
          "Open Beauty Facts API",
          "INCIDecoder",
          "Amazon Product Advertising API 5.0 (prices, ratings, review counts)"
+        ],
+        "priority": 3
+       },
+       {
+        "slug": "talcum-prickly-heat-powders",
+        "name": "Talcum and prickly-heat powders",
+        "kind": "commercial",
+        "description": "Body and prickly-heat powders popular in South and Southeast Asia (Ponds, Nycil, Dermicool, Johnson's, Shower to Shower) compared.",
+        "entity": "body powder",
+        "universe": "talc and talc-free body powders",
+        "criteria": [
+         "talc-free",
+         "cooling agent (menthol)",
+         "price per 100 g",
+         "rating",
+         "value index = rating ÷ price"
+        ],
+        "sources": [
+         "brand labels",
+         "CDSCO / FDA notices on talc",
+         "Amazon India / Shopee reviews"
+        ],
+        "priority": 3
+       },
+       {
+        "slug": "shea-butter-black-soap",
+        "name": "Shea butter and African black soap",
+        "kind": "commercial",
+        "description": "Raw and refined shea butter and African black soap products compared.",
+        "entity": "shea or black-soap product",
+        "universe": "shea butter grades and black soap brands from West Africa and global sellers",
+        "criteria": [
+         "grade (A/B/C)",
+         "origin",
+         "price per 100 g",
+         "fair-trade certification",
+         "value index = rating ÷ price"
+        ],
+        "sources": [
+         "American Shea Butter Institute grading",
+         "Global Shea Alliance",
+         "Jumia / Amazon reviews"
         ],
         "priority": 3
        }
@@ -51102,6 +54317,47 @@
        "Trustpilot profiles"
       ],
       "priority": 3
+     },
+     {
+      "slug": "bakhoor-oud-chips",
+      "name": "Bakhoor and oud wood chips",
+      "kind": "commercial",
+      "description": "Bakhoor blends and oud wood chips (Arabian Oud, Ajmal, Abdul Samad Al Qurashi) compared.",
+      "entity": "bakhoor or oud wood product",
+      "universe": "incense bakhoor, mabsous and oud chips sold in the Gulf and South Asia",
+      "criteria": [
+       "grade (Cambodi, Hindi, Muroke)",
+       "price per tola/gram = price ÷ tola/gram",
+       "origin",
+       "rating",
+       "price per burn"
+      ],
+      "sources": [
+       "brand catalogues",
+       "Noon / Amazon.ae reviews",
+       "CITES Aquilaria trade data"
+      ],
+      "priority": 2
+     },
+     {
+      "slug": "burners-mabkhara",
+      "name": "Incense burners (mabkhara)",
+      "kind": "commercial",
+      "description": "Electric and charcoal incense burners compared.",
+      "entity": "incense burner",
+      "universe": "mabkhara and electric bakhoor burners",
+      "criteria": [
+       "heating type",
+       "price",
+       "rechargeable",
+       "rating",
+       "value index = rating / price"
+      ],
+      "sources": [
+       "Noon / Amazon.ae reviews",
+       "brand catalogues"
+      ],
+      "priority": 3
      }
     ]
    },
@@ -53816,6 +57072,116 @@
         "sources": [
          "Coupang listings",
          "Naver Shopping listings"
+        ],
+        "priority": 3
+       },
+       {
+        "slug": "southeast-asian-traditional-dress",
+        "name": "Áo dài, baju kurung, kebaya and barong",
+        "kind": "commercial",
+        "description": "Áo dài, baju kurung, kebaya and barong compared by makers, materials and price.",
+        "entity": "traditional garment (type or maker's line)",
+        "universe": "áo dài, baju kurung, baju melayu, kebaya, barong Tagalog, sinh, sampot, longyi",
+        "criteria": [
+         "price",
+         "fabric",
+         "handmade vs machine",
+         "maker reputation",
+         "rating",
+         "value index = rating / price"
+        ],
+        "sources": [
+         "UNESCO ICH listings",
+         "artisan cooperatives and maker catalogues",
+         "Etsy / Shopee / Jumia reviews"
+        ],
+        "priority": 3
+       },
+       {
+        "slug": "latin-american-traditional-dress",
+        "name": "Huipiles, guayaberas, ponchos and Latin American traditional dress",
+        "kind": "commercial",
+        "description": "Huipiles, guayaberas, ponchos and Latin American traditional dress compared by makers, materials and price.",
+        "entity": "traditional garment (type or maker's line)",
+        "universe": "huipil, guayabera, poncho, pollera, rebozo, charro and Andean textiles",
+        "criteria": [
+         "price",
+         "fabric",
+         "handmade vs machine",
+         "maker reputation",
+         "rating",
+         "value index = rating / price"
+        ],
+        "sources": [
+         "UNESCO ICH listings",
+         "artisan cooperatives and maker catalogues",
+         "Etsy / Shopee / Jumia reviews"
+        ],
+        "priority": 3
+       },
+       {
+        "slug": "european-folk-costumes",
+        "name": "Dirndl, bunad and European folk costumes",
+        "kind": "commercial",
+        "description": "Dirndl, bunad and European folk costumes compared by makers, materials and price.",
+        "entity": "traditional garment (type or maker's line)",
+        "universe": "dirndl, lederhosen, bunad, Polish and Hungarian folk costume, Romanian ie, Ukrainian vyshyvanka",
+        "criteria": [
+         "price",
+         "fabric",
+         "handmade vs machine",
+         "maker reputation",
+         "rating",
+         "value index = rating / price"
+        ],
+        "sources": [
+         "UNESCO ICH listings",
+         "artisan cooperatives and maker catalogues",
+         "Etsy / Shopee / Jumia reviews"
+        ],
+        "priority": 3
+       },
+       {
+        "slug": "central-asian-traditional-dress",
+        "name": "Central Asian and Caucasus traditional dress",
+        "kind": "commercial",
+        "description": "Central Asian and Caucasus traditional dress compared by makers, materials and price.",
+        "entity": "traditional garment (type or maker's line)",
+        "universe": "chapan, atlas/adras robes, kalpak, chokha, papakha",
+        "criteria": [
+         "price",
+         "fabric",
+         "handmade vs machine",
+         "maker reputation",
+         "rating",
+         "value index = rating / price"
+        ],
+        "sources": [
+         "UNESCO ICH listings",
+         "artisan cooperatives and maker catalogues",
+         "Etsy / Shopee / Jumia reviews"
+        ],
+        "priority": 3
+       },
+       {
+        "slug": "african-traditional-attire",
+        "name": "Agbada, dashiki, kanzu, habesha kemis and African attire",
+        "kind": "commercial",
+        "description": "Agbada, dashiki, kanzu, habesha kemis and African attire compared by makers, materials and price.",
+        "entity": "traditional garment (type or maker's line)",
+        "universe": "agbada, dashiki, boubou, kaftan, kanzu, kitenge, habesha kemis, shweshwe, gele headwraps",
+        "criteria": [
+         "price",
+         "fabric",
+         "handmade vs machine",
+         "maker reputation",
+         "rating",
+         "value index = rating / price"
+        ],
+        "sources": [
+         "UNESCO ICH listings",
+         "artisan cooperatives and maker catalogues",
+         "Etsy / Shopee / Jumia reviews"
         ],
         "priority": 3
        }
@@ -59179,6 +62545,27 @@
        "business registries"
       ],
       "priority": 2
+     },
+     {
+      "slug": "city-utility-bikes",
+      "name": "Dutch city bikes and roadster utility bicycles",
+      "kind": "commercial",
+      "description": "Upright city and roadster bicycles (Gazelle, Batavus, Pashley; Hero, Atlas, Phoenix, Flying Pigeon, Buffalo) compared.",
+      "entity": "city or roadster bicycle model",
+      "universe": "step-through Dutch-style city bikes and heavy-duty roadster bicycles used for everyday transport in Asia and Africa",
+      "criteria": [
+       "price",
+       "weight",
+       "gears (hub)",
+       "rating",
+       "value index = rating / price"
+      ],
+      "sources": [
+       "Consumentenbond tests",
+       "manufacturer specs",
+       "Fietsersbond"
+      ],
+      "priority": 3
      }
     ]
    },
@@ -65454,6 +68841,28 @@
         "priority": 3
        }
       ]
+     },
+     {
+      "slug": "traditional-instruments",
+      "name": "Traditional and folk instruments",
+      "kind": "knowledge",
+      "description": "Traditional instruments of the world (erhu, guzheng, sitar, tabla, oud, saz, kora, balalaika, gayageum, shamisen, kendang, charango) compared.",
+      "entity": "traditional instrument",
+      "universe": "folk and classical instruments outside the Western orchestra, by Hornbostel-Sachs class",
+      "criteria": [
+       "Hornbostel-Sachs class",
+       "region",
+       "learners and teachers",
+       "UNESCO intangible heritage listing",
+       "makers and price range",
+       "popularity index = learners x listings"
+      ],
+      "sources": [
+       "MIMO musical instrument database",
+       "UNESCO Intangible Cultural Heritage lists",
+       "Wikidata"
+      ],
+      "priority": 2
      }
     ]
    },
@@ -67122,6 +70531,92 @@
       "sources": [
        "manufacturer catalogs",
        "retailer listings"
+      ],
+      "priority": 3
+     },
+     {
+      "slug": "buddhist-amulets",
+      "name": "Thai Buddhist amulets",
+      "kind": "knowledge",
+      "description": "Thai Buddhist amulets (Phra Somdej, Phra Rod, Benjapakee) ranked by temple, age and market value.",
+      "entity": "amulet type",
+      "universe": "named amulet series from famous temples and monks",
+      "criteria": [
+       "temple and maker",
+       "year made",
+       "competition-graded market price",
+       "rarity",
+       "price trend",
+       "overall index = mean z-score of the criteria above"
+      ],
+      "sources": [
+       "Amulet association competition records",
+       "Thai amulet market sites (Uamulet, Prapanthip)",
+       "Wikidata"
+      ],
+      "priority": 3
+     },
+     {
+      "slug": "jade-collectibles",
+      "name": "Jade and jadeite",
+      "kind": "knowledge",
+      "description": "Jadeite and nephrite grades, origins and auction results compared.",
+      "entity": "jade variety or grade",
+      "universe": "jadeite (Myanmar) and nephrite (Hetian, Siberian, Canadian) categories",
+      "criteria": [
+       "type",
+       "origin",
+       "auction price per gram",
+       "colour/translucency grade",
+       "treatment (A/B/C)",
+       "price index"
+      ],
+      "sources": [
+       "NGTC national gemstone testing standards",
+       "Myanmar Gems Emporium results",
+       "Christie's / Sotheby's HK auction records"
+      ],
+      "priority": 3
+     },
+     {
+      "slug": "chinese-porcelain-ceramics",
+      "name": "Chinese porcelain and ceramics",
+      "kind": "knowledge",
+      "description": "Chinese porcelain wares and kilns (Ru, Guan, Ge, Jun, Ding, Jingdezhen blue-and-white) ranked by auction value and museum holdings.",
+      "entity": "ceramic ware or kiln",
+      "universe": "named Chinese kilns and porcelain types",
+      "criteria": [
+       "dynasty",
+       "auction record",
+       "museum holdings",
+       "surviving pieces",
+       "rarity index = auction record / surviving pieces"
+      ],
+      "sources": [
+       "Palace Museum collection",
+       "Christie's / Sotheby's auction records",
+       "Wikidata"
+      ],
+      "priority": 3
+     },
+     {
+      "slug": "capsule-toys-blind-boxes",
+      "name": "Capsule toys and blind boxes",
+      "kind": "commercial",
+      "description": "Gashapon, capsule toys and blind-box series (Bandai, Takara Tomy Arts, Pop Mart, 52Toys) compared.",
+      "entity": "capsule toy or blind-box series",
+      "universe": "capsule-toy and blind-box series released in Japan, China and globally",
+      "criteria": [
+       "price per pull",
+       "series size",
+       "secret/chase rarity",
+       "resale price",
+       "resale premium = resale ÷ price"
+      ],
+      "sources": [
+       "Bandai gashapon catalogue",
+       "Pop Mart annual report",
+       "Xianyu / Mercari resale prices"
       ],
       "priority": 3
      }
@@ -70436,6 +73931,27 @@
        "manufacturer catalogs",
        "retailer listings",
        "independent reviews"
+      ],
+      "priority": 3
+     },
+     {
+      "slug": "pachinko-pachislot-models",
+      "name": "Pachinko and pachislot machines",
+      "kind": "commercial",
+      "description": "Pachinko and pachislot machine models compared by installations and specs.",
+      "entity": "pachinko or pachislot model",
+      "universe": "models approved by the Security Communications Association and installed in Japanese halls",
+      "criteria": [
+       "halls installed",
+       "units installed",
+       "jackpot probability",
+       "payout rate",
+       "popularity index = units ÷ weeks since launch"
+      ],
+      "sources": [
+       "P-WORLD installation data",
+       "Security Communications Association approvals",
+       "maker IR (Sega Sammy, Konami)"
       ],
       "priority": 3
      }
@@ -74181,6 +77697,28 @@
        "Kosherfest"
       ],
       "priority": 3
+     },
+     {
+      "slug": "malted-milk-drinks",
+      "name": "Malted milk and chocolate drink powders",
+      "kind": "commercial",
+      "description": "Malted milk and chocolate drink powders compared.",
+      "entity": "malt drink brand",
+      "universe": "Milo, Horlicks, Bournvita, Ovaltine, Boost, Peak Choco, Malta drinks",
+      "criteria": [
+       "sugar per serving",
+       "protein per serving",
+       "price per kg",
+       "fortification",
+       "sugar per 100 kcal",
+       "value index = protein / price"
+      ],
+      "sources": [
+       "brand labels",
+       "national FDA registries",
+       "Amazon / Jumia reviews"
+      ],
+      "priority": 2
      }
     ]
    },
@@ -74648,6 +78186,28 @@
        "Food Management industry lists"
       ],
       "priority": 3
+     },
+     {
+      "slug": "halal-restaurants",
+      "name": "Halal restaurants and food chains",
+      "kind": "commercial",
+      "description": "Halal-certified restaurant chains and restaurants compared (Al Baik, Kenny Rogers MY, Ramly, Chicken Cottage, Nando's halal sites).",
+      "entity": "halal restaurant chain",
+      "universe": "restaurant chains holding halal certification in at least one market",
+      "criteria": [
+       "outlets",
+       "certifying body",
+       "countries",
+       "rating",
+       "outlets per country = outlets ÷ country"
+      ],
+      "sources": [
+       "JAKIM halal directory",
+       "BPJPH Indonesia SiHalal",
+       "Zabihah.com",
+       "company sites"
+      ],
+      "priority": 2
      }
     ]
    },
@@ -75502,6 +79062,27 @@
        "Wikimedia pageviews API"
       ],
       "priority": 3
+     },
+     {
+      "slug": "beef-cuts",
+      "name": "Beef and meat cuts by country",
+      "kind": "knowledge",
+      "description": "Meat cuts as named in different butchery traditions (picanha, asado de tira, vacío, galbi, wagyu cuts, brisket, Chinese 牛腩) compared.",
+      "entity": "meat cut",
+      "universe": "named cuts in Argentine, Brazilian, US, Korean, Japanese, Chinese and European butchery",
+      "criteria": [
+       "animal and primal",
+       "equivalent names",
+       "fat content",
+       "price per kg = price ÷ kg",
+       "protein per currency unit"
+      ],
+      "sources": [
+       "USDA IMPS / NAMI",
+       "national meat boards (IPCVA Argentina, Meat & Livestock Australia)",
+       "national food composition tables"
+      ],
+      "priority": 3
      }
     ]
    },
@@ -75750,6 +79331,27 @@
       "sources": [
        "manufacturer catalogs (Xikar, S.T. Dupont, Colibri)",
        "retailer listings"
+      ],
+      "priority": 3
+     },
+     {
+      "slug": "cigarette-brands",
+      "name": "Cigarette brands",
+      "kind": "commercial",
+      "description": "Cigarette brands compared.",
+      "entity": "cigarette brand",
+      "universe": "cigarette brands incl. kretek (Sampoerna, Gudang Garam), Chunghwa, Marlboro, Gold Flake, Esse",
+      "criteria": [
+       "market share",
+       "tar per stick = tar ÷ stick",
+       "nicotine per stick",
+       "price per pack",
+       "tax share of price"
+      ],
+      "sources": [
+       "WHO tobacco tax and price data",
+       "company annual reports",
+       "national tobacco monopolies (STMA)"
       ],
       "priority": 3
      }
@@ -76294,6 +79896,27 @@
        "Wikidata",
        "producer catalogs",
        "shellfish growing area registers"
+      ],
+      "priority": 3
+     },
+     {
+      "slug": "birds-nest-dried-seafood",
+      "name": "Bird's nest, abalone and dried seafood",
+      "kind": "commercial",
+      "description": "Edible bird's nest, dried abalone, sea cucumber and fish maw grades and sellers compared.",
+      "entity": "luxury dried food product",
+      "universe": "graded edible bird's nest and dried seafood sold in China, Hong Kong and Southeast Asia",
+      "criteria": [
+       "grade",
+       "origin",
+       "price per 100 g = price ÷ 100 g",
+       "traceability certificate",
+       "price per gram of protein"
+      ],
+      "sources": [
+       "China CIQ traceable bird's nest registry",
+       "Malaysia DVS swiftlet registry",
+       "Hong Kong Sheung Wan market prices"
       ],
       "priority": 3
      }
@@ -78008,6 +81631,71 @@
          "MarkLines and Focus2Move sales data"
         ],
         "priority": 2
+       },
+       {
+        "slug": "japan-registered-car-models",
+        "name": "Cars sold in Japan (registered vehicles)",
+        "kind": "commercial",
+        "description": "Cars sold in Japan (registered vehicles) compared by sales, price and efficiency.",
+        "entity": "car model (Japan)",
+        "universe": "registered passenger cars sold in Japan excluding kei cars",
+        "criteria": [
+         "monthly sales",
+         "price",
+         "fuel economy (WLTC)",
+         "JNCAP rating",
+         "yen per km/l = price ÷ fuel economy"
+        ],
+        "sources": [
+         "JADA new-car registration data",
+         "MLIT fuel economy list",
+         "JNCAP"
+        ],
+        "priority": 2
+       },
+       {
+        "slug": "middle-east-car-models",
+        "name": "Cars sold in the Gulf, Turkey, Iran and Egypt",
+        "kind": "commercial",
+        "description": "Cars sold in the Gulf, Turkey, Iran and Egypt compared by sales, price and efficiency.",
+        "entity": "car model (Middle East)",
+        "universe": "passenger cars and SUVs sold in GCC states, Turkey, Iran, Egypt, Jordan and Iraq",
+        "criteria": [
+         "sales",
+         "price",
+         "GCC-spec cooling",
+         "fuel economy",
+         "resale value retention",
+         "value index = retention ÷ price"
+        ],
+        "sources": [
+         "ODMD Turkey sales",
+         "Saudi SASO fuel economy labels",
+         "Iran Khodro / SAIPA reports",
+         "dealer price lists"
+        ],
+        "priority": 2
+       },
+       {
+        "slug": "pakistan-bangladesh-car-models",
+        "name": "Cars sold in Pakistan, Bangladesh and Sri Lanka",
+        "kind": "commercial",
+        "description": "Cars sold in Pakistan, Bangladesh and Sri Lanka compared by sales, price and efficiency.",
+        "entity": "car model (South Asia ex-India)",
+        "universe": "passenger cars and reconditioned imports sold in Pakistan, Bangladesh, Sri Lanka and Nepal",
+        "criteria": [
+         "sales",
+         "price",
+         "local assembly",
+         "fuel economy",
+         "price per km/l = price ÷ fuel economy"
+        ],
+        "sources": [
+         "PAMA sales (Pakistan)",
+         "BRTA registrations (Bangladesh)",
+         "PakWheels price data"
+        ],
+        "priority": 2
        }
       ]
      },
@@ -78122,6 +81810,27 @@
        "manufacturer specifications"
       ],
       "priority": 1
+     },
+     {
+      "slug": "classic-collector-cars",
+      "name": "Classic and collector cars",
+      "kind": "knowledge",
+      "description": "Collectible cars (Soviet Volga and Lada, JDM classics, Mini, VW Beetle, Ambassador, Fusca) ranked by values and production.",
+      "entity": "classic car model",
+      "universe": "models more than 25 years old traded at auctions and classic-car indices",
+      "criteria": [
+       "production",
+       "auction median price",
+       "5-yr value change",
+       "surviving examples",
+       "appreciation index = 5-yr change"
+      ],
+      "sources": [
+       "Hagerty valuation tools",
+       "Bring a Trailer / auction results",
+       "national classic-car registers"
+      ],
+      "priority": 3
      }
     ]
    },
@@ -86291,6 +90000,28 @@
        "Baby-Friendly USA/UNICEF designations"
       ],
       "priority": 2
+     },
+     {
+      "slug": "coming-of-age-ceremonies",
+      "name": "Coming-of-age ceremonies and rites",
+      "kind": "knowledge",
+      "description": "Coming-of-age rites (quinceañera, Seijin Shiki, bar/bat mitzvah, upanayana, debut, khatam, initiation rites) compared.",
+      "entity": "coming-of-age rite",
+      "universe": "documented coming-of-age ceremonies of cultures and religions",
+      "criteria": [
+       "age",
+       "region",
+       "religion",
+       "typical cost",
+       "participants per year",
+       "cost per guest"
+      ],
+      "sources": [
+       "UNESCO ICH",
+       "national statistics (Japan Seijin Shiki counts)",
+       "Wikidata"
+      ],
+      "priority": 3
      }
     ]
    },
@@ -91252,6 +94983,69 @@
        "CTA Digitalisation of African Agriculture report"
       ],
       "priority": 2
+     },
+     {
+      "slug": "japan-korea-portal-apps",
+      "name": "LINE, Kakao and Naver services",
+      "kind": "commercial",
+      "description": "Services in the LINE, KakaoTalk and Naver ecosystems (pay, maps, webtoon, taxi) compared.",
+      "entity": "platform service",
+      "universe": "consumer services within LINE (Japan, Taiwan, Thailand), Kakao and Naver (Korea)",
+      "criteria": [
+       "monthly active users",
+       "revenue",
+       "market share",
+       "app rating",
+       "revenue per user = revenue ÷ user"
+      ],
+      "sources": [
+       "LY Corp, Kakao and Naver IR",
+       "Mobile Index (Korea)",
+       "Sensor Tower"
+      ],
+      "priority": 3
+     },
+     {
+      "slug": "regional-language-apps",
+      "name": "Indian-language social and content apps",
+      "kind": "commercial",
+      "description": "Vernacular apps for Indian-language users (ShareChat, Pratilipi, Kuku FM, Josh, Koo) compared.",
+      "entity": "vernacular app",
+      "universe": "apps primarily serving Indian-language users",
+      "criteria": [
+       "monthly active users",
+       "languages",
+       "creators",
+       "app rating",
+       "MAU per language = MAU ÷ language"
+      ],
+      "sources": [
+       "company disclosures",
+       "Sensor Tower / data.ai",
+       "KPMG-Google Indian Languages reports"
+      ],
+      "priority": 3
+     },
+     {
+      "slug": "russian-ecosystem-apps",
+      "name": "Yandex, VK, Sber and Russian ecosystem apps",
+      "kind": "commercial",
+      "description": "Russian and CIS consumer apps (Yandex Go, VK, Ozon, Wildberries, Avito, Kaspi.kz) compared.",
+      "entity": "app",
+      "universe": "consumer apps from Russian and CIS ecosystems",
+      "criteria": [
+       "monthly active users",
+       "GMV or revenue",
+       "app rating",
+       "countries",
+       "revenue per user = revenue ÷ user"
+      ],
+      "sources": [
+       "Mediascope",
+       "company IR (Yandex, VK, Ozon, Kaspi)",
+       "Sensor Tower"
+      ],
+      "priority": 3
      }
     ]
    },
@@ -92523,6 +96317,27 @@
          "GSMA mobile money"
         ],
         "priority": 1
+       },
+       {
+        "slug": "remittance-providers-by-corridor",
+        "name": "Money transfer apps by corridor",
+        "kind": "commercial",
+        "description": "Money transfer apps by corridor compared.",
+        "entity": "remittance provider (corridor)",
+        "universe": "providers quoting on major corridors (Wise, Remitly, Western Union, Al Ansari, LuLu, Taptap Send, Sendwave, WorldRemit)",
+        "criteria": [
+         "total cost for $200",
+         "FX margin",
+         "delivery speed",
+         "payout options (mobile money, cash)",
+         "cost index = fee + FX margin"
+        ],
+        "sources": [
+         "World Bank RPW provider quotes",
+         "provider price calculators",
+         "app store ratings"
+        ],
+        "priority": 1
        }
       ]
      },
@@ -92886,6 +96701,29 @@
            "MoneyHelper annuity tables (UK)"
           ],
           "priority": 2
+         },
+         {
+          "slug": "mandatory-pension-fund-managers",
+          "name": "Pension fund administrators (AFORE, AFP, MPF, NPS)",
+          "kind": "commercial",
+          "description": "Individual-account pension managers in Mexico, Chile, Peru, Colombia, Hong Kong, India and elsewhere compared by fees and returns.",
+          "entity": "pension fund administrator",
+          "universe": "licensed managers in mandatory or quasi-mandatory individual-account pension systems",
+          "criteria": [
+           "assets under management",
+           "members",
+           "annual fee",
+           "5-yr net return",
+           "net return per fee = return ÷ fee",
+           "service rating"
+          ],
+          "sources": [
+           "CONSAR (Mexico)",
+           "Superintendencia de Pensiones (Chile)",
+           "MPFA (Hong Kong)",
+           "PFRDA (India)"
+          ],
+          "priority": 2
          }
         ]
        },
@@ -93003,6 +96841,27 @@
          "ATO"
         ],
         "priority": 1
+       },
+       {
+        "slug": "bank-wealth-management-products",
+        "name": "Bank wealth management products (China, Korea, Taiwan)",
+        "kind": "knowledge",
+        "description": "Bank wealth management products (China, Korea, Taiwan) compared and ranked.",
+        "entity": "wealth management product",
+        "universe": "bank WMPs and wealth-subsidiary products registered with China Wealth (理财登记中心) and comparable Korean/Taiwanese products",
+        "criteria": [
+         "annualised return since inception",
+         "risk rating (R1–R5)",
+         "minimum investment",
+         "max drawdown",
+         "return per risk = return ÷ drawdown"
+        ],
+        "sources": [
+         "China Wealth (chinawealth.com.cn)",
+         "bank product disclosures",
+         "普益标准 reports"
+        ],
+        "priority": 2
        }
       ]
      },
@@ -93409,6 +97268,71 @@
          "NerdWallet",
          "provider fee schedules",
          "CFPB / FOS complaints"
+        ],
+        "priority": 3
+       },
+       {
+        "slug": "gold-loan-lenders",
+        "name": "Gold loan lenders",
+        "kind": "commercial",
+        "description": "Gold loan lenders compared.",
+        "entity": "gold loan lender",
+        "universe": "NBFCs and banks lending against gold (Muthoot, Manappuram, IIFL, SBI) and pawnshops (Cebuana, Pegadaian)",
+        "criteria": [
+         "interest rate",
+         "loan-to-value",
+         "branches",
+         "gold AUM",
+         "cost per ₹1 lakh per year"
+        ],
+        "sources": [
+         "RBI NBFC lists",
+         "company annual reports",
+         "Pegadaian / BSP pawnshop registries"
+        ],
+        "priority": 2
+       },
+       {
+        "slug": "digital-lending-apps",
+        "name": "Digital lending apps",
+        "kind": "commercial",
+        "description": "Digital lending apps compared.",
+        "entity": "digital lending app",
+        "universe": "licensed loan apps in India, Kenya, Nigeria, Indonesia, Philippines, Mexico (KreditBee, Tala, Branch, FairMoney, Kredivo)",
+        "criteria": [
+         "APR",
+         "loan size",
+         "regulator licence",
+         "app rating",
+         "complaints",
+         "cost per 1,000 borrowed for 30 days"
+        ],
+        "sources": [
+         "RBI DLA directory",
+         "CBK digital credit providers list",
+         "OJK licensed fintech lending list",
+         "FCCPC Nigeria approved lenders"
+        ],
+        "priority": 1
+       },
+       {
+        "slug": "consorcio-administrators",
+        "name": "Consórcio administrators (Brazil)",
+        "kind": "knowledge",
+        "description": "Consórcio administrators (Brazil) compared and ranked.",
+        "entity": "consórcio administrator",
+        "universe": "administrators authorised by Banco Central do Brasil",
+        "criteria": [
+         "active participants",
+         "admin fee",
+         "contemplation rate",
+         "complaints index (BCB)",
+         "cost per R$10,000 of credit"
+        ],
+        "sources": [
+         "Banco Central do Brasil consórcio statistics",
+         "ABAC",
+         "Reclame Aqui"
         ],
         "priority": 3
        }
@@ -94333,6 +98257,50 @@
          "Paradores and Pousadas de Portugal directories"
         ],
         "priority": 3
+       },
+       {
+        "slug": "safari-lodges-camps",
+        "name": "Safari lodges and camps",
+        "kind": "commercial",
+        "description": "Safari lodges and camps compared.",
+        "entity": "safari lodge or camp",
+        "universe": "lodges and tented camps in African national parks and reserves",
+        "criteria": [
+         "nightly rate",
+         "park",
+         "Big Five present",
+         "rating",
+         "conservancy fees",
+         "rating per $100 per night = rating ÷ $100 per night"
+        ],
+        "sources": [
+         "national park authorities (KWS, SANParks, TANAPA)",
+         "Tripadvisor / Safaribookings reviews",
+         "lodge rate cards"
+        ],
+        "priority": 2
+       },
+       {
+        "slug": "thermal-baths-spas",
+        "name": "Thermal baths and spa resorts",
+        "kind": "commercial",
+        "description": "Thermal baths and spa resorts compared.",
+        "entity": "thermal bath or spa",
+        "universe": "thermal baths and spa towns (Budapest, Karlovy Vary, Baden-Baden, Pamukkale, Beppu, Jordanian Dead Sea, Georgian Borjomi)",
+        "criteria": [
+         "water temperature",
+         "mineral content",
+         "entry price",
+         "visitors",
+         "rating",
+         "price per hour = price ÷ hour"
+        ],
+        "sources": [
+         "national spa associations (ESPA)",
+         "Tripadvisor / Google reviews",
+         "UNESCO Great Spa Towns"
+        ],
+        "priority": 2
        }
       ]
      },
@@ -95022,6 +98990,115 @@
          "VisitEngland accessibility statements"
         ],
         "priority": 2
+       },
+       {
+        "slug": "bazaars-traditional-markets",
+        "name": "Bazaars, souks and traditional markets",
+        "kind": "knowledge",
+        "description": "Historic bazaars, souks and traditional markets (Grand Bazaar, Khan el-Khalili, Chatuchak, Chandni Chowk, Mercado de la Merced, Kariakoo) compared.",
+        "entity": "market or bazaar",
+        "universe": "named traditional markets with recognised history or scale",
+        "criteria": [
+         "stalls or shops",
+         "daily visitors",
+         "founded",
+         "area",
+         "reviews",
+         "visitors per stall = visitors ÷ stall"
+        ],
+        "sources": [
+         "municipal market authorities",
+         "Tripadvisor / Google Maps reviews",
+         "OpenStreetMap",
+         "Wikidata"
+        ],
+        "priority": 2
+       },
+       {
+        "slug": "christmas-markets",
+        "name": "Christmas markets",
+        "kind": "knowledge",
+        "description": "Christmas markets of Central and Northern Europe and beyond compared.",
+        "entity": "Christmas market",
+        "universe": "named seasonal markets (Nuremberg, Strasbourg, Vienna, Prague, Kraków, Tallinn, Budapest, Zagreb)",
+        "criteria": [
+         "visitors",
+         "stalls",
+         "days open",
+         "founded",
+         "European Best Destinations votes",
+         "visitors per stall = visitors ÷ stall"
+        ],
+        "sources": [
+         "city tourism offices",
+         "European Best Destinations",
+         "Wikidata"
+        ],
+        "priority": 3
+       },
+       {
+        "slug": "fireworks-displays",
+        "name": "Fireworks festivals and displays",
+        "kind": "knowledge",
+        "description": "Fireworks festivals (Japanese hanabi taikai like Ōmagari and Sumida River, Macau, Sydney NYE, Montréal, Diwali displays) compared.",
+        "entity": "fireworks festival",
+        "universe": "annual fireworks events with recorded shells and attendance",
+        "criteria": [
+         "shells launched",
+         "attendance",
+         "founded",
+         "duration",
+         "shells per minute = shells ÷ minute"
+        ],
+        "sources": [
+         "organising committees",
+         "Japan Fireworks Association",
+         "city tourism statistics"
+        ],
+        "priority": 3
+       },
+       {
+        "slug": "flower-viewing-spots",
+        "name": "Cherry blossom, autumn foliage and flower-viewing spots",
+        "kind": "knowledge",
+        "description": "Seasonal viewing spots (sakura in Japan and Korea, plum blossom in China, autumn leaves, tulip fields, lavender, jacarandas) compared.",
+        "entity": "viewing spot",
+        "universe": "parks, temples and landscapes famous for seasonal blossoms or foliage",
+        "criteria": [
+         "trees or area",
+         "peak dates",
+         "visitors",
+         "ranking in national lists (さくら名所100選)",
+         "visitors per tree = visitors ÷ tree"
+        ],
+        "sources": [
+         "Japan Cherry Blossom Association 100 spots",
+         "JMA sakura phenology",
+         "Korea Forest Service",
+         "tourism boards"
+        ],
+        "priority": 2
+       },
+       {
+        "slug": "anime-pilgrimage-spots",
+        "name": "Anime pilgrimage spots",
+        "kind": "knowledge",
+        "description": "Real places featured in anime, manga and dramas (seichi junrei) ranked by visitors and works.",
+        "entity": "pilgrimage spot",
+        "universe": "locations on the Anime Tourism Association's 88 spots and fan-documented locations",
+        "criteria": [
+         "works featured",
+         "visitors",
+         "official designation",
+         "reviews",
+         "visitor uplift = visitors after ÷ before"
+        ],
+        "sources": [
+         "Anime Tourism Association 88 spots",
+         "Japan Tourism Agency",
+         "Google Maps reviews"
+        ],
+        "priority": 3
        }
       ]
      },
@@ -95425,6 +99502,27 @@
        "company reports",
        "Ofcom",
        "national comparison sites"
+      ],
+      "priority": 2
+     },
+     {
+      "slug": "live-streaming-platforms",
+      "name": "Live-streaming platforms",
+      "kind": "commercial",
+      "description": "Live-streaming platforms compared.",
+      "entity": "live-streaming platform",
+      "universe": "platforms for live video streaming and virtual gifting (Twitch, Huya, Douyu, SOOP, Chzzk, Bigo Live, Kick, Kumu, Nimo, Trovo)",
+      "criteria": [
+       "monthly active users",
+       "streamer revenue share",
+       "concurrent viewers",
+       "regions",
+       "revenue per paying user = revenue ÷ paying user"
+      ],
+      "sources": [
+       "company IR filings",
+       "StreamsCharts / TwitchTracker",
+       "Sensor Tower"
       ],
       "priority": 2
      }
@@ -96023,7 +100121,51 @@
        "ACSI",
        "Trustpilot public review pages"
       ],
-      "priority": 2
+      "priority": 2,
+      "children": [
+       {
+        "slug": "china-ecommerce-flagship-stores",
+        "name": "Tmall, JD and Douyin flagship stores",
+        "kind": "commercial",
+        "description": "Tmall, JD and Douyin flagship stores compared.",
+        "entity": "online flagship store",
+        "universe": "brand flagship stores on Tmall, JD.com, Douyin Mall and Pinduoduo",
+        "criteria": [
+         "GMV during 11.11/618",
+         "followers",
+         "store rating (DSR)",
+         "category rank",
+         "GMV per follower = GMV ÷ follower"
+        ],
+        "sources": [
+         "Syntun 星图数据 sales rankings",
+         "Tmall / JD official rankings",
+         "Feigua / Chanmama data"
+        ],
+        "priority": 2
+       },
+       {
+        "slug": "shopee-lazada-mall-stores",
+        "name": "Shopee, Lazada and Tokopedia official stores",
+        "kind": "commercial",
+        "description": "Shopee, Lazada and Tokopedia official stores compared.",
+        "entity": "marketplace official store",
+        "universe": "brand official stores on Shopee Mall, LazMall, Tokopedia and TikTok Shop in Southeast Asia",
+        "criteria": [
+         "followers",
+         "store rating",
+         "monthly sales (estimated)",
+         "response rate",
+         "sales per follower = sales ÷ follower"
+        ],
+        "sources": [
+         "Shopee / Lazada store pages",
+         "Compass.co.id / Shopdora sales estimates",
+         "Momentum Works reports"
+        ],
+        "priority": 3
+       }
+      ]
      },
      {
       "slug": "moving-companies",
@@ -97107,6 +101249,114 @@
        "national regulators (Ofwat etc.)"
       ],
       "priority": 3
+     },
+     {
+      "slug": "lottery-games",
+      "name": "Lottery games",
+      "kind": "knowledge",
+      "description": "Lottery games compared.",
+      "entity": "lottery game",
+      "universe": "national and state lotteries (Powerball, EuroMillions, Mega-Sena, Melate, 双色球, Lotto 6/49, Thai government lottery, Kerala lotteries)",
+      "criteria": [
+       "top jackpot",
+       "odds of top prize",
+       "ticket price",
+       "payout ratio",
+       "expected value per ticket = expected value ÷ ticket"
+      ],
+      "sources": [
+       "official lottery operators",
+       "World Lottery Association",
+       "China Welfare Lottery"
+      ],
+      "priority": 2
+     },
+     {
+      "slug": "sports-betting-operators",
+      "name": "Sports betting operators",
+      "kind": "commercial",
+      "description": "Sports betting operators compared.",
+      "entity": "licensed betting operator",
+      "universe": "licensed sportsbooks in Africa, Latin America, Europe and Asia (SportyBet, Betway, Bet9ja, Betano, Caliente)",
+      "criteria": [
+       "licences held",
+       "payout margin",
+       "markets",
+       "minimum deposit",
+       "regulator complaints",
+       "margin index = 1 − average payout"
+      ],
+      "sources": [
+       "national gaming regulators (Lagos LSLGA, BCLB Kenya, SPA Brazil, UKGC)",
+       "company reports",
+       "app ratings"
+      ],
+      "priority": 2
+     },
+     {
+      "slug": "matrimony-services",
+      "name": "Matrimonial sites and marriage bureaus",
+      "kind": "commercial",
+      "description": "Matrimonial sites and marriage bureaus compared.",
+      "entity": "matrimonial service",
+      "universe": "matrimony platforms (Shaadi, BharatMatrimony, Jeevansathi, Muzz, Jiayuan, Duo, Betterhalf)",
+      "criteria": [
+       "members",
+       "paid plan price",
+       "verification",
+       "app rating",
+       "success stories claimed",
+       "price per month = price ÷ month"
+      ],
+      "sources": [
+       "company IR (Matrimony.com)",
+       "app store data",
+       "press reports"
+      ],
+      "priority": 2
+     },
+     {
+      "slug": "shopping-festivals",
+      "name": "Shopping festivals",
+      "kind": "knowledge",
+      "description": "Shopping festivals compared.",
+      "entity": "shopping festival",
+      "universe": "annual retail events (Singles' Day 11.11, 618, Black Friday, Big Billion Days, Hot Sale, Buen Fin, White Friday, 12.12 Harbolnas)",
+      "criteria": [
+       "GMV",
+       "participating platforms",
+       "growth",
+       "average discount",
+       "GMV per online shopper = GMV ÷ online shopper"
+      ],
+      "sources": [
+       "Syntun / platform GMV reports",
+       "Adobe Digital Economy Index",
+       "AMVO Hot Sale reports",
+       "RedSeer"
+      ],
+      "priority": 2
+     },
+     {
+      "slug": "variety-discount-stores",
+      "name": "Variety and discount store chains",
+      "kind": "commercial",
+      "description": "100-yen, dollar and variety store chains (Daiso, Miniso, Don Quijote, Seria, Mr DIY, Dollar Tree, Action, Pepco, B&M) compared.",
+      "entity": "variety store chain",
+      "universe": "fixed-price and variety discount chains with 200+ stores",
+      "criteria": [
+       "stores",
+       "countries",
+       "revenue",
+       "typical price point",
+       "revenue per store = revenue ÷ store"
+      ],
+      "sources": [
+       "company annual reports",
+       "store locator counts",
+       "Deloitte Global Powers of Retailing"
+      ],
+      "priority": 2
      }
     ]
    }
@@ -100273,6 +104523,29 @@
        "PeeringDB"
       ],
       "priority": 3
+     },
+     {
+      "slug": "internet-shutdowns",
+      "name": "Internet shutdowns",
+      "kind": "knowledge",
+      "description": "Government-ordered internet and platform shutdowns (India, Iran, Myanmar, Ethiopia, Pakistan, Russia) compared.",
+      "entity": "shutdown event",
+      "universe": "shutdowns documented by Access Now #KeepItOn and NetBlocks",
+      "criteria": [
+       "duration (hours)",
+       "area affected",
+       "people affected",
+       "platforms blocked",
+       "estimated economic cost",
+       "severity index = hours x people affected"
+      ],
+      "sources": [
+       "Access Now #KeepItOn STOP dataset",
+       "NetBlocks / Top10VPN cost of shutdowns",
+       "Cloudflare Radar",
+       "IODA"
+      ],
+      "priority": 2
      }
     ]
    },
@@ -104629,6 +108902,95 @@
          "FDA homeopathic warning letters and recalls",
          "EMA/national homeopathic registers",
          "retailer prices"
+        ],
+        "priority": 3
+       },
+       {
+        "slug": "tcm-herbs",
+        "name": "Chinese medicinal herbs",
+        "kind": "knowledge",
+        "description": "Herbs and materia medica of traditional Chinese medicine compared.",
+        "entity": "Chinese materia medica",
+        "universe": "herbs in the Chinese Pharmacopoeia and widely traded TCM materials",
+        "criteria": [
+         "pharmacopoeia listing",
+         "market price (per kg)",
+         "cultivation area",
+         "price trend 1 yr",
+         "evidence (PubMed RCTs)",
+         "safety warnings",
+         "overall index = mean z-score of the criteria above"
+        ],
+        "sources": [
+         "Chinese Pharmacopoeia",
+         "中药材天地网 price index",
+         "PubMed",
+         "NMPA safety notices"
+        ],
+        "priority": 2
+       },
+       {
+        "slug": "korean-herbal-medicines",
+        "name": "Korean herbal medicines (hanyak)",
+        "kind": "commercial",
+        "description": "Korean traditional herbal medicines and red-ginseng products compared.",
+        "entity": "hanyak product",
+        "universe": "MFDS-registered Korean herbal medicines and health products (KGC red ginseng, Gongjindan, Kyungokgo)",
+        "criteria": [
+         "NHI listing",
+         "price per daily dose",
+         "sales",
+         "clinical evidence",
+         "value index = evidence / price"
+        ],
+        "sources": [
+         "PMDA package inserts",
+         "Japan Kampo Medicines Manufacturers Association",
+         "MFDS Korea",
+         "company reports (Tsumura, KGC)"
+        ],
+        "priority": 2
+       },
+       {
+        "slug": "jamu-herbal-medicines",
+        "name": "Jamu and Southeast Asian herbal medicines",
+        "kind": "commercial",
+        "description": "Indonesian jamu and Southeast Asian herbal products compared.",
+        "entity": "herbal medicine product",
+        "universe": "BPOM-registered jamu, OHT and fitofarmaka products and Thai/Malaysian herbal medicines (Sido Muncul, Tolak Angin, Fah Talai Jone)",
+        "criteria": [
+         "registration class (jamu/OHT/fitofarmaka)",
+         "sales",
+         "price per dose = price ÷ dose",
+         "clinical evidence",
+         "BPOM warnings"
+        ],
+        "sources": [
+         "BPOM cekbpom.pom.go.id",
+         "Thai FDA herbal registry",
+         "company annual reports"
+        ],
+        "priority": 2
+       },
+       {
+        "slug": "african-traditional-medicines",
+        "name": "African traditional and herbal medicines",
+        "kind": "knowledge",
+        "description": "Registered African herbal medicines and widely used medicinal plants compared.",
+        "entity": "African herbal medicine",
+        "universe": "herbal products registered by NAFDAC, FDA Ghana, SAHPRA and others, and plants in the African Herbal Pharmacopoeia",
+        "criteria": [
+         "registration status",
+         "country",
+         "indications",
+         "clinical studies",
+         "safety alerts",
+         "overall index = mean z-score of the criteria above"
+        ],
+        "sources": [
+         "African Herbal Pharmacopoeia",
+         "NAFDAC / FDA Ghana registers",
+         "WHO AFRO traditional medicine reports"
         ],
         "priority": 3
        }
@@ -125239,6 +129601,29 @@
        "WHO Global status report on road safety"
       ],
       "priority": 3
+     },
+     {
+      "slug": "informal-transit-systems",
+      "name": "Minibus taxis, jeepneys and informal transit",
+      "kind": "knowledge",
+      "description": "Paratransit systems (matatu, danfo, tro-tro, jeepney, angkot, colectivo, marshrutka, dolmuş, songthaew, chapa) compared by city.",
+      "entity": "paratransit system (mode x city)",
+      "universe": "informal and semi-formal shared transport services documented by city",
+      "criteria": [
+       "vehicles",
+       "routes",
+       "daily passengers",
+       "typical fare",
+       "mode share",
+       "fare per km = fare ÷ km"
+      ],
+      "sources": [
+       "DigitalTransport4Africa GTFS (digitaltransport4africa.org)",
+       "World Bank / SSATP urban mobility studies",
+       "city transport authorities",
+       "OpenStreetMap"
+      ],
+      "priority": 2
      }
     ]
    },
@@ -126957,6 +131342,50 @@
        "IMF Government Finance Statistics"
       ],
       "priority": 3
+     },
+     {
+      "slug": "social-protection-programs",
+      "name": "Social protection programmes",
+      "kind": "knowledge",
+      "description": "Social protection programmes compared.",
+      "entity": "social protection programme",
+      "universe": "cash transfer and welfare programmes (Bolsa Família, PM-KISAN, Dibao, PKH, BISP, 4Ps, Prospera, SASSA grants)",
+      "criteria": [
+       "beneficiaries",
+       "annual budget",
+       "benefit per household",
+       "coverage of poor",
+       "cost per beneficiary",
+       "budget % of GDP"
+      ],
+      "sources": [
+       "World Bank ASPIRE",
+       "ILO World Social Protection Database",
+       "national programme dashboards"
+      ],
+      "priority": 1
+     },
+     {
+      "slug": "public-housing-programmes",
+      "name": "Public and affordable housing programmes",
+      "kind": "knowledge",
+      "description": "Housing programmes (Singapore HDB, Minha Casa Minha Vida, PMAY, Infonavit, Chinese affordable housing, Kenya Affordable Housing) compared.",
+      "entity": "housing programme",
+      "universe": "national public, subsidised or affordable housing schemes",
+      "criteria": [
+       "units delivered",
+       "budget",
+       "cost per unit",
+       "beneficiaries",
+       "share of housing stock"
+      ],
+      "sources": [
+       "HDB annual report",
+       "Brazil Ministério das Cidades",
+       "PMAY dashboards",
+       "UN-Habitat"
+      ],
+      "priority": 2
      }
     ]
    },
@@ -127913,6 +132342,49 @@
        "Wiktextract (kaikki.org) bulk JSON"
       ],
       "priority": 3
+     },
+     {
+      "slug": "regional-language-words",
+      "name": "Words in Bengali, Tamil, Turkish, Persian, Vietnamese, Thai, Polish and other languages",
+      "kind": "knowledge",
+      "description": "Common words and their meanings, frequency and etymology in languages outside the major-language lists.",
+      "entity": "word (language x lemma)",
+      "universe": "lemmas of Wiktionary in languages with 10M+ speakers not covered by separate lists",
+      "criteria": [
+       "frequency rank",
+       "part of speech",
+       "etymology origin",
+       "translations",
+       "cognate count",
+       "overall index = mean z-score of the criteria above"
+      ],
+      "sources": [
+       "Wiktionary dumps",
+       "OpenSubtitles frequency lists",
+       "Wikidata lexemes"
+      ],
+      "priority": 3
+     },
+     {
+      "slug": "scripts-romanization",
+      "name": "Romanization and transliteration systems",
+      "kind": "knowledge",
+      "description": "Romanization schemes (Pinyin, Hepburn, Revised Romanization, IAST, ALA-LC, Arabic chat alphabet) compared.",
+      "entity": "romanization system",
+      "universe": "standard and informal romanization schemes for non-Latin scripts",
+      "criteria": [
+       "script",
+       "official status",
+       "countries using it",
+       "reversibility",
+       "adoption index"
+      ],
+      "sources": [
+       "UNGEGN romanization reports",
+       "ISO transliteration standards",
+       "Wikidata"
+      ],
+      "priority": 3
      }
     ]
    },
@@ -128761,6 +133233,27 @@
        "Ashley Book of Knots (ABOK) numbers",
        "Wikidata SPARQL endpoint (query.wikidata.org)",
        "International Guild of Knot Tyers resources"
+      ],
+      "priority": 3
+     },
+     {
+      "slug": "feng-shui-vastu-concepts",
+      "name": "Feng shui, vastu and traditional cosmology concepts",
+      "kind": "knowledge",
+      "description": "Concepts from feng shui, vastu shastra, Chinese zodiac, Bazi and Islamic and Vedic astronomy compared.",
+      "entity": "traditional cosmology concept",
+      "universe": "named concepts in East and South Asian traditional cosmology",
+      "criteria": [
+       "tradition",
+       "associated element/direction",
+       "search interest",
+       "historic sources",
+       "overall index = mean z-score of the criteria above"
+      ],
+      "sources": [
+       "Wikidata",
+       "classical texts",
+       "Google Trends"
       ],
       "priority": 3
      }
