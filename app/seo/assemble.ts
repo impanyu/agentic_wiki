@@ -133,11 +133,11 @@ export type EntityPageData={
  // Pages of related entities by entity id (relations know exactly which entity they point to).
  entityLinks?:Record<string,string>;
 };
-export type PageSection={component:string;title?:string;props?:Record<string,unknown>;paragraphs?:string[];paragraphParts?:Part[][];links?:{href:string;title:string;detail:string;ranks?:{label:string;text:string;href:string}[]}[]};
+export type PageSection={component:string;title?:string;props?:Record<string,unknown>;paragraphs?:string[];paragraphParts?:Part[][];links?:{href:string;title:string;detail:string;ranks?:{label:string;text:string;value?:string;href:string}[]}[]};
 export type EntityPageModel={title:string;lead:string[];leadParts:Part[][];cards:Record<string,unknown>[];sections:PageSection[];references:{source:string;what:string}[];asOf:string|null;
  description:string;properties:{name:string;value:number|string;unitText?:string}[];
  // The entity's picture (flag, logo, product photo) and its standout ranks in its main ranking, best first.
- image:string|null;highlights:{label:string;rank:number;of:number|null;href:string}[]};
+ image:string|null;highlights:{label:string;rank:number;of:number|null;href:string}[];rankCount:number};
 
 const LOCATION_KEYS=['iso3','iso2','code','iso_3166_2','region_code','fips'];
 const coord=(v:unknown)=>{const n=typeof v==='number'?v:typeof v==='string'?Number(v):NaN;return Number.isFinite(n)?n:null;};
@@ -232,9 +232,10 @@ export function assembleEntityPage(d:EntityPageData,locale='en'):EntityPageModel
  };
  const measure=(k:string)=>{const c=criterionOf(def(k));return {label:c.label,format:c.format,order:c.order,...(c.unit?{unit:c.unit}:{}),...(c.currency?{currency:c.currency}:{}),...(d.metrics[k]?.period?{year:d.metrics[k].period}:{})};};
  const outsideNote=(k:string)=>{const f=d.metrics[k];return 'Among the top '+countText(SHOWN_RANKS,locale)+' '+(d.type.plural||'entities')+'; '+e.name+' is outside them'+(f?.rank&&f.of?' ('+ordinal(f.rank,locale)+' of '+countText(f.of,locale)+')':'')+'.';};
- // Every entity page lists the rankings it takes part in (the platform adds the section when a template leaves it out),
+ // Every entity page lists every rank it holds, always first after the key figures (the platform adds the section when
+ // a template leaves it out and moves it to the front when a template places it later),
  // found when the page is assembled, so a new ranking appears on its members' pages at once.
- const sectionList=[...(tpl.sections||[]),...((tpl.sections||[]).some(x=>x.kind==='rankings')?[]:[{kind:'rankings'} as Section])];
+ const sectionList=[(tpl.sections||[]).find(x=>x.kind==='rankings')||{kind:'rankings'} as Section,...(tpl.sections||[]).filter(x=>x.kind!=='rankings')];
  for(const s of sectionList){
   switch(s.kind){
    case 'trend':{
@@ -270,12 +271,21 @@ export function assembleEntityPage(d:EntityPageData,locale='en'):EntityPageModel
     sections.push({component:'relation_graph',title:s.title||'Related',props:{center:{name:e.name},relations:rels.slice(0,80)}});
     break;}
    case 'rankings':{
-    if(!d.rankings.length)break;
     const rankText=(x:{rank:number|null;of:number|null})=>x.rank==null?'not ranked':x.rank>SHOWN_RANKS?'outside the top '+countText(SHOWN_RANKS,locale):ordinal(x.rank,locale)+(x.of?' of '+countText(x.of,locale):'');
     // Each rank opens the ranking on that criterion (the first criterion is the ranking's default view).
-    sections.push({component:'rankings',title:s.title||'Rankings',links:d.rankings.map(r=>({href:rankingPath(r.slug),title:r.title,
+    // Each chip: the criterion, the rank and the entity's value (main-ranking values; sub-rankings rank the same values).
+    const valueOf=(key:string)=>{const k=key.replace(/_v\d+$/,'');const v=values['metric.'+k];return typeof v==='string'&&v?v:undefined;};
+    const links=d.rankings.map(r=>({href:rankingPath(r.slug),title:r.title,
      detail:r.ranks.map(x=>x.label+': '+rankText(x)).join(' · '),
-     ranks:r.ranks.map((x,i)=>({label:x.label,text:rankText(x),href:rankingPath(r.slug)+(i===0?'':'?rank='+encodeURIComponent(x.key))}))}))});
+     ranks:r.ranks.map((x,i)=>({label:x.label,text:rankText(x),value:valueOf(x.key),href:rankingPath(r.slug)+(i===0?'':'?rank='+encodeURIComponent(x.key))}))}));
+    // Measures the entity is ranked on (over its whole type) that no ranking lists as a criterion yet.
+    const inRankings=new Set(d.rankings.flatMap(r=>r.ranks.map(x=>x.key.replace(/_v\d+$/,''))));
+    const others=Object.entries(d.metrics).filter(([k,f])=>!inRankings.has(k)&&f.rank!=null).sort((a,b)=>a[1].rank!/(a[1].of||1000)-b[1].rank!/(b[1].of||1000));
+    const main=d.rankings.find(r=>!r.filters||!Object.keys(r.filters).length);
+    if(others.length)links.push({href:main?rankingPath(main.slug):'',title:'Other measures among all '+(d.type.plural||'entities'),detail:'',
+     ranks:others.map(([k,f])=>({label:criterionOf(def(k)).label,text:rankText({rank:f.rank??null,of:f.of??null}),value:valueOf(k),href:''}))});
+    if(!links.length)break;
+    sections.push({component:'rankings',title:s.title||'All rankings',links});
     break;}
    case 'timeline':{const ev=datedAttributes(e.attributes);if(ev.length)sections.push({component:'timeline',title:s.title||'Timeline',props:{events:ev}});break;}
    case 'text':{
@@ -299,7 +309,7 @@ export function assembleEntityPage(d:EntityPageData,locale='en'):EntityPageModel
  const properties:EntityPageModel["properties"]=Object.entries(d.metrics).map(([k,f])=>{const c=criterionOf(def(k));return {name:c.label,value:f.value,...(def(k).unit?{unitText:def(k).unit}:{})};});
  for(const [k,v] of Object.entries(e.attributes||{})){const s=scalarText(v);if(s&&s.length<200)properties.push({name:humanize(k),value:s});}
  const description=(lead.join(' ')||e.description||e.name).slice(0,300);
- return {title:e.name,lead,leadParts,cards,sections,references,asOf:stamps.length?stamps[stamps.length-1]:null,description,properties,image:entityImage(e),highlights:highlightsOf(d)};
+ return {title:e.name,lead,leadParts,cards,sections,references,asOf:stamps.length?stamps[stamps.length-1]:null,description,properties,image:entityImage(e),highlights:highlightsOf(d),rankCount:d.rankings.reduce((n,r)=>n+r.ranks.filter(x=>x.rank!=null).length,0)+Object.entries(d.metrics).filter(([k,f])=>f.rank!=null&&!d.rankings.some(r=>r.ranks.some(x=>x.key.replace(/_v\d+$/,'')===k))).length};
 }
 
 // ───────────── ranking pages ─────────────

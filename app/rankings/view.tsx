@@ -86,14 +86,14 @@ export function EntityBody({cards,sections}:{cards:Record<string,unknown>[];sect
    case 'trend':return <Trend {...p}/>;case 'position':return <Position {...p}/>;case 'peer_compare':return <PeerCompare {...p}/>;
    case 'radar_profile':return <RadarProfile {...p}/>;case 'location_map':return <LocationMap {...p}/>;case 'relation_graph':return <RelationGraph {...p}/>;
    case 'timeline':return <Timeline {...p}/>;
-   case 'rankings':return <ul className="entity-rankings">{(s.links||[]).map(l=><li key={l.href}><a className="er-title" href={l.href}><Trophy size={15} aria-hidden="true"/><strong>{l.title}</strong></a>{l.ranks?.length?<span className="entity-ranks">{l.ranks.map((x,i)=><a key={i} className={'er-chip'+(/^(1st|2nd|3rd)\b/.test(x.text)?' top':'')} href={x.href}><span>{x.label}</span><b>{x.text}</b></a>)}</span>:l.detail&&<span className="wf-muted er-detail">{l.detail}</span>}</li>)}</ul>;
+   case 'rankings':return <ul className="entity-rankings">{(s.links||[]).map((l,li)=><li key={l.href+li}>{l.href?<a className="er-title" href={l.href}><Trophy size={15} aria-hidden="true"/><strong>{l.title}</strong></a>:<span className="er-title"><Trophy size={15} aria-hidden="true"/><strong>{l.title}</strong></span>}{l.ranks?.length?<span className="entity-ranks">{l.ranks.map((x,i)=>{const cls='er-chip'+(/^(1st|2nd|3rd)\b/.test(x.text)?' top':''),inner=<><span>{x.label}</span><b>{x.text}</b>{x.value&&<small className="er-value">{x.value}</small>}</>;return x.href?<a key={i} className={cls} href={x.href}>{inner}</a>:<span key={i} className={cls}>{inner}</span>;})}</span>:l.detail&&<span className="wf-muted er-detail">{l.detail}</span>}</li>)}</ul>;
    case 'text':return <>{(s.paragraphParts||(s.paragraphs||[]).map(x=>[{text:x}])).map((x,i)=><p key={i}><LinkedText parts={x}/></p>)}</>;
    default:return null;
   }};
  return <>
   {cards.length>0&&<StatCards props={{items:cards}} setValue={noop} fire={noop} ctx={ctx}/>}
   {/* Trend charts sit two to a row as compact small multiples; everything else spans the page. */}
-  <div className="entity-sections">{sections.map((s,i)=><section key={i} className={'entity-section kind-'+s.component} aria-label={s.title||undefined}>{s.title&&<h2 id={'section-'+i}>{s.title}</h2>}{viz(s.component==='trend'?{...s,props:{...(s.props||{}),height:260}}:s)}</section>)}</div>
+  <div className="entity-sections">{sections.map((s,i)=><section key={i} id={s.component==='rankings'?'all-rankings':undefined} className={'entity-section kind-'+s.component} aria-label={s.title||undefined}>{s.title&&<h2 id={'section-'+i}>{s.title}</h2>}{viz(s.component==='trend'?{...s,props:{...(s.props||{}),height:260}}:s)}</section>)}</div>
  </>;
 }
 // Assembled text with links to the pages it mentions.

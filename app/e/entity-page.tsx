@@ -77,7 +77,7 @@ export async function EntityPage(props:Props){
     {model.image&&<img className="entity-picture" src={model.image} alt={model.title} loading="eager" referrerPolicy="no-referrer"/>}
     <div className="entity-hero-text"><span className="db-kicker">{d.type.label.charAt(0).toUpperCase()+d.type.label.slice(1)}</span><h1>{model.title}</h1>{model.lead.length>0&&<p className="lead">{L(model.leadParts).map((s,i)=><span key={i}>{i?' ':''}<LinkedText parts={s}/></span>)}</p>}
        {model.highlights.length>0&&<ul className="entity-highlights" aria-label={t('Standout ranks')}>{L(model.highlights).map(h=><li key={h.href}><a href={h.href}>
-     <b>#{h.rank.toLocaleString(locale)}</b><span>{h.label}</span>{h.of&&<small>{t('of {count}',{count:h.of.toLocaleString(locale)})}</small>}</a></li>)}</ul>}
+     <b>#{h.rank.toLocaleString(locale)}</b><span>{h.label}</span>{h.of&&<small>{t('of {count}',{count:h.of.toLocaleString(locale)})}</small>}</a></li>)}{model.rankCount>model.highlights.length&&<li className="all-ranks"><a href="#all-rankings"><b>{model.rankCount.toLocaleString(locale)}</b><span>{t('All rankings')}</span></a></li>}</ul>}
     {links.length>0&&<div className="ext-links">{links.map(l=><a key={l.href} className={'ext-link'+(l.primary?' primary':'')} href={l.href} target="_blank" rel="noopener noreferrer"><span>{t(l.label)}</span><small>{l.host}</small><ArrowUpRight size={15} aria-hidden="true"/></a>)}</div>}
     </div>
    </header>
