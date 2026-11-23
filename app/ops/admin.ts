@@ -78,7 +78,9 @@ export async function services(){
  const known=new Set(SERVICES.map(s=>s.id));
  const others=usage.filter(u=>!known.has(u.service)).map(u=>({kind:u.service.split(':')[0],name:u.service.split(':').slice(1).join(':'),configured:'—',plan:'',cap:'',today:u.today??0,month:u.month??0,errors:u.month_errors??0,cost:null}));
  const access=(await db.query(`select title, topic, occurrences, to_char(last_seen_at,'YYYY-MM-DD HH24:MI') last from issues where source='access' and status='open' order by occurrences desc, last_seen_at desc limit 50`).catch(()=>({rows:[]}))).rows;
- return {rows:[...rows,...others.sort((a,b)=>b.month-a.month)],access};
+ // Keys the operators set for sources the agents asked for (names only).
+ const sourceKeys=Object.keys(process.env).filter(k=>k.startsWith('SOURCE_KEY_')&&process.env[k]).sort().map(k=>({kind:'data',name:k.slice(11).toLowerCase().replace(/_/g,' ')+' (agent-requested key)',configured:'yes',plan:'{{secret:'+k+'}}',cap:'',today:'',month:'',errors:'',cost:null}));
+ return {rows:[...rows,...sourceKeys,...others.sort((a,b)=>b.month-a.month)],access};
 }
 
 export async function teams(){
