@@ -61,3 +61,14 @@ test('public data sources validate arguments, refuse unknown sources and tools, 
  await assert.rejects(m.listPublicSources(undefined,'nope'),/Unknown public source/);
  assert.deepEqual(m.publicSourceTools[0].parameters.required,['source']);
 });
+
+test('a chosen language stays: bare page addresses open in it, files, sign-in and English stay put',async()=>{
+ const prelude=`const NextResponse={redirect:(url,status)=>({url:String(url),status,headers:new Map()})};const PUBLIC_EDITION=true;const DEFAULT_LOCALE='en';const isLocale=s=>['en','zh','fr'].includes(s);\n`;
+ const {languageRedirect}=await load('proxy.ts',prelude);
+ const req=(path,lang,method='GET')=>{const u=new URL('https://x.test'+path);return {method,cookies:{get:k=>k==='rw-lang'&&lang?{value:lang}:undefined},nextUrl:{pathname:u.pathname,clone:()=>new URL(u)}};};
+ assert.equal(languageRedirect(req('/rankings/countries?rank=gdp','zh')).url,'https://x.test/zh/rankings/countries?rank=gdp');
+ assert.equal(languageRedirect(req('/','zh')).url,'https://x.test/zh');
+ assert.equal(languageRedirect(req('/e/74/china','zh')).status,307);
+ for(const [path,lang,method] of [['/rankings/x','en'],['/rankings/x',undefined],['/rankings/x','xx'],['/rankings/x/data.csv','zh'],['/rankings/x/history.json','zh'],['/auth/google','zh'],['/admin','zh'],['/search','zh','POST']])
+  assert.equal(languageRedirect(req(path,lang,method)),null,path+' '+lang);
+});

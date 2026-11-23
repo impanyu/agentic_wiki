@@ -18,6 +18,19 @@ export function closedInPublicEdition(path:string,method:string){
  if(path==='/api/live-agents/tick')return false;
  return CLOSED.some(([pattern,methods])=>pattern.test(path)&&(!methods||methods.includes(method.toUpperCase())));
 }
+// The language the reader chose (the switcher sets it; a first visit to a /<code>/ page sets it when none is set).
+export const LANG_COOKIE='rw-lang';
+// Bare addresses that are not reader pages keep their one address: sign-in, operator pages, files (an extension).
+const NO_LANGUAGE=/^\/(auth|admin|workflow-preview|drive-picker|p)(\/|$)|\.[a-z0-9]+$/i;
+export function languageRedirect(request:NextRequest){
+ if(request.method!=='GET'&&request.method!=='HEAD')return null;
+ const code=request.cookies.get(LANG_COOKIE)?.value,path=request.nextUrl.pathname;
+ if(!code||code===DEFAULT_LOCALE||!isLocale(code)||NO_LANGUAGE.test(path))return null;
+ const url=request.nextUrl.clone();url.pathname='/'+code+(path==='/'?'':path);
+ // 307: the bare address stays the English page for everyone else (search engines carry no cookie).
+ const res=NextResponse.redirect(url,307);res.headers.set('Cache-Control','private, no-store');res.headers.set('Vary','Cookie');
+ return res;
+}
 export function proxy(request:NextRequest){
  const path=request.nextUrl.pathname;
  if(path.startsWith('/api/')||path.startsWith('/drive-picker')){
@@ -30,8 +43,13 @@ export function proxy(request:NextRequest){
   if(m[1]===DEFAULT_LOCALE){const url=request.nextUrl.clone();url.pathname=m[2]||'/';return NextResponse.redirect(url,308);}
   // next.config.ts rewrites the path internally; here the request only learns its language.
   const headers=new Headers(request.headers);headers.set('x-rw-locale',m[1]);
-  return NextResponse.next({request:{headers}});
+  const res=NextResponse.next({request:{headers}});
+  // A reader who arrives in a language without having chosen one keeps it (an explicit choice is never overridden).
+  if(!request.cookies.get(LANG_COOKIE)?.value)res.cookies.set(LANG_COOKIE,m[1],{path:'/',maxAge:31536000,sameSite:'lax'});
+  return res;
  }
+ // The reader's language stays until they switch: a bare page address opens in the chosen language.
+ const chosen=languageRedirect(request);if(chosen)return chosen;
  // A bare address never inherits a language from the request.
  if(request.headers.has('x-rw-locale')){const headers=new Headers(request.headers);headers.delete('x-rw-locale');return NextResponse.next({request:{headers}});}
  return NextResponse.next();
