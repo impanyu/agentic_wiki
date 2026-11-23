@@ -204,6 +204,14 @@ export const MIGRATIONS:Migration[]=[
     attempts integer not null default 0, created_at timestamptz not null default now(), updated_at timestamptz not null default now(), primary key (lang, hash))`,
   "create index if not exists translations_pending on translations(created_at) where status = 'pending'",
  ]},
+ // Texts a reader met go before pre-translation (priority 1 over 0); each topic's counts over its subtree are kept
+ // in topic_stats by the worker, so a page reads its own rows instead of counting the whole tree.
+ {version:15,name:'translation priority and topic stats',statements:()=>[
+  'alter table translations add column if not exists priority integer not null default 0',
+  "create index if not exists translations_queue on translations(priority desc, created_at) where status = 'pending'",
+  `create table if not exists topic_stats(id uuid primary key, rankings integer not null default 0, types integer not null default 0,
+    pages integer not null default 0, updated_at timestamptz not null default now())`,
+ ]},
 ];
 export const SCHEMA_VERSION=MIGRATIONS[MIGRATIONS.length-1].version;
 

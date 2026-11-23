@@ -18,3 +18,5 @@ const tick = () => fetch('http://127.0.0.1:' + (process.env.PORT || '3000') + '/
 // RANKWIKI_ROLE=web serves pages only (no heartbeat); a separate worker process (RANKWIKI_ROLE=worker) runs the
 // teams, crawler, translation and enrichment, so background work never slows readers' requests.
 if (process.env.RANKWIKI_ROLE !== 'web') setTimeout(() => { void tick(); setInterval(() => void tick(), 60000); }, 60000);
+// The web process warms its caches (the address map, the home page) before readers arrive.
+if (process.env.RANKWIKI_ROLE === 'web') setTimeout(() => { for (const p of ['/', '/zh']) void fetch('http://127.0.0.1:' + (process.env.PORT || '3000') + p, { signal: AbortSignal.timeout(60000) }).catch(() => {}); }, 4000);

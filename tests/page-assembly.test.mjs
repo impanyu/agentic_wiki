@@ -285,8 +285,9 @@ test('only entities that pass their type\'s page threshold get a page; stubs and
 });
 
 test('topic navigation: the tree opens level by level, with counts from the whole branch',async()=>{
+ await pages.refreshTopicStats(db);// the worker keeps topic_stats; pages read only their own rows
  const root=await pages.loadTopicNav(db,null);
- assert.deepEqual(root.children.map(x=>x.slug),['geography'],'only topics with something published, at the top level');
+ assert.deepEqual(root.children.map(x=>x.slug),['geography'],'the top level');
  assert.equal(root.children[0].sub[0].slug,'countries');assert.ok(root.children[0].rankings>=1);assert.equal(root.children[0].pages,COUNTRIES.length);
  const geo=await pages.loadTopicNav(db,'geography');
  assert.deepEqual(geo.children.map(x=>x.slug),['countries']);assert.ok(geo.rankings.length>=1,'a branch shows its leading rankings');

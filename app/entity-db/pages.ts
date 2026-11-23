@@ -267,37 +267,59 @@ export type TopicNav={topic:TopicNode|null;trail:TopicNode[];children:(TopicNode
 // Where a topic's team stands while its pages are being built (shown on the topic's page until it has rankings).
 export type TopicBuild={status:'queued'|'running'|'done'|'failed'|'none';ahead:number;entities:number;sources:number;startedAt:string|null};
 export const topicPath=(slug:string)=>'/topics/'+encodeURIComponent(slug);
-let treeCache:{at:number;nodes:Promise<TopicNode[]>}|null=null;
-// The tree with its counts, kept for five minutes (counting every branch's pages is a full scan).
+let treeCache:{at:number;nodes:Promise<TopicNode[]>;ok?:boolean;refreshing?:boolean}|null=null;
+// The whole tree with its counts (the manager, sitemaps): topics joined to topic_stats, kept for five minutes and
+// refreshed in the background (the stale tree is served meanwhile). Pages never load it: see loadTopicNav.
 export function topicTree(db:Queryable):Promise<TopicNode[]>{
- if(treeCache&&Date.now()-treeCache.at<5*60_000)return treeCache.nodes;
- const nodes=topicTreeUncached(db);treeCache={at:Date.now(),nodes};nodes.catch(()=>{treeCache=null;});return nodes;
+ const age=treeCache?Date.now()-treeCache.at:Infinity;
+ if(treeCache&&age<5*60_000)return treeCache.nodes;
+ if(treeCache?.ok){const c=treeCache;if(!c.refreshing){c.refreshing=true;const next=topicTreeUncached(db);
+  next.then(()=>{treeCache={at:Date.now(),nodes:next,ok:true};},()=>{c.refreshing=false;});}return c.nodes;}
+ const nodes=topicTreeUncached(db);const entry={at:Date.now(),nodes,ok:false};treeCache=entry;
+ nodes.then(()=>{entry.ok=true;},()=>{if(treeCache===entry)treeCache=null;});return nodes;
 }
+const NODE_COLS=`t.id, t.parent_id, t.slug, t.name, t.description, coalesce(s.rankings,0)::int rankings, coalesce(s.types,0)::int types, coalesce(s.pages,0)::int pages`;
+const nodeOf=(x:Row):TopicNode=>({id:String(x.id),parentId:x.parent_id?String(x.parent_id):null,slug:String(x.slug),name:String(x.name),description:String(x.description||''),
+ rankings:Number(x.rankings||0),types:Number(x.types||0),pages:Number(x.pages||0),href:topicPath(String(x.slug))});
 async function topicTreeUncached(db:Queryable):Promise<TopicNode[]>{
- const r=await db.query(`with recursive t as (select id, parent_id, slug, name, description from topics where status <> 'archived'),
+ if(!(await db.query('select 1 from topic_stats limit 1')).rows.length)await refreshTopicStats(db);
+ const r=await db.query(`select ${NODE_COLS} from topics t left join topic_stats s on s.id = t.id where t.status <> 'archived' order by t.name`);
+ return r.rows.map(nodeOf);
+}
+// Counts every topic's published rankings, entity types and entity pages over its whole subtree (one pass over the
+// tree) into topic_stats. Run by the worker every few minutes, never on a reader's request.
+export async function refreshTopicStats(db:Queryable):Promise<number>{
+ const r=await db.query(`with recursive t as (select id, parent_id from topics where status <> 'archived'),
   sub(root, id) as (select id, id from t union all select s.root, t.id from sub s join t on t.parent_id = s.id),
   pages as (select type, count(*)::int n from entities where has_page group by type),
-  own as (select t.id,
-   (select count(*)::int from rankings r where r.topic_id = t.id and r.status = 'published' and r.slug is not null) rk,
-   (select count(*)::int from entity_types et where et.topic_id = t.id and et.status = 'published') ty,
-   (select coalesce(sum(p.n),0)::int from entity_types et join pages p on p.type = et.type where et.topic_id = t.id and et.status = 'published') pg from t)
-  select t.id, t.parent_id, t.slug, t.name, t.description, sum(own.rk)::int rankings, sum(own.ty)::int types, sum(own.pg)::int pages
-  from t join sub on sub.root = t.id join own on own.id = sub.id group by t.id, t.parent_id, t.slug, t.name, t.description order by t.name`);
- return r.rows.map(x=>({id:String(x.id),parentId:x.parent_id?String(x.parent_id):null,slug:String(x.slug),name:String(x.name),description:String(x.description||''),
-  rankings:Number(x.rankings),types:Number(x.types),pages:Number(x.pages),href:topicPath(String(x.slug))}));
+  rk as (select topic_id id, count(*)::int n from rankings where status = 'published' and slug is not null group by topic_id),
+  ty as (select et.topic_id id, count(*)::int n, coalesce(sum(p.n),0)::int pg from entity_types et left join pages p on p.type = et.type where et.status = 'published' group by et.topic_id),
+  agg as (select sub.root id, coalesce(sum(rk.n),0)::int rankings, coalesce(sum(ty.n),0)::int types, coalesce(sum(ty.pg),0)::int pages
+   from sub left join rk on rk.id = sub.id left join ty on ty.id = sub.id group by sub.root)
+  insert into topic_stats(id, rankings, types, pages, updated_at) select id, rankings, types, pages, now() from agg
+  on conflict (id) do update set rankings = excluded.rankings, types = excluded.types, pages = excluded.pages, updated_at = now() returning 1`);
+ await db.query("delete from topic_stats s where not exists (select 1 from topics t where t.id = s.id and t.status <> 'archived')");
+ return r.rows.length;
 }
+// One topic's page: the topic, its ancestors, its children (each with up to six of its own) — only these rows are
+// read, never the whole tree.
 export async function loadTopicNav(db:Queryable,slug:string|null,{rankings:withRankings=true}:{rankings?:boolean}={}):Promise<TopicNav|null>{
- const tree=await topicTree(db);const byId=new Map(tree.map(x=>[x.id,x]));
- const topic=slug?tree.find(x=>x.slug===slug)??null:null;if(slug&&!topic)return null;
- const trail:TopicNode[]=[];for(let p=topic?.parentId?byId.get(topic.parentId):undefined;p&&trail.length<12;p=p.parentId?byId.get(p.parentId):undefined)trail.unshift(p);
- // A topic whose parent has nothing published is shown at the top level.
- const parentOf=(x:TopicNode)=>x.parentId&&byId.has(x.parentId)?x.parentId:null;
- const kids=(id:string|null)=>tree.filter(x=>parentOf(x)===id);
- const children=kids(topic?.id??null).map(c=>({...c,sub:kids(c.id).slice(0,6).map(k=>({slug:k.slug,name:k.name,href:k.href}))}));
+ const topic=slug?(await db.query(`select ${NODE_COLS} from topics t left join topic_stats s on s.id = t.id where t.slug = $1::text and t.status <> 'archived'`,[slug])).rows.map(nodeOf)[0]??null:null;
+ if(slug&&!topic)return null;
+ const trail=topic?.parentId?(await db.query(`with recursive up(id, depth) as (select $1::uuid, 1 union all select t.parent_id, up.depth + 1 from up join topics t on t.id = up.id where t.parent_id is not null and up.depth < 12)
+  select ${NODE_COLS}, up.depth from up join topics t on t.id = up.id left join topic_stats s on s.id = t.id order by up.depth desc`,[topic.parentId])).rows.map(nodeOf):[];
+ const kidRows=(await db.query(topic?`select ${NODE_COLS} from topics t left join topic_stats s on s.id = t.id where t.parent_id = $1::uuid and t.status <> 'archived' order by t.name`
+  :`select ${NODE_COLS} from topics t left join topic_stats s on s.id = t.id where t.parent_id is null and t.status <> 'archived' order by t.name`,topic?[topic.id]:[])).rows.map(nodeOf);
+ const grand=kidRows.length?(await db.query(`select slug, name, parent_id from (select t.slug, t.name, t.parent_id, row_number() over (partition by t.parent_id order by t.name) n
+  from topics t where t.parent_id = any($1::uuid[]) and t.status <> 'archived') x where n <= 6`,[kidRows.map(k=>k.id)])).rows:[];
+ const children=kidRows.map(c=>({...c,sub:grand.filter(g=>String(g.parent_id)===c.id).map(g=>({slug:String(g.slug),name:String(g.name),href:topicPath(String(g.slug))}))}));
  if(!topic)return {topic:null,trail:[],children,rankings:[],types:[]};
- const subtree:string[]=[];const walk=(id:string)=>{subtree.push(id);for(const k of tree)if(k.parentId===id)walk(k.id);};walk(topic.id);
  // A topic lists its own rankings in full; with subtopics, the leading rankings of the whole branch.
- const rankings=withRankings?await featuredRankings(db,children.length?12:120,children.length?subtree:[topic.id]):[];
+ let rankings:FeaturedRanking[]=[];
+ if(withRankings){
+  const subtree=children.length?(await db.query(`with recursive d(id) as (select $1::uuid union all select t.id from topics t join d on t.parent_id = d.id where t.status <> 'archived') select id from d`,[topic.id])).rows.map(x=>String(x.id)):[topic.id];
+  rankings=await featuredRankings(db,children.length?12:120,subtree);
+ }
  const tr=await db.query(`select et.type, et.label, et.plural, (select count(*)::int from entities e where e.type = et.type and e.has_page) n,
    (select r.slug from rankings r where r.status = 'published' and r.slug is not null and r.scope->>'type' = et.type order by (coalesce(r.scope->'filters','{}'::jsonb) = '{}'::jsonb) desc, r.updated_at desc limit 1) rk
   from entity_types et where et.topic_id = $1::uuid and et.status = 'published' order by et.label`,[topic.id]);
@@ -326,8 +348,19 @@ let mapsCache:{at:number;maps:AddressTree}|null=null;
 const filterEntries=(f:unknown):[string,string][]=>Object.entries(f&&typeof f==='object'?f as Record<string,unknown>:{})
  .map(([k,v])=>[k,typeof v==='string'||typeof v==='number'?String(v):Array.isArray(v)?v.map(String).sort().join(','):JSON.stringify(v)] as [string,string]).sort();
 const segmentOf=(extra:[string,string][])=>slugify(extra.map(([k,v])=>/^[{[]/.test(v)?k+' '+v.replace(/[^\p{L}\p{N}.]+/gu,' '):v).join(' ')).replace(/-and-/g,'-');
+// The address map is held in memory (every request needs it to resolve its path) and rebuilt in the background
+// once a minute: readers are served the current map while the next one is built.
+let mapsLoading:Promise<AddressTree>|null=null;
 export async function pathMaps(db:Queryable,{fresh=false}:{fresh?:boolean}={}):Promise<AddressTree>{
- if(!fresh&&mapsCache&&Date.now()-mapsCache.at<60_000)return mapsCache.maps;
+ if(!fresh&&mapsCache){
+  if(Date.now()-mapsCache.at>=60_000&&!mapsLoading){mapsLoading=buildPathMaps(db).catch(e=>{console.warn('[paths] rebuild failed',(e as Error).message);return mapsCache!.maps;}).finally(()=>{mapsLoading=null;});}
+  return mapsCache.maps;
+ }
+ if(!fresh&&mapsLoading)return mapsLoading;
+ const p=buildPathMaps(db);if(!fresh){mapsLoading=p;p.finally(()=>{mapsLoading=null;}).catch(()=>{});}
+ return p;
+}
+async function buildPathMaps(db:Queryable):Promise<AddressTree>{
  const topics=(await db.query<{id:string;parent_id:string|null;slug:string;name:string;description:string}>("select id, parent_id, slug, name, description from topics where status <> 'archived'")).rows
   .map(t=>({id:String(t.id),parentId:t.parent_id?String(t.parent_id):null,slug:String(t.slug),name:String(t.name),description:String(t.description||'')}));
  const paths=topicPaths(topics);const topicById=new Map(topics.map(t=>[t.id,t]));

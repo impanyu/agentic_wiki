@@ -101,9 +101,17 @@ export async function translateContent(){
  // Once a day the topic tree's names and descriptions are queued for the most-read languages.
  {const {getState,setState}=await import('./manager');const st=await getState(db,'translate.tree').catch(()=>null);
   if(!st||Date.now()-Date.parse(String(st.at))>20*3600_000){await setState(db,'translate.tree',{at:new Date().toISOString()});void queueTreeTranslations(db).then(q=>console.log('[translate] queued',q,'tree texts')).catch(e=>console.error('[translate] queue failed',(e as Error).message));}}
- const n=await translatePending(db,{batches,size:40}).catch(e=>{console.error('[translate] failed',(e as Error).message);return 0;});
+ const n=await translatePending(db,{concurrency:Number(process.env.CONTENT_TRANSLATE_CONCURRENCY||8),size:40,budgetMs:50_000}).catch(e=>{console.error('[translate] failed',(e as Error).message);return 0;});
  if(n)console.log('[translate]',n,'texts');
  return n;
+}
+
+// Topic counts (rankings, types, pages over each subtree) for the tree pages, every three minutes.
+let statsAt=0;
+export async function refreshStats(){
+ if(Date.now()-statsAt<3*60_000)return 0;statsAt=Date.now();
+ const db=await entityDb();const {refreshTopicStats}=await import('@/app/entity-db/pages');
+ return refreshTopicStats(db).catch(e=>{console.error('[stats] failed',(e as Error).message);return 0;});
 }
 
 // Entity introductions and pictures from Wikipedia where collectors left them out (a few each minute).

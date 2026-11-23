@@ -21,7 +21,33 @@ function apply(v:unknown,map:Map<string,string>,key=''):unknown{
  if(v&&typeof v==='object'){const o:Record<string,unknown>={};for(const [k,x] of Object.entries(v)){o[k]=SKIP.has(k)?x:apply(x,map,k==='parts'||k==='leadParts'||k==='paragraphParts'?'text':k);}return o;}
  return v;
 }
-// Translates a page model into a language: what is translated already is put in, the rest is queued.
+// Texts being translated right now (lang:hash), so concurrent requests and the background queue do not translate
+// the same text twice at once.
+const inflight=new Set<string>();
+async function save(db:Queryable,lang:string,pairs:[string,string][],out:Record<string,string>,map?:Map<string,string>){
+ const hs:string[]=[],ts:string[]=[];
+ for(const [h,src] of pairs){const t=out[src];if(typeof t==='string'&&t.trim()){hs.push(h);ts.push(t.trim().slice(0,4000));map?.set(src,t.trim());}}
+ if(hs.length)await db.query(`update translations x set text=v.t, status='done', updated_at=now() from unnest($2::text[],$3::text[]) as v(h,t) where x.lang=$1::text and x.hash=v.h`,[lang,hs,ts]);
+ const failed=pairs.filter(([,src])=>!(typeof out[src]==='string'&&out[src].trim())).map(([h])=>h);
+ if(failed.length)await db.query('update translations set attempts=attempts+1, updated_at=now() where lang=$1::text and hash = any($2::text[])',[lang,failed]);
+}
+// Translates chunks of [hash, source] in parallel (each chunk saved when it returns, even after the caller stopped
+// waiting); resolves when all are done.
+function translateChunks(db:Queryable,lang:string,pairs:[string,string][],size:number,map?:Map<string,string>):Promise<unknown>[]{
+ const name=LOCALES.find(l=>l.code===lang)?.name||lang;
+ const todo=pairs.filter(([h])=>!inflight.has(lang+':'+h));
+ const out:Promise<unknown>[]=[];
+ for(let i=0;i<todo.length;i+=size){
+  const chunk=todo.slice(i,i+size);for(const [h] of chunk)inflight.add(lang+':'+h);
+  out.push(translateBatch(chunk.map(c=>c[1]),lang,name)
+   .then(r=>save(db,lang,chunk,r,map),async e=>{await save(db,lang,chunk,{});console.warn('[translate]',lang,(e as Error).message.slice(0,160));})
+   .catch(()=>{}).finally(()=>{for(const [h] of chunk)inflight.delete(lang+':'+h);}));
+ }
+ return out;
+}
+// Translates a page model into a language: what is translated already is put in; everything else on the page is
+// translated right away in parallel batches (the first reader waits up to CONTENT_SYNC_MS, the batches finish and are
+// stored even if they take longer), and anything still missing goes first in the background queue.
 // Returns the model and whether anything is still waiting (the page is then kept out of search indexes).
 export async function localizeContent<T>(db:Queryable,model:T,locale:string):Promise<{model:T;complete:boolean}>{
  if(!locale||locale===DEFAULT_LOCALE||!LOCALES.some(l=>l.code===locale))return {model,complete:true};
@@ -30,41 +56,36 @@ export async function localizeContent<T>(db:Queryable,model:T,locale:string):Pro
  const list=[...texts].slice(0,800),hashes=list.map(hashOf);
  const map=new Map<string,string>();
  try{
-  const r=await db.query<{hash:string;text:string|null;status:string}>('select hash, text, status from translations where lang=$1::text and hash = any($2::text[])',[locale,hashes]);
+  const r=await db.query<{hash:string;text:string|null;status:string;attempts:number}>('select hash, text, status, attempts from translations where lang=$1::text and hash = any($2::text[])',[locale,hashes]);
   const got=new Map(r.rows.map(x=>[x.hash,x]));const missing:[string,string][]=[];
-  list.forEach((s,i)=>{const g=got.get(hashes[i]);if(g?.status==='done'&&g.text)map.set(s,g.text);else if(!g)missing.push([hashes[i],s]);});
+  list.forEach((s,i)=>{const g=got.get(hashes[i]);if(g?.status==='done'&&g.text)map.set(s,g.text);else if(!g||Number(g.attempts)<3)missing.push([hashes[i],s]);});
   if(missing.length){
-   await db.query(`insert into translations(lang,hash,source) select $1::text, x.h, x.s from unnest($2::text[],$3::text[]) as x(h,s) on conflict do nothing`,[locale,missing.map(m=>m[0]),missing.map(m=>m[1])]);
-   // The first reader of a page in this language should not see English: a small batch is translated right away
-   // (CONTENT_SYNC_LIMIT texts within CONTENT_SYNC_MS); a larger one, or a slow or failed call, waits for the heartbeat.
-   const limit=Number(process.env.CONTENT_SYNC_LIMIT||80),ms=Number(process.env.CONTENT_SYNC_MS||3000);
-   if(missing.length<=limit&&limit>0){
-    const name=LOCALES.find(l=>l.code===locale)?.name||locale;
-    const got=await Promise.race([translateBatch(missing.map(m=>m[1]),locale,name).catch(()=>null),new Promise<null>(r=>setTimeout(()=>r(null),ms))]);
-    if(got)for(const [h,src] of missing){const t=got[src];if(typeof t==='string'&&t.trim()){map.set(src,t.trim());
-     await db.query(`update translations set text=$3::text, status='done', updated_at=now() where lang=$1::text and hash=$2::text`,[locale,h,t.trim().slice(0,4000)]).catch(()=>{});}}
+   // Queued with reader priority (texts pre-queued for this language move up too).
+   await db.query(`insert into translations(lang,hash,source,priority) select $1::text, x.h, x.s, 1 from unnest($2::text[],$3::text[]) as x(h,s)
+    on conflict (lang, hash) do update set priority = 1 where translations.status = 'pending' and translations.priority < 1`,[locale,missing.map(m=>m[0]),missing.map(m=>m[1])]);
+   const limit=Number(process.env.CONTENT_SYNC_LIMIT||400),ms=Number(process.env.CONTENT_SYNC_MS||6000);
+   if(limit>0){
+    const jobs=translateChunks(db,locale,missing.slice(0,limit),25,map);
+    await Promise.race([Promise.all(jobs),new Promise(r=>setTimeout(r,ms))]);
    }
   }
  }catch{return {model,complete:false};}
- return {model:apply(model,map) as T,complete:map.size>=list.length};
+ return {model:apply(model,new Map(map)) as T,complete:map.size>=list.length};
 }
-// Background: translate the oldest waiting texts, a batch per language (heartbeat).
+// Background: the waiting texts, readers' first, then pre-translation; CONTENT_TRANSLATE_CONCURRENCY batches at
+// once, for up to budgetMs (the heartbeat calls it once a minute).
 let busy=false;
-export async function translatePending(db:Queryable,{batches=4,size=40}:{batches?:number;size?:number}={}):Promise<number>{
- if(busy)return 0;busy=true;let done=0;
+export async function translatePending(db:Queryable,{concurrency=8,size=40,budgetMs=50_000}:{concurrency?:number;size?:number;budgetMs?:number}={}):Promise<number>{
+ if(busy)return 0;busy=true;let done=0;const until=Date.now()+budgetMs;
  try{
-  const langs=(await db.query<{lang:string}>(`select lang from translations where status='pending' and attempts<3 group by lang order by min(created_at) limit $1::int`,[batches])).rows.map(r=>r.lang);
-  for(const lang of langs){
-   const rows=(await db.query<{hash:string;source:string}>(`select hash, source from translations where lang=$1::text and status='pending' and attempts<3 order by created_at limit $2::int`,[lang,size])).rows;
-   if(!rows.length)continue;
-   const name=LOCALES.find(l=>l.code===lang)?.name||lang;
-   try{
-    const out=await translateBatch(rows.map(r=>r.source),lang,name);
-    for(const r of rows){const t=out[r.source];
-     if(typeof t==='string'&&t.trim())await db.query(`update translations set text=$3::text, status='done', updated_at=now() where lang=$1::text and hash=$2::text`,[lang,r.hash,t.trim().slice(0,4000)]);
-     else await db.query('update translations set attempts=attempts+1, updated_at=now() where lang=$1::text and hash=$2::text',[lang,r.hash]);
-     done++;}
-   }catch(e){await db.query('update translations set attempts=attempts+1, updated_at=now() where lang=$1::text and hash = any($2::text[])',[lang,rows.map(r=>r.hash)]);console.warn('[translate]',lang,(e as Error).message.slice(0,200));}
+  while(Date.now()<until){
+   const rows=(await db.query<{lang:string;hash:string;source:string}>(`select lang, hash, source from translations where status='pending' and attempts<3 order by priority desc, created_at limit $1::int`,[concurrency*size*2])).rows
+    .filter(r=>!inflight.has(r.lang+':'+r.hash));
+   if(!rows.length)break;
+   const byLang=new Map<string,[string,string][]>();for(const r of rows){const l=byLang.get(r.lang)??[];l.push([r.hash,r.source]);byLang.set(r.lang,l);}
+   const jobs:Promise<unknown>[]=[];
+   for(const [lang,pairs] of byLang){if(jobs.length>=concurrency)break;jobs.push(...translateChunks(db,lang,pairs.slice(0,size*(concurrency-jobs.length)),size).slice(0,concurrency-jobs.length));}
+   await Promise.all(jobs);done+=Math.min(rows.length,jobs.length*size);
   }
  }finally{busy=false;}
  return done;
