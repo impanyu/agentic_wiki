@@ -152,8 +152,10 @@ export async function fastLaneTopic(db:EntityDb,t:Topic):Promise<{ok:boolean;rea
  const info=new Map<string,{name:string;aliases:string[];wikipedia?:string;image?:string;website?:string}>();
  for(let i=0;i<items.length;i+=250){for(const [k,v] of await details(items.slice(i,i+250),signal))info.set(k,v);}
  const metrics=p.metrics.filter(m=>per.has(m.key));
- // Long distances (a median over 10 km: rivers, roads, borders) read in kilometres; heights stay in metres.
- const longLength=new Set([...per].filter(([,vals])=>{const v=vals.values().next().value as Val|undefined;if(!v||UNITS[v.unit]!=='m')return false;const s=[...vals.values()].map(x=>x.v).sort((a,b)=>a-b);return s[Math.floor(s.length/2)]>10_000;}).map(([k])=>k));
+ // One unit per measure across every kind of entity (a measure's key is shared): length and width (P2043, P2049)
+ // always in kilometres, heights and elevations in metres, areas in square kilometres.
+ const KM_PROPS=new Set(['P2043','P2049']);
+ const longLength=new Set(metrics.filter(m=>KM_PROPS.has(m.prop)&&UNITS[(per.get(m.key)?.values().next().value as Val|undefined)?.unit||'']==='m').map(m=>m.key));
  const unitOf=(k:string)=>{const v=per.get(k)!.values().next().value as Val|undefined;const u=v?(UNITS[v.unit]??''):'';return u==='m2'?'km2':longLength.has(k)?'km':u;};
  // Areas read in square metres are shown in square kilometres.
  for(const [k,vals] of per){const v=vals.values().next().value as Val|undefined;if(v&&UNITS[v.unit]==='m2')for(const x of vals.values())x.v=x.v/1e6;else if(longLength.has(k))for(const x of vals.values())x.v=x.v/1000;}
