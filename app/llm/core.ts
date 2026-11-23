@@ -2,6 +2,9 @@
 // so tests run it with fakes. app/llm/index.ts wires it to the app.
 import {loadCatalog,type Catalog,type ModelEntry} from './catalog';
 import {costUsd,chatCostUsd} from './prices';
+// Only a paid provider's calls cost money: the same model served free (NRP, our own GPUs) costs nothing.
+const PAID=new Set(['deepseek']);
+const paidCost=(entry:{provider:string;model:string},usage:Parameters<typeof chatCostUsd>[1])=>PAID.has(entry.provider)?chatCostUsd(entry.model,usage):0;
 import {RateTracker,monthKey,nextMonth,retryAfterMs,type Block} from './limits';
 import {toChat,fromChat,forOpenAI,requirements,inputItems,syntheticId} from './translate';
 import {schemaErrors,extractJson} from './schema';
@@ -234,7 +237,7 @@ export function createLLM(deps:Deps){
     return {result,usage:result.usage,info:{provider:'openai',model,catalogId:entry.id,latencyMs:now()-t0,costUsd:costUsd(model,result.usage,searches),webSearches:searches}};
    }
    const {webSearches,...result}=await callChat(entry,request,signal);
-   const cost=chatCostUsd(entry.model,result.usage);if(cost&&dayCache.day===new Date(now()).toISOString().slice(0,10))dayCache.value+=cost;
+   const cost=paidCost(entry,result.usage);if(cost&&dayCache.day===new Date(now()).toISOString().slice(0,10))dayCache.value+=cost;
    return {result,usage:result.usage,info:{provider:entry.provider,model:entry.model,catalogId:entry.id,latencyMs:now()-t0,costUsd:cost,webSearches}};
   });
  }
@@ -250,7 +253,7 @@ export function createLLM(deps:Deps){
      if(item.type==='function_call'&&handlers.onToolArguments){emitted=true;handlers.onToolArguments(item.name||'',item.arguments||'');}
      if(item.type==='message')for(const c of item.content||[])if(c.text&&handlers.onTextDelta){emitted=true;handlers.onTextDelta(c.text);}
     }
-    return {result,usage:result.usage,info:{provider:entry.provider,model:entry.model,catalogId:entry.id,latencyMs:now()-t0,costUsd:chatCostUsd(entry.model,result.usage),webSearches}};
+    return {result,usage:result.usage,info:{provider:entry.provider,model:entry.model,catalogId:entry.id,latencyMs:now()-t0,costUsd:paidCost(entry,result.usage),webSearches}};
    }
    if(!deps.readEvents)throw Error('LLM streaming is not configured.');
    const model=openaiModel(request.class,request),body=forOpenAI({...(deps.openaiDefaults?.({...request,model})||{}),...request,model,stream:true});
