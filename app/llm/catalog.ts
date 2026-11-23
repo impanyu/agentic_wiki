@@ -61,6 +61,9 @@ export const BASE_CATALOG:Catalog={
   // Ordered by NRP's published standing (Artificial Analysis Intelligence Index): DeepSeek V4.1 Flash, then GLM-5.
   agent:['nrp:deepseek-v4-flash','nrp:glm-5','nrp:minimax','nrp:qwen3','nrp:kimi','gemini:gemini-4-hydrogen','openrouter:nemotron-3-ultra','groq:gpt-oss-120b','openai'],
   fast:['gemini:gemini-3.8-flash-lite','nrp:gpt-oss','openai'],
+  // Page translation: the open models that answered a 20-item batch fastest (gemma, minimax ~40 s; deepseek ~55 s;
+  // gpt-oss ~130 s under load), spread over several so many batches run at once.
+  translate:['nrp:gemma','nrp:minimax','gemini:gemini-3.8-flash-lite','nrp:deepseek-v4-flash','nrp:qwen3','nrp:gpt-oss','openai'],
   vision:['nrp:qwen3','nrp:gemma','gemini:gemini-3.8-flash','openrouter:nemotron-3.5-super-vl','openai'],
  },
  // premium -> (over budget or failing) -> the free part of this chain.

@@ -101,9 +101,28 @@ export async function translateContent(){
  // Once a day the topic tree's names and descriptions are queued for the most-read languages.
  {const {getState,setState}=await import('./manager');const st=await getState(db,'translate.tree').catch(()=>null);
   if(!st||Date.now()-Date.parse(String(st.at))>20*3600_000){await setState(db,'translate.tree',{at:new Date().toISOString()});void queueTreeTranslations(db).then(q=>console.log('[translate] queued',q,'tree texts')).catch(e=>console.error('[translate] queue failed',(e as Error).message));}}
- const n=await translatePending(db,{concurrency:Number(process.env.CONTENT_TRANSLATE_CONCURRENCY||8),size:40,budgetMs:50_000}).catch(e=>{console.error('[translate] failed',(e as Error).message);return 0;});
+ const n=await translatePending(db,{concurrency:Number(process.env.CONTENT_TRANSLATE_CONCURRENCY||12),size:40,budgetMs:50_000}).catch(e=>{console.error('[translate] failed',(e as Error).message);return 0;});
  if(n)console.log('[translate]',n,'texts');
  return n;
+}
+
+// Landing pages in every language ahead of readers: the home page (top-level subjects and popular rankings) first
+// (priority 3), then each subject's page (its children, priority 2). Every hour; only new or waiting texts are touched.
+let landingAt=0;
+export async function pretranslateLanding(){
+ if(Date.now()-landingAt<60*60_000)return 0;landingAt=Date.now();
+ const db=await entityDb();
+ const {pathMaps,nodeChildren,popularRankings}=await import('@/app/entity-db/pages');
+ const {queueTexts}=await import('@/app/i18n/content');const {LOCALES}=await import('@/app/i18n/locales');
+ const langs=LOCALES.map(l=>l.code);
+ try{
+  const maps=await pathMaps(db);const top=nodeChildren(maps,'');
+  const popular=await popularRankings(db,maps,'').catch(()=>[]);
+  let n=await queueTexts(db,{v:top,p:popular},langs,3);
+  for(const t of top)n+=await queueTexts(db,{v:nodeChildren(maps,t.href)},langs,2);
+  if(n)console.log('[translate] landing pages queued',n);
+  return n;
+ }catch(e){console.error('[translate] landing failed',(e as Error).message);landingAt=0;return 0;}
 }
 
 // Topic counts (rankings, types, pages over each subtree) for the tree pages, every three minutes.

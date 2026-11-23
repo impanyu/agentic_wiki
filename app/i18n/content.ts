@@ -5,8 +5,8 @@ import {DEFAULT_LOCALE,LOCALES} from './locales';
 // of a page model are looked up per language; a text never seen in that language is queued and the page shows it in
 // English meanwhile; the heartbeat translates the queue in batches (translatePending). Proper names, numbers,
 // units and links are kept. A page in another language is indexed only when nothing on it is still waiting.
-const KEYS=new Set(['title','name','label','lead','text','description','detail','subtitle','about','caption','note','kicker','summary','heading','paragraphs','baseTitle','question','unitLabel']);
-const SKIP=new Set(['rows','href','slug','key','id','image','url','code','format','unit','currency','period','year','entity_id','type','column','props_rows']);
+const KEYS=new Set(['title','name','label','lead','text','description','detail','subtitle','about','caption','note','kicker','summary','heading','paragraphs','baseTitle','question','unitLabel','unit']);
+const SKIP=new Set(['rows','href','slug','key','id','image','url','code','format','currency','period','year','entity_id','type','column','props_rows']);
 const hashOf=(s:string)=>createHash('sha1').update(s).digest('hex').slice(0,20);
 const translatable=(s:string)=>s.length>=2&&s.length<=1200&&/\p{L}{2}/u.test(s)&&!/^(https?:|\/|#|data:)/.test(s)&&!/^[\p{Lu}\d_-]{2,12}$/u.test(s);
 // Every translatable text in a value (by key), in order.
@@ -33,20 +33,20 @@ async function save(db:Queryable,lang:string,pairs:[string,string][],out:Record<
 }
 // Translates chunks of [hash, source] in parallel (each chunk saved when it returns, even after the caller stopped
 // waiting); resolves when all are done.
-function translateChunks(db:Queryable,lang:string,pairs:[string,string][],size:number,map?:Map<string,string>):Promise<unknown>[]{
+function translateChunks(db:Queryable,lang:string,pairs:[string,string][],size:number,map?:Map<string,string>,cls:'fast'|'translate'='translate'):Promise<unknown>[]{
  const name=LOCALES.find(l=>l.code===lang)?.name||lang;
  const todo=pairs.filter(([h])=>!inflight.has(lang+':'+h));
  const out:Promise<unknown>[]=[];
  for(let i=0;i<todo.length;i+=size){
   const chunk=todo.slice(i,i+size);for(const [h] of chunk)inflight.add(lang+':'+h);
-  out.push(translateBatch(chunk.map(c=>c[1]),lang,name)
+  out.push(translateBatch(chunk.map(c=>c[1]),lang,name,cls)
    .then(r=>save(db,lang,chunk,r,map),async e=>{await save(db,lang,chunk,{});console.warn('[translate]',lang,(e as Error).message.slice(0,160));})
    .catch(()=>{}).finally(()=>{for(const [h] of chunk)inflight.delete(lang+':'+h);}));
  }
  return out;
 }
 // Translates a page model into a language: what is translated already is put in; everything else on the page is
-// translated right away in parallel batches (the first reader waits up to CONTENT_SYNC_MS, the batches finish and are
+// translated right away in parallel batches (the first reader waits up to CONTENT_SYNC_MS on the fast chain, the batches finish and are
 // stored even if they take longer), and anything still missing goes first in the background queue.
 // Returns the model and whether anything is still waiting (the page is then kept out of search indexes).
 export async function localizeContent<T>(db:Queryable,model:T,locale:string):Promise<{model:T;complete:boolean}>{
@@ -63,9 +63,9 @@ export async function localizeContent<T>(db:Queryable,model:T,locale:string):Pro
    // Queued with reader priority (texts pre-queued for this language move up too).
    await db.query(`insert into translations(lang,hash,source,priority) select $1::text, x.h, x.s, 1 from unnest($2::text[],$3::text[]) as x(h,s)
     on conflict (lang, hash) do update set priority = 1 where translations.status = 'pending' and translations.priority < 1`,[locale,missing.map(m=>m[0]),missing.map(m=>m[1])]);
-   const limit=Number(process.env.CONTENT_SYNC_LIMIT||400),ms=Number(process.env.CONTENT_SYNC_MS||6000);
+   const limit=Number(process.env.CONTENT_SYNC_LIMIT||400),ms=Number(process.env.CONTENT_SYNC_MS||2500);
    if(limit>0){
-    const jobs=translateChunks(db,locale,missing.slice(0,limit),25,map);
+    const jobs=translateChunks(db,locale,missing.slice(0,limit),25,map,'fast');
     await Promise.race([Promise.all(jobs),new Promise(r=>setTimeout(r,ms))]);
    }
   }
@@ -90,16 +90,27 @@ export async function translatePending(db:Queryable,{concurrency=8,size=40,budge
  }finally{busy=false;}
  return done;
 }
-async function translateBatch(texts:string[],lang:string,name:string):Promise<Record<string,string>>{
+async function translateBatch(texts:string[],lang:string,name:string,cls:'fast'|'translate'='translate'):Promise<Record<string,string>>{
  const {respond}=await import('@/app/llm');
  const schema={type:'object',additionalProperties:false,required:['items'],properties:{items:{type:'array',items:{type:'object',additionalProperties:false,required:['source','text'],properties:{source:{type:'string'},text:{type:'string'}}}}}};
- const r=await respond({class:'fast',store:false,instructions:`You translate the text of RankWiki, a public ranking and encyclopedia site, from English into ${name} (${lang}). Translate each item fully and naturally, as a well-edited reference site in that language would. Keep: brand, product, company and person names as they are (use the established ${name} name of a famous person or work if one exists); place names in their established ${name} form; every number, date, unit symbol, currency sign, ordinal meaning and {placeholder} exactly. Return every item with its source unchanged.`,
+ const r=await respond({class:cls,store:false,instructions:`You translate the text of RankWiki, a public ranking and encyclopedia site, from English into ${name} (${lang}). Translate each item fully and naturally, as a well-edited reference site in that language would. Keep: brand, product, company and person names as they are (use the established ${name} name of a famous person or work if one exists); place names in their established ${name} form; every number, date, unit symbol, currency sign, ordinal meaning and {placeholder} exactly. Return every item with its source unchanged.`,
   input:JSON.stringify(texts),max_output_tokens:12000,text:{format:{type:'json_schema',name:'translations',schema,strict:true}}} as never);
  const text=(r.output||[]).flatMap(o=>'content' in o&&Array.isArray(o.content)?o.content:[]).map((c:{type?:string;text?:string})=>c.type==='output_text'?c.text||'':'').join('');
  const parsed=JSON.parse(text.replace(/^```(?:json)?\s*|\s*```$/g,'')||'{}') as {items?:{source:string;text:string}[]};
  return Object.fromEntries((parsed.items||[]).map(x=>[x.source,x.text]));
 }
 
+// Queues texts for every given language at a priority (raising it for texts already waiting). Returns how many
+// were new or raised.
+export async function queueTexts(db:Queryable,values:unknown,langs:string[],priority:number):Promise<number>{
+ const set=new Set<string>();collect(values,set);const texts=[...set];if(!texts.length)return 0;
+ let n=0;
+ for(const lang of langs){if(lang===DEFAULT_LOCALE)continue;
+  const r=await db.query(`insert into translations(lang,hash,source,priority) select $1::text, x.h, x.s, $4::int from unnest($2::text[],$3::text[]) as x(h,s)
+   on conflict (lang, hash) do update set priority = $4::int where translations.status = 'pending' and translations.priority < $4::int returning 1`,[lang,texts.map(hashOf),texts,priority]);
+  n+=r.rows.length;}
+ return n;
+}
 // Pre-translation: the tree's topic names and descriptions are queued for the most-read languages ahead of readers,
 // so browsing topics never waits. Once a day; only what is not queued or translated yet.
 export const PRETRANSLATE=['zh','es','hi','ar','pt','fr','ja','ru','de','id','bn','ko','tr','vi','it','ur','fa','th','pl','zh-hant'];
