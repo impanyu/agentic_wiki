@@ -80,10 +80,12 @@ test('with only OPENAI_API_KEY every class resolves to OpenAI, the body passes t
  assert.equal(L.costUsd('gpt-5.4-mini',{input_tokens:0,output_tokens:0},2),0.02);
 });
 
+const OLD_CHAINS=JSON.stringify({chains:{agent:['pool:local','deepseek:v4-flash','nrp:deepseek-v4-flash','nrp:glm-5','nrp:minimax','nrp:qwen3','nrp:kimi','gemini:gemini-4-hydrogen','openrouter:nemotron-3-ultra','groq:gpt-oss-120b','openai'],review:['pool:local','deepseek:v4-flash','nrp:deepseek-v4-flash','nrp:glm-5','nrp:minimax','nrp:qwen3','nrp:kimi','gemini:gemini-4-hydrogen','openrouter:nemotron-3-ultra','groq:gpt-oss-120b','openai'],fast:['gemini:gemini-3.8-flash-lite','nrp:gpt-oss','openai']}});
+// The mechanics below are tested over a fixed chain (the production chains change with measurements).
 test('chain falls back on 429 (honoring Retry-After), retries a 5xx once, and skips a model over its daily quota',async()=>{
  const keys={NRP_LLM_TOKEN:'n',GEMINI_API_KEY:'g',GROQ_API_KEY:'q',OPENAI_API_KEY:'o'};
  let mode='429';
- const h=harness(keys,(url,body)=>{
+ const h=harness({...keys,LLM_CATALOG_OVERRIDES:OLD_CHAINS},(url,body)=>{
   if(body.model==='deepseek-v4-flash'){if(mode==='429')return reply(429,'slow down',{'retry-after':'30'});return reply(503,'busy');}
   if(body.model==='glm-5')return reply(200,textReply('from glm'));
   return reply(200,textReply('other'));
@@ -97,17 +99,17 @@ test('chain falls back on 429 (honoring Retry-After), retries a 5xx once, and sk
  await h.llm.respond({class:'agent',input:'x'});assert.deepEqual(h.calls.map(c=>c.body.model),['deepseek-v4-flash','deepseek-v4-flash','glm-5']);
  assert.ok(h.rows.some(r=>r.status==='error:server:503'));
  // Daily quota: Gemini flash-lite allows 1000/day; exhaust it and fast skips to the next model.
- const g=harness({GEMINI_API_KEY:'g',NRP_LLM_TOKEN:'n'},(url,body)=>reply(200,textReply(body.model)));
+ const g=harness({LLM_CATALOG_OVERRIDES:OLD_CHAINS,GEMINI_API_KEY:'g',NRP_LLM_TOKEN:'n'},(url,body)=>reply(200,textReply(body.model)));
  const lite=g.llm.catalog().models['gemini:gemini-3.8-flash-lite'];
  for(let i=0;i<lite.limits.rpd;i++){g.llm.tracker.acquire(lite,1)();if(i%10===0)g.advance(61000);}
  const res=await g.llm.respond({class:'fast',input:'x'});
  assert.equal(res.llm.model,'gpt-oss');assert.equal(res.llm.fallbacks[0].reason,'rpd');
  // A daily-quota 429 body also parks the model until the reset.
- const d=harness({GEMINI_API_KEY:'g',NRP_LLM_TOKEN:'n'},(url,body)=>body.model.startsWith('gemini')?reply(429,{error:{message:'Quota exceeded for GenerateRequestsPerDayPerProjectPerModel'}}):reply(200,textReply('nrp')));
+ const d=harness({LLM_CATALOG_OVERRIDES:OLD_CHAINS,GEMINI_API_KEY:'g',NRP_LLM_TOKEN:'n'},(url,body)=>body.model.startsWith('gemini')?reply(429,{error:{message:'Quota exceeded for GenerateRequestsPerDayPerProjectPerModel'}}):reply(200,textReply('nrp')));
  await d.llm.respond({class:'fast',input:'x'});
  assert.match(JSON.stringify(d.llm.tracker.snapshot()['gemini:gemini-3.8-flash-lite']),/daily quota/);
  // Everything failing: AI_UNAVAILABLE; only rate limits: AI_LIMIT.
- const f=harness({NRP_LLM_TOKEN:'n'},()=>reply(500,'down'));
+ const f=harness({LLM_CATALOG_OVERRIDES:OLD_CHAINS,NRP_LLM_TOKEN:'n'},()=>reply(500,'down'));
  await assert.rejects(f.llm.respond({class:'fast',input:'x'}),/AI_UNAVAILABLE/);
  assert.throws(()=>harness({},()=>reply(200,{})).llm.chain({class:'nope'}),/LLM_CLASS_INVALID/);
  await assert.rejects(harness({},()=>reply(200,{})).llm.respond({class:'fast',input:'x'}),/AI_SETUP/);
@@ -151,7 +153,7 @@ test('daily quotas reset at midnight Pacific (DST-aware) or UTC',()=>{
 });
 
 test('review prefers a different model family than the editor used',async()=>{
- const h=harness({NRP_LLM_TOKEN:'n',GEMINI_API_KEY:'g',GROQ_API_KEY:'q'},(url,body)=>reply(200,textReply(body.model)));
+ const h=harness({LLM_CATALOG_OVERRIDES:OLD_CHAINS,NRP_LLM_TOKEN:'n',GEMINI_API_KEY:'g',GROQ_API_KEY:'q'},(url,body)=>reply(200,textReply(body.model)));
  const chain=h.llm.chain({class:'review',avoidModel:'qwen3'}).map(e=>e.id);
  assert.equal(chain[0],'nrp:deepseek-v4-flash');assert.equal(chain.at(-1),'nrp:qwen3');
  const r=await h.llm.respond({class:'review',avoidModel:'deepseek-v4-flash',input:'judge'});assert.equal(r.llm.model,'glm-5');
@@ -179,7 +181,7 @@ test('structured output: native json_schema where supported, otherwise instruct,
 
 test('built-in web_search becomes a function tool backed by the search chain; no search provider keeps it on OpenAI',async()=>{
  let round=0;
- const h=harness({NRP_LLM_TOKEN:'n',TAVILY_API_KEY:'t',JINA_API_KEY:'j',OPENAI_API_KEY:'o'},(url,body)=>{
+ const h=harness({LLM_CATALOG_OVERRIDES:OLD_CHAINS,NRP_LLM_TOKEN:'n',TAVILY_API_KEY:'t',JINA_API_KEY:'j',OPENAI_API_KEY:'o'},(url,body)=>{
   if(url.startsWith('https://s.jina.ai/'))return reply(503,'jina down');
   if(url==='https://api.tavily.com/search'){assert.equal(body.query,'tallest building 2026');return reply(200,{results:[{title:'Tower',url:'https://ex.org/t',content:'It is 1 km tall.'}]});}
   round++;
@@ -194,17 +196,17 @@ test('built-in web_search becomes a function tool backed by the search chain; no
  assert.equal(L.searched(r),true);assert.equal(L.searched({output:[{type:'function_call',name:'web_search'}]}),false);
  assert.equal(r.output.at(-1).content[0].text,'The tallest is [Tower](https://ex.org/t).');
  // Mixed with an app tool: the app call returns to the caller with the search results attached.
- let step=0;const m=harness({GROQ_API_KEY:'q',EXA_API_KEY:'e'},(url,body)=>{
+ let step=0;const m=harness({LLM_CATALOG_OVERRIDES:OLD_CHAINS,GROQ_API_KEY:'q',EXA_API_KEY:'e'},(url,body)=>{
   if(url==='https://api.exa.ai/search')return reply(200,{results:[{title:'A',url:'https://a.org',text:'x'}]});
   step++;return reply(200,chatReply({content:null,tool_calls:[{id:'w',type:'function',function:{name:'web_search',arguments:'{"query":"q"}'}},{id:'f',type:'function',function:{name:'save',arguments:'{}'}}]}));
  });
  const mixed=await m.llm.respond({class:'agent',tools:[{type:'web_search'},{type:'function',name:'save',parameters:{type:'object',properties:{}}}],input:'go'});
  assert.deepEqual(mixed.output.map(o=>o.type+':'+(o.name||'')),['web_search_call:','function_call:save']);assert.equal(mixed.output[0].llm.call_id,'w');
  // No search API configured: only OpenAI can serve a web_search request.
- const o=harness({NRP_LLM_TOKEN:'n',OPENAI_API_KEY:'o'},()=>reply(200,openaiReply('x')));
+ const o=harness({LLM_CATALOG_OVERRIDES:OLD_CHAINS,NRP_LLM_TOKEN:'n',OPENAI_API_KEY:'o'},()=>reply(200,openaiReply('x')));
  assert.deepEqual(o.llm.chain({class:'agent',tools:[{type:'web_search'}]}).map(e=>e.id),['openai']);
  assert.deepEqual(o.llm.chain({class:'agent',input:[{role:'user',content:[{type:'input_file',file_data:'x'}]}]}).map(e=>e.id),['openai']);
- assert.deepEqual(o.llm.chain({class:'fast',input:[{role:'user',content:[{type:'input_image',image_url:'u'}]}]}).map(e=>e.id),['openai','nrp:qwen3','nrp:gemma']);
+ assert.deepEqual(o.llm.chain({class:'fast',input:[{role:'user',content:[{type:'input_image',image_url:'u'}]}]}).map(e=>e.id),['openai','nrp:gemma']);
 });
 
 test('the embedder is pinned to one model and dimension and never switches when it is down',async()=>{

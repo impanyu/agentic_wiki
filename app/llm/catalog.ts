@@ -14,7 +14,7 @@ export type Limits={rpm?:number;rpd?:number;tpm?:number;concurrency?:number;dayR
 export type Capabilities={tools:boolean;vision:boolean;jsonSchema:boolean;jsonObject:boolean;reasoningEffort:boolean;context:number;maxOutput:number;thinkTags?:boolean};
 export type EmbedSpec={dims:number;supportsDimensions:boolean;matryoshka:boolean;maxBatch:number};
 export type ModelEntry={id:string;provider:ProviderId;model:string;family:string;caps:Capabilities;limits:Limits;embed?:EmbedSpec;timeoutMs?:number};
-export type Catalog={providers:Record<ProviderId,ProviderConfig>;models:Record<string,ModelEntry>;chains:Record<Exclude<TaskClass,'embed'|'site-embed'|'review'>,string[]>;premiumFallback:'agent';siteEmbed:{model:string;dims:number};defaultEmbed:string[]};
+export type Catalog={providers:Record<ProviderId,ProviderConfig>;models:Record<string,ModelEntry>;chains:Record<Exclude<TaskClass,'embed'|'site-embed'>,string[]>;premiumFallback:'agent';siteEmbed:{model:string;dims:number};defaultEmbed:string[]};
 
 const chat=(o:Partial<Capabilities>={}):Capabilities=>({tools:true,vision:false,jsonSchema:true,jsonObject:true,reasoningEffort:false,context:128000,maxOutput:8192,...o});
 const m=(id:string,provider:ProviderId,model:string,family:string,caps:Capabilities,limits:Limits={},extra:Partial<ModelEntry>={}):[string,ModelEntry]=>[id,{id,provider,model,family,caps,limits,...extra}];
@@ -63,20 +63,25 @@ export const BASE_CATALOG:Catalog={
  ]),
  chains:{
   premium:['openai'],
+  // Removed 2026-11-23 after 3 days of production measurements (success rate per call): nrp:kimi 7%, nrp:gpt-oss 20%,
+  // nrp:glm-5 53%, nrp:qwen3 61%, nrp:minimax 69% as a builder (91% as a reviewer, kept there), groq:gpt-oss-120b 0%
+  // (our requests exceed its size limit), gemini:gemini-4-hydrogen 7% (daily quota), openrouter nemotron 70%.
   // Builders' chain (team editors and collectors): the strongest open models first, the commercial model last.
   // Ordered by NRP's published standing (Artificial Analysis Intelligence Index): DeepSeek V4.1 Flash, then GLM-5.
-  agent:['pool:local','deepseek:v4-flash','nrp:deepseek-v4-flash','nrp:glm-5','nrp:minimax','nrp:qwen3','nrp:kimi','gemini:gemini-4-hydrogen','openrouter:nemotron-3-ultra','groq:gpt-oss-120b','openai'],
-  fast:['gemini:gemini-3.8-flash-lite','nrp:gpt-oss','openai'],
+  agent:['pool:local','deepseek:v4-flash','nrp:deepseek-v4-flash','openai'],
+  // The team's reviewer: a model family other than the builders' (an independent check), the commercial model last.
+  review:['pool:local','nrp:minimax','openai'],
+  fast:['gemini:gemini-3.8-flash-lite','openai'],
   // Page translation (background).
   // A reader is waiting (a page's first view in a language): only models that answer in seconds.
   instant:['gemini:gemini-3.8-flash-lite','openai'],
   // Never the builders' models (deepseek, glm-5, minimax, qwen3, kimi): translation must not slow the teams down.
-  translate:['gemini:gemini-3.8-flash-lite','pool:local','nrp:gemma','nrp:gpt-oss','openai'],
+  translate:['gemini:gemini-3.8-flash-lite','pool:local','nrp:gemma','openai'],
   // Reading facts out of web pages at scale (recipes' llm_extract steps): only our own GPUs, never a paid model.
   extract:['pool:local'],
   // An agent testing extraction on a few pages before saving the recipe: our own model, else free models — never OpenAI.
-  'extract-test':['pool:local','nrp:qwen3','nrp:gpt-oss','gemini:gemini-3.8-flash-lite'],
-  vision:['nrp:qwen3','nrp:gemma','gemini:gemini-3.8-flash','openrouter:nemotron-3.5-super-vl','openai'],
+  'extract-test':['pool:local','nrp:deepseek-v4-flash','gemini:gemini-3.8-flash-lite'],
+  vision:['nrp:gemma','gemini:gemini-3.8-flash','openrouter:nemotron-3.5-super-vl','openai'],
  },
  // premium -> (over budget or failing) -> the free part of this chain.
  premiumFallback:'agent',

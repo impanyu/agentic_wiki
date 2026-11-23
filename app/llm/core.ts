@@ -65,7 +65,7 @@ export function createLLM(deps:Deps){
   const c=catalog(),cls=request.class,need=requirements(request),ids:string[]=[];
   if(cls==='premium')ids.push(...c.chains.premium,...c.chains[c.premiumFallback]);
   else if(cls==='review'){
-   const avoid=familyOf(request.avoidModel),base=c.chains.agent;
+   const avoid=familyOf(request.avoidModel),base=c.chains.review;
    ids.push(...base.filter(id=>c.models[id]&&c.models[id].family!==avoid),...base);
   }else if(cls==='agent'||cls==='fast'||cls==='vision'||cls==='translate'||cls==='instant'||cls==='extract'||cls==='extract-test')ids.push(...c.chains[cls]);
   else throw Error('LLM_CLASS_INVALID: '+cls);
