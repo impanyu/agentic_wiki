@@ -59,10 +59,10 @@ export function sortByPeriod<T>(items:T[],period:(t:T)=>string):T[]{
 }
 
 // ───────────── numbers ─────────────
+// English ordinals ("2nd"); other languages get the plain number, their templates carry the ordinal form.
 export function ordinal(n:number,locale='en'):string{
- if(/^zh/i.test(locale))return '第'+n;
  if(/^en/i.test(locale)||!locale){const s=['th','st','nd','rd'],v=n%100;return n+(s[(v-20)%10]||s[v]||s[0]);}
- return n+'.';
+ return String(n);
 }
 // Share of the other peers this value beats: 100 = best of all, 0 = last; ties count half. Order asc: smaller is better.
 export function percentileOf(value:number,values:number[],order:'desc'|'asc'='desc'):number{
