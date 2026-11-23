@@ -2,7 +2,7 @@ import type {Queryable,Row} from './client';
 import {getEntity,metricTable,hybridSearch,RANK_LIMIT} from './repo';
 import {slugify,questionKey} from '@/app/seo/urls';
 import {topicPaths,canonicalPath,type PathMaps} from '@/app/seo/paths';
-import {formatMetric,entityPath,rankingPath,defaultTemplate,mentionKey,type MetricInfo,type MetricFact,type EntityPageData,type Template,type RankingDef,type RankingPageInput,type Point} from '@/app/seo/assemble';
+import {formatMetric,entityImage,entityPath,rankingPath,defaultTemplate,mentionKey,type MetricInfo,type MetricFact,type EntityPageData,type Template,type RankingDef,type RankingPageInput,type Point} from '@/app/seo/assemble';
 // Reads for the database-driven pages (/rankings/<slug>, /e/<type>/<slug>), the sitemap and link
 // resolution. Read-only; everything a page shows comes from here, assembled by app/seo/assemble.ts.
 const iso=(d:unknown)=>d instanceof Date?d.toISOString():d==null?null:String(d);
@@ -63,9 +63,10 @@ export async function loadRankingPage(db:Queryable,slug:string):Promise<RankingP
  const group=typeof def.config.group==='string'?def.config.group:'';
  const entities:RankingPageInput['entities']={};
  if(ids.length){
-  const r=await db.query(`select id, case when $2::text <> '' then attributes->>$2::text end as g, coalesce(ids->>'iso3', attributes->>'iso3', attributes->>'code', ids->>'iso2') as code
+  const r=await db.query(`select id, case when $2::text <> '' then attributes->>$2::text end as g, coalesce(ids->>'iso3', attributes->>'iso3', attributes->>'code', ids->>'iso2') as code, attributes
    from entities where id = any($1::uuid[])`,[ids,group]);
-  for(const x of r.rows)entities[String(x.id)]={group:(x.g as string)||null,code:(x.code as string)||null};
+  // Each member's picture (a flag, a logo, a product photo) becomes its thumbnail in the table.
+  for(const x of r.rows)entities[String(x.id)]={group:(x.g as string)||null,code:(x.code as string)||null,image:entityImage({attributes:obj(x.attributes)})};
  }
  const relatedSlugs=Array.isArray(def.config.related)?def.config.related.filter((x):x is string=>typeof x==='string').slice(0,20):[];
  const others=(await db.query<{slug:string;title:string}>(`select slug, title from rankings where slug is not null and status = any($1::text[]) and slug <> $2::text
@@ -254,7 +255,13 @@ export type TopicNode={id:string;parentId:string|null;slug:string;name:string;de
 export type TopicNav={topic:TopicNode|null;trail:TopicNode[];children:(TopicNode&{sub:{slug:string;name:string;href:string}[]})[];
  rankings:FeaturedRanking[];types:{type:string;label:string;plural:string;pages:number;href:string|null}[]};
 export const topicPath=(slug:string)=>'/topics/'+encodeURIComponent(slug);
-export async function topicTree(db:Queryable):Promise<TopicNode[]>{
+let treeCache:{at:number;nodes:Promise<TopicNode[]>}|null=null;
+// The tree with its counts, kept for five minutes (counting every branch's pages is a full scan).
+export function topicTree(db:Queryable):Promise<TopicNode[]>{
+ if(treeCache&&Date.now()-treeCache.at<5*60_000)return treeCache.nodes;
+ const nodes=topicTreeUncached(db);treeCache={at:Date.now(),nodes};nodes.catch(()=>{treeCache=null;});return nodes;
+}
+async function topicTreeUncached(db:Queryable):Promise<TopicNode[]>{
  const r=await db.query(`with recursive t as (select id, parent_id, slug, name, description from topics where status <> 'archived'),
   sub(root, id) as (select id, id from t union all select s.root, t.id from sub s join t on t.parent_id = s.id),
   pages as (select type, count(*)::int n from entities where has_page group by type),

@@ -2,6 +2,7 @@ import {serverUi,requestLocale} from '@/app/i18n/request';
 import {localizeLinks} from '@/app/i18n/locales';
 import {localeMeta} from '@/app/i18n/meta';
 import {cache} from 'react';
+import {ttlCache} from '@/app/entity-db/ttl-cache';
 import type {Metadata} from 'next';
 import {notFound,permanentRedirect} from 'next/navigation';
 import {SITE_NAME} from '@/app/edition';
@@ -25,13 +26,15 @@ export type Props={params:Promise<{type:string;slug:string}>};
 const decode=(s:string)=>{try{return decodeURIComponent(s);}catch{return s;}};
 const TYPE=/^[a-z][a-z0-9_]{0,40}$/;
 // /e/<num>/<slug> by number; /e/<type>/<slug> (older addresses) by type and name, redirected to the number.
-const load=cache(async(first:string,slug:string)=>{
+const entityData=ttlCache<Awaited<ReturnType<typeof loadUncached>>>(10*60_000,2000);
+const load=cache((first:string,slug:string)=>entityData.get(first+'/'+slug,()=>loadUncached(first,slug)));
+async function loadUncached(first:string,slug:string){
  const db=await entityDb();
  const r=/^\d+$/.test(first)?await loadEntityPageByNum(db,first):TYPE.test(first)?await loadEntityPage(db,first,slug):null;if(!r)return null;
  const model=assembleEntityPage(r.data,'en');const maps=await pathMaps(db);
  const path=entityPath(r.data.entity.type,r.data.entity.name,r.num);
  return {...r,model,maps,path};
-});
+}
 async function view(props:Props){const {type,slug}=await props.params;return {first:decode(type),slug:decode(slug),data:await load(decode(type).toLowerCase(),decode(slug))};}
 const SCHEMA_TYPES:Record<string,string>={country:'Country',city:'City',us_state:'State',state:'State',region:'Place',place:'Place',mountain:'Mountain',river:'RiverBodyOfWater',lake:'LakeBodyOfWater',
  university:'CollegeOrUniversity',company:'Organization',organization:'Organization',person:'Person',book:'Book',movie:'Movie',product:'Product'};
@@ -70,8 +73,13 @@ export async function EntityPage(props:Props){
    </ol></section>}
    {model.asOf&&<p className="wf-muted data-as-of">{t('Data as of {date}.',{date:fmtDate(model.asOf,locale)})}</p>}
   </>}>
-   <header className="wiki-heading db-hero"><span className="db-kicker">{d.type.label.charAt(0).toUpperCase()+d.type.label.slice(1)}</span><h1>{model.title}</h1>{model.lead.length>0&&<p className="lead">{L(model.leadParts).map((s,i)=><span key={i}>{i?' ':''}<LinkedText parts={s}/></span>)}</p>}
+   <header className={'wiki-heading db-hero entity-hero'+(model.image?' has-image':'')}>
+    {model.image&&<img className="entity-picture" src={model.image} alt={model.title} loading="eager" referrerPolicy="no-referrer"/>}
+    <div className="entity-hero-text"><span className="db-kicker">{d.type.label.charAt(0).toUpperCase()+d.type.label.slice(1)}</span><h1>{model.title}</h1>{model.lead.length>0&&<p className="lead">{L(model.leadParts).map((s,i)=><span key={i}>{i?' ':''}<LinkedText parts={s}/></span>)}</p>}
+       {model.highlights.length>0&&<ul className="entity-highlights" aria-label={t('Standout ranks')}>{L(model.highlights).map(h=><li key={h.href}><a href={h.href}>
+     <b>#{h.rank.toLocaleString(locale)}</b><span>{h.label}</span>{h.of&&<small>{t('of {count}',{count:h.of.toLocaleString(locale)})}</small>}</a></li>)}</ul>}
     {links.length>0&&<div className="ext-links">{links.map(l=><a key={l.href} className={'ext-link'+(l.primary?' primary':'')} href={l.href} target="_blank" rel="noopener noreferrer"><span>{t(l.label)}</span><small>{l.host}</small><ArrowUpRight size={15} aria-hidden="true"/></a>)}</div>}
+    </div>
    </header>
    <EntityBody cards={L(model.cards)} sections={L(model.sections)}/>
 

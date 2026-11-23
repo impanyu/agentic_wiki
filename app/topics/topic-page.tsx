@@ -3,6 +3,7 @@ import {serverUi,requestLocale} from '@/app/i18n/request';
 import {localizeLinks} from '@/app/i18n/locales';
 import {localeMeta} from '@/app/i18n/meta';
 import {cache} from 'react';
+import {ttlCache} from '@/app/entity-db/ttl-cache';
 import type {Metadata} from 'next';
 import {notFound} from 'next/navigation';
 import {SITE_NAME} from '@/app/edition';
@@ -20,7 +21,8 @@ import {Compass} from 'lucide-react';
 // their leaders, and the kinds of entity pages it has. Rendered from the database; the manager keeps the tree.
 export type Props={params:Promise<{slug:string}>;legacy?:boolean};
 const decode=(s:string)=>{try{return decodeURIComponent(s);}catch{return s;}};
-const load=cache(async(slug:string)=>loadTopicNav(await entityDb(),slug,{rankings:false}));
+const topicData=ttlCache<Awaited<ReturnType<typeof loadTopicNav>>>(5*60_000,500);
+const load=cache((slug:string)=>topicData.get(slug,async()=>loadTopicNav(await entityDb(),slug,{rankings:false})));
 
 export async function generateMetadata(props:Props):Promise<Metadata>{
  const nav=await load(decode((await props.params).slug)).catch(()=>null);

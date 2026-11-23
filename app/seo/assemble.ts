@@ -135,7 +135,9 @@ export type EntityPageData={
 };
 export type PageSection={component:string;title?:string;props?:Record<string,unknown>;paragraphs?:string[];paragraphParts?:Part[][];links?:{href:string;title:string;detail:string;ranks?:{label:string;text:string;href:string}[]}[]};
 export type EntityPageModel={title:string;lead:string[];leadParts:Part[][];cards:Record<string,unknown>[];sections:PageSection[];references:{source:string;what:string}[];asOf:string|null;
- description:string;properties:{name:string;value:number|string;unitText?:string}[]};
+ description:string;properties:{name:string;value:number|string;unitText?:string}[];
+ // The entity's picture (flag, logo, product photo) and its standout ranks in its main ranking, best first.
+ image:string|null;highlights:{label:string;rank:number;of:number|null;href:string}[]};
 
 const LOCATION_KEYS=['iso3','iso2','code','iso_3166_2','region_code','fips'];
 const coord=(v:unknown)=>{const n=typeof v==='number'?v:typeof v==='string'?Number(v):NaN;return Number.isFinite(n)?n:null;};
@@ -297,14 +299,14 @@ export function assembleEntityPage(d:EntityPageData,locale='en'):EntityPageModel
  const properties:EntityPageModel["properties"]=Object.entries(d.metrics).map(([k,f])=>{const c=criterionOf(def(k));return {name:c.label,value:f.value,...(def(k).unit?{unitText:def(k).unit}:{})};});
  for(const [k,v] of Object.entries(e.attributes||{})){const s=scalarText(v);if(s&&s.length<200)properties.push({name:humanize(k),value:s});}
  const description=(lead.join(' ')||e.description||e.name).slice(0,300);
- return {title:e.name,lead,leadParts,cards,sections,references,asOf:stamps.length?stamps[stamps.length-1]:null,description,properties};
+ return {title:e.name,lead,leadParts,cards,sections,references,asOf:stamps.length?stamps[stamps.length-1]:null,description,properties,image:entityImage(e),highlights:highlightsOf(d)};
 }
 
 // ───────────── ranking pages ─────────────
 export type RankingDef={slug:string;title:string;scope:{type?:string;filters?:Record<string,unknown>};criteria:string[];config:Record<string,unknown>;status?:string;updatedAt?:string|null};
 export type RankingColumn={column:string;key:string;count:number};
 export type RankingPageInput={def:RankingDef;defs:Record<string,MetricInfo>;columns:RankingColumn[];rows:Record<string,unknown>[];
- type:{label:string;plural:string;expected?:number|null};entities:Record<string,{group?:string|null;code?:string|null}>;related:{slug:string;title:string}[]};
+ type:{label:string;plural:string;expected?:number|null};entities:Record<string,{group?:string|null;code?:string|null;image?:string|null}>;related:{slug:string;title:string}[]};
 export type RankingPageModel={title:string;lead:string|null;criteria:Criterion[];rows:Record<string,unknown>[];defaultKey:string;groupKey?:string;
  about:string[];related:{href:string;title:string}[];sources:string[];periods:string[];count:number;description:string};
 const str=(v:unknown)=>typeof v==='string'?v.trim():'';
@@ -316,7 +318,7 @@ export function assembleRankingPage(x:RankingPageInput,locale='en'):RankingPageM
  const def=(k:string):MetricInfo=>x.defs[k]||{key:k,label:humanize(k),unit:'',order:'desc',format:''};
  const criteria=x.columns.map(c=>{const p=periodsOf(c.column);return criterionOf(def(c.key),{key:c.column,year:p[p.length-1]});});
  const rows=x.rows.map(r=>{const meta=x.entities[String(r.entity_id)]||{};const out:Record<string,unknown>={...r,question:r.name};
-  if(groupKey&&meta.group)out[groupKey]=meta.group;if(meta.code&&!out.code)out.code=meta.code;
+  if(groupKey&&meta.group)out[groupKey]=meta.group;if(meta.code&&!out.code)out.code=meta.code;if(meta.image&&!out.image)out.image=meta.image;
   for(const k of Object.keys(out))if(k.endsWith('_source')||k.endsWith('_rank')||k.endsWith('_period'))delete out[k];return out;});
  const names=new Set(x.rows.map(r=>String(r.entity_id??r.name)));const count=names.size;
  const periods=[...new Set(x.rows.map(r=>String(r.period??'')).filter(Boolean))].sort((a,b)=>comparePeriodText(b,a));
@@ -346,4 +348,22 @@ export function assembleRankingPage(x:RankingPageInput,locale='en'):RankingPageM
 export function rowsCsv(rows:Record<string,unknown>[],columns:string[]):string{
  const cell=(v:unknown)=>{const s=v==null?'':typeof v==='number'?String(v):String(v);return /[",\n\r]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s;};
  return [columns.join(','),...rows.map(r=>columns.map(c=>cell(r[c])).join(','))].join('\n')+'\n';
+}
+
+// A picture of the entity: its image, else an attribute holding a picture (a flag, a logo, a photo).
+const PICTURE_KEY=/flag|logo|image|photo|picture|icon|thumbnail/i,PICTURE_URL=/^https?:\/\/\S+\.(png|jpe?g|gif|webp|svg|avif)(\?\S*)?$/i;
+export function entityImage(e:{image?:string|null;attributes:Record<string,unknown>}):string|null{
+ if(e.image&&/^https?:\/\//.test(e.image))return e.image;
+ const cands=Object.entries(e.attributes||{}).flatMap(([k,v])=>(Array.isArray(v)?v:[v]).filter((x):x is string=>typeof x==='string'&&/^https?:\/\//.test(x)).map(x=>({k,x})));
+ // Prefer raster images (an SVG flag is fine too), named as pictures first.
+ const pick=cands.find(c=>PICTURE_KEY.test(c.k)&&PICTURE_URL.test(c.x))??cands.find(c=>PICTURE_URL.test(c.x))??cands.find(c=>PICTURE_KEY.test(c.k));
+ return pick?.x??null;
+}
+// The ranks that stand out: in the entity's main (unfiltered) ranking, the criteria where it places best relative
+// to the field — up to four, each opening that criterion's view.
+function highlightsOf(d:EntityPageData):{label:string;rank:number;of:number|null;href:string}[]{
+ const main=(d.rankings||[]).find(r=>!r.filters||!Object.keys(r.filters).length)??(d.rankings||[])[0];if(!main)return [];
+ return main.ranks.map((x,i)=>({x,i})).filter(({x})=>x.rank!=null&&x.rank<=SHOWN_RANKS)
+  .sort((a,b)=>a.x.rank!/(a.x.of||1000)-b.x.rank!/(b.x.of||1000)||a.x.rank!-b.x.rank!).slice(0,4)
+  .map(({x,i})=>({label:x.label,rank:x.rank!,of:x.of,href:rankingPath(main.slug)+(i===0?'':'?rank='+encodeURIComponent(x.key))}));
 }

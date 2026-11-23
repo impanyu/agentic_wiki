@@ -7,6 +7,7 @@ import {UiContext,useStaticUi,useUi} from '@/app/i18n/client';
 import {localePath,dirOf,splitLocale} from '@/app/i18n/locales';
 import {LanguageSwitcher} from '@/app/i18n/switcher';
 import {SearchBox} from '@/app/search-box';
+import {isPacked,unpackRows} from '@/app/seo/pack-rows';
 import {NodeGrid,recordVisit,RecentlyViewed} from '@/app/explore';
 import type {NodeCard} from '@/app/entity-db/pages';
 import {SITE_NAME,PUBLIC_EDITION} from '@/app/edition';
@@ -59,6 +60,8 @@ const noop=()=>{};
 export function RankingBody({slug,kicker,subsets=[],title:initialTitle,baseTitle,titles,basePath,defaultRank,rank,period:initialPeriod,charts,props,lead}:{slug?:string;kicker?:string;subsets?:NodeCard[];title:string;baseTitle:string;titles:Record<string,string>;basePath:string;defaultRank:string;
  rank?:string;period?:string;charts:Record<string,string>;props:Record<string,unknown>;lead:string|null}){
  const ctx=useVizCtx();const {t}=useUi();const targets=useContext(AskTargets);
+ // Rows arrive packed (app/seo/pack-rows.ts); the ranking component reads them expanded.
+ const full=useMemo(()=>isPacked(props.rows)?{...props,rows:unpackRows(props.rows)}:props,[props]);
  const [title,setTitle]=useState(initialTitle);
  // One view per ranking per session, from the browser (what makes a ranking "popular").
  useEffect(()=>{if(!slug)return;const k='rw-viewed:'+slug;try{if(sessionStorage.getItem(k))return;sessionStorage.setItem(k,'1');}catch{}
@@ -71,7 +74,7 @@ export function RankingBody({slug,kicker,subsets=[],title:initialTitle,baseTitle
  return <RankingView.Provider value={view}>
   <header className="wiki-heading db-hero">{kicker&&<span className="db-kicker"><Trophy size={13} aria-hidden="true"/>{kicker}</span>}<h1>{title}</h1>{lead&&<p className="lead">{lead}</p>}</header>
   {subsets.length>0&&<><h2 className="rw-nodes-title">{t('Narrow down')}</h2><NodeGrid nodes={subsets} compact/></>}
-  <Ranking props={props} setValue={noop} fire={(name:string,payload:unknown)=>{if(name!=='select')return;const row=payload as {name?:unknown}|null;const href=row&&typeof row.name==='string'?targets?.[questionKey(row.name)]:null;if(href)window.location.assign(href);}} ctx={ctx}/>
+  <Ranking props={full} setValue={noop} fire={(name:string,payload:unknown)=>{if(name!=='select')return;const row=payload as {name?:unknown}|null;const href=row&&typeof row.name==='string'?targets?.[questionKey(row.name)]:null;if(href)window.location.assign(href);}} ctx={ctx}/>
  </RankingView.Provider>;
 }
 
@@ -89,7 +92,8 @@ export function EntityBody({cards,sections}:{cards:Record<string,unknown>[];sect
   }};
  return <>
   {cards.length>0&&<StatCards props={{items:cards}} setValue={noop} fire={noop} ctx={ctx}/>}
-  {sections.map((s,i)=><section key={i} className="entity-section" aria-label={s.title||undefined}>{s.title&&<h2 id={'section-'+i}>{s.title}</h2>}{viz(s)}</section>)}
+  {/* Trend charts sit two to a row as compact small multiples; everything else spans the page. */}
+  <div className="entity-sections">{sections.map((s,i)=><section key={i} className={'entity-section kind-'+s.component} aria-label={s.title||undefined}>{s.title&&<h2 id={'section-'+i}>{s.title}</h2>}{viz(s.component==='trend'?{...s,props:{...(s.props||{}),height:260}}:s)}</section>)}</div>
  </>;
 }
 // Assembled text with links to the pages it mentions.

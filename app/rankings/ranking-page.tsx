@@ -4,6 +4,8 @@ import {localeMeta} from '@/app/i18n/meta';
 import {cookies} from 'next/headers';
 import {getChatGPTUser} from '@/app/chatgpt-auth';
 import {cache} from 'react';
+import {ttlCache} from '@/app/entity-db/ttl-cache';
+import {packRows} from '@/app/seo/pack-rows';
 import type {Metadata} from 'next';
 import {notFound,permanentRedirect} from 'next/navigation';
 import {SITE_NAME} from '@/app/edition';
@@ -27,7 +29,10 @@ import {canonicalPath,canonicalLinks} from '@/app/seo/paths';
 export type Props={params:Promise<{slug:string}>;searchParams:Promise<Record<string,string|string[]|undefined>>;legacy?:boolean};
 const decode=(s:string)=>{try{return decodeURIComponent(s);}catch{return s;}};
 const one=(v:string|string[]|undefined)=>typeof v==='string'?v:undefined;
-const load=cache(async(slug:string)=>{
+// Ranking data and server-drawn charts are kept for ten minutes (data changes on the collectors' schedules).
+const rankingData=ttlCache<Awaited<ReturnType<typeof loadUncached>>>(10*60_000,60),chartSvgs=ttlCache<Record<string,string>>(10*60_000,300);
+const load=cache((slug:string)=>rankingData.get(slug,()=>loadUncached(slug)));
+async function loadUncached(slug:string){
  const db=await entityDb();const input=await loadRankingPage(db,slug);if(!input)return null;
  const model=assembleRankingPage(input,'en');
  const props:Record<string,unknown>={criteria:model.criteria,rows:model.rows,default:model.defaultKey,periodKey:'period',
@@ -39,7 +44,7 @@ const load=cache(async(slug:string)=>{
  const askTargets:Record<string,string>={};
  for(const r of model.rows){const n=String(r.name||''),t=String(r.type||''),id=String(r.entity_id||'');if(n&&t&&pages.has(id)&&!askTargets[questionKey(n)])askTargets[questionKey(n)]=entityPath(t,n,pages.get(id));}
  return {input,model,props,block,state:{rows:model.rows},askTargets};
-});
+}
 async function view(props:Props){
  const [{slug},q]=await Promise.all([props.params,props.searchParams]);
  const data=await load(decode(slug));if(!data)return null;
@@ -76,7 +81,7 @@ export async function RankingPage(props:Props){
  const dark=(await cookies()).get('rw-theme')?.value==='dark';
  const account=await getChatGPTUser().then(u=>u?{name:u.displayName}:null).catch(()=>null);
  const popular=base!==internal?await popularRankings(await entityDb(),maps,base).catch(()=>[]):[];
- const charts=await rankingChartSvgs([block],{[block.code]:state},criterion?.key,locale,period,dark);
+ const charts=await chartSvgs.get([slug,criterion?.key??'',period??'',locale,dark?1:0].join('|'),()=>rankingChartSvgs([block],{[block.code]:state},criterion?.key,locale,period,dark));
  const {criterion:c,ranked}=rankedView(block,state,criterion?.key,period);
  const ld={'@context':'https://schema.org','@type':'ItemList',url:origin+path,name,description:model.description,
   ...(input.def.updatedAt?{dateModified:input.def.updatedAt}:{}),publisher:{'@type':'Organization',name:SITE_NAME,url:origin},
@@ -88,7 +93,7 @@ export async function RankingPage(props:Props){
 {model.about.length>0&&<section aria-labelledby="about-ranking"><h2 id="about-ranking">{t('About this ranking')}</h2><ul>{model.about.map((x,i)=><li key={i}>{linkParts(x).map((p,j)=>p.href?<a key={j} href={p.href} target="_blank" rel="noopener noreferrer" className="ext">{p.text}</a>:<span key={j}>{p.text}</span>)}</li>)}</ul></section>}
   </>}>
    {base!==internal&&<Breadcrumbs trail={L(nodeTrail(maps,base))} current={maps.nodes.get(base)?.name??model.title}/>}
-   <RankingBody slug={input.def.slug} kicker={t('Ranking')+(input.def.status==='draft'?' · '+t('Draft'):'')} subsets={L(nodeChildren(maps,base))} title={name} baseTitle={model.title} titles={titles} basePath={localizeLinks(base,locale)} defaultRank={block.defaultKey} rank={criterion?.key} period={period} charts={charts} props={L(rprops)} lead={model.lead}/>
+   <RankingBody slug={input.def.slug} kicker={t('Ranking')+(input.def.status==='draft'?' · '+t('Draft'):'')} subsets={L(nodeChildren(maps,base))} title={name} baseTitle={model.title} titles={titles} basePath={localizeLinks(base,locale)} defaultRank={block.defaultKey} rank={criterion?.key} period={period} charts={charts} props={L({...rprops,rows:packRows(rprops.rows as Record<string,unknown>[])})} lead={model.lead}/>
    <p className="data-twin-files"><a href={internal+'/data.csv'} download>{t('Download the data (CSV)')}</a></p>
 
    <RankingGrid rankings={L(popular)} title={t('Popular rankings')}/>

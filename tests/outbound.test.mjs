@@ -22,3 +22,11 @@ test('source text links: dataset codes to their public pages, API addresses to t
  assert.equal(linkParts('https://api.worldbank.org/v2/country')[0].href,'https://data.worldbank.org/country');
  assert.equal(linkParts('derived from World Bank WDI (GDP ÷ population)').find(x=>x.href).href,'https://databank.worldbank.org/source/world-development-indicators');
 });
+
+test('packed ranking rows expand back to exactly the rows (values rounded to 7 significant digits)',async()=>{
+ const {packRows,unpackRows,isPacked}=await load('app/seo/pack-rows.ts','pack.mjs');
+ const rows=[{entity_id:'a',name:'A',region:'X',period:'2020',pop:1,gdp:1.23456789},{entity_id:'a',name:'A',region:'X',period:'2021',pop:2},
+  {entity_id:'b',name:'B',region:'Y',period:'2021',pop:3,gdp:4}];
+ const p=packRows(rows);assert.ok(isPacked(p));assert.deepEqual([...p.keys].sort(),['gdp','period','pop']);assert.equal(p.entities.length,2);
+ assert.deepEqual(unpackRows(p),[{entity_id:'a',name:'A',region:'X',period:'2020',pop:1,gdp:1.234568},{entity_id:'a',name:'A',region:'X',period:'2021',pop:2},{entity_id:'b',name:'B',region:'Y',period:'2021',pop:3,gdp:4}]);
+});

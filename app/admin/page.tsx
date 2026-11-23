@@ -11,15 +11,16 @@ import {IssueActions} from './issue-actions';
 export const dynamic='force-dynamic';
 export const metadata:Metadata={title:'Admin · RankWiki',robots:{index:false,follow:false}};
 type Props={searchParams:Promise<Record<string,string|string[]|undefined>>};
-const TABS=[['overview','Overview'],['issues','Issues'],['traffic','Traffic'],['costs','Model costs'],['teams','Teams & data'],['config','Configuration']] as const;
+const TABS=[['overview','Overview'],['issues','Issues'],['traffic','Traffic'],['costs','Model costs'],['teams','Teams and data'],['config','Configuration']] as const;
 const fmt=(v:unknown)=>typeof v==='number'?v.toLocaleString('en'):String(v??'');
 const usd=(v:unknown)=>'$'+(Number(v)||0).toLocaleString('en',{minimumFractionDigits:2,maximumFractionDigits:2});
 
 // A small bar chart (server-drawn SVG) of values by day.
 function Bars({points,label}:{points:{day:string;v:number}[];label:string}){
  if(!points.length)return <p className="adm-empty">No data yet.</p>;
- const max=Math.max(...points.map(p=>p.v),1),w=Math.max(6,Math.floor(560/points.length));
- return <figure className="adm-chart"><svg viewBox={`0 0 ${points.length*w} 120`} role="img" aria-label={label} preserveAspectRatio="none">
+ // Thirty slots (one per day of the window), so a few days of data stay narrow bars on the left.
+ const max=Math.max(...points.map(p=>p.v),1),slots=Math.max(30,points.length),w=24;
+ return <figure className="adm-chart"><svg viewBox={`0 0 ${slots*w} 120`} role="img" aria-label={label} preserveAspectRatio="none">
   {points.map((p,i)=>{const h=Math.max(1,Math.round(p.v/max*110));return <rect key={p.day} x={i*w+1} y={120-h} width={w-2} height={h} rx={2}><title>{p.day}: {fmt(p.v)}</title></rect>;})}
  </svg><figcaption>{label} · {points[0].day} → {points[points.length-1].day} · max {fmt(max)}</figcaption></figure>;
 }

@@ -18,7 +18,9 @@ export function outboundLinks(entity:{attributes:Record<string,unknown>;ids:Reco
   out.push({label,href:u.href,host:u.hostname.replace(/^www\./,''),primary,order});
  };
  for(const [k,v] of Object.entries(entity.attributes||{})){
-  const vals=(Array.isArray(v)?v:[v]).filter((x):x is string=>typeof x==='string'&&/^https?:\/\//i.test(x.trim()));
+  // Pictures (a flag, a logo, an image file) are shown, not linked to.
+  if(/flag|logo|image|photo|picture|icon|thumbnail/i.test(k))continue;
+  const vals=(Array.isArray(v)?v:[v]).filter((x):x is string=>typeof x==='string'&&/^https?:\/\//i.test(x.trim())&&!/\.(png|jpe?g|gif|webp|svg|avif)(\?|$)/i.test(x.trim()));
   if(!vals.length)continue;const key=k.toLowerCase();
   const kind=KINDS.find(x=>x.re.test(key));
   for(const x of vals.slice(0,2))add(kind?.label??pretty(k),x.trim(),kind?.primary??false,kind?.order??4);
