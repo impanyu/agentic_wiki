@@ -8,9 +8,11 @@ import {notFound,permanentRedirect} from 'next/navigation';
 import {SITE_NAME} from '@/app/edition';
 import {siteUrl} from '@/app/site';
 import {entityDb} from '@/app/entity-db/client';
-import {loadEntityPage,loadEntityPageByNum,pathMaps} from '@/app/entity-db/pages';
-import {canonicalLinks} from '@/app/seo/paths';
-import {assembleEntityPage,entityPath,type EntityPageModel} from '@/app/seo/assemble';
+import {loadEntityPage,loadEntityPageByNum,pathMaps,nodeTrail} from '@/app/entity-db/pages';
+import {autolinker} from '@/app/seo/autolink';
+import {Breadcrumbs} from '@/app/explore';
+import {canonicalLinks,canonicalPath} from '@/app/seo/paths';
+import {assembleEntityPage,entityPath,rankingPath,type EntityPageModel} from '@/app/seo/assemble';
 import {jsonLd} from '@/app/seo/structured-data';
 import {questionKey,slugify} from '@/app/seo/urls';
 import {linkParts} from '@/app/workflows/viz/ranking-data';
@@ -58,7 +60,16 @@ export async function EntityPage(props:Props){
  const {locale,dict,t}=await serverUi();
  // A short introduction (the collector's, or the lead of the Wikipedia article, credited).
  const introSource=typeof e.attributes?.description_source==='string'?String(e.attributes.description_source):'';
- const {model:{model,kicker,intro}}=await localized(data.model,d.type.label,locale,e.description||'');const L=<T,>(v:T)=>localizeLinks(canonicalLinks(v,maps),locale);
+ const {model:{model,kicker,intro}}=await localized(data.model,d.type.label,locale,e.description||'');
+ // Mentions of other entities with pages link to them (Wikipedia-style), first mention only, never the page itself.
+ const link=await autolinker(await entityDb(),path);
+ const leadParts=model.leadParts.map(link),introParts=intro.text?link([{text:intro.text}]):[];
+ const sections=model.sections.map(x=>x.paragraphParts?{...x,paragraphParts:x.paragraphParts.map(link)}:x);
+ // Where the entity sits in the tree: the trail to its type's topic, and its type's main ranking.
+ const typeTopic=(await (await entityDb()).query<{slug:string}>('select t.slug from entity_types et join topics t on t.id=et.topic_id where et.type=$1::text',[e.type])).rows[0]?.slug;
+ const topicPath=typeTopic?maps.topics.get(typeTopic):undefined;
+ const trail=topicPath?[...nodeTrail(maps,topicPath),{name:maps.nodes.get(topicPath)?.name||kicker,href:topicPath}]:[];
+ const main=d.rankings.find(r=>!r.filters||!Object.keys(r.filters).length);const mainHref=main?canonicalPath(rankingPath(main.slug),maps):topicPath;const L=<T,>(v:T)=>localizeLinks(canonicalLinks(v,maps),locale);
  // One address per entity: an alias's slug or another spelling redirects to the name's slug.
  if(first!==data.num||slug!==slugify(e.name)||!data.canonical)permanentRedirect(localizeLinks(path,locale));
  const origin=siteUrl();
@@ -80,15 +91,16 @@ export async function EntityPage(props:Props){
    </ol></section>}
    {model.asOf&&<p className="wf-muted data-as-of">{t('Data as of {date}.',{date:fmtDate(model.asOf,locale)})}</p>}
   </>}>
+   {trail.length>0&&<Breadcrumbs trail={L(trail.slice(0,-1).map(x=>({name:x.name,href:x.href})))} current={trail[trail.length-1].name}/>}
    <header className={'wiki-heading db-hero entity-hero'+(model.image?' has-image':'')}>
     {model.image&&<img className="entity-picture" src={model.image} alt={model.title} loading="eager" referrerPolicy="no-referrer"/>}
-    <div className="entity-hero-text"><span className="db-kicker">{kicker.charAt(0).toUpperCase()+kicker.slice(1)}</span><h1>{model.title}</h1>{intro.text&&<p className="entity-intro">{intro.text}{/wikipedia\.org/.test(introSource)&&<> <a className="intro-source" href={introSource} target="_blank" rel="noopener noreferrer">{t('From Wikipedia')}</a></>}</p>}{model.lead.length>0&&<p className="lead">{L(model.leadParts).map((s,i)=><span key={i}>{i?' ':''}<LinkedText parts={s}/></span>)}</p>}
+    <div className="entity-hero-text">{mainHref?<a className="db-kicker" href={L(mainHref)}>{kicker.charAt(0).toUpperCase()+kicker.slice(1)}</a>:<span className="db-kicker">{kicker.charAt(0).toUpperCase()+kicker.slice(1)}</span>}<h1>{model.title}</h1>{intro.text&&<p className="entity-intro"><LinkedText parts={L(introParts)}/>{/wikipedia\.org/.test(introSource)&&<> <a className="intro-source" href={introSource} target="_blank" rel="noopener noreferrer">{t('From Wikipedia')}</a></>}</p>}{model.lead.length>0&&<p className="lead">{L(leadParts).map((s,i)=><span key={i}>{i?' ':''}<LinkedText parts={s}/></span>)}</p>}
        {model.highlights.length>0&&<ul className="entity-highlights" aria-label={t('Standout ranks')}>{L(model.highlights).map(h=><li key={h.href}><a href={h.href}>
      <b>#{h.rank.toLocaleString(locale)}</b><span>{h.label}</span>{h.of&&<small>{t('of {count}',{count:h.of.toLocaleString(locale)})}</small>}</a></li>)}{model.rankCount>model.highlights.length&&<li className="all-ranks"><a href="#all-rankings"><b>{model.rankCount.toLocaleString(locale)}</b><span>{t('All rankings')}</span></a></li>}</ul>}
     {links.length>0&&<div className="ext-links">{links.map(l=><a key={l.href} className={'ext-link'+(l.primary?' primary':'')} href={l.href} target="_blank" rel="noopener noreferrer"><span>{t(l.label)}</span><small>{l.host}</small><ArrowUpRight size={15} aria-hidden="true"/></a>)}</div>}
     </div>
    </header>
-   <EntityBody cards={L(model.cards)} sections={L(model.sections)}/>
+   <EntityBody cards={L(model.cards)} sections={L(sections)}/>
 
   </DbShell>
  </>;
