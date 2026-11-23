@@ -57,8 +57,9 @@ const ROLE_TOOLS:Record<Role,string[]>={
 // Data tools without save_data (that writes Page files); the reviewer reads, never writes.
 const EXPLORE=[...publicSourceTools,...dataTools.filter(t=>t.name!=='save_data')];
 const ENTITY_READ=['entity_search','entity_get','metric_table','metric_sensitivity'];
+// Metrics and indices are the collector's (the data); the editor reads them and presents them.
 export function teamToolDefs(role:Role){
- const entity=entityTools.filter(t=>role==='reviewer'||role==='manager'?ENTITY_READ.includes(t.name):role==='editor'?[...ENTITY_READ,'define_metric','compute_metric'].includes(t.name):true);
+ const entity=entityTools.filter(t=>role==='reviewer'||role==='manager'?ENTITY_READ.includes(t.name):role==='editor'?ENTITY_READ.includes(t.name):true);
  return [...EXPLORE,...entity,...ROLE_TOOLS[role].map(n=>teamTools[n as keyof typeof teamTools])];
 }
 
