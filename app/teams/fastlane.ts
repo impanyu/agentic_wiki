@@ -23,6 +23,13 @@ const PID=/^P\d+$/,QID=/^Q\d+$/;
 const UNITS:Record<string,string>={Q199:'',Q11573:'m',Q828224:'km',Q25343:'m2',Q712226:'km2',Q11570:'kg',Q191118:'t',Q11574:'s',Q11579:'K',Q25517:'m3',
  Q4917:'USD',Q4916:'EUR',Q25224:'GBP',Q8146:'JPY',Q39099:'CNY',Q80524:'INR',Q11573000:'m',Q25269:'W',Q25236:'W',Q6574:'MW',Q25406:'J',Q11582:'L',Q182098:'kWh',Q3332822:'m/s',Q180154:'km/h',Q11229:'%',Q174728:'cm',Q11577:'mm'};
 
+// The measure's name is Wikidata's own label of the property (never the model's), so a value can never be shown
+// under a wrong name; the key follows from it (P2196 "students count" → students_count).
+async function propertyLabels(props:string[],signal:AbortSignal):Promise<Map<string,string>>{
+ const r=await fetch('https://www.wikidata.org/w/api.php?action=wbgetentities&format=json&props=labels&languages=en&ids='+props.join('|'),{headers:{'user-agent':UA},signal});
+ const d=await r.json() as {entities?:Record<string,{labels?:{en?:{value:string}}}>};
+ return new Map(Object.entries(d.entities||{}).map(([k,v])=>[k,v.labels?.en?.value||'']).filter(([,v])=>v) as [string,string][]);
+}
 async function plan(t:Topic,schemaMetrics:{key:string;label:string;unit?:string}[]):Promise<Plan>{
  const {respond}=await import('@/app/llm');
  const schema={type:'object',additionalProperties:false,required:['ok','reason','classes','filters','title','typeLabel','plural','metrics'],properties:{
@@ -32,9 +39,9 @@ async function plan(t:Topic,schemaMetrics:{key:string;label:string;unit?:string}
   metrics:{type:'array',items:{type:'object',additionalProperties:false,required:['prop','key','label','order'],properties:{prop:{type:'string'},key:{type:'string'},label:{type:'string'},order:{type:'string',enum:['asc','desc']}}}}}};
  const r=await respond({class:'instant',store:false,max_output_tokens:2000,text:{format:{type:'json_schema',name:'wikidata_plan',schema,strict:true}},
   instructions:`You map a ranking topic of RankWiki to Wikidata so a program can rank its entities. Give:
-- classes: 1–3 Wikidata class QIDs whose direct instances (P31) are exactly this topic's entities (e.g. mountain Q8502, sovereign state Q3624078, city Q515, airport Q1248784, film Q11424, human Q5 only with a filter). Use only QIDs you are sure of.
+- classes: 1–3 Wikidata class QIDs whose direct instances (P31) are exactly this topic's entities (e.g. mountain Q8502, sovereign state Q3624078, city Q515, airport Q1248784, film Q11424, human Q5 only with a filter). Use only QIDs and PIDs you are sure of; the program reads each property's own Wikidata label as the measure's name.
 - filters: extra required statements narrowing the set, e.g. {"prop":"P17","value":"Q30"} for one country, {"prop":"P106","value":"Q937857"} for footballers among humans. Empty when none.
-- metrics: 1–8 Wikidata properties holding numbers that rank these entities, the most telling first (it decides who is listed): quantities such as elevation P2044, length P2043, area P2046, population P1082, height P2048, mass P2067, revenue P2139, employees P1128, students P2196, box office P2142, capacity P1083, speed P2052. key: reuse the key from the type's measures below when the property measures the same thing, else a new snake_case key; label: short English label; order: desc when more is better or more notable, asc when less ranks first.
+- metrics: 1–8 Wikidata properties holding numbers that rank these entities, the most telling first (it decides who is listed): quantities such as elevation P2044, length P2043, area P2046, population P1082, height P2048, mass P2067, revenue P2139, employees P1128, students P2196, box office P2142, capacity P1083, speed P2052. key and label: any (the program replaces them with the property's Wikidata label); order: desc when more is better or more notable, asc when less ranks first.
 - title: the ranking's title (e.g. "Highest mountains", "Largest airports by passengers"); typeLabel and plural: the entity kind ("mountain", "mountains").
 - ok=false with a reason when Wikidata cannot rank this topic (no class with numeric data, abstract or local services, products without data).`,
   input:JSON.stringify({topic:t.name,description:t.description,path:t.trail,type:t.scope.type??null,measures:schemaMetrics.slice(0,40)})} as never);
@@ -61,7 +68,7 @@ async function values(p:Plan,m:Metric,items:string[]|null,signal:AbortSignal):Pr
  for(const b of rows){
   const id=qid(b.item.value),n=b.n?Number(b.n.value):NaN,a=Number(b.a.value);
   const v=Number.isFinite(n)?n:a;if(!Number.isFinite(v))continue;
-  const u=qid((Number.isFinite(n)?b.nu?.value:b.u?.value)||'Q199');const year=b.t?.value?.slice(0,4)||'';
+  const u=qid((Number.isFinite(n)?b.nu?.value:b.u?.value)||'Q199');const year=/^\d{4}/.test(b.t?.value||'')?b.t!.value.slice(0,4):'';
   const prev=out.get(id);
   if(!prev||(year&&(!prev.year||year>prev.year))||(!year&&!prev.year&&v>prev.v))out.set(id,{v,unit:u,year});
  }
@@ -89,6 +96,11 @@ export async function fastLaneTopic(db:EntityDb,t:Topic):Promise<{ok:boolean;rea
  const schemaMetrics=type0?(await db.query<{schema:Record<string,unknown>}>('select schema from entity_types where type=$1::text',[type0])).rows[0]?.schema?.metrics as {key:string;label:string;unit?:string}[]|undefined:undefined;
  const p=await plan(t,Array.isArray(schemaMetrics)?schemaMetrics.map(m=>({key:m.key,label:m.label,unit:m.unit})):[]);
  if(!p.ok||!p.classes.length||!p.metrics.length)return {ok:false,reason:p.reason||'no Wikidata class or measure'};
+ const labels=await propertyLabels([...new Set(p.metrics.map(m=>m.prop))],signal);
+ const seen=new Set<string>();
+ p.metrics=p.metrics.filter(m=>labels.has(m.prop)).map(m=>{const l=labels.get(m.prop)!;return {...m,label:l.charAt(0).toUpperCase()+l.slice(1),key:l.toLowerCase().normalize('NFKD').replace(/[^a-z0-9]+/g,'_').replace(/^_|_$/g,'').slice(0,60)};})
+  .filter(m=>m.key&&!seen.has(m.key)&&(seen.add(m.key),true));
+ if(!p.metrics.length)return {ok:false,reason:'the planned properties do not exist on Wikidata'};
  const main=p.metrics[0];
  const mainVals=await values(p,main,null,signal);
  const ranked=[...mainVals].sort((a,b)=>main.order==='asc'?a[1].v-b[1].v:b[1].v-a[1].v).slice(0,TOP);
@@ -104,7 +116,9 @@ export async function fastLaneTopic(db:EntityDb,t:Topic):Promise<{ok:boolean;rea
  const info=new Map<string,{name:string;wikipedia?:string;image?:string;website?:string}>();
  for(let i=0;i<items.length;i+=250){for(const [k,v] of await details(items.slice(i,i+250),signal))info.set(k,v);}
  const metrics=p.metrics.filter(m=>per.has(m.key));
- const unitOf=(k:string)=>{const v=per.get(k)!.values().next().value as Val|undefined;return v?(UNITS[v.unit]??''):'';};
+ const unitOf=(k:string)=>{const v=per.get(k)!.values().next().value as Val|undefined;const u=v?(UNITS[v.unit]??''):'';return u==='m2'?'km2':u;};
+ // Areas read in square metres are shown in square kilometres.
+ for(const [k,vals] of per){const v=vals.values().next().value as Val|undefined;if(v&&UNITS[v.unit]==='m2')for(const x of vals.values())x.v=x.v/1e6;}
  const year=String(new Date().getUTCFullYear());
  const rows=items.filter(id=>info.has(id)&&!/^Q\d+$/.test(info.get(id)!.name)).map(id=>{const d=info.get(id)!;const row:Record<string,unknown>={name:d.name,wikidata:id,...(d.wikipedia?{wikipedia:d.wikipedia}:{}),...(d.website?{website:d.website}:{}),...(d.image?{image:d.image}:{})};
   for(const m of metrics){const v=per.get(m.key)!.get(id);if(v){row['m_'+m.key]=v.v;row['p_'+m.key]=v.year||year;}}return row;});

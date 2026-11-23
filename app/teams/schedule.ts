@@ -20,14 +20,18 @@ export function due(r:Pick<Recipe,'schedule'|'status'|'lastRunAt'>,now=Date.now(
 }
 // Up to CRAWLER_CONCURRENCY recipes run at once (default 3); each heartbeat starts what is due into free slots.
 let running=false,lastRan='';const active=new Set<string>();
+const activeTypes=new Set<string>();
 export async function runDueRecipes(limit=Math.max(1,Number(process.env.CRAWLER_CONCURRENCY||3))){
  if(running)return {ran:0};running=true;
  try{
   // A long bulk load continuing over many ticks takes turns with the other due recipes.
-  const db=await entityDb();const ready=(await listRecipes(db)).filter(r=>due(r)&&!active.has(r.id)).sort((a,b)=>Number(a.id===lastRan)-Number(b.id===lastRan));let ran=0;
-  for(const r of ready.slice(0,Math.max(0,limit-active.size))){
-   lastRan=r.id;active.add(r.id);ran++;
-   void runOne(db,r).finally(()=>active.delete(r.id));
+  // One recipe per entity type at a time: two loads writing the same entities (217 countries from twelve indicator
+  // recipes) deadlock each other; different types run side by side.
+  const db=await entityDb();const ready=(await listRecipes(db)).filter(r=>due(r)&&!active.has(r.id)&&!activeTypes.has(r.type)).sort((a,b)=>Number(a.id===lastRan)-Number(b.id===lastRan));let ran=0;
+  for(const r of ready){
+   if(active.size>=limit)break;if(activeTypes.has(r.type))continue;
+   lastRan=r.id;active.add(r.id);activeTypes.add(r.type);ran++;
+   void runOne(db,r).finally(()=>{active.delete(r.id);activeTypes.delete(r.type);});
   }
   return {ran};
  }finally{running=false;}
