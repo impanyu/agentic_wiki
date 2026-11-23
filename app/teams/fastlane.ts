@@ -91,12 +91,13 @@ async function values(p:Plan,m:Metric,items:string[]|null,signal:AbortSignal):Pr
  return out;
 }
 async function details(items:string[],signal:AbortSignal){
- const q=`SELECT ?item ?label ?article ?image ?site WHERE { VALUES ?item { ${items.map(i=>'wd:'+i).join(' ')} }
-  ?item rdfs:label ?label . FILTER(lang(?label)='en')
+ const q=`SELECT ?item ?label ?alt ?article ?image ?site WHERE { VALUES ?item { ${items.map(i=>'wd:'+i).join(' ')} }
+  ?item rdfs:label ?label . FILTER(lang(?label)='en') OPTIONAL { ?item skos:altLabel ?alt . FILTER(lang(?alt)='en') }
   OPTIONAL { ?article schema:about ?item ; schema:isPartOf <https://en.wikipedia.org/> }
   OPTIONAL { ?item wdt:P18 ?image } OPTIONAL { ?item wdt:P856 ?site } }`;
- const out=new Map<string,{name:string;wikipedia?:string;image?:string;website?:string}>();
- for(const b of await sparql(q,signal)){const id=qid(b.item.value);const cur=out.get(id)??{name:b.label.value};
+ const out=new Map<string,{name:string;aliases:string[];wikipedia?:string;image?:string;website?:string}>();
+ for(const b of await sparql(q,signal)){const id=qid(b.item.value);const cur=out.get(id)??{name:b.label.value,aliases:[]};
+  if(b.alt&&!cur.aliases.includes(b.alt.value)&&cur.aliases.length<20)cur.aliases.push(b.alt.value);
   if(b.article&&!cur.wikipedia)cur.wikipedia=b.article.value;
   if(b.image&&!cur.image)cur.image='https://commons.wikimedia.org/wiki/Special:FilePath/'+encodeURIComponent(decodeURIComponent(qid(b.image.value)))+'?width=400';
   if(b.site&&!cur.website)cur.website=b.site.value;out.set(id,cur);}
@@ -122,14 +123,19 @@ export async function fastLaneTopic(db:EntityDb,t:Topic):Promise<{ok:boolean;rea
  // Anchors: the well-known leaders must be among the results with about their true value — else the class is
  // incomplete (a "world" list without its leaders) or the values are in a wrong unit; the team builds it instead.
  if(p.anchors.length<3)return {ok:false,reason:'no anchors to validate the result against'};
- {const names=await details(items.slice(0,Math.min(items.length,300)),signal);const norm=(x:string)=>x.toLowerCase().normalize('NFKD').replace(/[^a-z0-9]+/g,' ').trim();
-  const byName=new Map<string,number>();for(const [id,d] of names){const v=mainVals.get(id)?.v;if(v!=null)byName.set(norm(d.name),v);}
-  const toSI=(v:number)=>{const u=mainVals.values().next().value?.unit;return u&&UNITS[u]==='m2'?v:v;};
-  for(const a of p.anchors){
-   const key=norm(a.name);const hit=[...byName].find(([n])=>n===key||n.startsWith(key+' ')||key.startsWith(n+' '));
-   if(!hit)return {ok:false,reason:`anchor "${a.name}" is not among the top results: the Wikidata class looks incomplete`};
-   const ratio=hit[1]/toSI(a.value);if(!(ratio>0.5&&ratio<2))return {ok:false,reason:`anchor "${a.name}" has ${hit[1]} on Wikidata, expected about ${a.value}: wrong unit or wrong data`};
-  }}
+ {const top=await details(items.slice(0,Math.min(items.length,300)),signal);
+  const norm=(x:string)=>x.toLowerCase().normalize('NFKD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]+/g,' ').trim();
+  const lev=(a:string,b:string)=>{if(Math.abs(a.length-b.length)>2)return 9;const d=Array.from({length:b.length+1},(_,i)=>i);for(let i=1;i<=a.length;i++){let prev=d[0];d[0]=i;for(let j=1;j<=b.length;j++){const t=d[j];d[j]=Math.min(d[j]+1,d[j-1]+1,prev+(a[i-1]===b[j-1]?0:1));prev=t;}}return d[b.length];};
+  const names:[string,number][]=[];for(const [id,d] of top){const v=mainVals.get(id)?.v;if(v==null)continue;for(const n of [d.name,...d.aliases])names.push([norm(n),v]);}
+  const find=(a:string)=>{const k=norm(a);return names.find(([n])=>n===k)??names.find(([n])=>n.startsWith(k+' ')||k.startsWith(n+' '))??(k.length>=6?names.find(([n])=>lev(n,k)<=2):undefined);};
+  // A value matches when it is within a factor of 2 of the anchor, allowing the model's unit to differ by a power of
+  // 1000 (m vs km, m² vs km²) — but not by 100 (hectares read as km²) or 10.
+  const fits=(v:number,a:number)=>[1,1e3,1e6,1e-3,1e-6].some(f=>{const x=v/(a*f);return x>0.5&&x<2;});
+  let found=0;
+  for(const a of p.anchors){const hit=find(a.name);if(!hit)continue;found++;
+   if(!fits(hit[1],a.value))return {ok:false,reason:`anchor "${a.name}" has ${hit[1]} on Wikidata, expected about ${a.value}: wrong unit or wrong data`};}
+  if(found<Math.max(2,Math.ceil(p.anchors.length/2)))return {ok:false,reason:`only ${found} of ${p.anchors.length} well-known leaders (${p.anchors.map(a=>a.name).join(', ')}) are among the results: the Wikidata class looks incomplete`};
+ }
  const per=new Map<string,Map<string,Val>>([[main.key,mainVals]]);
  for(const m of p.metrics.slice(1)){
   const vals=new Map<string,Val>();
@@ -137,7 +143,7 @@ export async function fastLaneTopic(db:EntityDb,t:Topic):Promise<{ok:boolean;rea
   // A measure that few of these entities have does not rank them.
   if(vals.size>=Math.max(MIN_ENTITIES,items.length*0.3))per.set(m.key,vals);
  }
- const info=new Map<string,{name:string;wikipedia?:string;image?:string;website?:string}>();
+ const info=new Map<string,{name:string;aliases:string[];wikipedia?:string;image?:string;website?:string}>();
  for(let i=0;i<items.length;i+=250){for(const [k,v] of await details(items.slice(i,i+250),signal))info.set(k,v);}
  const metrics=p.metrics.filter(m=>per.has(m.key));
  // Long distances (a median over 10 km: rivers, roads, borders) read in kilometres; heights stay in metres.
