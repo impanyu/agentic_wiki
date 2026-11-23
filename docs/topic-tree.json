@@ -781,6 +781,157 @@
       "priority": 3
      }
     ]
+   },
+   {
+    "slug": "outdoors-places",
+    "name": "Outdoor places",
+    "kind": "knowledge",
+    "description": "Outdoor places",
+    "children": [
+     {
+      "slug": "hiking-trails",
+      "name": "Hiking trails",
+      "kind": "knowledge",
+      "description": "Hiking trails: every trail ranked on public, comparable data.",
+      "entity": "trail",
+      "universe": "named trails in OpenStreetMap and national park data",
+      "criteria": [
+       "length",
+       "elevation gain",
+       "rating where public",
+       "difficulty"
+      ],
+      "sources": [
+       "OpenStreetMap",
+       "NPS API",
+       "USFS data"
+      ],
+      "priority": 1
+     },
+     {
+      "slug": "campgrounds",
+      "name": "Campgrounds",
+      "kind": "commercial",
+      "description": "Campgrounds: every campground ranked on public, comparable data.",
+      "entity": "campground",
+      "universe": "public campgrounds on Recreation.gov and state parks",
+      "criteria": [
+       "sites",
+       "price per night",
+       "amenities",
+       "rating"
+      ],
+      "sources": [
+       "Recreation.gov RIDB API",
+       "state park data"
+      ],
+      "priority": 1
+     },
+     {
+      "slug": "hot-springs",
+      "name": "Hot springs",
+      "kind": "knowledge",
+      "description": "Hot springs: every hot spring ranked on public, comparable data.",
+      "entity": "hot spring",
+      "universe": "hot springs in OpenStreetMap and Wikidata",
+      "criteria": [
+       "temperature",
+       "access",
+       "rating"
+      ],
+      "sources": [
+       "OpenStreetMap",
+       "Wikidata",
+       "NOAA thermal springs list"
+      ],
+      "priority": 3
+     },
+     {
+      "slug": "lighthouses",
+      "name": "Lighthouses",
+      "kind": "knowledge",
+      "description": "Lighthouses: every lighthouse ranked on public, comparable data.",
+      "entity": "lighthouse",
+      "universe": "lighthouses in Wikidata and OpenStreetMap",
+      "criteria": [
+       "height",
+       "year built",
+       "range"
+      ],
+      "sources": [
+       "Wikidata",
+       "OpenStreetMap"
+      ],
+      "priority": 3
+     },
+     {
+      "slug": "climate-by-city",
+      "name": "Cities by climate",
+      "kind": "knowledge",
+      "description": "Cities ranked by sunshine, warmth, rain and comfort — the sunniest, mildest, wettest.",
+      "entity": "city",
+      "universe": "cities with long weather records",
+      "criteria": [
+       "sunshine hours",
+       "average temperature",
+       "rainy days",
+       "humidity",
+       "comfort index"
+      ],
+      "sources": [
+       "Meteostat",
+       "NOAA GHCN",
+       "Wikipedia climate tables via Wikidata"
+      ],
+      "priority": 1
+     }
+    ]
+   },
+   {
+    "slug": "routes",
+    "name": "Routes and connections",
+    "kind": "knowledge",
+    "description": "Routes and connections",
+    "children": [
+     {
+      "slug": "flight-routes",
+      "name": "Flight routes",
+      "kind": "knowledge",
+      "description": "Flight routes: every flight route ranked on public, comparable data.",
+      "entity": "flight route",
+      "universe": "scheduled air routes",
+      "criteria": [
+       "flights per week",
+       "distance",
+       "airlines",
+       "seats"
+      ],
+      "sources": [
+       "OpenFlights routes",
+       "BTS T-100 (US)"
+      ],
+      "priority": 2
+     },
+     {
+      "slug": "train-routes",
+      "name": "Train routes",
+      "kind": "knowledge",
+      "description": "Train routes: every train route ranked on public, comparable data.",
+      "entity": "train route",
+      "universe": "long-distance and high-speed rail routes",
+      "criteria": [
+       "length",
+       "top speed",
+       "travel time",
+       "frequency"
+      ],
+      "sources": [
+       "Wikidata",
+       "national rail operators"
+      ],
+      "priority": 3
+     }
+    ]
    }
   ]
  },
@@ -1508,6 +1659,78 @@
       "priority": 2
      }
     ]
+   },
+   {
+    "slug": "space-objects",
+    "name": "Satellites and asteroids",
+    "kind": "knowledge",
+    "description": "Satellites and asteroids",
+    "children": [
+     {
+      "slug": "satellites",
+      "name": "Satellites",
+      "kind": "knowledge",
+      "description": "Satellites: every satellite ranked on public, comparable data.",
+      "entity": "satellite",
+      "universe": "objects in the public satellite catalog",
+      "criteria": [
+       "launch year",
+       "orbit altitude",
+       "mass",
+       "operator"
+      ],
+      "sources": [
+       "CelesTrak",
+       "UCS Satellite Database"
+      ],
+      "priority": 3
+     },
+     {
+      "slug": "asteroids",
+      "name": "Asteroids",
+      "kind": "knowledge",
+      "description": "Asteroids: every asteroid ranked on public, comparable data.",
+      "entity": "asteroid",
+      "universe": "numbered minor planets",
+      "criteria": [
+       "diameter",
+       "closest Earth approach",
+       "orbit period",
+       "albedo"
+      ],
+      "sources": [
+       "JPL Small-Body Database API"
+      ],
+      "priority": 3
+     }
+    ]
+   },
+   {
+    "slug": "conservation",
+    "name": "Conservation",
+    "kind": "knowledge",
+    "description": "Conservation",
+    "children": [
+     {
+      "slug": "endangered-species",
+      "name": "Endangered species",
+      "kind": "knowledge",
+      "description": "Endangered species: every species ranked on public, comparable data.",
+      "entity": "species",
+      "universe": "species assessed on the IUCN Red List",
+      "criteria": [
+       "status",
+       "population trend",
+       "range size",
+       "threats"
+      ],
+      "sources": [
+       "IUCN Red List API",
+       "GBIF"
+      ],
+      "priority": 2
+     }
+    ]
    }
   ]
  },
@@ -1941,6 +2164,266 @@
        "Forbes lists",
        "Sportico lists",
        "Spotrac"
+      ],
+      "priority": 2
+     }
+    ]
+   },
+   {
+    "slug": "public-professionals",
+    "name": "Public professionals",
+    "kind": "knowledge",
+    "description": "Public professionals",
+    "children": [
+     {
+      "slug": "researchers",
+      "name": "Researchers",
+      "kind": "knowledge",
+      "description": "Researchers ranked by their public scholarly record, by field and institution.",
+      "entity": "researcher",
+      "universe": "authors with public profiles in OpenAlex (by field and institution)",
+      "criteria": [
+       "citations",
+       "h-index",
+       "works in the last 5 years",
+       "field-normalized impact"
+      ],
+      "sources": [
+       "OpenAlex API",
+       "ORCID public API"
+      ],
+      "priority": 1
+     },
+     {
+      "slug": "software-developers",
+      "name": "Software developers",
+      "kind": "knowledge",
+      "description": "Software developers: every developer ranked on public, comparable data.",
+      "entity": "developer",
+      "universe": "GitHub users with public profiles and public repositories",
+      "criteria": [
+       "stars received",
+       "followers",
+       "contributions in the last year",
+       "top repositories"
+      ],
+      "sources": [
+       "GitHub REST and GraphQL APIs (public data)"
+      ],
+      "priority": 2
+     },
+     {
+      "slug": "youtube-channels",
+      "name": "YouTube channels",
+      "kind": "knowledge",
+      "description": "YouTube channels: every YouTube channel ranked on public, comparable data.",
+      "entity": "YouTube channel",
+      "universe": "channels with public subscriber counts, by category and country",
+      "criteria": [
+       "subscribers",
+       "total views",
+       "views in the last 30 days",
+       "upload frequency"
+      ],
+      "sources": [
+       "YouTube Data API v3"
+      ],
+      "priority": 1
+     },
+     {
+      "slug": "twitch-streamers",
+      "name": "Twitch streamers",
+      "kind": "knowledge",
+      "description": "Twitch streamers: every streamer ranked on public, comparable data.",
+      "entity": "streamer",
+      "universe": "Twitch channels with public statistics",
+      "criteria": [
+       "followers",
+       "average viewers",
+       "hours streamed",
+       "peak viewers"
+      ],
+      "sources": [
+       "Twitch Helix API"
+      ],
+      "priority": 2
+     },
+     {
+      "slug": "podcasters",
+      "name": "Podcasts",
+      "kind": "knowledge",
+      "description": "Podcasts: every podcast ranked on public, comparable data.",
+      "entity": "podcast",
+      "universe": "podcasts in the Apple Podcasts and Podcast Index directories",
+      "criteria": [
+       "ratings",
+       "rating count",
+       "episodes",
+       "chart position"
+      ],
+      "sources": [
+       "Apple iTunes Search API",
+       "Podcast Index API"
+      ],
+      "priority": 2
+     },
+     {
+      "slug": "elected-officials",
+      "name": "Elected officials",
+      "kind": "knowledge",
+      "description": "Elected officials: every elected official ranked on public, comparable data.",
+      "entity": "elected official",
+      "universe": "national legislators, governors, mayors and state legislators",
+      "criteria": [
+       "tenure",
+       "bills sponsored",
+       "votes cast",
+       "approval where polled"
+      ],
+      "sources": [
+       "Congress.gov API",
+       "OpenStates API",
+       "Wikidata"
+      ],
+      "priority": 2
+     },
+     {
+      "slug": "authors",
+      "name": "Authors",
+      "kind": "knowledge",
+      "description": "Authors: every author ranked on public, comparable data.",
+      "entity": "author",
+      "universe": "authors in Open Library and Wikidata",
+      "criteria": [
+       "books published",
+       "editions",
+       "ratings",
+       "awards"
+      ],
+      "sources": [
+       "Open Library API",
+       "Wikidata"
+      ],
+      "priority": 2
+     },
+     {
+      "slug": "patent-inventors",
+      "name": "Patent inventors",
+      "kind": "knowledge",
+      "description": "Patent inventors: every inventor ranked on public, comparable data.",
+      "entity": "inventor",
+      "universe": "inventors named on granted patents",
+      "criteria": [
+       "granted patents",
+       "citations received",
+       "fields",
+       "assignees"
+      ],
+      "sources": [
+       "USPTO PatentsView API"
+      ],
+      "priority": 3
+     },
+     {
+      "slug": "chefs",
+      "name": "Chefs",
+      "kind": "knowledge",
+      "description": "Chefs: every chef ranked on public, comparable data.",
+      "entity": "chef",
+      "universe": "chefs of Michelin-starred and award-winning restaurants",
+      "criteria": [
+       "stars",
+       "awards",
+       "restaurants",
+       "years active"
+      ],
+      "sources": [
+       "Michelin Guide public pages",
+       "James Beard Foundation award lists",
+       "Wikidata"
+      ],
+      "priority": 3
+     },
+     {
+      "slug": "architects",
+      "name": "Architects",
+      "kind": "knowledge",
+      "description": "Architects: every architect ranked on public, comparable data.",
+      "entity": "architect",
+      "universe": "architects with notable built works (Wikidata, Pritzker list)",
+      "criteria": [
+       "notable buildings",
+       "awards",
+       "tallest building",
+       "countries built in"
+      ],
+      "sources": [
+       "Wikidata",
+       "Pritzker Prize list"
+      ],
+      "priority": 3
+     },
+     {
+      "slug": "photographers",
+      "name": "Photographers",
+      "kind": "knowledge",
+      "description": "Photographers: every photographer ranked on public, comparable data.",
+      "entity": "photographer",
+      "universe": "photographers with Wikidata entries and major awards",
+      "criteria": [
+       "awards",
+       "exhibitions",
+       "collections holding work"
+      ],
+      "sources": [
+       "Wikidata",
+       "World Press Photo archive"
+      ],
+      "priority": 3
+     }
+    ]
+   },
+   {
+    "slug": "names",
+    "name": "Names",
+    "kind": "knowledge",
+    "description": "Names",
+    "children": [
+     {
+      "slug": "baby-names",
+      "name": "Baby names",
+      "kind": "knowledge",
+      "description": "Given names ranked by popularity, with history back to 1880.",
+      "entity": "name",
+      "universe": "every given name in national birth-name statistics (US SSA, UK ONS, and others)",
+      "criteria": [
+       "births in the latest year",
+       "rank change",
+       "peak year",
+       "popularity trend"
+      ],
+      "sources": [
+       "US Social Security Administration baby names",
+       "UK ONS baby names",
+       "national statistics offices"
+      ],
+      "priority": 1
+     },
+     {
+      "slug": "surnames",
+      "name": "Surnames",
+      "kind": "knowledge",
+      "description": "Surnames: every surname ranked on public, comparable data.",
+      "entity": "surname",
+      "universe": "surnames in census surname files",
+      "criteria": [
+       "people with the surname",
+       "rank",
+       "share by ethnicity where published"
+      ],
+      "sources": [
+       "US Census surname files",
+       "national statistics offices"
       ],
       "priority": 2
      }
@@ -2759,6 +3242,99 @@
        "Chess.com public API"
       ],
       "priority": 2
+     },
+     {
+      "slug": "swimmers",
+      "name": "Swimmers",
+      "kind": "knowledge",
+      "description": "Swimmers: every swimmer ranked on public, comparable data.",
+      "entity": "swimmer",
+      "universe": "swimmers with World Aquatics rankings",
+      "criteria": [
+       "best times",
+       "world ranking",
+       "medals",
+       "records"
+      ],
+      "sources": [
+       "World Aquatics results",
+       "Wikidata"
+      ],
+      "priority": 3
+     },
+     {
+      "slug": "gymnasts",
+      "name": "Gymnasts",
+      "kind": "knowledge",
+      "description": "Gymnasts: every gymnast ranked on public, comparable data.",
+      "entity": "gymnast",
+      "universe": "gymnasts in FIG results",
+      "criteria": [
+       "medals",
+       "difficulty scores",
+       "world ranking"
+      ],
+      "sources": [
+       "FIG results database",
+       "Wikidata"
+      ],
+      "priority": 3
+     },
+     {
+      "slug": "volleyball-teams",
+      "name": "Volleyball teams",
+      "kind": "knowledge",
+      "description": "Volleyball teams: every volleyball team ranked on public, comparable data.",
+      "entity": "volleyball team",
+      "universe": "national volleyball teams",
+      "criteria": [
+       "FIVB ranking",
+       "medals",
+       "win rate"
+      ],
+      "sources": [
+       "FIVB world ranking",
+       "Wikidata"
+      ],
+      "priority": 3
+     },
+     {
+      "slug": "racehorses",
+      "name": "Racehorses",
+      "kind": "knowledge",
+      "description": "Racehorses: every racehorse ranked on public, comparable data.",
+      "entity": "racehorse",
+      "universe": "thoroughbreds with public race records",
+      "criteria": [
+       "wins",
+       "earnings",
+       "graded stakes wins",
+       "ratings"
+      ],
+      "sources": [
+       "Equibase public pages",
+       "Racing Post public pages"
+      ],
+      "priority": 3
+     },
+     {
+      "slug": "alpine-skiers",
+      "name": "Alpine skiers",
+      "kind": "knowledge",
+      "description": "Alpine skiers: every alpine skier ranked on public, comparable data.",
+      "entity": "alpine skier",
+      "universe": "skiers in FIS World Cup results",
+      "criteria": [
+       "World Cup points",
+       "wins",
+       "podiums",
+       "titles"
+      ],
+      "sources": [
+       "FIS results",
+       "Wikidata"
+      ],
+      "priority": 3
      }
     ]
    },
@@ -3009,6 +3585,26 @@
        "TMDb API",
        "Box Office Mojo public pages",
        "Wikidata SPARQL endpoint (query.wikidata.org)"
+      ],
+      "priority": 3
+     },
+     {
+      "slug": "musicals-and-plays",
+      "name": "Musicals and plays",
+      "kind": "knowledge",
+      "description": "Musicals and plays: every musical or play ranked on public, comparable data.",
+      "entity": "musical or play",
+      "universe": "Broadway and West End productions",
+      "criteria": [
+       "gross",
+       "performances",
+       "awards",
+       "capacity"
+      ],
+      "sources": [
+       "Broadway League public grosses",
+       "IBDB",
+       "Wikidata"
       ],
       "priority": 3
      }
@@ -3517,6 +4113,79 @@
       "priority": 2
      }
     ]
+   },
+   {
+    "slug": "history",
+    "name": "History",
+    "kind": "knowledge",
+    "description": "History",
+    "children": [
+     {
+      "slug": "empires",
+      "name": "Empires",
+      "kind": "knowledge",
+      "description": "Empires: every empire ranked on public, comparable data.",
+      "entity": "empire",
+      "universe": "historical states in Wikidata",
+      "criteria": [
+       "peak area",
+       "duration",
+       "peak population",
+       "capital"
+      ],
+      "sources": [
+       "Wikidata",
+       "Seshat databank"
+      ],
+      "priority": 2
+     },
+     {
+      "slug": "ancient-wonders-and-sites",
+      "name": "Archaeological sites",
+      "kind": "knowledge",
+      "description": "Archaeological sites: every archaeological site ranked on public, comparable data.",
+      "entity": "archaeological site",
+      "universe": "archaeological sites in Wikidata and UNESCO lists",
+      "criteria": [
+       "age",
+       "visitors",
+       "area",
+       "heritage status"
+      ],
+      "sources": [
+       "Wikidata",
+       "UNESCO"
+      ],
+      "priority": 3
+     }
+    ]
+   },
+   {
+    "slug": "design-and-type",
+    "name": "Fonts and design",
+    "kind": "commercial",
+    "description": "Fonts and design",
+    "children": [
+     {
+      "slug": "fonts",
+      "name": "Fonts",
+      "kind": "commercial",
+      "description": "Fonts: every font ranked on public, comparable data.",
+      "entity": "font",
+      "universe": "families on Google Fonts and the major foundries",
+      "criteria": [
+       "usage",
+       "styles",
+       "languages supported",
+       "license"
+      ],
+      "sources": [
+       "Google Fonts API",
+       "foundry sites"
+      ],
+      "priority": 3
+     }
+    ]
    }
   ]
  },
@@ -3736,6 +4405,25 @@
        "NCES PSS"
       ],
       "priority": 3
+     },
+     {
+      "slug": "school-districts",
+      "name": "School districts",
+      "kind": "knowledge",
+      "description": "School districts: every school district ranked on public, comparable data.",
+      "entity": "school district",
+      "universe": "every US public school district",
+      "criteria": [
+       "test scores",
+       "graduation rate",
+       "spending per pupil",
+       "student-teacher ratio"
+      ],
+      "sources": [
+       "NCES Common Core of Data",
+       "Stanford Education Data Archive"
+      ],
+      "priority": 2
      }
     ]
    },
@@ -4042,6 +4730,43 @@
        "IATA Timatic summaries"
       ],
       "priority": 1
+     },
+     {
+      "slug": "military-aircraft",
+      "name": "Military aircraft",
+      "kind": "knowledge",
+      "description": "Military aircraft: every military aircraft ranked on public, comparable data.",
+      "entity": "military aircraft",
+      "universe": "aircraft types in Wikidata",
+      "criteria": [
+       "top speed",
+       "range",
+       "units built",
+       "operators"
+      ],
+      "sources": [
+       "Wikidata",
+       "public defense yearbooks"
+      ],
+      "priority": 2
+     },
+     {
+      "slug": "warships",
+      "name": "Warships",
+      "kind": "knowledge",
+      "description": "Warships: every warship class ranked on public, comparable data.",
+      "entity": "warship class",
+      "universe": "warship classes in Wikidata",
+      "criteria": [
+       "displacement",
+       "length",
+       "ships built",
+       "operators"
+      ],
+      "sources": [
+       "Wikidata"
+      ],
+      "priority": 3
      }
     ]
    },
@@ -4573,6 +5298,213 @@
     ]
    },
    {
+    "slug": "stocks",
+    "name": "Stocks",
+    "kind": "commercial",
+    "description": "Every listed stock by market, with fundamentals from filings and end-of-day prices.",
+    "children": [
+     {
+      "slug": "us-stocks",
+      "name": "US stocks",
+      "kind": "commercial",
+      "description": "US stocks: every listed stock, refreshed after each trading day (end-of-day data; real-time quotes need licensed feeds).",
+      "entity": "stock",
+      "universe": "every common stock listed on NYSE and Nasdaq",
+      "criteria": [
+       "market cap",
+       "1-year return",
+       "P/E",
+       "revenue growth",
+       "dividend yield",
+       "profit margin"
+      ],
+      "sources": [
+       "SEC EDGAR XBRL company facts",
+       "Nasdaq and NYSE listing files",
+       "end-of-day price data (Stooq, Alpha Vantage)"
+      ],
+      "priority": 1
+     },
+     {
+      "slug": "china-a-shares",
+      "name": "China A-shares",
+      "kind": "commercial",
+      "description": "China A-shares: every listed stock, refreshed after each trading day (end-of-day data; real-time quotes need licensed feeds).",
+      "entity": "stock",
+      "universe": "every A-share listed in Shanghai and Shenzhen",
+      "criteria": [
+       "market cap",
+       "1-year return",
+       "P/E",
+       "revenue growth",
+       "dividend yield"
+      ],
+      "sources": [
+       "SSE and SZSE listing data",
+       "CNINFO filings",
+       "end-of-day price data"
+      ],
+      "priority": 1
+     },
+     {
+      "slug": "hong-kong-stocks",
+      "name": "Hong Kong stocks",
+      "kind": "commercial",
+      "description": "Hong Kong stocks: every listed stock, refreshed after each trading day (end-of-day data; real-time quotes need licensed feeds).",
+      "entity": "stock",
+      "universe": "every stock listed on HKEX",
+      "criteria": [
+       "market cap",
+       "1-year return",
+       "P/E",
+       "dividend yield"
+      ],
+      "sources": [
+       "HKEX listing data",
+       "HKEXnews filings",
+       "end-of-day price data"
+      ],
+      "priority": 2
+     },
+     {
+      "slug": "japan-stocks",
+      "name": "Japanese stocks",
+      "kind": "commercial",
+      "description": "Japanese stocks: every listed stock, refreshed after each trading day (end-of-day data; real-time quotes need licensed feeds).",
+      "entity": "stock",
+      "universe": "every stock listed on the Tokyo Stock Exchange",
+      "criteria": [
+       "market cap",
+       "1-year return",
+       "P/E",
+       "dividend yield"
+      ],
+      "sources": [
+       "JPX listing data",
+       "EDINET filings",
+       "end-of-day price data"
+      ],
+      "priority": 2
+     },
+     {
+      "slug": "european-stocks",
+      "name": "European stocks",
+      "kind": "commercial",
+      "description": "European stocks: every listed stock, refreshed after each trading day (end-of-day data; real-time quotes need licensed feeds).",
+      "entity": "stock",
+      "universe": "stocks in the major European indices and exchanges",
+      "criteria": [
+       "market cap",
+       "1-year return",
+       "P/E",
+       "dividend yield"
+      ],
+      "sources": [
+       "exchange listing files",
+       "ESEF filings",
+       "end-of-day price data"
+      ],
+      "priority": 2
+     },
+     {
+      "slug": "india-stocks",
+      "name": "Indian stocks",
+      "kind": "commercial",
+      "description": "Indian stocks: every listed stock, refreshed after each trading day (end-of-day data; real-time quotes need licensed feeds).",
+      "entity": "stock",
+      "universe": "every stock listed on NSE and BSE",
+      "criteria": [
+       "market cap",
+       "1-year return",
+       "P/E",
+       "revenue growth"
+      ],
+      "sources": [
+       "NSE and BSE listing data",
+       "end-of-day price data"
+      ],
+      "priority": 2
+     },
+     {
+      "slug": "other-markets-stocks",
+      "name": "Stocks in other markets",
+      "kind": "commercial",
+      "description": "Stocks in other markets: every listed stock, refreshed after each trading day (end-of-day data; real-time quotes need licensed feeds).",
+      "entity": "stock",
+      "universe": "stocks listed in Korea, Taiwan, Canada, Australia, Brazil and other markets",
+      "criteria": [
+       "market cap",
+       "1-year return",
+       "P/E",
+       "dividend yield"
+      ],
+      "sources": [
+       "exchange listing files",
+       "end-of-day price data"
+      ],
+      "priority": 3
+     },
+     {
+      "slug": "ipos",
+      "name": "IPOs",
+      "kind": "commercial",
+      "description": "IPOs: every listed IPO, refreshed after each trading day (end-of-day data; real-time quotes need licensed feeds).",
+      "entity": "IPO",
+      "universe": "initial public offerings on the major exchanges",
+      "criteria": [
+       "amount raised",
+       "first-day return",
+       "return since IPO",
+       "valuation"
+      ],
+      "sources": [
+       "SEC EDGAR S-1/424B filings",
+       "exchange IPO calendars"
+      ],
+      "priority": 2
+     },
+     {
+      "slug": "mutual-funds",
+      "name": "Mutual funds",
+      "kind": "commercial",
+      "description": "Mutual funds: every listed mutual fund, refreshed after each trading day (end-of-day data; real-time quotes need licensed feeds).",
+      "entity": "mutual fund",
+      "universe": "US mutual funds filing with the SEC",
+      "criteria": [
+       "expense ratio",
+       "1/3/5-year return",
+       "assets",
+       "risk"
+      ],
+      "sources": [
+       "SEC N-PORT and N-CEN data",
+       "fund prospectuses"
+      ],
+      "priority": 2
+     },
+     {
+      "slug": "government-bonds",
+      "name": "Government bonds",
+      "kind": "commercial",
+      "description": "Government bonds: every listed bond market, refreshed after each trading day (end-of-day data; real-time quotes need licensed feeds).",
+      "entity": "bond market",
+      "universe": "sovereign bond markets",
+      "criteria": [
+       "10-year yield",
+       "yield change",
+       "credit rating",
+       "debt to GDP"
+      ],
+      "sources": [
+       "central bank data",
+       "FRED",
+       "IMF"
+      ],
+      "priority": 3
+     }
+    ]
+   },
+   {
     "slug": "economy-indicators",
     "name": "Economy",
     "kind": "knowledge",
@@ -4619,6 +5551,206 @@
        "Eurostat price levels"
       ],
       "priority": 1
+     }
+    ]
+   },
+   {
+    "slug": "careers",
+    "name": "Jobs and careers",
+    "kind": "knowledge",
+    "description": "Jobs and careers",
+    "children": [
+     {
+      "slug": "occupations",
+      "name": "Occupations",
+      "kind": "knowledge",
+      "description": "Jobs ranked by pay, growth and employment.",
+      "entity": "occupation",
+      "universe": "every occupation in the US BLS Standard Occupational Classification",
+      "criteria": [
+       "median pay",
+       "projected growth",
+       "employment",
+       "education required",
+       "pay per hour"
+      ],
+      "sources": [
+       "BLS Occupational Employment and Wage Statistics",
+       "BLS Employment Projections",
+       "O*NET"
+      ],
+      "priority": 1
+     },
+     {
+      "slug": "college-majors",
+      "name": "College majors",
+      "kind": "knowledge",
+      "description": "College majors: every college major ranked on public, comparable data.",
+      "entity": "college major",
+      "universe": "every field of study in the College Scorecard",
+      "criteria": [
+       "median earnings after graduation",
+       "debt",
+       "earnings to debt ratio",
+       "graduates"
+      ],
+      "sources": [
+       "US College Scorecard API"
+      ],
+      "priority": 1
+     },
+     {
+      "slug": "cities-for-jobs",
+      "name": "Cities for jobs",
+      "kind": "knowledge",
+      "description": "Cities for jobs: every metropolitan area ranked on public, comparable data.",
+      "entity": "metropolitan area",
+      "universe": "US metropolitan areas",
+      "criteria": [
+       "unemployment rate",
+       "job growth",
+       "median wage",
+       "cost-of-living-adjusted wage"
+      ],
+      "sources": [
+       "BLS Local Area Unemployment Statistics",
+       "BEA regional price parities"
+      ],
+      "priority": 2
+     }
+    ]
+   },
+   {
+    "slug": "real-estate",
+    "name": "Real estate",
+    "kind": "commercial",
+    "description": "Real estate",
+    "children": [
+     {
+      "slug": "housing-markets",
+      "name": "Housing markets",
+      "kind": "knowledge",
+      "description": "Housing markets: every housing market ranked on public, comparable data.",
+      "entity": "housing market",
+      "universe": "US metros, counties and ZIP codes with public home value and rent indices",
+      "criteria": [
+       "median home value",
+       "one-year change",
+       "median rent",
+       "price-to-rent ratio",
+       "price-to-income ratio"
+      ],
+      "sources": [
+       "Zillow Research data downloads",
+       "Redfin Data Center",
+       "US Census ACS"
+      ],
+      "priority": 1
+     },
+     {
+      "slug": "real-estate-portals",
+      "name": "Real estate portals",
+      "kind": "commercial",
+      "description": "Real estate portals: every real estate portal ranked on public, comparable data.",
+      "entity": "real estate portal",
+      "universe": "home buying and renting sites and apps",
+      "criteria": [
+       "listings coverage",
+       "monthly visits",
+       "app rating",
+       "features"
+      ],
+      "sources": [
+       "public app store data",
+       "company disclosures",
+       "Similarweb public pages"
+      ],
+      "priority": 2
+     },
+     {
+      "slug": "home-builders",
+      "name": "Home builders",
+      "kind": "commercial",
+      "description": "Home builders: every home builder ranked on public, comparable data.",
+      "entity": "home builder",
+      "universe": "the largest public and private home builders",
+      "criteria": [
+       "homes closed",
+       "revenue",
+       "customer satisfaction",
+       "warranty"
+      ],
+      "sources": [
+       "SEC filings",
+       "Builder 100 list",
+       "J.D. Power public results"
+      ],
+      "priority": 2
+     },
+     {
+      "slug": "reits",
+      "name": "REITs",
+      "kind": "commercial",
+      "description": "REITs: every REIT ranked on public, comparable data.",
+      "entity": "REIT",
+      "universe": "listed real estate investment trusts",
+      "criteria": [
+       "dividend yield",
+       "market cap",
+       "funds from operations",
+       "total return"
+      ],
+      "sources": [
+       "SEC EDGAR XBRL",
+       "Nareit public data"
+      ],
+      "priority": 2
+     },
+     {
+      "slug": "mortgage-rates-by-lender",
+      "name": "Mortgage rates by lender",
+      "kind": "commercial",
+      "description": "Mortgage rates by lender: every mortgage lender ranked on public, comparable data.",
+      "entity": "mortgage lender",
+      "universe": "lenders reporting under HMDA",
+      "criteria": [
+       "average rate",
+       "loans originated",
+       "denial rate",
+       "closing costs"
+      ],
+      "sources": [
+       "CFPB HMDA data",
+       "lender public rate pages"
+      ],
+      "priority": 2
+     }
+    ]
+   },
+   {
+    "slug": "trade",
+    "name": "Trade",
+    "kind": "knowledge",
+    "description": "Trade",
+    "children": [
+     {
+      "slug": "exported-products",
+      "name": "Exported products",
+      "kind": "knowledge",
+      "description": "Exported products: every product category ranked on public, comparable data.",
+      "entity": "product category",
+      "universe": "HS product codes in world trade data",
+      "criteria": [
+       "world exports",
+       "top exporter share",
+       "growth",
+       "countries exporting"
+      ],
+      "sources": [
+       "UN Comtrade API",
+       "OEC public data"
+      ],
+      "priority": 2
      }
     ]
    }
@@ -5510,6 +6642,44 @@
        "Sweetwater catalog"
       ],
       "priority": 2
+     },
+     {
+      "slug": "document-scanners",
+      "name": "Document scanners",
+      "kind": "commercial",
+      "description": "Document scanners: every scanner ranked on public, comparable data.",
+      "entity": "scanner",
+      "universe": "document and photo scanners",
+      "criteria": [
+       "price",
+       "pages per minute",
+       "resolution",
+       "duplex"
+      ],
+      "sources": [
+       "manufacturer spec sheets",
+       "Amazon Product Advertising API"
+      ],
+      "priority": 3
+     },
+     {
+      "slug": "label-printers",
+      "name": "Label printers",
+      "kind": "commercial",
+      "description": "Label printers: every label printer ranked on public, comparable data.",
+      "entity": "label printer",
+      "universe": "label and receipt printers",
+      "criteria": [
+       "price",
+       "print speed",
+       "label width",
+       "connectivity"
+      ],
+      "sources": [
+       "manufacturer spec sheets",
+       "retailer pages"
+      ],
+      "priority": 3
      }
     ]
    },
@@ -7073,6 +8243,26 @@
         "priority": 2
        }
       ]
+     },
+     {
+      "slug": "water-bottles-and-tumblers",
+      "name": "Water bottles and tumblers",
+      "kind": "commercial",
+      "description": "Water bottles and tumblers: every water bottle ranked on public, comparable data.",
+      "entity": "water bottle",
+      "universe": "insulated bottles and tumblers from the major brands",
+      "criteria": [
+       "price",
+       "capacity",
+       "insulation hours",
+       "weight",
+       "rating"
+      ],
+      "sources": [
+       "manufacturer product pages",
+       "Amazon Product Advertising API"
+      ],
+      "priority": 1
      }
     ]
    },
@@ -8285,6 +9475,109 @@
       "priority": 2
      }
     ]
+   },
+   {
+    "slug": "decor-and-renovation",
+    "name": "Decor and renovation",
+    "kind": "commercial",
+    "description": "Decor and renovation",
+    "children": [
+     {
+      "slug": "lamps-and-lighting",
+      "name": "Lamps and lighting",
+      "kind": "commercial",
+      "description": "Lamps and lighting: every lamp ranked on public, comparable data.",
+      "entity": "lamp",
+      "universe": "lamps and light fixtures from major retailers",
+      "criteria": [
+       "price",
+       "lumens",
+       "color temperature range",
+       "rating"
+      ],
+      "sources": [
+       "manufacturer product pages",
+       "retailer APIs"
+      ],
+      "priority": 2
+     },
+     {
+      "slug": "rugs",
+      "name": "Rugs",
+      "kind": "commercial",
+      "description": "Rugs: every rug ranked on public, comparable data.",
+      "entity": "rug",
+      "universe": "area rugs from major retailers",
+      "criteria": [
+       "price per sq ft",
+       "material",
+       "pile",
+       "rating"
+      ],
+      "sources": [
+       "retailer product pages",
+       "Amazon Product Advertising API"
+      ],
+      "priority": 3
+     },
+     {
+      "slug": "paints",
+      "name": "Interior paints",
+      "kind": "commercial",
+      "description": "Interior paints: every paint ranked on public, comparable data.",
+      "entity": "paint",
+      "universe": "interior paint lines of the major paint brands",
+      "criteria": [
+       "price per gallon",
+       "coverage",
+       "VOC level",
+       "finish options"
+      ],
+      "sources": [
+       "manufacturer data sheets",
+       "retailer pages"
+      ],
+      "priority": 2
+     },
+     {
+      "slug": "flooring",
+      "name": "Flooring",
+      "kind": "commercial",
+      "description": "Flooring: every flooring product ranked on public, comparable data.",
+      "entity": "flooring product",
+      "universe": "vinyl, laminate and engineered wood lines",
+      "criteria": [
+       "price per sq ft",
+       "wear layer",
+       "warranty",
+       "water resistance"
+      ],
+      "sources": [
+       "manufacturer spec sheets",
+       "retailer pages"
+      ],
+      "priority": 3
+     },
+     {
+      "slug": "mattress-and-bed-frames",
+      "name": "Bed frames",
+      "kind": "commercial",
+      "description": "Bed frames: every bed frame ranked on public, comparable data.",
+      "entity": "bed frame",
+      "universe": "bed frames and platform beds",
+      "criteria": [
+       "price",
+       "material",
+       "weight capacity",
+       "assembly time"
+      ],
+      "sources": [
+       "manufacturer pages",
+       "retailer pages"
+      ],
+      "priority": 3
+     }
+    ]
    }
   ]
  },
@@ -9133,6 +10426,62 @@
       "sources": [
        "manufacturer spec sheets and product pages",
        "Amazon Product Advertising API 5.0 (prices, ratings, review counts)"
+      ],
+      "priority": 3
+     },
+     {
+      "slug": "kids-clothing",
+      "name": "Kids clothing brands",
+      "kind": "commercial",
+      "description": "Kids clothing brands: every kids clothing brand ranked on public, comparable data.",
+      "entity": "kids clothing brand",
+      "universe": "major children's clothing brands",
+      "criteria": [
+       "price level",
+       "size range",
+       "durability ratings",
+       "sustainability"
+      ],
+      "sources": [
+       "brand sites",
+       "retailer pages"
+      ],
+      "priority": 3
+     },
+     {
+      "slug": "lingerie-and-bras",
+      "name": "Lingerie and bras",
+      "kind": "commercial",
+      "description": "Lingerie and bras: every bra ranked on public, comparable data.",
+      "entity": "bra",
+      "universe": "bras and lingerie lines of the major brands",
+      "criteria": [
+       "price",
+       "size range",
+       "rating",
+       "return policy"
+      ],
+      "sources": [
+       "brand sites",
+       "retailer pages"
+      ],
+      "priority": 2
+     },
+     {
+      "slug": "hats-and-caps",
+      "name": "Hats and caps",
+      "kind": "commercial",
+      "description": "Hats and caps: every hat ranked on public, comparable data.",
+      "entity": "hat",
+      "universe": "hats and caps of the major brands",
+      "criteria": [
+       "price",
+       "material",
+       "rating"
+      ],
+      "sources": [
+       "brand sites",
+       "retailer pages"
       ],
       "priority": 3
      }
@@ -12369,6 +13718,71 @@
       "priority": 2
      }
     ]
+   },
+   {
+    "slug": "nutrition-and-recipes",
+    "name": "Nutrition and drinks",
+    "kind": "knowledge",
+    "description": "Nutrition and drinks",
+    "children": [
+     {
+      "slug": "foods-by-nutrition",
+      "name": "Foods by nutrition",
+      "kind": "knowledge",
+      "description": "Foods by nutrition: every food ranked on public, comparable data.",
+      "entity": "food",
+      "universe": "every food in the USDA FoodData Central database",
+      "criteria": [
+       "protein per 100 g",
+       "fiber",
+       "calories",
+       "vitamin C",
+       "protein per calorie"
+      ],
+      "sources": [
+       "USDA FoodData Central API"
+      ],
+      "priority": 1
+     },
+     {
+      "slug": "cocktails",
+      "name": "Cocktails",
+      "kind": "knowledge",
+      "description": "Cocktails: every cocktail ranked on public, comparable data.",
+      "entity": "cocktail",
+      "universe": "classic and popular cocktails",
+      "criteria": [
+       "popularity",
+       "ingredients",
+       "strength",
+       "ratings"
+      ],
+      "sources": [
+       "TheCocktailDB API",
+       "IBA official list"
+      ],
+      "priority": 2
+     },
+     {
+      "slug": "fast-food-menu-items",
+      "name": "Fast food menu items",
+      "kind": "commercial",
+      "description": "Fast food menu items: every menu item ranked on public, comparable data.",
+      "entity": "menu item",
+      "universe": "menu items of the largest chains with published nutrition",
+      "criteria": [
+       "calories",
+       "protein",
+       "price",
+       "sodium"
+      ],
+      "sources": [
+       "chain nutrition disclosures",
+       "MenuStat (public)"
+      ],
+      "priority": 2
+     }
+    ]
    }
   ]
  },
@@ -13593,6 +15007,89 @@
        "Trustpilot public review pages"
       ],
       "priority": 3
+     }
+    ]
+   },
+   {
+    "slug": "life-events",
+    "name": "Weddings and life events",
+    "kind": "commercial",
+    "description": "Weddings and life events",
+    "children": [
+     {
+      "slug": "wedding-venues",
+      "name": "Wedding venues",
+      "kind": "commercial",
+      "description": "Wedding venues: every wedding venue ranked on public, comparable data.",
+      "entity": "wedding venue",
+      "universe": "venues listed on public wedding directories",
+      "criteria": [
+       "price per guest",
+       "capacity",
+       "rating",
+       "review count"
+      ],
+      "sources": [
+       "public directory listings",
+       "Google Places API"
+      ],
+      "priority": 2
+     },
+     {
+      "slug": "engagement-rings",
+      "name": "Engagement rings",
+      "kind": "commercial",
+      "description": "Engagement rings: every engagement ring ranked on public, comparable data.",
+      "entity": "engagement ring",
+      "universe": "rings sold by the major online and retail jewelers",
+      "criteria": [
+       "price",
+       "carat",
+       "certification",
+       "return policy"
+      ],
+      "sources": [
+       "retailer product pages",
+       "GIA report data"
+      ],
+      "priority": 2
+     },
+     {
+      "slug": "childcare-centers",
+      "name": "Childcare centers",
+      "kind": "knowledge",
+      "description": "Childcare centers: every childcare center ranked on public, comparable data.",
+      "entity": "childcare center",
+      "universe": "licensed childcare centers in public state registries",
+      "criteria": [
+       "capacity",
+       "inspection results",
+       "age range",
+       "accreditation"
+      ],
+      "sources": [
+       "state childcare licensing databases"
+      ],
+      "priority": 3
+     },
+     {
+      "slug": "senior-care",
+      "name": "Senior living and home care",
+      "kind": "commercial",
+      "description": "Senior living and home care: every senior care provider ranked on public, comparable data.",
+      "entity": "senior care provider",
+      "universe": "assisted living and home care providers in public registries",
+      "criteria": [
+       "star rating",
+       "inspections",
+       "staffing",
+       "cost"
+      ],
+      "sources": [
+       "CMS Care Compare",
+       "state registries"
+      ],
+      "priority": 2
      }
     ]
    }
@@ -15449,6 +16946,647 @@
        "Trustpilot public review pages"
       ],
       "priority": 2
+     },
+     {
+      "slug": "job-sites",
+      "name": "Job sites",
+      "kind": "commercial",
+      "description": "Job sites: every job site ranked on public, comparable data.",
+      "entity": "job site",
+      "universe": "job boards and recruiting platforms",
+      "criteria": [
+       "monthly visits",
+       "listings",
+       "app rating",
+       "fees"
+      ],
+      "sources": [
+       "company disclosures",
+       "app store data"
+      ],
+      "priority": 2
+     },
+     {
+      "slug": "freelance-platforms",
+      "name": "Freelance platforms",
+      "kind": "commercial",
+      "description": "Freelance platforms: every freelance platform ranked on public, comparable data.",
+      "entity": "freelance platform",
+      "universe": "freelance marketplaces",
+      "criteria": [
+       "fees",
+       "users",
+       "payment speed",
+       "rating"
+      ],
+      "sources": [
+       "company disclosures",
+       "app store data"
+      ],
+      "priority": 2
+     },
+     {
+      "slug": "legal-services",
+      "name": "Online legal services",
+      "kind": "commercial",
+      "description": "Online legal services: every legal service ranked on public, comparable data.",
+      "entity": "legal service",
+      "universe": "online legal document and attorney services",
+      "criteria": [
+       "price",
+       "services offered",
+       "rating",
+       "coverage"
+      ],
+      "sources": [
+       "company sites",
+       "BBB public data"
+      ],
+      "priority": 3
+     },
+     {
+      "slug": "telehealth-services",
+      "name": "Telehealth services",
+      "kind": "commercial",
+      "description": "Telehealth services: every telehealth service ranked on public, comparable data.",
+      "entity": "telehealth service",
+      "universe": "online doctor and therapy services",
+      "criteria": [
+       "price per visit",
+       "insurance accepted",
+       "wait time",
+       "rating"
+      ],
+      "sources": [
+       "company sites",
+       "app store data"
+      ],
+      "priority": 2
+     },
+     {
+      "slug": "supermarket-chains",
+      "name": "Supermarket chains",
+      "kind": "commercial",
+      "description": "Supermarket chains: every supermarket chain ranked on public, comparable data.",
+      "entity": "supermarket chain",
+      "universe": "grocery chains",
+      "criteria": [
+       "price index",
+       "stores",
+       "customer satisfaction",
+       "delivery"
+      ],
+      "sources": [
+       "ACSI public results",
+       "company filings"
+      ],
+      "priority": 2
+     }
+    ]
+   }
+  ]
+ },
+ {
+  "slug": "internet",
+  "name": "Internet & Digital",
+  "kind": "knowledge",
+  "description": "Websites, online communities, videos, code, models, apps and other digital things ranked on their public statistics. Pages carry statistics, history and ranks, and link to the original; original content is never copied.",
+  "children": [
+   {
+    "slug": "online-video",
+    "name": "Online video",
+    "kind": "knowledge",
+    "description": "Online video",
+    "children": [
+     {
+      "slug": "youtube-videos",
+      "name": "YouTube videos",
+      "kind": "knowledge",
+      "description": "YouTube videos: ranked on public statistics; a YouTube video gets its own page once it is notable (the page threshold), with its statistics over time, its ranks and a prominent link to the original.",
+      "entity": "YouTube video",
+      "universe": "videos with public statistics, by category and country (pages only for notable videos)",
+      "criteria": [
+       "views",
+       "views in the last 7 days",
+       "likes",
+       "comments",
+       "views per day since upload"
+      ],
+      "sources": [
+       "YouTube Data API v3"
+      ],
+      "priority": 1
+     },
+     {
+      "slug": "music-videos",
+      "name": "Music videos",
+      "kind": "knowledge",
+      "description": "Music videos: ranked on public statistics; a music video gets its own page once it is notable (the page threshold), with its statistics over time, its ranks and a prominent link to the original.",
+      "entity": "music video",
+      "universe": "official music videos on YouTube",
+      "criteria": [
+       "views",
+       "views in the last 7 days",
+       "likes",
+       "days to 1 billion views"
+      ],
+      "sources": [
+       "YouTube Data API v3",
+       "MusicBrainz"
+      ],
+      "priority": 1
+     },
+     {
+      "slug": "youtube-shorts-creators",
+      "name": "Short-video creators",
+      "kind": "knowledge",
+      "description": "Short-video creators: ranked on public statistics; a short-video creator gets its own page once it is notable (the page threshold), with its statistics over time, its ranks and a prominent link to the original.",
+      "entity": "short-video creator",
+      "universe": "creators of YouTube Shorts with public channel statistics",
+      "criteria": [
+       "subscribers",
+       "shorts views",
+       "growth in the last 30 days"
+      ],
+      "sources": [
+       "YouTube Data API v3"
+      ],
+      "priority": 3
+     }
+    ]
+   },
+   {
+    "slug": "code-and-software",
+    "name": "Code and open source",
+    "kind": "knowledge",
+    "description": "Code and open source",
+    "children": [
+     {
+      "slug": "github-repositories",
+      "name": "GitHub repositories",
+      "kind": "knowledge",
+      "description": "GitHub repositories: ranked on public statistics; a repository gets its own page once it is notable (the page threshold), with its statistics over time, its ranks and a prominent link to the original.",
+      "entity": "repository",
+      "universe": "public GitHub repositories (pages for repositories with 1,000+ stars)",
+      "criteria": [
+       "stars",
+       "stars in the last 30 days",
+       "forks",
+       "contributors",
+       "release frequency"
+      ],
+      "sources": [
+       "GitHub REST and GraphQL APIs",
+       "GH Archive"
+      ],
+      "priority": 1
+     },
+     {
+      "slug": "npm-packages",
+      "name": "npm packages",
+      "kind": "knowledge",
+      "description": "npm packages: ranked on public statistics; a npm package gets its own page once it is notable (the page threshold), with its statistics over time, its ranks and a prominent link to the original.",
+      "entity": "npm package",
+      "universe": "packages on the npm registry",
+      "criteria": [
+       "weekly downloads",
+       "dependents",
+       "maintenance",
+       "bundle size"
+      ],
+      "sources": [
+       "npm registry API",
+       "npm downloads API"
+      ],
+      "priority": 2
+     },
+     {
+      "slug": "python-packages",
+      "name": "Python packages",
+      "kind": "knowledge",
+      "description": "Python packages: ranked on public statistics; a Python package gets its own page once it is notable (the page threshold), with its statistics over time, its ranks and a prominent link to the original.",
+      "entity": "Python package",
+      "universe": "packages on PyPI",
+      "criteria": [
+       "monthly downloads",
+       "dependents",
+       "release recency",
+       "GitHub stars"
+      ],
+      "sources": [
+       "PyPI JSON API",
+       "pypistats",
+       "BigQuery public PyPI dataset"
+      ],
+      "priority": 2
+     },
+     {
+      "slug": "vscode-extensions",
+      "name": "VS Code extensions",
+      "kind": "commercial",
+      "description": "VS Code extensions: ranked on public statistics; a VS Code extension gets its own page once it is notable (the page threshold), with its statistics over time, its ranks and a prominent link to the original.",
+      "entity": "VS Code extension",
+      "universe": "extensions on the Visual Studio Marketplace",
+      "criteria": [
+       "installs",
+       "rating",
+       "rating count",
+       "last updated"
+      ],
+      "sources": [
+       "Visual Studio Marketplace public API"
+      ],
+      "priority": 3
+     },
+     {
+      "slug": "browser-extensions",
+      "name": "Browser extensions",
+      "kind": "commercial",
+      "description": "Browser extensions: ranked on public statistics; a browser extension gets its own page once it is notable (the page threshold), with its statistics over time, its ranks and a prominent link to the original.",
+      "entity": "browser extension",
+      "universe": "extensions on the Chrome Web Store and Firefox Add-ons",
+      "criteria": [
+       "users",
+       "rating",
+       "rating count",
+       "permissions requested"
+      ],
+      "sources": [
+       "Chrome Web Store public pages",
+       "addons.mozilla.org API"
+      ],
+      "priority": 2
+     },
+     {
+      "slug": "wordpress-plugins",
+      "name": "WordPress plugins",
+      "kind": "commercial",
+      "description": "WordPress plugins: ranked on public statistics; a WordPress plugin gets its own page once it is notable (the page threshold), with its statistics over time, its ranks and a prominent link to the original.",
+      "entity": "WordPress plugin",
+      "universe": "plugins in the WordPress.org directory",
+      "criteria": [
+       "active installs",
+       "rating",
+       "support resolution rate",
+       "last updated"
+      ],
+      "sources": [
+       "WordPress.org plugins API"
+      ],
+      "priority": 2
+     }
+    ]
+   },
+   {
+    "slug": "ai-ecosystem",
+    "name": "AI models and datasets",
+    "kind": "knowledge",
+    "description": "AI models and datasets",
+    "children": [
+     {
+      "slug": "open-ai-models",
+      "name": "Open AI models",
+      "kind": "knowledge",
+      "description": "Open AI models: ranked on public statistics; a model gets its own page once it is notable (the page threshold), with its statistics over time, its ranks and a prominent link to the original.",
+      "entity": "model",
+      "universe": "models on Hugging Face (pages for models with 10,000+ downloads)",
+      "criteria": [
+       "downloads in the last 30 days",
+       "likes",
+       "parameters",
+       "benchmark scores",
+       "license"
+      ],
+      "sources": [
+       "Hugging Face Hub API",
+       "Open LLM leaderboards"
+      ],
+      "priority": 1
+     },
+     {
+      "slug": "ai-datasets",
+      "name": "AI datasets",
+      "kind": "knowledge",
+      "description": "AI datasets: ranked on public statistics; a dataset gets its own page once it is notable (the page threshold), with its statistics over time, its ranks and a prominent link to the original.",
+      "entity": "dataset",
+      "universe": "datasets on Hugging Face and Kaggle",
+      "criteria": [
+       "downloads",
+       "likes",
+       "size",
+       "license"
+      ],
+      "sources": [
+       "Hugging Face Hub API",
+       "Kaggle API"
+      ],
+      "priority": 3
+     },
+     {
+      "slug": "gpts-and-ai-agents",
+      "name": "AI agents and assistants (store listings)",
+      "kind": "commercial",
+      "description": "AI agents and assistants (store listings): ranked on public statistics; a AI agent gets its own page once it is notable (the page threshold), with its statistics over time, its ranks and a prominent link to the original.",
+      "entity": "AI agent",
+      "universe": "agents listed in the major public AI agent stores",
+      "criteria": [
+       "rating",
+       "conversations",
+       "category rank"
+      ],
+      "sources": [
+       "public store listings"
+      ],
+      "priority": 3
+     }
+    ]
+   },
+   {
+    "slug": "research-output",
+    "name": "Research papers",
+    "kind": "knowledge",
+    "description": "Research papers",
+    "children": [
+     {
+      "slug": "research-papers",
+      "name": "Research papers",
+      "kind": "knowledge",
+      "description": "Research papers: ranked on public statistics; a paper gets its own page once it is notable (the page threshold), with its statistics over time, its ranks and a prominent link to the original.",
+      "entity": "paper",
+      "universe": "scholarly works in OpenAlex (pages for papers with 500+ citations)",
+      "criteria": [
+       "citations",
+       "citations in the last year",
+       "field-weighted impact",
+       "open access"
+      ],
+      "sources": [
+       "OpenAlex API",
+       "Crossref API"
+      ],
+      "priority": 1
+     },
+     {
+      "slug": "preprints",
+      "name": "Preprints",
+      "kind": "knowledge",
+      "description": "Preprints: ranked on public statistics; a preprint gets its own page once it is notable (the page threshold), with its statistics over time, its ranks and a prominent link to the original.",
+      "entity": "preprint",
+      "universe": "arXiv and bioRxiv preprints",
+      "criteria": [
+       "citations",
+       "mentions",
+       "downloads where published"
+      ],
+      "sources": [
+       "arXiv API",
+       "bioRxiv API",
+       "OpenAlex"
+      ],
+      "priority": 3
+     }
+    ]
+   },
+   {
+    "slug": "websites-and-communities",
+    "name": "Websites and communities",
+    "kind": "knowledge",
+    "description": "Websites and communities",
+    "children": [
+     {
+      "slug": "websites-by-traffic",
+      "name": "Websites by traffic",
+      "kind": "knowledge",
+      "description": "Websites by traffic: ranked on public statistics; a website gets its own page once it is notable (the page threshold), with its statistics over time, its ranks and a prominent link to the original.",
+      "entity": "website",
+      "universe": "the Tranco top million domains, by category",
+      "criteria": [
+       "Tranco rank",
+       "rank change",
+       "category",
+       "country"
+      ],
+      "sources": [
+       "Tranco list",
+       "Cloudflare Radar public data"
+      ],
+      "priority": 1
+     },
+     {
+      "slug": "blogs",
+      "name": "Blogs",
+      "kind": "knowledge",
+      "description": "Blogs: ranked on public statistics; a blog gets its own page once it is notable (the page threshold), with its statistics over time, its ranks and a prominent link to the original.",
+      "entity": "blog",
+      "universe": "independent blogs with public feeds, by topic",
+      "criteria": [
+       "authority rank",
+       "posting frequency",
+       "feed subscribers where public"
+      ],
+      "sources": [
+       "Tranco list",
+       "public RSS feeds"
+      ],
+      "priority": 3
+     },
+     {
+      "slug": "newsletters",
+      "name": "Newsletters",
+      "kind": "commercial",
+      "description": "Newsletters: ranked on public statistics; a newsletter gets its own page once it is notable (the page threshold), with its statistics over time, its ranks and a prominent link to the original.",
+      "entity": "newsletter",
+      "universe": "newsletters on Substack, Beehiiv and similar platforms",
+      "criteria": [
+       "subscribers where public",
+       "category rank",
+       "price",
+       "posting frequency"
+      ],
+      "sources": [
+       "Substack public leaderboards",
+       "platform public pages"
+      ],
+      "priority": 2
+     },
+     {
+      "slug": "subreddits",
+      "name": "Subreddits",
+      "kind": "knowledge",
+      "description": "Subreddits: ranked on public statistics; a subreddit gets its own page once it is notable (the page threshold), with its statistics over time, its ranks and a prominent link to the original.",
+      "entity": "subreddit",
+      "universe": "public Reddit communities",
+      "criteria": [
+       "subscribers",
+       "active users",
+       "posts per day",
+       "growth"
+      ],
+      "sources": [
+       "Reddit public JSON API"
+      ],
+      "priority": 2
+     },
+     {
+      "slug": "discord-servers",
+      "name": "Discord communities",
+      "kind": "knowledge",
+      "description": "Discord communities: ranked on public statistics; a Discord server gets its own page once it is notable (the page threshold), with its statistics over time, its ranks and a prominent link to the original.",
+      "entity": "Discord server",
+      "universe": "public Discord servers in Discord Discovery",
+      "criteria": [
+       "members",
+       "online members",
+       "category"
+      ],
+      "sources": [
+       "Discord Discovery public data"
+      ],
+      "priority": 3
+     },
+     {
+      "slug": "telegram-channels",
+      "name": "Telegram channels",
+      "kind": "knowledge",
+      "description": "Telegram channels: ranked on public statistics; a Telegram channel gets its own page once it is notable (the page threshold), with its statistics over time, its ranks and a prominent link to the original.",
+      "entity": "Telegram channel",
+      "universe": "public Telegram channels",
+      "criteria": [
+       "subscribers",
+       "posts per day",
+       "category"
+      ],
+      "sources": [
+       "Telegram public channel pages"
+      ],
+      "priority": 3
+     }
+    ]
+   },
+   {
+    "slug": "apps-and-games-stores",
+    "name": "App stores",
+    "kind": "commercial",
+    "description": "App stores",
+    "children": [
+     {
+      "slug": "iphone-apps",
+      "name": "iPhone apps",
+      "kind": "commercial",
+      "description": "iPhone apps: ranked on public statistics; a app gets its own page once it is notable (the page threshold), with its statistics over time, its ranks and a prominent link to the original.",
+      "entity": "app",
+      "universe": "apps in the Apple App Store, by category and country (pages for apps with 1,000+ ratings)",
+      "criteria": [
+       "rating",
+       "rating count",
+       "category rank",
+       "price",
+       "in-app purchases"
+      ],
+      "sources": [
+       "Apple iTunes Search API",
+       "App Store RSS charts"
+      ],
+      "priority": 1
+     },
+     {
+      "slug": "android-apps",
+      "name": "Android apps",
+      "kind": "commercial",
+      "description": "Android apps: ranked on public statistics; a app gets its own page once it is notable (the page threshold), with its statistics over time, its ranks and a prominent link to the original.",
+      "entity": "app",
+      "universe": "apps on Google Play, by category",
+      "criteria": [
+       "installs",
+       "rating",
+       "rating count",
+       "last updated"
+      ],
+      "sources": [
+       "Google Play public pages"
+      ],
+      "priority": 1
+     },
+     {
+      "slug": "steam-games",
+      "name": "Steam games",
+      "kind": "commercial",
+      "description": "Steam games: ranked on public statistics; a game gets its own page once it is notable (the page threshold), with its statistics over time, its ranks and a prominent link to the original.",
+      "entity": "game",
+      "universe": "games on Steam (pages for games with 500+ reviews)",
+      "criteria": [
+       "positive review share",
+       "reviews",
+       "concurrent players",
+       "price",
+       "discount"
+      ],
+      "sources": [
+       "Steam Web API",
+       "SteamSpy"
+      ],
+      "priority": 1
+     },
+     {
+      "slug": "browser-games",
+      "name": "Browser games",
+      "kind": "commercial",
+      "description": "Browser games: ranked on public statistics; a browser game gets its own page once it is notable (the page threshold), with its statistics over time, its ranks and a prominent link to the original.",
+      "entity": "browser game",
+      "universe": "games on the major web game portals",
+      "criteria": [
+       "plays",
+       "rating",
+       "genre"
+      ],
+      "sources": [
+       "portal public pages"
+      ],
+      "priority": 3
+     }
+    ]
+   },
+   {
+    "slug": "music-streaming-charts",
+    "name": "Music streaming",
+    "kind": "knowledge",
+    "description": "Music streaming",
+    "children": [
+     {
+      "slug": "spotify-artists",
+      "name": "Streaming artists",
+      "kind": "knowledge",
+      "description": "Streaming artists: ranked on public statistics; a artist gets its own page once it is notable (the page threshold), with its statistics over time, its ranks and a prominent link to the original.",
+      "entity": "artist",
+      "universe": "artists with public Spotify statistics",
+      "criteria": [
+       "monthly listeners",
+       "followers",
+       "popularity",
+       "top track streams"
+      ],
+      "sources": [
+       "Spotify Web API",
+       "MusicBrainz"
+      ],
+      "priority": 1
+     },
+     {
+      "slug": "playlists",
+      "name": "Playlists",
+      "kind": "knowledge",
+      "description": "Playlists: ranked on public statistics; a playlist gets its own page once it is notable (the page threshold), with its statistics over time, its ranks and a prominent link to the original.",
+      "entity": "playlist",
+      "universe": "public Spotify playlists",
+      "criteria": [
+       "followers",
+       "tracks",
+       "curator"
+      ],
+      "sources": [
+       "Spotify Web API"
+      ],
+      "priority": 3
      }
     ]
    }

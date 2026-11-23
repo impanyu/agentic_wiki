@@ -371,3 +371,20 @@ test('the team maintenance query (app/teams/manager.ts) runs on this schema',asy
  assert.ok(rows.some(r=>r.slug==='countries'),'a topic with a ranking is considered');
  assert.ok(rows.every(r=>typeof r.views==='number'&&typeof r.passes==='number'));
 });
+
+test('a designed topic tree loads: topics in place (existing ones moved), leaves queued once with their brief',async()=>{
+ const src=readFileSync('app/teams/tree.ts','utf8').replace(/^import \{enqueueTeam\} from '\.\/manager';$/m,'');
+ const mgr=readFileSync('app/teams/manager.ts','utf8');
+ const enq=mgr.slice(mgr.indexOf('export async function enqueueTeam'),mgr.indexOf('\n}\n',mgr.indexOf('export async function enqueueTeam'))+3);
+ writeFileSync(new URL('tree.mjs',out),tr(src.replace("import {createTopic,getTopic,setTopicParent} from '@/app/entity-db/repo';","import {createTopic,getTopic,setTopicParent} from './repo.mjs';")+'\n'+enq));
+ const {loadTopicTree,leafBrief}=await import(new URL('tree.mjs',out));
+ const tree=[{slug:'geography',name:'Geography',children:[{slug:'countries',name:'Countries',description:'All countries.',entity:'country',universe:'World Bank list',criteria:['population'],sources:['World Bank'],priority:1}]},
+  {slug:'electronics',name:'Electronics',kind:'commercial',children:[{slug:'robot-vacuums',name:'Robot vacuums',kind:'commercial',entity:'robot vacuum',universe:'major brands',criteria:['suction','price'],sources:['makers'],priority:1}]}];
+ await db.query("insert into team_runs(topic_id, role) select id, 'reviewer' from topics where slug='countries'");
+ const r=await loadTopicTree(db,tree);
+ assert.equal(r.queued,1,'countries already has a team; robot vacuums is queued');assert.ok(r.created>=2);
+ const q=(await db.query("select slug, priority, brief from team_queue where slug='robot-vacuums'")).rows[0];
+ assert.equal(q.priority,1);assert.match(q.brief,/robot vacuum/);assert.match(q.brief,/commercial topic/);
+ assert.equal((await loadTopicTree(db,tree)).queued,0,'loading again queues nothing new');
+ assert.match(leafBrief(tree[1].children[0]),/Criteria readers care about/);
+});

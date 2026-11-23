@@ -4,34 +4,35 @@ Source: `docs/topic-tree.json`. Draft for review before loading.
 
 ## Totals
 
-- Top-level subjects: **16**
-- Mid-level topics: **133**
-- Leaf topics: **648**
-- Commercial leaves: **468** (72%); knowledge leaves: 180
-- Priority: 185 high (1), 270 medium (2), 193 low (3)
+- Top-level subjects: **17**
+- Mid-level topics: **155**
+- Leaf topics: **751**
+- Commercial leaves: **513** (68%); knowledge leaves: 238
+- Priority: 208 high (1), 311 medium (2), 232 low (3)
 
 | Subject | Kind | Mid topics | Leaves | Commercial leaves |
 |---|---|---|---|---|
-| Geography (`geography`) | knowledge | 5 | 32 | 0 |
-| Nature & Science (`nature-science`) | knowledge | 7 | 29 | 0 |
-| People (`people`) | knowledge | 4 | 18 | 0 |
-| Sports (`sports`) | knowledge | 12 | 38 | 0 |
-| Culture & Media (`culture`) | knowledge | 5 | 26 | 10 |
-| Education & Institutions (`institutions`) | knowledge | 6 | 26 | 3 |
-| Business & Economy (`business`) | knowledge | 4 | 20 | 1 |
-| Electronics & Tech (`electronics`) | commercial | 14 | 77 | 77 |
-| Home & Garden (`home-garden`) | commercial | 14 | 74 | 74 |
-| Style & Beauty (`style-beauty`) | commercial | 9 | 45 | 45 |
+| Geography (`geography`) | knowledge | 7 | 39 | 1 |
+| Nature & Science (`nature-science`) | knowledge | 9 | 32 | 0 |
+| People (`people`) | knowledge | 6 | 31 | 0 |
+| Sports (`sports`) | knowledge | 12 | 43 | 0 |
+| Culture & Media (`culture`) | knowledge | 7 | 30 | 11 |
+| Education & Institutions (`institutions`) | knowledge | 6 | 29 | 3 |
+| Business & Economy (`business`) | knowledge | 8 | 39 | 15 |
+| Electronics & Tech (`electronics`) | commercial | 14 | 79 | 79 |
+| Home & Garden (`home-garden`) | commercial | 15 | 80 | 80 |
+| Style & Beauty (`style-beauty`) | commercial | 9 | 48 | 48 |
 | Fitness, Health & Outdoors (`fitness-outdoors`) | commercial | 9 | 57 | 57 |
 | Hobbies & Games (`hobbies`) | commercial | 8 | 41 | 41 |
-| Food & Drink (`food-drink`) | commercial | 7 | 33 | 30 |
+| Food & Drink (`food-drink`) | commercial | 8 | 36 | 31 |
 | Vehicles & Mobility (`vehicles`) | commercial | 5 | 24 | 23 |
-| Family & Pets (`family-pets`) | commercial | 5 | 28 | 28 |
-| Software & Services (`services`) | commercial | 19 | 80 | 79 |
+| Family & Pets (`family-pets`) | commercial | 6 | 32 | 31 |
+| Software & Services (`services`) | commercial | 19 | 85 | 84 |
+| Internet & Digital (`internet`) | knowledge | 7 | 26 | 9 |
 
 ## Subjects and their mid-level topics
 
-### Geography (`geography`) — 32 leaves
+### Geography (`geography`) — 39 leaves
 
 - *(leaves directly under the subject)*: Countries
 - **Cities and regions** (`settlements`) — 8
@@ -39,8 +40,10 @@ Source: `docs/topic-tree.json`. Draft for review before loading.
 - **Parks and heritage** (`heritage`) — 3
 - **Buildings and structures** (`built-world`) — 5
 - **Transport infrastructure** (`transport-hubs`) — 4
+- **Outdoor places** (`outdoors-places`) — 5
+- **Routes and connections** (`routes`) — 2
 
-### Nature & Science (`nature-science`) — 29 leaves
+### Nature & Science (`nature-science`) — 32 leaves
 
 - **Animals** (`animals`) — 8
 - **Plants and fungi** (`plants-fungi`) — 3
@@ -49,15 +52,19 @@ Source: `docs/topic-tree.json`. Draft for review before loading.
 - **Earth and climate** (`earth`) — 2
 - **Health and medicine** (`health-medicine`) — 2
 - **Science and research** (`research`) — 4
+- **Satellites and asteroids** (`space-objects`) — 2
+- **Conservation** (`conservation`) — 1
 
-### People (`people`) — 18 leaves
+### People (`people`) — 31 leaves
 
 - **Public life** (`public-life`) — 6
 - **Arts and entertainment** (`arts-people`) — 7
 - **Science and ideas** (`thinkers`) — 3
 - **Athletes (all sports)** (`athletes-all`) — 2
+- **Public professionals** (`public-professionals`) — 11
+- **Names** (`names`) — 2
 
-### Sports (`sports`) — 38 leaves
+### Sports (`sports`) — 43 leaves
 
 - **Football (soccer)** (`football`) — 4
 - **Basketball** (`basketball`) — 3
@@ -68,41 +75,47 @@ Source: `docs/topic-tree.json`. Draft for review before loading.
 - **Motorsport** (`motorsport`) — 4
 - **Combat sports** (`combat-sports`) — 2
 - **Cricket, hockey and rugby** (`cricket-hockey-rugby`) — 5
-- **Olympics and athletics** (`olympics-athletics`) — 5
+- **Olympics and athletics** (`olympics-athletics`) — 10
 - **Esports** (`esports`) — 2
 - **Venues and events** (`sports-venues-events`) — 3
 
-### Culture & Media (`culture`) — 26 leaves
+### Culture & Media (`culture`) — 30 leaves
 
-- **Film and television** (`film-tv`) — 5
+- **Film and television** (`film-tv`) — 6
 - **Music** (`music`) — 5
 - **Books and comics** (`books`) — 6
 - **Video games** (`games`) — 4
 - **Art and language** (`art-language`) — 6
+- **History** (`history`) — 2
+- **Fonts and design** (`design-and-type`) — 1
 
-### Education & Institutions (`institutions`) — 26 leaves
+### Education & Institutions (`institutions`) — 29 leaves
 
 - **Higher education** (`higher-education`) — 6
-- **Schools** (`schools`) — 3
+- **Schools** (`schools`) — 4
 - **Healthcare providers** (`healthcare-providers`) — 3
 - **Museums and cultural venues** (`cultural-venues`) — 6
-- **Government and public bodies** (`government`) — 4
+- **Government and public bodies** (`government`) — 6
 - **Nonprofits and research bodies** (`nonprofits`) — 4
 
-### Business & Economy (`business`) — 20 leaves
+### Business & Economy (`business`) — 39 leaves
 
 - **Companies** (`companies`) — 5
 - **Companies by industry** (`industries`) — 8
 - **Markets and finance** (`markets`) — 5
+- **Stocks** (`stocks`) — 10
 - **Economy** (`economy-indicators`) — 2
+- **Jobs and careers** (`careers`) — 3
+- **Real estate** (`real-estate`) — 5
+- **Trade** (`trade`) — 1
 
-### Electronics & Tech (`electronics`) — 77 leaves
+### Electronics & Tech (`electronics`) — 79 leaves
 
 - **Phones and tablets** (`phones-tablets`) — 6
 - **Wearables** (`wearables`) — 5
 - **Computers** (`computers`) — 6
 - **PC components** (`pc-components`) — 9
-- **Peripherals and accessories** (`peripherals`) — 10
+- **Peripherals and accessories** (`peripherals`) — 12
 - **Networking and storage** (`networking`) — 3
 - **Audio** (`audio`) — 11
   - **Headphones and portable audio** (`headphones-portable`) — 5
@@ -113,10 +126,10 @@ Source: `docs/topic-tree.json`. Draft for review before loading.
 - **Smart home** (`smart-home`) — 6
 - **Power and energy** (`power-energy`) — 4
 
-### Home & Garden (`home-garden`) — 74 leaves
+### Home & Garden (`home-garden`) — 80 leaves
 
 - **Coffee and tea gear** (`coffee-tea`) — 6
-- **Kitchen appliances** (`kitchen-appliances`) — 17
+- **Kitchen appliances** (`kitchen-appliances`) — 18
   - **Small kitchen appliances** (`small-kitchen-appliances`) — 13
   - **Major kitchen appliances** (`major-kitchen-appliances`) — 4
 - **Cookware and knives** (`cookware-knives`) — 6
@@ -129,8 +142,9 @@ Source: `docs/topic-tree.json`. Draft for review before loading.
 - **Tools and DIY** (`tools-diy`) — 7
 - **Garden and outdoor living** (`garden-outdoor`) — 11
 - **Home care and security** (`home-care`) — 3
+- **Decor and renovation** (`decor-and-renovation`) — 5
 
-### Style & Beauty (`style-beauty`) — 45 leaves
+### Style & Beauty (`style-beauty`) — 48 leaves
 
 - **Skincare** (`skincare`) — 7
 - **Makeup** (`makeup`) — 5
@@ -138,7 +152,7 @@ Source: `docs/topic-tree.json`. Draft for review before loading.
 - **Fragrance** (`fragrance`) — 4
 - **Shaving, oral care and grooming** (`grooming`) — 6
 - **Shoes** (`shoes`) — 4
-- **Clothing** (`clothing`) — 6
+- **Clothing** (`clothing`) — 9
 - **Bags and luggage** (`bags-luggage`) — 4
 - **Watches, jewelry and eyewear** (`watches-jewelry`) — 5
 
@@ -165,7 +179,7 @@ Source: `docs/topic-tree.json`. Draft for review before loading.
 - **Aquariums** (`aquarium`) — 4
 - **Puzzles and smart toys for adults** (`puzzles-brain-games`) — 2
 
-### Food & Drink (`food-drink`) — 33 leaves
+### Food & Drink (`food-drink`) — 36 leaves
 
 - **Coffee and tea** (`coffee-tea-products`) — 4
 - **Wine** (`wine`) — 5
@@ -174,6 +188,7 @@ Source: `docs/topic-tree.json`. Draft for review before loading.
 - **Groceries and packaged food** (`groceries`) — 8
 - **Restaurants and food services** (`food-services`) — 4
 - **Cuisines and dishes** (`cuisine`) — 2
+- **Nutrition and drinks** (`nutrition-and-recipes`) — 3
 
 ### Vehicles & Mobility (`vehicles`) — 24 leaves
 
@@ -183,15 +198,16 @@ Source: `docs/topic-tree.json`. Draft for review before loading.
 - **RVs and boats** (`rv-boats`) — 3
 - **Aircraft** (`aviation`) — 2
 
-### Family & Pets (`family-pets`) — 28 leaves
+### Family & Pets (`family-pets`) — 32 leaves
 
 - **Baby gear** (`baby-gear`) — 8
 - **Kids and toys** (`kids-toys`) — 5
 - **Dogs and cats** (`dogs-cats`) — 9
 - **Other pets** (`other-pets`) — 3
 - **Pet services** (`pet-services`) — 3
+- **Weddings and life events** (`life-events`) — 4
 
-### Software & Services (`services`) — 80 leaves
+### Software & Services (`services`) — 85 leaves
 
 - **Business software** (`business-software`) — 13
   - **Sales, marketing and commerce** (`sales-marketing-software`) — 4
@@ -211,9 +227,21 @@ Source: `docs/topic-tree.json`. Draft for review before loading.
   - **Destinations and attractions** (`attractions`) — 4
 - **Streaming and subscriptions** (`streaming-media`) — 5
 - **Online learning** (`online-learning`) — 5
-- **Everyday services** (`everyday-services`) — 6
+- **Everyday services** (`everyday-services`) — 11
+
+### Internet & Digital (`internet`) — 26 leaves
+
+- **Online video** (`online-video`) — 3
+- **Code and open source** (`code-and-software`) — 6
+- **AI models and datasets** (`ai-ecosystem`) — 3
+- **Research papers** (`research-output`) — 2
+- **Websites and communities** (`websites-and-communities`) — 6
+- **App stores** (`apps-and-games-stores`) — 4
+- **Music streaming** (`music-streaming-charts`) — 2
 
 ## Commercial leaves by category
+
+**Geography › Outdoor places** (1): Campgrounds ★
 
 **Culture & Media › Music** (1): Music festivals
 
@@ -221,11 +249,17 @@ Source: `docs/topic-tree.json`. Draft for review before loading.
 
 **Culture & Media › Video games** (3): Video games ★, Mobile games ★, Indie games
 
+**Culture & Media › Fonts and design** (1): Fonts
+
 **Education & Institutions › Schools** (2): International schools, Boarding schools
 
 **Education & Institutions › Museums and cultural venues** (1): Zoos and aquariums
 
 **Business & Economy › Markets and finance** (1): ETFs and index funds ★
+
+**Business & Economy › Stocks** (10): US stocks ★, China A-shares ★, Hong Kong stocks, Japanese stocks, European stocks, Indian stocks, Stocks in other markets, IPOs, Mutual funds, Government bonds
+
+**Business & Economy › Real estate** (4): Real estate portals, Home builders, REITs, Mortgage rates by lender
 
 **Electronics & Tech › Phones and tablets** (6): Smartphones ★, Tablets ★, E-readers, Phone cases, USB chargers, Power banks
 
@@ -235,7 +269,7 @@ Source: `docs/topic-tree.json`. Draft for review before loading.
 
 **Electronics & Tech › PC components** (9): Graphics cards ★, Processors ★, Motherboards, SSDs ★, Hard drives, PC cases, Power supplies, CPU coolers, Memory (RAM) kits
 
-**Electronics & Tech › Peripherals and accessories** (10): Mechanical keyboards ★, Keyboard switches, Keycap sets, Computer mice ★, Webcams, Printers ★, External drives, Docking stations, Drawing tablets, USB and streaming microphones
+**Electronics & Tech › Peripherals and accessories** (12): Mechanical keyboards ★, Keyboard switches, Keycap sets, Computer mice ★, Webcams, Printers ★, External drives, Docking stations, Drawing tablets, USB and streaming microphones, Document scanners, Label printers
 
 **Electronics & Tech › Networking and storage** (3): Wi-Fi routers ★, Mesh Wi-Fi systems, NAS devices
 
@@ -254,6 +288,8 @@ Source: `docs/topic-tree.json`. Draft for review before loading.
 **Electronics & Tech › Power and energy** (4): Portable power stations ★, Solar panels, Home batteries, Home EV chargers
 
 **Home & Garden › Coffee and tea gear** (6): Espresso machines ★, Coffee grinders ★, Drip coffee makers, Bean-to-cup machines, Pour-over and manual brewers, Pod coffee machines
+
+**Home & Garden › Kitchen appliances** (1): Water bottles and tumblers ★
 
 **Home & Garden › Kitchen appliances › Small kitchen appliances** (13): Air fryers ★, Blenders ★, Stand mixers, Food processors, Pressure and multi-cookers, Rice cookers, Toaster and countertop ovens, Microwaves, Electric kettles, Juicers, Sous vide cookers, Pizza ovens, Water filters ★
 
@@ -279,6 +315,8 @@ Source: `docs/topic-tree.json`. Draft for review before loading.
 
 **Home & Garden › Home care and security** (3): Laundry detergents, Safes, Smoke and CO detectors
 
+**Home & Garden › Decor and renovation** (5): Lamps and lighting, Rugs, Interior paints, Flooring, Bed frames
+
 **Style & Beauty › Skincare** (7): Sunscreens ★, Moisturizers ★, Serums and actives ★, Face cleansers, Acne treatments, Korean and Japanese skincare, Body lotions and washes
 
 **Style & Beauty › Makeup** (5): Foundations ★, Mascaras, Lipsticks and lip products, Eyeshadow palettes, Makeup brands
@@ -291,7 +329,7 @@ Source: `docs/topic-tree.json`. Draft for review before loading.
 
 **Style & Beauty › Shoes** (4): Sneakers ★, Boots, Dress shoes, Sandals and slippers
 
-**Style & Beauty › Clothing** (6): Jeans, T-shirts and basics, Winter jackets and parkas, Fashion brands, Activewear, Underwear and socks
+**Style & Beauty › Clothing** (9): Jeans, T-shirts and basics, Winter jackets and parkas, Fashion brands, Activewear, Underwear and socks, Kids clothing brands, Lingerie and bras, Hats and caps
 
 **Style & Beauty › Bags and luggage** (4): Suitcases ★, Everyday and travel backpacks, Handbags, Wallets
 
@@ -343,6 +381,8 @@ Source: `docs/topic-tree.json`. Draft for review before loading.
 
 **Food & Drink › Restaurants and food services** (4): Restaurants ★, Restaurant chains, Meal kits ★, Food delivery apps
 
+**Food & Drink › Nutrition and drinks** (1): Fast food menu items
+
 **Vehicles & Mobility › Cars and trucks** (8): Cars ★, Electric cars ★, SUVs and crossovers ★, Pickup trucks ★, Hybrid and plug-in hybrid cars, Sports cars, Used cars, Car brands
 
 **Vehicles & Mobility › Motorcycles and micromobility** (5): Motorcycles ★, E-bikes ★, Electric scooters ★, Electric skateboards and unicycles, Motorcycle helmets
@@ -362,6 +402,8 @@ Source: `docs/topic-tree.json`. Draft for review before loading.
 **Family & Pets › Other pets** (3): Small pet and bird supplies, Reptile supplies, Equestrian gear
 
 **Family & Pets › Pet services** (3): Pet insurance ★, Veterinary clinic chains, Pet sitting and dog walking services
+
+**Family & Pets › Weddings and life events** (3): Wedding venues, Engagement rings, Senior living and home care
 
 **Software & Services › Business software › Sales, marketing and commerce** (4): CRM software ★, Email marketing platforms, Website builders ★, E-commerce platforms ★
 
@@ -397,6 +439,14 @@ Source: `docs/topic-tree.json`. Draft for review before loading.
 
 **Software & Services › Online learning** (5): Online courses ★, Online degree programs, Coding bootcamps, Professional certifications, Tutoring and test prep
 
-**Software & Services › Everyday services** (6): Online retailers and marketplaces, Moving companies, Home security services, Solar installers, Refurbished electronics sellers, Energy suppliers
+**Software & Services › Everyday services** (11): Online retailers and marketplaces, Moving companies, Home security services, Solar installers, Refurbished electronics sellers, Energy suppliers, Job sites, Freelance platforms, Online legal services, Telehealth services, Supermarket chains
+
+**Internet & Digital › Code and open source** (3): VS Code extensions, Browser extensions, WordPress plugins
+
+**Internet & Digital › AI models and datasets** (1): AI agents and assistants (store listings)
+
+**Internet & Digital › Websites and communities** (1): Newsletters
+
+**Internet & Digital › App stores** (4): iPhone apps ★, Android apps ★, Steam games ★, Browser games
 
 ★ = priority 1.
