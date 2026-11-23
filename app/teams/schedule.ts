@@ -80,12 +80,13 @@ export async function manageTeams(){
  if(started.length)console.log('[queue] started',started.join(', '));
 }
 
-// Recomputes every published derived metric (an editor's index) whose scope is this entity type.
+// Recomputes every published derived metric (an editor's index) whose scope is this entity type or a type it extends
+// (an index invented higher in the tree is computed for every subtype's entities too).
 export async function recomputeIndices(type:string):Promise<string[]>{
  const {computeDerivedMetric}=await import('@/app/entity-db/repo');
  const db=await entityDb();
  const rows=(await db.query<{key:string;version:number}>(`select distinct on (key) key, version from metrics where kind = 'derived' and status = 'published'
-  and definition->'scope'->>'type' = $1::text order by key, version desc`,[type])).rows;
+  and definition->'scope'->>'type' = any($1::text[]) order by key, version desc`,[(await (await import('@/app/entity-db/inherit')).typeChain(db,type)).map(t=>t.type).concat(type)])).rows;
  const done:string[]=[];
  for(const m of rows){try{await computeDerivedMetric(db,m.key,m.version);done.push(m.key);}catch(e){console.warn('index',m.key,(e as Error).message);}}
  if(done.length)console.log('[crawler] recomputed indices',type,done.join(', '));

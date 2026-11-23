@@ -40,3 +40,18 @@ export async function parentTypeFor(db:Queryable,topicId:string|null,self:string
   select et.type from up join entity_types et on et.topic_id=up.id where up.depth>0 and et.type<>$2::text order by up.depth, et.created_at limit 1`,[topicId,self]).catch(()=>({rows:[]}));
  return r.rows[0]?.type??null;
 }
+
+// The type and every type that extends it, at any depth ("is-a": a ranking of laptops includes gaming laptops).
+// Cached briefly: scope queries ask often and the hierarchy changes rarely.
+let subCache:{at:number;map:Map<string,string[]>}|null=null;
+export async function withSubtypes(db:Queryable,type:string):Promise<string[]>{
+ if(!subCache||Date.now()-subCache.at>60_000){
+  const rows=(await db.query<{type:string;parent:string|null}>("select type, schema->>'extends' parent from entity_types")).rows;
+  const kids=new Map<string,string[]>();for(const r of rows)if(r.parent){const l=kids.get(r.parent)??[];l.push(r.type);kids.set(r.parent,l);}
+  subCache={at:Date.now(),map:kids};
+ }
+ const out=[type],seen=new Set(out);
+ for(let i=0;i<out.length&&out.length<500;i++)for(const k of subCache.map.get(out[i])||[])if(!seen.has(k)){seen.add(k);out.push(k);}
+ return out;
+}
+export function clearTypeCache(){subCache=null;}

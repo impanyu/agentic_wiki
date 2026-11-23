@@ -23,3 +23,8 @@ test('a subtype has everything its ancestors have, plus its own; it cannot drop 
  assert.deepEqual(e.template.sections.map(s=>s.kind),['rankings','trend','peer_compare']);
  const b=await inh.effectiveType(db,'blender');assert.deepEqual(b.template.lead,['{name} is a home appliance.'],'no lead of its own: the ancestor\'s');
 });
+test('a type includes every type that extends it, at any depth (is-a)',async()=>{
+ inh.clearTypeCache();
+ assert.deepEqual(await inh.withSubtypes(db,'home_appliance'),['home_appliance','blender','pro_blender']);
+ assert.deepEqual(await inh.withSubtypes(db,'pro_blender'),['pro_blender']);
+});

@@ -160,13 +160,18 @@ export async function resolveMentions(db:Queryable,names:string[],selfId?:string
 async function entityRankings(db:Queryable,d:EntityPageData,metrics:Record<string,MetricFact>){
  // Whole-type rankings first (cards link to them), then sub-rankings.
  const nf=(r:RankingDef)=>Object.keys(r.scope.filters||{}).length?1:0;
- const defs=(await listRankingDefinitions(db,{type:d.entity.type})).sort((a,b)=>nf(a)-nf(b)).slice(0,20);
+ // The rankings of its own type, then those of every type it extends (a gaming laptop also ranks among laptops).
+ const {typeChain}=await import('./inherit');const chain=(await typeChain(db,d.entity.type)).map(t=>t.type);
+ const own=(await listRankingDefinitions(db,{type:d.entity.type})).sort((a,b)=>nf(a)-nf(b));
+ const inherited:RankingDef[]=[];for(const t of chain.slice(1))inherited.push(...(await listRankingDefinitions(db,{type:t})).sort((a,b)=>nf(a)-nf(b)));
+ const defs=[...own,...inherited].slice(0,24);const ancestor=new Set(chain.slice(1));
  const labels=await metricInfos(db,defs.flatMap(r=>r.criteria.map(c=>c.split('@')[0])));
  const out:EntityPageData['rankings']=[];
  for(const r of defs){
   const crit=r.criteria.slice(0,12);if(!crit.length)continue;
   const label=(c:string)=>labels[c.split('@')[0]]?.label||c;
-  if(!Object.keys(r.scope.filters||{}).length){
+  // A ranking of an ancestor type ranks the entity among all its members (computed like a narrower set).
+  if(!Object.keys(r.scope.filters||{}).length&&!ancestor.has(String(r.scope.type||''))){
    out.push({slug:r.slug,title:r.title,filters:{},ranks:crit.map(c=>{const f=metrics[c.replace(/@\d+$/,'')];return {key:c.replace('@','_v'),label:label(c),rank:f?.rank??null,of:f?.of??null};})});
    continue;
   }

@@ -301,7 +301,8 @@ export async function inScope(db:Queryable,scope:Scope,entityId:string):Promise<
 }
 async function scopeSql(q:Queryable,p:Params,scope:Scope,a='e'):Promise<string>{
  const parts:string[]=['true'];
- if(scope.type)parts.push(`${a}.type = ${p.add(normalizeType(scope.type))}::text`);
+ // A type includes its subtypes (types that extend it): a ranking of a type ranks every entity that is one.
+ if(scope.type){const {withSubtypes}=await import('./inherit');parts.push(`${a}.type = any(${p.add(await withSubtypes(q,normalizeType(scope.type)))}::text[])`);}
  if(scope.topicId){if(!UUID.test(scope.topicId))throw Error('Invalid topicId.');parts.push(`${a}.topic_id = ${p.add(scope.topicId)}::uuid`);}
  const entries=Object.entries(scope.filters||{});
  if(!entries.length)return parts.join(' and ');
