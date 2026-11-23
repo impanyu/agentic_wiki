@@ -30,12 +30,23 @@ an issue, as the stage says.
 | **build** | a new topic or subtopic the team owns | plan (editor → types, universe, main ranking, criteria) → survey (collector → ≥3 sources recorded) → universe (collector → entities in the database by a recipe that ran) → starter (editor → main ranking and basic template: **pages visible**) → metrics (collector → every planned metric by a recipe; unobtainable ones listed) → resolve (editor → replace / drop / request access, recorded) → replace (collector → replacements loaded) → design (editor → full template, sub-rankings, indices, previews) → review loop |
 | **repair** | a recipe failed or drifted (within 3 h) | repair (collector → fixed from the source register, recipe runs) |
 | **expand** | ≥3 reader queries waiting 12 h | triage (editor → need behind each query, neighbouring needs, plan items, subtopic proposals, a decision per query) → load (collector) → pages (editor) → review loop |
-| **review** | routine: 7 days after the first pass, then 7 / 14 / 30 days by traffic | review loop (review first; fix only what is found) |
+| **review and grow** | routine: 3 days after the first build, then every 7 days (read topics) or 14 days (quiet ones) | grow (editor → ≥10 new measures or attributes with their sources, ≥1 new index, new sub-rankings by kind and place, subtopic proposals) → load (collector → the additions loaded from a second source where one exists, as recipes) → pages (editor → criteria, template, indices, sub-rankings, previews) → review loop |
 | **sources** | the source register is over 90 days old | source review (collector → every chosen source rechecked, dead ones replaced, new ones added, register dated) |
 
 **Review loop** (shared): review → issues routed by owner (collector / editor / platform) → at most 2 fix rounds →
 the manager's binding ruling → the team applies it → final review → approved work is published (sitemap), the rest
 stays draft and an issue is raised. Platform defects always become operator issues.
+
+**Who answers for what.** The collector answers for the data: every stage of the collector is accepted only when the
+platform's checks pass — every measure has a recipe that has run, no measure is mostly zero, no entity has only
+zero values, no name looks like something other than a name (no letters, a web address, a sentence). The reviewer
+answers for the pages: every ranking and several entity pages are previewed before the verdict. The editor answers
+for the design and for growing it.
+
+**Wikidata starter.** A topic without a ranking does not wait for its team: a program maps it to Wikidata classes
+and numeric properties (one model call), loads the top entities with their measures, Wikipedia article, picture and
+homepage, and publishes a first ranking (config fastlane). The team's build then starts from it — Wikidata is one
+source among several; the team adds the others, cross-checks and deepens.
 
 ## 3. Growing the tree (`app/teams/manager.ts`)
 
@@ -62,8 +73,9 @@ off). The new team owns that subtree from then on.
 |---|---|---|
 | Crawler | every minute, recipes due by schedule | runs collection recipes (up to 3 at once), bulk loads over many runs; failure → repair workflow |
 | Indices | after each recipe | recomputes the editors' indices of the type and the types it extends |
-| Introductions | every minute | fills missing introductions and pictures from Wikipedia (credited) |
-| Translation | every minute | translates page texts readers met in other languages (fast chain) |
+| Introductions and links | every minute | fills missing introductions, pictures, homepages (Wikidata P856) and Wikipedia links, finding the Wikidata item from a Wikidata, ORCID, OpenAlex or IMDb id (40 a minute) |
+| Wikidata starter | continuously (FASTLANE_WORKERS) | first rankings for topics without one (see above) |
+| Translation | continuously | a pool of workers translates the queue (home page and subject pages first, then texts readers met, then the tree), on models the teams do not use; a page's missing texts are translated before it is shown |
 | Vectors | every minute | search vectors for new entities and rankings |
 | Maintenance | hourly | queues repairs, expansions, reviews, source reviews; spins off teams |
 | Queue | every minute | starts queued teams within TEAM_CONCURRENCY and the monthly budget |
