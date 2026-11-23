@@ -13,13 +13,14 @@ export async function typeChain(db:Queryable,type:string):Promise<{type:string;s
  for(let t:string|undefined=type;t&&!seen.has(t)&&out.length<8;){seen.add(t);const r=await rowOf(db,t);if(!r)break;out.push({type:r.type,schema:obj(r.schema),template:obj(r.template)});t=typeof obj(r.schema).extends==='string'?String(obj(r.schema).extends):undefined;}
  return out;
 }
-const keyOf=(x:unknown)=>typeof x==='string'?x:String(obj(x).key??obj(x).name??obj(x).column??JSON.stringify(x));
+const keyOf=(x:unknown)=>typeof x==='string'?x:String(obj(x).key??obj(x).url??obj(x).name??obj(x).column??JSON.stringify(x));
 // Union of lists by key, ancestors' entries first; a descendant's entry with the same key refines it.
 function unionBy(lists:unknown[][]):unknown[]{const m=new Map<string,unknown>();for(const l of lists)for(const x of l)m.set(keyOf(x),x);return [...m.values()];}
 export function mergeSchemas(chainGeneralFirst:Row[]):Row{
  const out:Row={};
  for(const s of chainGeneralFirst)for(const [k,v] of Object.entries(s))if(!Array.isArray(v)&&(typeof v!=='object'||v===null))out[k]=v;else if(!Array.isArray(v))out[k]={...obj(out[k]),...obj(v)};
- for(const k of ['metrics','attributes','relations'])out[k]=unionBy(chainGeneralFirst.map(s=>arr(s[k])));
+ // Lists inherit by union, ancestors first: data to collect, planned indices, ranking criteria and data sources.
+ for(const k of ['metrics','attributes','relations','indices','criteria','sources'])out[k]=unionBy(chainGeneralFirst.map(s=>arr(s[k])));
  return out;
 }
 export function mergeTemplates(chainGeneralFirst:Row[]):Row{
