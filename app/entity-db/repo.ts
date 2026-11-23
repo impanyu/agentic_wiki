@@ -292,6 +292,13 @@ const latestSql=(p:Params,key:string,obsVersion:number,period?:string)=>`select 
 // "ids.wikidata" / "id.iso3" match identifiers; "rel.brand": "Chanel" keeps entities with that relation to the named entity
 // (any of, for an array); "rel.located_in+": "Europe" follows the relation transitively; "rel.located_in|part_of+" follows
 // any of several relations (a city located_in a country part_of Europe).
+// Whether an entity belongs to a scope (type and filters), in one query: a page lists only the rankings it is in.
+export async function inScope(db:Queryable,scope:Scope,entityId:string):Promise<boolean>{
+ if(!UUID.test(entityId))return false;
+ const p=new Params();const where=await scopeSql(db,p,scope);
+ const r=await db.query(`select 1 from entities e where ${where} and e.id = ${p.add(entityId)}::uuid limit 1`,p.list);
+ return r.rows.length>0;
+}
 async function scopeSql(q:Queryable,p:Params,scope:Scope,a='e'):Promise<string>{
  const parts:string[]=['true'];
  if(scope.type)parts.push(`${a}.type = ${p.add(normalizeType(scope.type))}::text`);

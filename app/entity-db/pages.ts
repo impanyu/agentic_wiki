@@ -1,5 +1,5 @@
 import type {Queryable,Row} from './client';
-import {getEntity,metricTable,hybridSearch,RANK_LIMIT} from './repo';
+import {getEntity,metricTable,hybridSearch,inScope,RANK_LIMIT} from './repo';
 import {slugify,questionKey} from '@/app/seo/urls';
 import {topicPaths,canonicalPath,type PathMaps} from '@/app/seo/paths';
 import {formatMetric,entityImage,entityPath,rankingPath,defaultTemplate,mentionKey,type MetricInfo,type MetricFact,type EntityPageData,type Template,type RankingDef,type RankingPageInput,type Point} from '@/app/seo/assemble';
@@ -168,9 +168,10 @@ async function entityRankings(db:Queryable,d:EntityPageData,metrics:Record<strin
    continue;
   }
   try{
+   // Only the sub-rankings the entity is in (a membership query, not a table per scope).
+   if(!await inScope(db,{type:r.scope.type,filters:r.scope.filters},d.entity.id))continue;
    const t=await metricTable(db,{type:r.scope.type,filters:r.scope.filters,metrics:crit,period:'latest'});
    const row=t.rows.find(x=>x.entity_id===d.entity.id);
-   if(!row){const s=await hybridSearch(db,{query:d.entity.name,type:r.scope.type,filters:r.scope.filters,limit:10});if(!s.results.some(x=>x.id===d.entity.id))continue;}
    out.push({slug:r.slug,title:r.title,filters:r.scope.filters||{},ranks:t.metrics.map(m=>({key:m.column,label:m.label,rank:row&&typeof row[m.column+'_rank']==='number'?Number(row[m.column+'_rank']):!row&&metrics[m.key]?RANK_LIMIT+1:null,of:m.count||null}))});
   }catch(e){console.warn('entity page: ranking scope failed',r.slug,(e as Error).message);}
  }
