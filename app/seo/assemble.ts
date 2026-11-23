@@ -40,10 +40,11 @@ export function criterionOf(d:MetricInfo,extra:{key?:string;year?:string}={}):Cr
 export function formatMetric(d:MetricInfo,value:number,locale='en'):string{
  return makeFormatter(criterionOf(d),[value],locale)(value);
 }
+// English ordinals ("2nd"); in every other language the plain number, because each language's templates carry the
+// ordinal form themselves ("第 {rank} 名", "{of}件中{rank}位", "{p}. Perzentil").
 export function ordinal(n:number,locale='en'):string{
- if(/^zh/i.test(locale))return '第'+n;
  if(/^en/i.test(locale)||!locale){const s=['th','st','nd','rd'],v=n%100;return n+(s[(v-20)%10]||s[v]||s[0]);}
- return n+'.';
+ return String(n);
 }
 const nf=(locale:string,o:Intl.NumberFormatOptions)=>{try{return new Intl.NumberFormat(locale||'en',o);}catch{return new Intl.NumberFormat('en',o);}};
 export const countText=(n:number,locale='en')=>nf(locale,{maximumFractionDigits:0}).format(n);

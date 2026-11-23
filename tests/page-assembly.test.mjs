@@ -24,7 +24,7 @@ test('metric definitions become ranking criteria (currency and percent from the 
 
 test('ordinals, counts, lists, labels',()=>{
  assert.deepEqual([1,2,3,4,11,12,13,21,22,101,111].map(n=>a.ordinal(n)),['1st','2nd','3rd','4th','11th','12th','13th','21st','22nd','101st','111th']);
- assert.equal(a.ordinal(4,'zh'),'第4');assert.equal(a.ordinal(4,'de'),'4.');
+ assert.equal(a.ordinal(4,'zh'),'4','templates carry the ordinal form');assert.equal(a.ordinal(4,'de'),'4');
  assert.equal(a.countText(12345),'12,345');
  assert.equal(a.listText(['population','GDP','life expectancy']),'population, GDP, and life expectancy');
  assert.equal(a.listText(['one']),'one');

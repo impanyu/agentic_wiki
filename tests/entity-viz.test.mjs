@@ -18,7 +18,7 @@ test('periods sort as years, months, quarters and dates; points are cleaned and 
 
 test('ordinals, percentiles (ties count half, asc inverts) and top percent',()=>{
  assert.deepEqual([1,2,3,4,11,12,13,21,22,101,111].map(n=>m.ordinal(n,'en')),['1st','2nd','3rd','4th','11th','12th','13th','21st','22nd','101st','111th']);
- assert.equal(m.ordinal(4,'zh-CN'),'第4');assert.equal(m.ordinal(4,'de'),'4.');
+ assert.equal(m.ordinal(4,'zh-CN'),'4','templates carry the ordinal form');assert.equal(m.ordinal(4,'de'),'4');
  const v=[10,20,30,40,50];
  assert.equal(m.percentileOf(50,v),100);assert.equal(m.percentileOf(10,v),0);assert.equal(m.percentileOf(30,v),50);
  assert.equal(m.percentileOf(10,v,'asc'),100);assert.equal(m.percentileOf(50,v,'asc'),0);
