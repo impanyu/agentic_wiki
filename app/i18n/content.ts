@@ -5,7 +5,7 @@ import {DEFAULT_LOCALE,LOCALES} from './locales';
 // page model, stored once per language. One language per page: a text not translated yet is translated before the
 // page is shown (localizeContent); a pool of background workers translates ahead of readers (startTranslationPool).
 // Proper names, numbers and links are kept. A page in another language is indexed only when nothing on it is missing.
-const KEYS=new Set(['title','name','label','lead','text','description','detail','subtitle','about','caption','note','kicker','summary','heading','paragraphs','baseTitle','question','unitLabel','unit']);
+const KEYS=new Set(['title','name','label','lead','text','description','detail','subtitle','about','caption','note','kicker','summary','heading','paragraphs','baseTitle','question','unitLabel','unit','what','predicate','subtitle','headline','tagline','alt']);
 const SKIP=new Set(['href','slug','key','id','image','url','code','format','currency','period','year','entity_id','type','column']);
 const hashOf=(s:string)=>createHash('sha1').update(s).digest('hex').slice(0,20);
 const translatable=(s:string)=>s.length>=2&&s.length<=1200&&/\p{L}{2}/u.test(s)&&!/^(https?:|\/|#|data:)/.test(s)&&!/^[\p{Lu}\d_-]{2,12}$/u.test(s);
@@ -92,7 +92,7 @@ export async function localizeContent<T>(db:Queryable,model:T,locale:string):Pro
  if(!locale||locale===DEFAULT_LOCALE||!LOCALES.some(l=>l.code===locale))return {model,complete:true};
  const texts=new Set<string>();collect(model,texts);
  if(!texts.size)return {model,complete:true};
- const list=[...texts].slice(0,1500),hashes=list.map(hashOf);
+ const list=[...texts].slice(0,4000),hashes=list.map(hashOf);
  const map=new Map<string,string>();
  try{
   const r=await db.query<{hash:string;text:string|null;status:string;attempts:number}>('select hash, text, status, attempts from translations where lang=$1::text and hash = any($2::text[])',[locale,hashes]);

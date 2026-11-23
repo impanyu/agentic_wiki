@@ -95,7 +95,7 @@ test('entity page: lead, card, sections in template order, references, as-of sta
  const pos=m.sections[2];assert.equal(pos.props.highlight,'Germany');assert.equal(pos.props.values.length,2,'the entity is added when outside the peers');assert.match(pos.props.subtitle,/outside them \(1200th of 2,000\)/);
  const peers=m.sections[3];assert.equal(peers.props.values.length,2);assert.equal(peers.props.subtitle,undefined);assert.equal(peers.props.values[0].href,'/e/country/india');
  assert.deepEqual(m.sections[4].props,{name:'Germany',region:'DEU'});
- assert.deepEqual(m.sections[5].props.relations.map(r=>r.predicate+':'+r.name+':'+r.href),['Capital:Berlin:/e/city/berlin','Located in of:Munich:/e/city/munich','Located in of:Hamburg:/e/city/hamburg']);
+ assert.deepEqual(m.sections[5].props.relations.map(r=>r.predicate+':'+r.name+':'+r.href),['Capital:Berlin:/e/city/berlin','Contains:Munich:/e/city/munich','Contains:Hamburg:/e/city/hamburg']);
  assert.equal(m.sections[0].links[0].detail,'Population: 19th of 217 · GDP: outside the top 1,000 · Area: not ranked');
  assert.deepEqual(m.sections[6].props.events,[{date:'1871-01-18',label:'Founded'}]);
  assert.deepEqual(m.sections[7].paragraphs,['GDP was $4.5T in 2023.']);

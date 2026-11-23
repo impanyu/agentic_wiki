@@ -78,7 +78,7 @@ export async function RankingPage(props:Props){
  const {locale,dict,t}=await serverUi();const L=<T,>(v:T)=>localizeLinks(canonicalLinks(v,maps),locale);
  // The page's own words in the reader's language (queued for translation when not translated yet; rows keep their names).
  const loc=(await localizeContent(await entityDb(),{name:v.name,baseTitle:model.title,lead:model.lead,titles:Object.entries(v.titles).map(([key,title])=>({key,title})),
-  related:model.related,subsets:nodeChildren(maps,base),props:rawProps},locale)).model;
+  related:model.related,about:model.about,subsets:nodeChildren(maps,base),props:rawProps},locale)).model;
  const name=loc.name,rprops=loc.props,titles=Object.fromEntries(loc.titles.map(x=>[x.key,x.title]));
  // One address per view: the old /rankings/ address, another spelling of the slug, an unknown or default ?rank=,
  // an unknown ?year= redirect.
@@ -96,7 +96,7 @@ export async function RankingPage(props:Props){
  return <>
   <script type="application/ld+json" dangerouslySetInnerHTML={{__html:jsonLd(ld)}}/>
   <DbShell locale={locale} dictionary={dict} askTargets={L(askTargets)} className="answer template-ranking-v1" account={account} references={<>
-{model.about.length>0&&<section aria-labelledby="about-ranking"><h2 id="about-ranking">{t('About this ranking')}</h2><ul>{model.about.map((x,i)=><li key={i}>{linkParts(x).map((p,j)=>p.href?<a key={j} href={p.href} target="_blank" rel="noopener noreferrer" className="ext">{p.text}</a>:<span key={j}>{p.text}</span>)}</li>)}</ul></section>}
+{loc.about.length>0&&<section aria-labelledby="about-ranking"><h2 id="about-ranking">{t('About this ranking')}</h2><ul>{loc.about.map((x,i)=><li key={i}>{linkParts(x).map((p,j)=>p.href?<a key={j} href={p.href} target="_blank" rel="noopener noreferrer" className="ext">{p.text}</a>:<span key={j}>{p.text}</span>)}</li>)}</ul></section>}
   </>}>
    {base!==internal&&<Breadcrumbs trail={L(nodeTrail(maps,base))} current={maps.nodes.get(base)?.name??model.title}/>}
    <RankingBody slug={input.def.slug} kicker={t('Ranking')+(input.def.status==='draft'?' · '+t('Draft'):'')} subsets={L(loc.subsets)} title={name} baseTitle={loc.baseTitle} titles={titles} basePath={localizeLinks(base,locale)} defaultRank={block.defaultKey} rank={criterion?.key} period={period} charts={charts} props={L({...rprops,rows:packRows(rprops.rows as Record<string,unknown>[])})} lead={loc.lead}/>

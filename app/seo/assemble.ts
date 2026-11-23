@@ -96,6 +96,17 @@ export function fill(pattern:string,values:Record<string,string>):string|null{
  const s=String(pattern||'').replace(PLACEHOLDER,(_m,k:string)=>{const v=values[k];if(v==null||v===''){missing=true;return '';}return v;});
  return missing||!s.trim()?null:s.trim();
 }
+// How an incoming relation reads from this entity's side ("located_in" pointing here: "Contains").
+const INVERSE:Record<string,string>={located_in:'Contains',part_of:'Includes',member_of:'Members',subsidiary_of:'Subsidiaries',owned_by:'Owns',
+ headquartered_in:'Headquarters of',born_in:'Birthplace of',capital_of:'Capital',made_by:'Makes',manufactured_by:'Makes',developed_by:'Develops',
+ published_by:'Publishes',founded_by:'Founded',plays_for:'Players',coached_by:'Coaches',directed_by:'Directed',written_by:'Wrote',performed_by:'Performs',
+ based_in:'Home to',flows_into:'Fed by',borders:'Borders',sister_city_of:'Sister city of',instance_of:'Instances',brand_of:'Brands'};
+export function inverseLabel(predicate:string):string{
+ const p=String(predicate||'').toLowerCase();if(INVERSE[p])return INVERSE[p];
+ // "x_in" / "x_at" / "x_by": the place or agent of what points here.
+ const m=/^(.*)_(in|at|on|by|from|to|for|with)$/.exec(p);if(m)return humanize(m[1])+' ('+m[2]+' here)';
+ return humanize(p)+' of';
+}
 // Text with links: a sentence as parts, each filled value linking to the page of what it names when one exists.
 export type Part={text:string;href?:string};
 export function fillParts(pattern:string,values:Record<string,string>,hrefs:Record<string,string>={}):Part[]|null{
@@ -266,7 +277,7 @@ export function assembleEntityPage(d:EntityPageData,locale='en'):EntityPageModel
    case 'relations':{
     const link=(r:{id?:string;name:string})=>{const h=pageOfRel(r);return h?{href:h}:{};};
     const rels=[...d.relations.outgoing.map(r=>({predicate:humanize(r.predicate),name:r.name,type:r.type,...link(r)})),
-     ...d.relations.incoming.flatMap(g=>g.sample.map(x=>({predicate:humanize(g.predicate)+' of',name:x.name,type:g.type,...link(x)})))];
+     ...d.relations.incoming.flatMap(g=>g.sample.map(x=>({predicate:inverseLabel(g.predicate),name:x.name,type:g.type,...link(x)})))];
     if(!rels.length)break;d.relations.outgoing.forEach(r=>relUsed.add(r.predicate));
     sections.push({component:'relation_graph',title:s.title||'Related',props:{center:{name:e.name},relations:rels.slice(0,80)}});
     break;}
