@@ -40,6 +40,13 @@ const PLAN_SCHEMA={type:'object',additionalProperties:false,required:['types','r
  notes:{type:'string'}}};
 const REPORT_SCHEMA={type:'object',additionalProperties:false,required:['done','open','notes'],properties:{
  done:{type:'array',items:{type:'string'}},open:{type:'array',items:{type:'string'}},notes:{type:'string'}}};
+// The collector's metrics report also lists the planned metrics it could not get, so the editor decides each one.
+const COLLECT_SCHEMA={type:'object',additionalProperties:false,required:['done','open','notes','unavailable'],properties:{
+ done:{type:'array',items:{type:'string'}},open:{type:'array',items:{type:'string'}},notes:{type:'string'},
+ unavailable:{type:'array',items:{type:'object',additionalProperties:false,required:['metric','why','tried'],properties:{metric:{type:'string'},why:{type:'string'},tried:{type:'string'}}}}}};
+const RESOLVE_SCHEMA={type:'object',additionalProperties:false,required:['decisions'],properties:{
+ decisions:{type:'array',items:{type:'object',additionalProperties:false,required:['metric','action','replacement','why'],properties:{
+  metric:{type:'string'},action:{type:'string',enum:['replace','drop','request_access']},replacement:{type:'string'},why:{type:'string'}}}}}};
 const VERDICT_SCHEMA={type:'object',additionalProperties:false,required:['approved','issues','summary'],properties:{
  approved:{type:'boolean'},summary:{type:'string'},
  issues:{type:'array',items:{type:'object',additionalProperties:false,required:['severity','owner','target','problem','fix'],properties:{
@@ -189,18 +196,29 @@ export async function runTopicTeam({slug,name,brief,maxFixRounds=2,log=()=>{}}:{
   async()=>{const n=(await listRankingDefs(db,{topicId:topic.id})).length;return n?undefined:'Save the main ranking (save_ranking) before reporting.';}));
  // Collector and editor work in passes: each pass continues from the plan's open items and the previous report,
  // so a long job survives one pass running out of time or budget.
- const passes=async(role:Role,agent:Agent,instructions:string,step:string,extra:Record<string,unknown>,budget:{rounds:number;calls:number},max=3)=>{
-  let report:{done:string[];open:string[];notes:string}={done:[],open:['everything'],notes:''};const reports=[];
+ const passes=async(role:Role,agent:Agent,instructions:string,step:string,extra:Record<string,unknown>,budget:{rounds:number;calls:number},max=3,schema:Record<string,unknown>=REPORT_SCHEMA)=>{
+  let report:{done:string[];open:string[];notes:string;unavailable?:{metric:string;why:string;tried:string}[]}={done:[],open:['everything'],notes:''};const reports=[];
   for(let i=0;i<max&&report.open.length;i++){
-   try{report=await ask(role,agent,topic.id,instructions+(i?'\nContinue from your previous report: finish what is still open.':''),{...topicInfo,step,pass:i+1,...extra,previous:i?report:undefined},REPORT_SCHEMA,log,budget) as typeof report;}
+   try{report=await ask(role,agent,topic.id,instructions+(i?'\nContinue from your previous report: finish what is still open.':''),{...topicInfo,step,pass:i+1,...extra,previous:i?report:undefined},schema,log,budget) as typeof report;}
    catch(e){report={done:[],open:['pass '+(i+1)+' stopped: '+(e as Error).message.slice(0,300)],notes:''};}
    reports.push(report);
   }
   return reports;
  };
  // Stage 5: metrics — every planned metric loaded by a recipe that has run (the collector's default check).
- const collected=await step('collect',()=>passes('collector',collector,COLLECTOR+'\nStage 5 of the team workflow (metrics): the universe is loaded; now load every planned metric (with history), each by a recipe that runs by itself, and fill coverage gaps.',
-  'collect',{plan,survey,universe},{rounds:40,calls:90},2));
+ const collected=await step('collect',()=>passes('collector',collector,COLLECTOR+'\nStage 5 of the team workflow (metrics): the universe is loaded; now load every planned metric (with history), each by a recipe that runs by itself, and fill coverage gaps. List every planned metric no reliable public source gives in unavailable (why, and the sources you tried); the editor decides what to do with each.',
+  'collect',{plan,survey,universe},{rounds:40,calls:90},2,COLLECT_SCHEMA));
+ // Stage 5b: planned metrics the collector could not get go to the editor, who decides each one — a replacement
+ // metric, dropping it, or asking the operators for access to the source that has it — and records the decisions;
+ // the collector then loads the replacements in one more pass.
+ const unavailable=collected.flatMap(r=>(r as {unavailable?:{metric:string;why:string;tried:string}[]}).unavailable||[]);
+ if(unavailable.length){
+  const resolved=await step('resolve',()=>ask('editor',editor,topic.id,EDITOR_BUILD+'\nStage 5b of the team workflow (metrics the collector could not get): decide each one — "replace" with a measure that public data does support (name it in replacement), "drop" it, or "request_access" when a better source exists that needs a key or account (call request_access too). Record each decision with record_decision and update the plan.',
+   {...topicInfo,step:'resolve',plan,unavailable},RESOLVE_SCHEMA,log,{rounds:12,calls:20}) as Promise<{decisions:{metric:string;action:string;replacement:string;why:string}[]}>);
+  const replacements=resolved.decisions.filter(d=>d.action==='replace'&&d.replacement.trim());
+  if(replacements.length)collected.push(...await step('replace',()=>passes('collector',collector,COLLECTOR+'\nThe editor replaced metrics you could not get with these: load each one by a recipe that runs by itself.',
+   'replace',{plan,replacements},{rounds:30,calls:60},1,COLLECT_SCHEMA)));
+ }
  // Stage 6: full design — template, sub-rankings, composite indices, previews.
  const built=await step('design',()=>passes('editor',editor,EDITOR_BUILD+'\nStage 6 of the team workflow (full design): complete the template, the sub-rankings (established classifications only), composite indices and related rankings; preview every ranking and several entity pages and fix what is wrong.',
   'design',{plan,starter,collector:collected[collected.length-1]},{rounds:32,calls:70},2));
