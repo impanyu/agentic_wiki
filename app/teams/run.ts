@@ -89,20 +89,21 @@ type Log=(e:Record<string,unknown>)=>void;
 // the manager on the commercial model.
 // A builder step that fails or never passes its checks on the open chain is redone once on the commercial model,
 // so an open model can never lower the quality floor.
-async function ask(role:Role,agent:Agent,topicId:string,instructions:string,task:unknown,schema:Record<string,unknown>,log:Log,budget:{rounds:number;calls:number}){
+type Accept=()=>Promise<string|undefined>;
+async function ask(role:Role,agent:Agent,topicId:string,instructions:string,task:unknown,schema:Record<string,unknown>,log:Log,budget:{rounds:number;calls:number},accept?:Accept){
  const builder=role==='editor'||role==='collector';
  // The team's reviewer judges on open models too (a different family from the builders', so it is an independent
  // check), with the commercial model as its fallback; the manager's rulings stay on the commercial model.
  // REVIEWER_CLASS=premium puts reviews back on the commercial model.
  if(role==='reviewer'&&process.env.REVIEWER_CLASS!=='premium'){
-  try{return await askOnce(role,agent,topicId,instructions,task,schema,log,budget,'review');}
-  catch(e){log({event:'escalated',role,from:'review',to:'premium',reason:(e as Error).message.slice(0,300)});return askOnce(role,agent,topicId,instructions,task,schema,log,budget,'premium');}
+  try{return await askOnce(role,agent,topicId,instructions,task,schema,log,budget,'review',accept);}
+  catch(e){log({event:'escalated',role,from:'review',to:'premium',reason:(e as Error).message.slice(0,300)});return askOnce(role,agent,topicId,instructions,task,schema,log,budget,'premium',accept);}
  }
- if(!builder)return askOnce(role,agent,topicId,instructions,task,schema,log,budget,'premium');
- try{return await askOnce(role,agent,topicId,instructions,task,schema,log,budget,'agent');}
- catch(e){log({event:'escalated',role,from:'agent',to:'premium',reason:(e as Error).message.slice(0,300)});return askOnce(role,agent,topicId,instructions,task,schema,log,budget,'premium');}
+ if(!builder)return askOnce(role,agent,topicId,instructions,task,schema,log,budget,'premium',accept);
+ try{return await askOnce(role,agent,topicId,instructions,task,schema,log,budget,'agent',accept);}
+ catch(e){log({event:'escalated',role,from:'agent',to:'premium',reason:(e as Error).message.slice(0,300)});return askOnce(role,agent,topicId,instructions,task,schema,log,budget,'premium',accept);}
 }
-async function askOnce(role:Role,agent:Agent,topicId:string,instructions:string,task:unknown,schema:Record<string,unknown>,log:Log,budget:{rounds:number;calls:number},llmClass:'agent'|'premium'|'review'){
+async function askOnce(role:Role,agent:Agent,topicId:string,instructions:string,task:unknown,schema:Record<string,unknown>,log:Log,budget:{rounds:number;calls:number},llmClass:'agent'|'premium'|'review',accept?:Accept){
  const db=await entityDb();
  const runId=await startTeamRun(db,{topicId,role,task:typeof task==='string'?task:JSON.stringify(task)});
  const ctx={userId:OWNER,ownerId:OWNER,language:'en',visibility:'public',agent:{id:agent.id}} as unknown as AgentContext;
@@ -114,7 +115,8 @@ async function askOnce(role:Role,agent:Agent,topicId:string,instructions:string,
    // A verdict must rest on evidence gathered in this review.
    ...(role==='reviewer'?{validateFinal:async()=>calls<6?'Check with your tools before deciding (coverage, preview_page of every ranking and several entity pages, spot checks against the source); then return the verdict.':undefined}:{}),
    // A collector's report is accepted only when the data refreshes by itself (no recipe problems for the topic's types).
-   ...(role==='collector'?{maxValidationRetries:3,validateFinal:async()=>{
+   // A stage's own acceptance check replaces the role's default.
+   ...(accept?{maxValidationRetries:3,validateFinal:async()=>accept()}:role==='collector'?{maxValidationRetries:3,validateFinal:async()=>{
     const problems:string[]=[];for(const t of await listEntityTypes(db,topicId))problems.push(...(await coverage(t.type,'',0)).recipeProblems);
     return problems.length?'Your report cannot be accepted yet — fix these first (save_recipe with complete steps, then run_recipe until it succeeds): '+problems.slice(0,8).join(' '):undefined;}}:{}),maxCalls:budget.calls,maxInputChars:400_000,
    extraTools:teamToolDefs(role),executeExtra:(name,args)=>runTeamTool(role,name,args,ctx,topicId),
@@ -166,7 +168,25 @@ export async function runTopicTeam({slug,name,brief,maxFixRounds=2,log=()=>{}}:{
   if(name in done){log({event:'resumed',step:name});return done[name] as T;}
   const out=await run();done[name]=out;done.at=new Date().toISOString();await setState(db,key,done).catch(()=>{});return out;
  };
- const plan=await step('plan',()=>ask('editor',editor,topic.id,EDITOR_PLAN,{...topicInfo,step:'plan'},PLAN_SCHEMA,log,{rounds:24,calls:40}));
+ // A fixed workflow: every stage has one deliverable, a call budget and an acceptance check, and is checkpointed.
+ // Pages become visible after stage 4 (entities loaded and a first ranking), then metrics and design deepen them.
+ const plan=await step('plan',()=>ask('editor',editor,topic.id,EDITOR_PLAN+'\nStage 1 of the team workflow (plan): decide the entity types, each type\'s universe and expected size, the main ranking and its criteria, and the sources to try. Be concise; do not collect data yourself.',{...topicInfo,step:'plan'},PLAN_SCHEMA,log,{rounds:14,calls:24}));
+ const types=async()=>(await listEntityTypes(db,topic.id)).map(t=>t.type);
+ const countOf=async(list:string[])=>list.length?Number((await db.query<{n:number}>('select count(*)::int n from entities where type = any($1::text[])',[list])).rows[0]?.n||0):0;
+ const plannedTypes=((plan as {types?:{type:string}[]}).types||[]).map(t=>String(t.type||'').toLowerCase().replace(/[^a-z0-9]+/g,'_')).filter(Boolean);
+ // Stage 2: source survey — the register holds the candidates and the universe source is chosen.
+ const survey=await step('survey',()=>ask('collector',collector,topic.id,COLLECTOR+'\nStage 2 of the team workflow (source survey): do ONLY step 0 — survey and record sources (record_sources), choose the source of the universe (the full list of entities) and the best source per planned metric. Do not load entities yet. Report the chosen sources.',
+  {...topicInfo,step:'survey',plan},REPORT_SCHEMA,log,{rounds:18,calls:30},
+  async()=>{const n=Number((await db.query<{n:number}>('select count(*)::int n from sources where topic_id=$1::uuid',[topic.id])).rows[0]?.n||0);return n>=3?undefined:'Record at least 3 candidate sources with record_sources (chosen or rejected, with why) before reporting; '+n+' recorded so far.';}));
+ // Stage 3: load the universe — every entity with its standard ids, picture, links and introduction, by a recipe.
+ const universe=await step('universe',()=>ask('collector',collector,topic.id,COLLECTOR+'\nStage 3 of the team workflow (load the universe): load the full list of entities now — names, standard ids, the main attributes, picture, official website, Wikipedia and introduction — with entity_upsert or bulk_import (with the admission standard), save it as a recipe (save_recipe) and run it once (run_recipe). Set the entity schema. Metrics come in the next stage; load the ones the universe source already gives.',
+  {...topicInfo,step:'universe',plan,survey},REPORT_SCHEMA,log,{rounds:24,calls:40},
+  async()=>{const list=[...new Set([...plannedTypes,...await types()])];const n=await countOf(list);const r=Number((await db.query<{n:number}>('select count(*)::int n from recipes where type = any($1::text[])',[list])).rows[0]?.n||0);
+   return n<1?'No entities are loaded yet for '+(list.join(', ')||'the planned types')+'. Load the universe (entity_upsert or bulk_import) before reporting.':r<1?'Save the loading steps as a recipe (save_recipe) and run it (run_recipe) so the list refreshes by itself.':undefined;}));
+ // Stage 4: a first ranking and a basic template — the topic's pages are visible from here on.
+ const starter=await step('starter',()=>ask('editor',editor,topic.id,EDITOR_BUILD+'\nStage 4 of the team workflow (first pages): with the data loaded so far, save the main ranking (save_ranking, the criteria that have data now) and a basic entity template (set_entity_template: lead sentence, card, rankings and the sections the data supports). Preview one ranking and one entity page. Deeper design comes later.',
+  {...topicInfo,step:'starter',plan,universe},REPORT_SCHEMA,log,{rounds:18,calls:30},
+  async()=>{const n=(await listRankingDefs(db,{topicId:topic.id})).length;return n?undefined:'Save the main ranking (save_ranking) before reporting.';}));
  // Collector and editor work in passes: each pass continues from the plan's open items and the previous report,
  // so a long job survives one pass running out of time or budget.
  const passes=async(role:Role,agent:Agent,instructions:string,step:string,extra:Record<string,unknown>,budget:{rounds:number;calls:number},max=3)=>{
@@ -178,8 +198,13 @@ export async function runTopicTeam({slug,name,brief,maxFixRounds=2,log=()=>{}}:{
   }
   return reports;
  };
- const collected=await step('collect',()=>passes('collector',collector,COLLECTOR,'collect',{plan},{rounds:40,calls:90}));
- const built=await step('design',()=>passes('editor',editor,EDITOR_BUILD,'design',{plan,collector:collected[collected.length-1]},{rounds:32,calls:70}));
+ // Stage 5: metrics — every planned metric loaded by a recipe that has run (the collector's default check).
+ const collected=await step('collect',()=>passes('collector',collector,COLLECTOR+'\nStage 5 of the team workflow (metrics): the universe is loaded; now load every planned metric (with history), each by a recipe that runs by itself, and fill coverage gaps.',
+  'collect',{plan,survey,universe},{rounds:40,calls:90},2));
+ // Stage 6: full design — template, sub-rankings, composite indices, previews.
+ const built=await step('design',()=>passes('editor',editor,EDITOR_BUILD+'\nStage 6 of the team workflow (full design): complete the template, the sub-rankings (established classifications only), composite indices and related rankings; preview every ranking and several entity pages and fix what is wrong.',
+  'design',{plan,starter,collector:collected[collected.length-1]},{rounds:32,calls:70},2));
+ // Stage 7: review (then fix rounds and, if still stuck, the manager's ruling).
  let verdict=await ask('reviewer',reviewer,topic.id,REVIEWER,{...topicInfo,step:'review',plan},VERDICT_SCHEMA,log,{rounds:32,calls:70}) as {approved:boolean;issues:{owner:string;severity:string}[];summary:string};
  const rounds:unknown[]=[];
  const teamIssues=()=>verdict.issues.filter(x=>x.owner!=='platform'&&x.severity!=='minor');
