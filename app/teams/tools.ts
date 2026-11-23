@@ -77,7 +77,8 @@ async function teamState(type:string,topicId:string|null){
   where $1::text is null or e.type=$1::text group by o.metric, m.label, m.unit, m.kind order by o.metric limit 200`,[type?normalizeType(type):null])).rows;
  return {
   topic:topicId?await topicBrief(db,topicId):null,
-  types:types.map(t=>({...t,entities:counts.get(t.type)??0})),
+  // Each type with what it inherits (extends: its ancestors) and its effective schema (inherited + own).
+  types:await Promise.all(types.map(async t=>{const {effectiveType}=await import('@/app/entity-db/inherit');const e=await effectiveType(db,t.type).catch(()=>null);return {...t,entities:counts.get(t.type)??0,...(e?{extends:e.extends,effectiveSchema:e.schema}:{})};})),
   untypedEntities:[...counts].filter(([t])=>!types.some(x=>x.type===t)).map(([t,n])=>({type:t,entities:n})),
   rankings:await listRankingDefs(db,{type:type||undefined,topicId:type?undefined:topicId}),
   recipes:(await listRecipes(db,type||undefined)).map(r=>({type:r.type,name:r.name,description:r.description,schedule:r.schedule,status:r.status,steps:r.steps.length,lastRunAt:r.lastRunAt,lastResult:r.lastResult})),

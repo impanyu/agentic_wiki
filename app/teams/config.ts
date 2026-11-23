@@ -22,6 +22,14 @@ export function validateTemplate(t:unknown):Row{
 }
 export async function saveEntityType(db:Queryable,input:{type:string;label?:string;plural?:string;description?:string;schema?:Row;template?:Row;topicId?:string|null;updatedBy:string;status?:string}):Promise<EntityType>{
  const type=normalizeType(input.type);
+ // A type extends the type of the nearest topic above its own (inheritance follows the topic tree): recorded in
+ // schema.extends the first time, unless the team names another parent.
+ if(input.topicId){
+  const cur=(await db.query<{schema:Row}>('select schema from entity_types where type=$1::text',[type])).rows[0];
+  const has=typeof (input.schema as Row|undefined)?.extends==='string'||typeof (cur?.schema as Row|undefined)?.extends==='string';
+  if(!has){const {parentTypeFor}=await import('@/app/entity-db/inherit');const parent=await parentTypeFor(db,input.topicId,type);
+   if(parent)input={...input,schema:{...(input.schema||(cur?.schema as Row)||{}),extends:parent}};}
+ }
  const r=await db.query(`insert into entity_types(type,topic_id,label,plural,description,schema,template,status,updated_by)
   values ($1::text,$2::uuid,$3::text,$4::text,$5::text,coalesce($6::jsonb,'{}'::jsonb),coalesce($7::jsonb,'{}'::jsonb),coalesce($8::text,'draft'),$9::text)
   on conflict (type) do update set topic_id=coalesce(excluded.topic_id,entity_types.topic_id),

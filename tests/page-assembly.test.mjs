@@ -149,7 +149,7 @@ test('addresses and CSV',()=>{
 // ───────────── page data builders against PGlite ─────────────
 const out=new URL('../node_modules/.cache/page-assembly-test/',import.meta.url);mkdirSync(out,{recursive:true});
 const write=(name,src,map={})=>{let js=tr(src);js=js.replace(/(from\s*|import\()\s*(['"])([^'"]+)\2/g,(m,pre,q,spec)=>map[spec]?`${pre}'${map[spec]}'`:spec.startsWith('./')?`${pre}'${spec}.mjs'`:m);writeFileSync(new URL(name+'.mjs',out),js);};
-for(const f of ['client','schema','metrics','embeddings','units','reserved','repo'])write(f,readFileSync(`app/entity-db/${f}.ts`,'utf8'));
+for(const f of ['client','schema','metrics','embeddings','units','reserved','repo','inherit'])write(f,readFileSync(`app/entity-db/${f}.ts`,'utf8'));
 writeFileSync(new URL('pure.mjs',out),tr(pure));
 write('paths',readFileSync('app/seo/paths.ts','utf8'),{'@/app/entity-db/reserved':'./reserved.mjs'});
 write('pages',readFileSync('app/entity-db/pages.ts','utf8'),{'@/app/seo/urls':'./pure.mjs','@/app/seo/assemble':'./pure.mjs','@/app/seo/paths':'./paths.mjs'});

@@ -24,8 +24,11 @@ export async function listRankingDefinitions(db:Queryable,{type}:{type?:string}=
 export type EntityTypeInfo={type:string;label:string;plural:string;description:string;template:Template|null;schema:Record<string,unknown>};
 export async function getEntityType(db:Queryable,type:string):Promise<EntityTypeInfo>{
  const r=(await db.query('select type, label, plural, description, template, schema from entity_types where type = $1::text',[type])).rows[0];
- const t=obj(r?.template);const label=String(r?.label||'')||type.replace(/_/g,' ');
- return {type,label,plural:String(r?.plural||'')||label+'s',description:String(r?.description||''),template:Object.keys(t).length?t as Template:null,schema:obj(r?.schema)};
+ const label=String(r?.label||'')||type.replace(/_/g,' ');
+ // The page uses the effective template and schema: everything the type inherits from the types above it, plus its own.
+ const {effectiveType}=await import('./inherit');const eff=await effectiveType(db,type).catch(()=>({template:obj(r?.template),schema:obj(r?.schema)}));
+ const t=obj(eff.template);
+ return {type,label,plural:String(r?.plural||'')||label+'s',description:String(r?.description||''),template:Object.keys(t).length?t as Template:null,schema:obj(eff.schema)};
 }
 // Metric definitions by key: the published version, else the latest.
 export async function metricInfos(db:Queryable,keys:string[]):Promise<Record<string,MetricInfo>>{
