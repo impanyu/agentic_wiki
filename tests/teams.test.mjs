@@ -21,3 +21,8 @@ test('drift: far fewer rows or a field gone empty marks a run as failed',()=>{
  assert.equal(d.length,3);assert.match(d[0],/"rating" filled on 3%/);assert.match(d[1],/300 rows, 1000 last time/);
  assert.deepEqual(m.driftOf(undefined,[]),[]);
 });
+test('a recipe that reads with our own model is recognised (it waits while our model is offline)',()=>{
+ assert.equal(m.usesOwnModel([{id:'a',tool:'crawl_pages',args:{}},{id:'b',tool:'llm_extract',args:{}}]),true);
+ assert.equal(m.usesOwnModel([{id:'a',tool:'extract_fields',args:{}}]),false);
+ assert.doesNotThrow(()=>m.parseSteps([{id:'r',tool:'llm_extract',args:{}}]));
+});

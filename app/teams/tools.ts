@@ -271,7 +271,7 @@ export async function runTeamTool(role:Role,name:string,args:Record<string,unkno
  if(topicId&&(role==='collector'||role==='editor')&&AUTO_SOURCE.has(name))void autoRecordSource(db,topicId,name,args).catch(()=>{});
  return out;
 }
-const AUTO_SOURCE=new Set(['fetch_data','extract_tables','browse_page','crawl_pages','extract_fields','bulk_import']);
+const AUTO_SOURCE=new Set(['fetch_data','extract_tables','browse_page','crawl_pages','extract_fields','llm_extract','bulk_import']);
 async function autoRecordSource(db:Queryable,topicId:string,tool:string,args:Record<string,unknown>){
  const raw=String(args.url||args.startUrl||args.indexUrl||'').trim();if(!/^https?:\/\//.test(raw))return;
  let u:URL;try{u=new URL(raw.replace(/\{\{[^}]*\}\}/g,'x'));}catch{return;}

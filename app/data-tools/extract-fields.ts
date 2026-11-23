@@ -150,7 +150,7 @@ export function inspectPage(p:PageData){
 }
 
 // ───────────── fetch pages politely ─────────────
-async function pageHtml(url:string,render:boolean,signal:AbortSignal):Promise<{url:string;html:string}>{
+export async function pageHtml(url:string,render:boolean,signal:AbortSignal):Promise<{url:string;html:string}>{
  if(render){const {renderPage}=await import('./browser');const r=await renderPage(url,{captureJson:false},signal);if(r.blocked||r.challenge)throw Error('Blocked: '+(r.blocked||'challenge'));return {url:r.url,html:r.html};}
  const r=await fetchText(url,signal,{accept:'text/html,application/xhtml+xml'});return {url:r.url,html:r.text};
 }
@@ -158,7 +158,7 @@ export async function inspectPageTool(args:{url:string;render:boolean},signal:Ab
  const r=await pageHtml(publicUrl(args.url).href,args.render,signal);return inspectPage(readPage(r.url,r.html));
 }
 // Runs pages host by host (≥ 1 s apart on a host, a few hosts at once), within the time budget.
-async function politely<T>(urls:string[],work:(url:string)=>Promise<T>,signal:AbortSignal):Promise<(T|Error)[]>{
+export async function politely<T>(urls:string[],work:(url:string)=>Promise<T>,signal:AbortSignal):Promise<(T|Error)[]>{
  const byHost=new Map<string,number[]>();urls.forEach((u,i)=>{const h=new URL(u).host;const l=byHost.get(h)??[];l.push(i);byHost.set(h,l);});
  const out:(T|Error)[]=new Array(urls.length);const queues=[...byHost.values()];
  const worker=async()=>{for(let q=queues.shift();q;q=queues.shift())for(const i of q){if(signal.aborted){out[i]=Error('Stopped: time budget reached.');continue;}

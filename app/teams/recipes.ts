@@ -8,7 +8,7 @@ import {recordRecipeRun,type Recipe} from './config';
 // model. "$<step id>" in an argument is replaced by that step's dataset id (or the step's value at a
 // path: "$src.dataset.datasetId"). Only collection tools may run: public sources, fetching and
 // table tools, and loading into the entity database.
-export const RECIPE_TOOLS=['call_public_source','fetch_data','extract_tables','query_data','describe_data','crawl_pages','browse_page','extract_fields','entity_upsert','bulk_import','define_metric','compute_metric'] as const;
+export const RECIPE_TOOLS=['call_public_source','fetch_data','extract_tables','query_data','describe_data','crawl_pages','browse_page','extract_fields','llm_extract','entity_upsert','bulk_import','define_metric','compute_metric'] as const;
 type Step={id:string;tool:string;args:Record<string,unknown>};
 export type StepResult={id:string;tool:string;ok:boolean;ms:number;summary?:unknown;error?:string};
 
@@ -26,7 +26,7 @@ export function parseSteps(raw:unknown):Step[]{
 }
 // A recipe must be complete: every fetched dataset is used by a later step (cleaned, joined or loaded), and the
 // recipe ends by loading into the entity database. Otherwise it would fetch data that never reaches readers.
-const FETCHERS=['call_public_source','fetch_data','extract_tables','crawl_pages','browse_page','extract_fields','query_data'];
+const FETCHERS=['call_public_source','fetch_data','extract_tables','crawl_pages','browse_page','extract_fields','llm_extract','query_data'];
 export function checkRecipe(steps:Step[]):string[]{
  const problems:string[]=[];
  const refs=(v:unknown,out:Set<string>)=>{if(typeof v==='string'){for(const m of v.matchAll(/\$([a-z][a-z0-9_]*)/gi))out.add(m[1]);}
@@ -59,6 +59,7 @@ function summary(tool:string,data:unknown):unknown{
  if(tool==='entity_upsert'){const {rows,inserted,merged,skipped,observations,relations,unresolved,idConflicts,errors,units}=o;return {rows,inserted,merged,skipped,observations,relations,unresolved,idConflicts,errors,units};}
  const d=(o.dataset as Record<string,unknown>)||o;
  if(tool==='extract_fields')return {datasetId:datasetOf(o),rowCount:o.rowCount,pages:o.pages,fillRates:o.fillRates,errors:o.errors};
+ if(tool==='llm_extract')return {datasetId:datasetOf(o),rowCount:o.rowCount,pages:o.pages,fillRates:o.fillRates,rejected:o.rejected,modelCalls:o.modelCalls,cachedReads:o.cachedReads,models:o.models,errors:o.errors};
  return {datasetId:datasetOf(o),rowCount:d.rowCount??o.rowCount,columns:Array.isArray(d.columns)?(d.columns as {name:string}[]).map(c=>c.name??c).slice(0,30):undefined,note:typeof o.note==='string'?undefined:o.note,title:d.title??o.title};
 }
 export async function runSteps(stepsRaw:unknown,ctx:AgentContext,signal?:AbortSignal):Promise<{ok:boolean;steps:StepResult[]}>{
@@ -102,8 +103,14 @@ export function driftOf(prev:StepResult[]|undefined,now:StepResult[]):string[]{
 // A bulk source is loaded over several runs: while a bulk_import step is partial the recipe stays due (the next
 // heartbeat continues it), and drift is only judged on complete runs.
 export const isPartial=(steps:StepResult[])=>steps.some(s=>s.tool==='bulk_import'&&(s.summary as {partial?:boolean}|undefined)?.partial);
+// A recipe that reads pages with our own model waits while no worker of ours is online (never a paid model): it is
+// neither run nor marked failed, and is tried again later (deferred).
+export const usesOwnModel=(steps:unknown)=>Array.isArray(steps)&&steps.some(s=>s&&typeof s==='object'&&(s as {tool?:unknown}).tool==='llm_extract');
 export async function runRecipe(db:Queryable,recipe:Recipe,signal?:AbortSignal){
+ if(usesOwnModel(recipe.steps)){const {poolOnline}=await import('@/app/llm/pool');
+  if(!(await poolOnline('local')))return {ok:false,deferred:true,steps:[] as StepResult[],error:'OWN_MODEL_OFFLINE: waiting for our own model'};}
  const run=await runSteps(recipe.steps,crawlerContext(recipe),signal);
+ if(!run.ok&&run.steps.some(s=>/^OWN_MODEL_OFFLINE/.test(s.error||'')))return {...run,deferred:true};
  const partial=run.ok&&isPartial(run.steps);
  const drift=run.ok&&!partial?driftOf((recipe.lastResult as {steps?:StepResult[]}|null)?.steps,run.steps):[];
  const result={...run,ok:run.ok&&!drift.length,...(drift.length?{drift}:{}),...(partial?{partial:true}:{})};

@@ -38,6 +38,12 @@ export async function runDueRecipes(limit=Math.max(1,Number(process.env.CRAWLER_
 }
 async function runOne(db:Awaited<ReturnType<typeof entityDb>>,r:Recipe){
  const result=await runRecipe(db,r).catch(e=>({ok:false,steps:[],error:(e as Error).message}));
+ // Waiting for our own model: due again in an hour, not a failure.
+ if((result as {deferred?:boolean}).deferred){
+  const every=INTERVAL[r.schedule]||86400e3;
+  await db.query('update recipes set last_run_at = now() - make_interval(secs => $2::double precision) where id=$1::uuid',[r.id,Math.max(0,every-3600e3)/1000]);
+  console.log('[crawler]',r.type+'/'+r.name,'deferred (our own model is offline)');return;
+ }
  if(!result.ok)await reportFailure(r,result).catch(e=>console.error('crawler: report failed',(e as Error).message));
  // Fresh data: the editors' indices over this type are recomputed from it at once.
  else if(!(result as {partial?:boolean}).partial)await recomputeIndices(r.type).catch(e=>console.error('crawler: index recompute failed',(e as Error).message));

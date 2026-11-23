@@ -1,5 +1,5 @@
 // Internal request/response shape: the subset of the OpenAI Responses API this app uses.
-export type TaskClass='premium'|'agent'|'fast'|'vision'|'translate'|'instant'|'review'|'embed'|'site-embed';
+export type TaskClass='premium'|'agent'|'fast'|'vision'|'translate'|'instant'|'review'|'extract'|'extract-test'|'embed'|'site-embed';
 export type ReasoningEffort='none'|'minimal'|'low'|'medium'|'high'|'xhigh'|'max';
 export type ContentPart={type:string;text?:string;image_url?:string;detail?:string;annotations?:Annotation[];[key:string]:unknown};
 export type InputItem=

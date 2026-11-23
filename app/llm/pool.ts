@@ -11,6 +11,11 @@ function refresh(){
   .catch(()=>{live.loading=false;live.at=Date.now();});
 }
 export function poolAvailable(model:string){refresh();return live.models.has(model);}
+// Whether a worker serving the model checked in within 90 s, read now (for a decision that should not wait a refresh).
+export async function poolOnline(model:string){
+ const db=await entityDb();
+ return (await db.query("select 1 from llm_workers where last_seen > now() - interval '90 seconds' and $1::text = any(models) limit 1",[model])).rows.length>0;
+}
 export async function poolRun(model:string,body:Record<string,unknown>,timeoutMs:number,signal?:AbortSignal):Promise<any>{
  const db=await entityDb();
  const id=(await db.query<{id:string}>('insert into llm_jobs(model, body) values ($1::text, $2::jsonb) returning id',[model,JSON.stringify(body)])).rows[0].id;

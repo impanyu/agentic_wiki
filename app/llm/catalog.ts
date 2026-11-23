@@ -72,6 +72,10 @@ export const BASE_CATALOG:Catalog={
   instant:['gemini:gemini-3.8-flash-lite','openai'],
   // Never the builders' models (deepseek, glm-5, minimax, qwen3, kimi): translation must not slow the teams down.
   translate:['gemini:gemini-3.8-flash-lite','pool:local','nrp:gemma','nrp:gpt-oss','openai'],
+  // Reading facts out of web pages at scale (recipes' llm_extract steps): only our own GPUs, never a paid model.
+  extract:['pool:local'],
+  // An agent testing extraction on a few pages before saving the recipe: our own model, else free models — never OpenAI.
+  'extract-test':['pool:local','nrp:qwen3','nrp:gpt-oss','gemini:gemini-3.8-flash-lite'],
   vision:['nrp:qwen3','nrp:gemma','gemini:gemini-3.8-flash','openrouter:nemotron-3.5-super-vl','openai'],
  },
  // premium -> (over budget or failing) -> the free part of this chain.

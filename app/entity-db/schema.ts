@@ -280,6 +280,10 @@ export const MIGRATIONS:Migration[]=[
   'drop trigger if exists metrics_changed on metrics',
   'create trigger metrics_changed after update on metrics referencing old table as o new table as n for each statement execute function note_metric_change()',
  ]},
+ {version:20,name:'model extraction cache',statements:()=>[
+  'create table if not exists extract_cache(key text primary key, result jsonb not null, model text not null default \'\', created_at timestamptz not null default now())',
+  'create index if not exists extract_cache_created on extract_cache(created_at)',
+ ]},
 ];
 export const SCHEMA_VERSION=MIGRATIONS[MIGRATIONS.length-1].version;
 
