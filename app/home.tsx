@@ -5,7 +5,7 @@ import {Clock3,LoaderCircle,AppWindow,FileText,X,Bot} from 'lucide-react';
 import {useUi} from '@/app/i18n/client';
 import type {HomeCard,CardStatus} from '@/app/api/home/route';
 import type {NodeCard,FeaturedRanking} from '@/app/entity-db/pages';
-import {NodeGrid,RankingGrid,RecentlyViewed} from './explore';
+import {NodeGrid,RankingGrid,RecentlyViewed,FollowedTopics} from './explore';
 
 // The home page: recently visited pages and the newest public pages, as cards.
 export function HomePage({onOpen,revision=0,nodes=[],popular=[]}:{onOpen:(card:HomeCard)=>void;revision?:number;nodes?:NodeCard[];popular?:FeaturedRanking[]}){
@@ -21,6 +21,7 @@ function PublicHome({nodes,popular}:{nodes:NodeCard[];popular:FeaturedRanking[]}
    <h1><em>RankWiki</em></h1>
    <p>{t('Rank everything.')}</p>
   </section>
+  <FollowedTopics/>
   <NodeGrid nodes={nodes}/>
   <RankingGrid rankings={popular} title={t('Popular rankings')}/>
   <RecentlyViewed/>

@@ -8,7 +8,7 @@ import {localePath,dirOf,splitLocale} from '@/app/i18n/locales';
 import {LanguageSwitcher} from '@/app/i18n/switcher';
 import {SearchBox} from '@/app/search-box';
 import {isPacked,unpackRows} from '@/app/seo/pack-rows';
-import {NodeGrid,recordVisit,RecentlyViewed} from '@/app/explore';
+import {NodeGrid,recordVisit,RecentlyViewed,FollowButton} from '@/app/explore';
 import type {NodeCard} from '@/app/entity-db/pages';
 import {SITE_NAME,PUBLIC_EDITION} from '@/app/edition';
 import {AskTargets,RankingView} from '@/app/seo/link-context';
@@ -72,7 +72,7 @@ export function RankingBody({slug,kicker,subsets=[],title:initialTitle,baseTitle
  const view={rank,charts,period:initialPeriod,rankHref:(key:string)=>key===defaultRank?basePath:basePath+'?rank='+encodeURIComponent(key),
   onRank:(key:string)=>retitle({...state,rank:key}),onPeriod:(p:string)=>retitle({...state,period:p})};
  return <RankingView.Provider value={view}>
-  <header className="wiki-heading db-hero">{kicker&&<span className="db-kicker"><Trophy size={13} aria-hidden="true"/>{kicker}</span>}<h1>{title}</h1>{lead&&<p className="lead">{lead}</p>}</header>
+  <header className="wiki-heading db-hero">{kicker&&<span className="db-kicker"><Trophy size={13} aria-hidden="true"/>{kicker}</span>}<h1>{title}</h1>{lead&&<p className="lead">{lead}</p>}<FollowButton name={baseTitle} href={basePath}/></header>
   {subsets.length>0&&<><h2 className="rw-nodes-title">{t('Narrow down')}</h2><NodeGrid nodes={subsets} compact/></>}
   <Ranking props={full} setValue={noop} fire={(name:string,payload:unknown)=>{if(name!=='select')return;const row=payload as {name?:unknown}|null;const href=row&&typeof row.name==='string'?targets?.[questionKey(row.name)]:null;if(href)window.location.assign(href);}} ctx={ctx}/>
  </RankingView.Provider>;

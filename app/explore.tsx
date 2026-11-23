@@ -1,6 +1,6 @@
 'use client';
 import {useEffect,useState} from 'react';
-import {ArrowUpRight,ChevronRight,Compass,Trophy,Layers,BarChart3,History,CircleDot} from 'lucide-react';
+import {ArrowUpRight,ChevronRight,Compass,Trophy,Layers,BarChart3,History,CircleDot,Star} from 'lucide-react';
 import {useUi} from '@/app/i18n/client';
 import {localePath} from '@/app/i18n/locales';
 import type {FeaturedRanking,TopicNav,NodeCard} from '@/app/entity-db/pages';
@@ -103,5 +103,30 @@ export function RecentlyViewed(){
   <h2 id="rw-recent-title"><History size={18} aria-hidden="true"/>{t('Recently viewed')}</h2>
   <div className="rw-recent-list">{list.map(x=><a key={x.href} href={x.href} className={'rw-recent-item '+x.kind}>
    {x.kind==='ranking'?<Trophy size={14} aria-hidden="true"/>:x.kind==='entity'?<CircleDot size={14} aria-hidden="true"/>:<Compass size={14} aria-hidden="true"/>}<span>{x.title}</span></a>)}</div>
+ </section>;
+}
+
+// Topics the reader follows: chosen on any topic or ranking page, listed first on the home page. Kept in this
+// browser only (no account needed).
+type Follow={name:string;href:string};
+const FOLLOWS='rw-follows';
+const readFollows=():Follow[]=>{try{const v=JSON.parse(localStorage.getItem(FOLLOWS)||'[]');return Array.isArray(v)?v.filter(x=>x&&typeof x.href==='string'&&typeof x.name==='string'):[];}catch{return [];}};
+const writeFollows=(v:Follow[])=>{try{localStorage.setItem(FOLLOWS,JSON.stringify(v.slice(0,60)));}catch{}};
+export function FollowButton({name,href}:{name:string;href:string}){
+ const {t}=useUi();
+ const [on,setOn]=useState(false);
+ useEffect(()=>{setOn(readFollows().some(x=>x.href===href));},[href]);
+ const toggle=()=>{const list=readFollows().filter(x=>x.href!==href);if(!on)list.unshift({name,href});writeFollows(list);setOn(!on);};
+ return <button type="button" className={'rw-follow'+(on?' on':'')} aria-pressed={on} onClick={toggle}>
+  <Star size={15} aria-hidden="true" fill={on?'currentColor':'none'}/>{on?t('Following'):t('Follow')}</button>;
+}
+export function FollowedTopics(){
+ const {t}=useUi();
+ const [list,setList]=useState<Follow[]>([]);
+ useEffect(()=>{setList(readFollows());},[]);
+ if(!list.length)return null;
+ return <section className="rw-explore rw-recent rw-followed" aria-labelledby="rw-followed-title">
+  <h2 id="rw-followed-title"><Star size={18} aria-hidden="true"/>{t('Your topics')}</h2>
+  <div className="rw-recent-list">{list.map(x=><a key={x.href} href={x.href} className="rw-recent-item topic"><Compass size={14} aria-hidden="true"/><span>{x.name}</span></a>)}</div>
  </section>;
 }

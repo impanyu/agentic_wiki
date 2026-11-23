@@ -493,3 +493,9 @@ html,body{background:var(--rw-bg)}
 .rw-build strong{display:block;font-size:14px;color:var(--rw-ink);margin-bottom:4px}
 .rw-build p{margin:0;font-size:13.5px;color:var(--rw-text);line-height:1.55}
 .rw-build-stats{display:flex;gap:14px;margin-top:8px!important;color:var(--rw-muted)!important;font-size:12.5px!important}
+/* Follow a topic or ranking */
+.rw-follow{display:inline-flex;align-items:center;gap:6px;margin-top:14px;padding:6px 13px;border-radius:999px;border:1px solid var(--rw-border-strong);background:transparent;color:var(--rw-text);font:inherit;font-size:13px;font-weight:600;cursor:pointer;transition:border-color .15s,background .15s}
+.rw-follow:hover{border-color:var(--rw-ink)}
+.rw-follow.on{background:var(--rw-gold-soft);border-color:transparent;color:var(--rw-ink)}
+.rw-follow.on svg{color:#e8a400}
+.db-hero .rw-follow{align-self:flex-start}

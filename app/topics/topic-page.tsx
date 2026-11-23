@@ -14,7 +14,7 @@ import {canonicalPath,canonicalLinks} from '@/app/seo/paths';
 import {permanentRedirect} from 'next/navigation';
 import {jsonLd} from '@/app/seo/structured-data';
 import {DbShell} from '@/app/rankings/view';
-import {NodeGrid,RankingGrid,Breadcrumbs} from '@/app/explore';
+import {NodeGrid,RankingGrid,Breadcrumbs,FollowButton} from '@/app/explore';
 import {Compass,Hammer} from 'lucide-react';
 import type {TopicBuild} from '@/app/entity-db/pages';
 // A broad topic's page (a node over several kinds of entity, so no ranking of its own) at its place in the
@@ -50,6 +50,7 @@ export async function TopicPage(props:Props){
    <Breadcrumbs trail={L(nav.trail.map(x=>({name:x.name,href:x.href})))} current={t.name}/>
    <header className="wiki-heading db-hero"><span className="db-kicker"><Compass size={13} aria-hidden="true"/>{ui.t('Topic')}</span><h1>{t.name}</h1>
     {t.description&&<p className="lead">{t.description}</p>}
+    <FollowButton name={t.name} href={localizeLinks(here,ui.locale)}/>
     {t.rankings>0&&<p className="rw-hero-stats"><span>{ui.t('{count} rankings',{count:n(t.rankings)})}</span>{t.pages>0&&<span>{ui.t('{count} pages',{count:n(t.pages)})}</span>}</p>}
    </header>
    {nav.build&&<BuildStatus build={nav.build} t={ui.t} n={n}/>}
