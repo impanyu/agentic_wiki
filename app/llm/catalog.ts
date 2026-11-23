@@ -46,7 +46,7 @@ export const BASE_CATALOG:Catalog={
   // Gemini API free tier; daily quotas reset at midnight Pacific time.
   m('gemini:gemini-4-hydrogen','gemini','gemini-4-hydrogen','gemini',chat({vision:true,reasoningEffort:true,context:1048576,maxOutput:65536}),{rpm:5,tpm:250000,rpd:100,dayReset:'pacific'},{timeoutMs:180000}),
   m('gemini:gemini-3.8-flash','gemini','gemini-3.8-flash','gemini',chat({vision:true,reasoningEffort:true,context:1048576,maxOutput:65536}),{rpm:10,tpm:250000,rpd:250,dayReset:'pacific'}),
-  m('gemini:gemini-3.8-flash-lite','gemini','gemini-3.8-flash-lite','gemini',chat({vision:true,reasoningEffort:true,context:1048576,maxOutput:65536}),{rpm:15,tpm:250000,rpd:1000,dayReset:'pacific'}),
+  m('gemini:gemini-3.8-flash-lite','gemini','gemini-3.5-flash-lite','gemini',chat({vision:true,reasoningEffort:true,context:1048576,maxOutput:65536}),{rpm:15,tpm:250000,rpd:1000,dayReset:'pacific'}),
   m('gemini:gemini-embedding-2','gemini','gemini-embedding-2','gemini',chat({tools:false}),{rpm:100,tpm:30000,rpd:1000,dayReset:'pacific'},{embed:{dims:3072,supportsDimensions:true,matryoshka:true,maxBatch:100}}),
   // OpenRouter ":free" variants: 20 RPM; 50 RPD without purchased credits (1000 with), UTC reset.
   m('openrouter:nemotron-3-ultra','openrouter','nvidia/nemotron-3-ultra-550b-a55b:free','nemotron',chat({jsonSchema:false,context:131072,maxOutput:16384}),{rpm:20,rpd:50,dayReset:'utc'},{timeoutMs:180000}),
