@@ -2,6 +2,7 @@ import {getChatGPTUser} from '@/app/chatgpt-auth';
 import {serverUi,requestLocale} from '@/app/i18n/request';
 import {localizeLinks} from '@/app/i18n/locales';
 import {localeMeta} from '@/app/i18n/meta';
+import {localizeContent} from '@/app/i18n/content';
 import {cache} from 'react';
 import {ttlCache} from '@/app/entity-db/ttl-cache';
 import type {Metadata} from 'next';
@@ -36,10 +37,12 @@ export async function generateMetadata(props:Props):Promise<Metadata>{
 }
 
 export async function TopicPage(props:Props){
- const nav=await load(decode((await props.params).slug));
- if(!nav?.topic)notFound();
- const t=nav.topic;const base=siteUrl();
+ const raw=await load(decode((await props.params).slug));
+ if(!raw?.topic)notFound();
  const ui=await serverUi();const maps=await pathMaps(await entityDb());const L=<T,>(v:T)=>localizeLinks(canonicalLinks(v,maps),ui.locale);
+ // The topic's own words in the reader's language (queued for translation when not translated yet).
+ const nav=(await localizeContent(await entityDb(),raw,ui.locale)).model;
+ const t=nav.topic!;const base=siteUrl();
  const here=canonicalPath(t.href,maps);if(props.legacy&&here!==t.href)permanentRedirect(localizeLinks(here,ui.locale));const n=(x:number)=>x.toLocaleString(ui.locale);
  const ld={'@context':'https://schema.org','@graph':[
   {'@type':'CollectionPage',name:t.name,description:t.description||undefined,url:base+here},
@@ -54,7 +57,7 @@ export async function TopicPage(props:Props){
     {t.rankings>0&&<p className="rw-hero-stats"><span>{ui.t('{count} rankings',{count:n(t.rankings)})}</span>{t.pages>0&&<span>{ui.t('{count} pages',{count:n(t.pages)})}</span>}</p>}
    </header>
    {nav.build&&<BuildStatus build={nav.build} t={ui.t} n={n}/>}
-   <NodeGrid nodes={L(nodeChildren(maps,here))}/>
+   <NodeGrid nodes={L((await localizeContent(await entityDb(),{n:nodeChildren(maps,here)},ui.locale)).model.n)}/>
    <RankingGrid rankings={L(await popularRankings(await entityDb(),maps,here).catch(()=>[]))} title={ui.t('Popular rankings')}/>
   </DbShell>
  </>;

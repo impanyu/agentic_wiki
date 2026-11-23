@@ -1,5 +1,6 @@
 import {serverUi,requestLocale} from '@/app/i18n/request';
 import {localizeLinks} from '@/app/i18n/locales';
+import {localizeContent} from '@/app/i18n/content';
 import {localeMeta} from '@/app/i18n/meta';
 import {cookies} from 'next/headers';
 import {getChatGPTUser} from '@/app/chatgpt-auth';
@@ -62,18 +63,23 @@ async function view(props:Props){
 }
 export async function generateMetadata(props:Props):Promise<Metadata>{
  const v=await view(props).catch(()=>null);if(!v)return {title:SITE_NAME,robots:{index:false}};
- const {model,criterion,name,path,period}=v,origin=siteUrl();
- const description=(criterion?`${model.title} ranked by ${criterion.label}${period?' ('+period+')':criterion.year?' ('+criterion.year+')':''}. `:'')+(model.description||model.title);
+ const {model,criterion,path,period}=v,origin=siteUrl(),locale=await requestLocale();
+ const loc=await localizeContent(await entityDb(),{name:v.name,description:(criterion?`${model.title} ranked by ${criterion.label}${period?' ('+period+')':criterion.year?' ('+criterion.year+')':''}. `:'')+(model.description||model.title)},locale);
+ const {name,description}=loc.model;
  return {title:`${name} · ${SITE_NAME}`,description:description.slice(0,300),
   ...(origin?{metadataBase:new URL(origin)}:{}),
-  ...localeMeta(path,await requestLocale()),
+  ...localeMeta(path,locale,loc.complete),
   openGraph:{type:'article',title:name,description:description.slice(0,300),url:path,siteName:SITE_NAME},
   twitter:{card:'summary',title:name,description:description.slice(0,300)}};
 }
 export async function RankingPage(props:Props){
  const v=await view(props);if(!v)notFound();
- const {input,model,props:rprops,block,state,askTargets,rank,criterion,year,period,base,internal,maps,path,name,titles,slug}=v;
+ const {input,model,props:rawProps,block,state,askTargets,rank,criterion,year,period,base,internal,maps,path,slug}=v;
  const {locale,dict,t}=await serverUi();const L=<T,>(v:T)=>localizeLinks(canonicalLinks(v,maps),locale);
+ // The page's own words in the reader's language (queued for translation when not translated yet; rows keep their names).
+ const loc=(await localizeContent(await entityDb(),{name:v.name,baseTitle:model.title,lead:model.lead,titles:Object.entries(v.titles).map(([key,title])=>({key,title})),
+  related:model.related,subsets:nodeChildren(maps,base),props:rawProps},locale)).model;
+ const name=loc.name,rprops=loc.props,titles=Object.fromEntries(loc.titles.map(x=>[x.key,x.title]));
  // One address per view: the old /rankings/ address, another spelling of the slug, an unknown or default ?rank=,
  // an unknown ?year= redirect.
  if((props.legacy&&base!==internal)||slug!==input.def.slug||(rank!==undefined&&!criterion)||(year!==undefined&&!period))permanentRedirect(localizeLinks(path,locale));
@@ -93,11 +99,11 @@ export async function RankingPage(props:Props){
 {model.about.length>0&&<section aria-labelledby="about-ranking"><h2 id="about-ranking">{t('About this ranking')}</h2><ul>{model.about.map((x,i)=><li key={i}>{linkParts(x).map((p,j)=>p.href?<a key={j} href={p.href} target="_blank" rel="noopener noreferrer" className="ext">{p.text}</a>:<span key={j}>{p.text}</span>)}</li>)}</ul></section>}
   </>}>
    {base!==internal&&<Breadcrumbs trail={L(nodeTrail(maps,base))} current={maps.nodes.get(base)?.name??model.title}/>}
-   <RankingBody slug={input.def.slug} kicker={t('Ranking')+(input.def.status==='draft'?' · '+t('Draft'):'')} subsets={L(nodeChildren(maps,base))} title={name} baseTitle={model.title} titles={titles} basePath={localizeLinks(base,locale)} defaultRank={block.defaultKey} rank={criterion?.key} period={period} charts={charts} props={L({...rprops,rows:packRows(rprops.rows as Record<string,unknown>[])})} lead={model.lead}/>
+   <RankingBody slug={input.def.slug} kicker={t('Ranking')+(input.def.status==='draft'?' · '+t('Draft'):'')} subsets={L(loc.subsets)} title={name} baseTitle={loc.baseTitle} titles={titles} basePath={localizeLinks(base,locale)} defaultRank={block.defaultKey} rank={criterion?.key} period={period} charts={charts} props={L({...rprops,rows:packRows(rprops.rows as Record<string,unknown>[])})} lead={loc.lead}/>
    <p className="data-twin-files"><a href={internal+'/data.csv'} download>{t('Download the data (CSV)')}</a></p>
 
    <RankingGrid rankings={L(popular)} title={t('Popular rankings')}/>
-   {model.related.length>0&&<section aria-labelledby="related-rankings"><h2 id="related-rankings">{t('Related rankings')}</h2><ul>{model.related.map(r=><li key={r.href}><a href={L(r.href)}>{r.title}</a></li>)}</ul></section>}
+   {loc.related.length>0&&<section aria-labelledby="related-rankings"><h2 id="related-rankings">{t('Related rankings')}</h2><ul>{loc.related.map(r=><li key={r.href}><a href={L(r.href)}>{r.title}</a></li>)}</ul></section>}
   </DbShell>
  </>;
 }

@@ -10,11 +10,12 @@ import {siteUrl} from '@/app/site';
 import {entityDb} from '@/app/entity-db/client';
 import {loadEntityPage,loadEntityPageByNum,pathMaps} from '@/app/entity-db/pages';
 import {canonicalLinks} from '@/app/seo/paths';
-import {assembleEntityPage,entityPath} from '@/app/seo/assemble';
+import {assembleEntityPage,entityPath,type EntityPageModel} from '@/app/seo/assemble';
 import {jsonLd} from '@/app/seo/structured-data';
 import {questionKey,slugify} from '@/app/seo/urls';
 import {linkParts} from '@/app/workflows/viz/ranking-data';
 import {outboundLinks} from '@/app/seo/outbound';
+import {localizeContent} from '@/app/i18n/content';
 import {getChatGPTUser} from '@/app/chatgpt-auth';
 import {ArrowUpRight} from 'lucide-react';
 import {DbShell,EntityBody,LinkedText} from '@/app/rankings/view';
@@ -35,23 +36,27 @@ async function loadUncached(first:string,slug:string){
  const path=entityPath(r.data.entity.type,r.data.entity.name,r.num);
  return {...r,model,maps,path};
 }
+// The page's own words in the reader's language (queued for translation when not translated yet).
+const localized=cache(async(model:EntityPageModel,kicker:string,locale:string)=>localizeContent(await entityDb(),{model,kicker},locale));
 async function view(props:Props){const {type,slug}=await props.params;return {first:decode(type),slug:decode(slug),data:await load(decode(type).toLowerCase(),decode(slug))};}
 const SCHEMA_TYPES:Record<string,string>={country:'Country',city:'City',us_state:'State',state:'State',region:'Place',place:'Place',mountain:'Mountain',river:'RiverBodyOfWater',lake:'LakeBodyOfWater',
  university:'CollegeOrUniversity',company:'Organization',organization:'Organization',person:'Person',book:'Book',movie:'Movie',product:'Product'};
 export async function generateMetadata(props:Props):Promise<Metadata>{
  const {data}=await view(props).catch(()=>({data:null}));if(!data)return {title:SITE_NAME,robots:{index:false}};
- const origin=siteUrl(),{model,path}=data;
+ const origin=siteUrl(),{path}=data,locale=await requestLocale();
+ const {model:{model},complete}=await localized(data.model,data.data.type.label,locale);
  return {title:`${model.title} · ${SITE_NAME}`,description:model.description,
   ...(origin?{metadataBase:new URL(origin)}:{}),
-  ...localeMeta(path,await requestLocale()),
+  ...localeMeta(path,locale,complete),
   openGraph:{type:'article',title:model.title,description:model.description,url:path,siteName:SITE_NAME},
   twitter:{card:'summary',title:model.title,description:model.description}};
 }
 const fmtDate=(s:string|null,locale='en')=>{if(!s)return '';const d=new Date(s);return Number.isNaN(d.getTime())?'':d.toLocaleDateString(locale,{year:'numeric',month:'long',day:'numeric',timeZone:'UTC'});};
 export async function EntityPage(props:Props){
  const {first,slug,data}=await view(props);if(!data)notFound();
- const {model,path,maps,data:d,updatedAt}=data;const e=d.entity;
- const {locale,dict,t}=await serverUi();const L=<T,>(v:T)=>localizeLinks(canonicalLinks(v,maps),locale);
+ const {path,maps,data:d,updatedAt}=data;const e=d.entity;
+ const {locale,dict,t}=await serverUi();
+ const {model:{model,kicker}}=await localized(data.model,d.type.label,locale);const L=<T,>(v:T)=>localizeLinks(canonicalLinks(v,maps),locale);
  // One address per entity: an alias's slug or another spelling redirects to the name's slug.
  if(first!==data.num||slug!==slugify(e.name)||!data.canonical)permanentRedirect(localizeLinks(path,locale));
  const origin=siteUrl();
@@ -75,7 +80,7 @@ export async function EntityPage(props:Props){
   </>}>
    <header className={'wiki-heading db-hero entity-hero'+(model.image?' has-image':'')}>
     {model.image&&<img className="entity-picture" src={model.image} alt={model.title} loading="eager" referrerPolicy="no-referrer"/>}
-    <div className="entity-hero-text"><span className="db-kicker">{d.type.label.charAt(0).toUpperCase()+d.type.label.slice(1)}</span><h1>{model.title}</h1>{model.lead.length>0&&<p className="lead">{L(model.leadParts).map((s,i)=><span key={i}>{i?' ':''}<LinkedText parts={s}/></span>)}</p>}
+    <div className="entity-hero-text"><span className="db-kicker">{kicker.charAt(0).toUpperCase()+kicker.slice(1)}</span><h1>{model.title}</h1>{model.lead.length>0&&<p className="lead">{L(model.leadParts).map((s,i)=><span key={i}>{i?' ':''}<LinkedText parts={s}/></span>)}</p>}
        {model.highlights.length>0&&<ul className="entity-highlights" aria-label={t('Standout ranks')}>{L(model.highlights).map(h=><li key={h.href}><a href={h.href}>
      <b>#{h.rank.toLocaleString(locale)}</b><span>{h.label}</span>{h.of&&<small>{t('of {count}',{count:h.of.toLocaleString(locale)})}</small>}</a></li>)}{model.rankCount>model.highlights.length&&<li className="all-ranks"><a href="#all-rankings"><b>{model.rankCount.toLocaleString(locale)}</b><span>{t('All rankings')}</span></a></li>}</ul>}
     {links.length>0&&<div className="ext-links">{links.map(l=><a key={l.href} className={'ext-link'+(l.primary?' primary':'')} href={l.href} target="_blank" rel="noopener noreferrer"><span>{t(l.label)}</span><small>{l.host}</small><ArrowUpRight size={15} aria-hidden="true"/></a>)}</div>}

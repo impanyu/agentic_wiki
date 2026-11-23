@@ -89,3 +89,13 @@ export async function recomputeIndices(type:string):Promise<string[]>{
  if(done.length)console.log('[crawler] recomputed indices',type,done.join(', '));
  return done;
 }
+
+// Content translation on the heartbeat: the texts readers met in other languages since the last tick, a few batches
+// a minute (CONTENT_TRANSLATE_BATCHES, default 6; 0 stops it).
+export async function translateContent(){
+ const batches=Number(process.env.CONTENT_TRANSLATE_BATCHES??6);if(!(batches>0))return 0;
+ const db=await entityDb();const {translatePending}=await import('@/app/i18n/content');
+ const n=await translatePending(db,{batches,size:40}).catch(e=>{console.error('[translate] failed',(e as Error).message);return 0;});
+ if(n)console.log('[translate]',n,'texts');
+ return n;
+}

@@ -4,8 +4,10 @@ import {localePath,languageAlternates,DEFAULT_LOCALE} from './locales';
 // editions translate only the interface: they are left out of search indexes (noindex, follow) and carry no
 // hreflang until content is translated too — then CONTENT_TRANSLATED turns both on.
 export const CONTENT_TRANSLATED=false;
-export function localeMeta(path:string,locale:string):Pick<Metadata,'alternates'|'robots'>{
- const indexed=locale===DEFAULT_LOCALE||CONTENT_TRANSLATED;
- return {alternates:{canonical:localePath(path,locale),...(CONTENT_TRANSLATED?{languages:languageAlternates(path)}:{})},
+// complete: the page's own content is translated into this language (localizeContent) — then that edition is
+// indexed and the page lists its language versions.
+export function localeMeta(path:string,locale:string,complete=false):Pick<Metadata,'alternates'|'robots'>{
+ const indexed=locale===DEFAULT_LOCALE||CONTENT_TRANSLATED||complete;
+ return {alternates:{canonical:localePath(path,locale),...(CONTENT_TRANSLATED||complete?{languages:languageAlternates(path)}:{})},
   robots:indexed?{index:true,follow:true}:{index:false,follow:true}};
 }

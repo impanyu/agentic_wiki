@@ -197,6 +197,13 @@ export const MIGRATIONS:Migration[]=[
  {version:13,name:'service usage',statements:()=>[
   'create table if not exists service_usage(day date not null default current_date, service text not null, calls integer not null default 0, errors integer not null default 0, primary key (day, service))',
  ]},
+ // Content translations: each page text (a title, a label, a sentence) once per language, translated in the background
+ // when a page in that language first shows it (status pending → done).
+ {version:14,name:'content translations',statements:()=>[
+  `create table if not exists translations(lang text not null, hash text not null, source text not null, text text, status text not null default 'pending',
+    attempts integer not null default 0, created_at timestamptz not null default now(), updated_at timestamptz not null default now(), primary key (lang, hash))`,
+  "create index if not exists translations_pending on translations(created_at) where status = 'pending'",
+ ]},
 ];
 export const SCHEMA_VERSION=MIGRATIONS[MIGRATIONS.length-1].version;
 
