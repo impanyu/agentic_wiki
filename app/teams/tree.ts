@@ -20,9 +20,12 @@ export function leafBrief(n:TreeNode):string{
  return lines.filter(Boolean).join('\n');
 }
 
-export async function loadTopicTree(db:Queryable,nodes:TreeNode[],{queue=true}:{queue?:boolean}={}):Promise<{topics:number;created:number;moved:number;queued:number}>{
+export async function loadTopicTree(db:Queryable,nodes:TreeNode[],{queue=true}:{queue?:boolean}={}):Promise<{topics:number;created:number;moved:number;queued:number;teams:number}>{
  let topics=0,created=0,moved=0,queued=0;
- const visit=async(n:TreeNode,parentId:string|null,parentSlug:string|null)=>{
+ // Teams: a leaf belongs to its parent branch's team (a leaf right under a subject is its own team); the team is
+ // queued once with the briefs of the leaves it owns (it covers them one per cycle, most important first).
+ const teams=new Map<string,{name:string;parentSlug:string|null;leaves:TreeNode[];priority:number}>();
+ const visit=async(n:TreeNode,parentId:string|null,parentSlug:string|null,depth:number,parentName:string)=>{
   if(!n.slug||!n.name)return;
   let t=await getTopic(db,n.slug);
   if(!t){t=await createTopic(db,{slug:n.slug,name:n.name,description:n.description||'',parentId});created++;}
@@ -33,14 +36,25 @@ export async function loadTopicTree(db:Queryable,nodes:TreeNode[],{queue=true}:{
   topics++;
   const kids=n.children||[];
   if(!kids.length){
-   // Leaves are queued once; a topic that already ran (e.g. countries) is not queued again here.
-   if(queue&&await enqueueTeamOnce(db,{slug:t.slug,name:n.name,brief:leafBrief(n),parentSlug,priority:n.priority===1?1:n.priority===3?-1:0}))queued++;
+   const team=depth>2&&parentSlug?parentSlug:t.slug;
+   // A leaf spun off earlier (its own team) keeps it; otherwise it belongs to its branch.
+   const current=await db.query<{team:string|null}>("select scope->>'team' team from topics where id=$1::uuid",[t.id]);
+   const own=current.rows[0]?.team===t.slug&&team!==t.slug;
+   const owner=own?t.slug:team;
+   await db.query(`update topics set scope=coalesce(scope,'{}'::jsonb)||jsonb_build_object('team',$2::text,'priority',$3::int,'brief',$4::text) where id=$1::uuid`,[t.id,owner,n.priority||2,leafBrief(n)]);
+   const g=teams.get(owner)??{name:owner===t.slug?n.name:parentName,parentSlug:owner===t.slug?parentSlug:null,leaves:[],priority:-9};
+   g.leaves.push(n);g.priority=Math.max(g.priority,n.priority===1?1:n.priority===3?-1:0);teams.set(owner,g);
    return;
   }
-  for(const c of kids)await visit(c,t.id,t.slug);
+  for(const c of kids)await visit(c,t.id,t.slug,depth+1,n.name);
  };
- for(const n of nodes)await visit(n,null,null);
- return {topics,created,moved,queued};
+ for(const n of nodes)await visit(n,null,null,1,'');
+ if(queue)for(const [slug,g] of teams){
+  // A leaf that is its own team keeps its own brief; a branch team gets the list of what it covers.
+  const brief=g.leaves.length===1&&g.leaves[0].slug===slug?leafBrief(g.leaves[0]):'This team covers the '+g.leaves.length+' subtopics of "'+g.name+'", one per cycle, most important first: '+g.leaves.slice(0,40).map(l=>l.name).join('; ')+'.';
+  if(await enqueueTeamOnce(db,{slug,name:g.name,brief,parentSlug:g.parentSlug,priority:g.priority}))queued++;
+ }
+ return {topics,created,moved,queued,teams:teams.size};
 }
 async function enqueueTeamOnce(db:Queryable,team:{slug:string;name:string;brief:string;parentSlug:string|null;priority:number}):Promise<boolean>{
  const seen=await db.query('select 1 from team_queue where slug=$1::text union all select 1 from team_runs r join topics t on t.id=r.topic_id where t.slug=$1::text limit 1',[team.slug]);

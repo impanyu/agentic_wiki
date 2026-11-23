@@ -171,7 +171,7 @@ export async function placeTopic(slug:string,log:Log=()=>{}):Promise<{placed:boo
 export type WorkflowKind='build'|'repair'|'expand'|'review'|'sources';
 export const workflowOf=(note:string,hasPages:boolean):WorkflowKind=>/^repair/.test(note)?'repair':/^expand/.test(note)?'expand':/^source review/.test(note)?'sources':/^review/.test(note)?(hasPages?'review':'build'):'build';
 type Report={done:string[];open:string[];notes:string;unavailable?:{metric:string;why:string;tried:string}[]};
-type Ctx={db:Awaited<ReturnType<typeof entityDb>>;topic:{id:string;slug:string};info:{topic:{slug:string;name:string;brief:string}};r:Record<string,unknown>;log:Log;
+type Ctx={db:Awaited<ReturnType<typeof entityDb>>;topic:{id:string;slug:string};info:{topic:{slug:string;name:string;brief:string};team?:{slug:string;name:string;brief:string}};r:Record<string,unknown>;log:Log;
  agents:{editor:Agent;collector:Agent;reviewer:Agent}};
 type Stage={id:string;role:'editor'|'collector';base:'plan'|'collector'|'editor';text:string;input:(c:Ctx)=>Record<string,unknown>;schema?:Record<string,unknown>;
  budget:{rounds:number;calls:number};passes?:number;when?:(c:Ctx)=>boolean;accept?:(c:Ctx)=>Promise<string|undefined>;onFail:'skip'|'stop'};
@@ -237,16 +237,24 @@ async function runStage(c:Ctx,st:Stage):Promise<unknown>{
  }
  return reports;
 }
-export async function runTopicTeam({slug,name,brief,kind='build',maxFixRounds=2,log=()=>{}}:{slug:string;name:string;brief:string;kind?:WorkflowKind;maxFixRounds?:number;log?:Log}){
+export async function runTopicTeam({slug,name,brief,kind='build',note='',maxFixRounds=2,log=()=>{}}:{slug:string;name:string;brief:string;kind?:WorkflowKind;note?:string;maxFixRounds?:number;log?:Log}){
  const db=await entityDb();
- const topic=await getTopic(db,slug)??await createTopic(db,{slug,name,description:brief});
+ // slug is the team; each cycle works on one focus subtopic the team owns: the one the note names (a repair, a review
+ // of that subtopic), else for a build the most important subtopic not covered yet, else the team's own node.
+ const team=await getTopic(db,slug)??await createTopic(db,{slug,name,description:brief});
+ const {uncovered}=await import('./ownership');
+ const named=/\[([a-z0-9-]+)\]/.exec(note)?.[1];
+ const next=kind==='build'&&!named?(await uncovered(db,slug))[0]:undefined;
+ const topic=(named&&await getTopic(db,named))||(next&&await getTopic(db,next.slug))||team;
+ const focusBrief=String((topic.scope as Record<string,unknown>|undefined)?.brief||topic.description||brief);
  const agents={editor:await spawnAgent('team-editor:'+slug,OWNER),collector:await spawnAgent('team-collector:'+slug,OWNER),reviewer:await spawnAgent('team-review:'+slug,OWNER)};
- // Checkpoints (platform_state "team:<slug>"): a run cut off by a restart resumes after its last finished stage;
- // a checkpoint of another workflow or older than 12 hours is not reused.
- const {getState,setState}=await import('./manager');const key='team:'+slug;
+ // Checkpoints (platform_state "team:<team>:<focus>"): a run cut off by a restart resumes after its last finished
+ // stage; a checkpoint of another workflow or older than 12 hours is not reused.
+ const {getState,setState}=await import('./manager');const key='team:'+slug+':'+topic.slug;
  const saved=await getState(db,key).catch(()=>null);
  const fresh=saved&&typeof saved.at==='string'&&Date.now()-Date.parse(saved.at)<12*3600_000&&(saved.kind??'build')===kind?saved as Record<string,unknown>:{};
- const c:Ctx={db,topic:{id:topic.id,slug},info:{topic:{slug,name,brief}},r:{...fresh},log,agents};
+ const c:Ctx={db,topic:{id:topic.id,slug:topic.slug},info:{topic:{slug:topic.slug,name:topic.name,brief:focusBrief},...(topic.slug!==slug?{team:{slug,name,brief}}:{})} as Ctx['info'],r:{...fresh},log,agents};
+ log({event:'focus',topic:topic.slug});
  const save=async()=>{c.r.at=new Date().toISOString();c.r.kind=kind;await setState(db,key,c.r).catch(()=>{});};
  log({event:'workflow_started',kind});
  for(const st of WORKFLOWS[kind].stages){
@@ -268,7 +276,9 @@ export async function runTopicTeam({slug,name,brief,kind='build',maxFixRounds=2,
  const result=WORKFLOWS[kind].review==='full'?await reviewLoop(c,maxFixRounds):{verdict:{approved:true,issues:[],summary:kind+' finished'},rounds:[],ruling:null,platformIssues:[]};
  log({event:'team_finished',kind,approved:result.verdict.approved});
  await db.query('delete from platform_state where key=$1::text',[key]).catch(()=>{});
- return {topic:topic.slug,kind,stages:c.r,...result};
+ // More subtopics of this team still to cover: the queue runs the team again (status queued, next focus).
+ const more=kind==='build'&&(await uncovered(db,slug)).some(u=>u.slug!==topic.slug);
+ return {topic:topic.slug,team:slug,kind,stages:c.r,more,...result};
 }
 // The shared review loop: review → fix rounds routed by owner (at most maxFixRounds) → the manager's binding ruling
 // → publish what is approved (or has only minor issues); platform defects become operator issues.

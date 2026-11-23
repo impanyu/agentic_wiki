@@ -388,3 +388,14 @@ test('a designed topic tree loads: topics in place (existing ones moved), leaves
  assert.equal((await loadTopicTree(db,tree)).queued,0,'loading again queues nothing new');
  assert.match(leafBrief(tree[1].children[0]),/Criteria readers care about/);
 });
+test('dividing a field is not staffing it: leaves of a branch belong to the branch team, queued once for all of them',async()=>{
+ const {loadTopicTree}=await import(new URL('tree.mjs',out));
+ const tree=[{slug:'home',name:'Home',kind:'commercial',children:[{slug:'kitchen',name:'Kitchen',kind:'commercial',children:[
+  {slug:'blenders',name:'Blenders',kind:'commercial',entity:'blender',universe:'u',criteria:['a'],sources:['s'],priority:1},
+  {slug:'kettles',name:'Kettles',kind:'commercial',entity:'kettle',universe:'u',criteria:['a'],sources:['s'],priority:3}]}]}];
+ const r=await loadTopicTree(db,tree);
+ assert.equal(r.queued,1,'one team for the branch');assert.equal(r.teams,1);
+ const q=(await db.query("select slug, brief from team_queue where slug='kitchen'")).rows[0];assert.match(q.brief,/2 subtopics/);
+ const own=(await db.query("select slug, scope->>'team' team from topics where slug in ('blenders','kettles') order by slug")).rows;
+ assert.deepEqual(own.map(x=>x.team),['kitchen','kitchen']);
+});

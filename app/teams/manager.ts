@@ -61,9 +61,37 @@ export async function scheduleMaintenance(db:Queryable):Promise<string[]>{
    :hours>reviewDays*24?{p:t.views>=100?1:0,note:`review (every ${reviewDays} days; ${t.views} views in 30 days)`}
    // The source register is reviewed every 90 days: sources still alive and current, new sources and markets found.
    :hours>24&&(!t.sources_at||Date.now()-Date.parse(t.sources_at)>SOURCE_REVIEW_DAYS*86400_000)?{p:0,note:'source review: the source register is '+(t.sources_at?'over '+SOURCE_REVIEW_DAYS+' days old':'empty')}:null;
-  if(why&&await enqueueTeam(db,{slug:t.slug,name:t.name,brief:t.description,priority:why.p,note:why.note}))queued.push(t.slug+' ('+why.note+')');
+  if(!why)continue;
+  // The owning team does the work, on this subtopic (named in the note).
+  const {teamOf}=await import('./ownership');const owner=await teamOf(db,t.slug);
+  const ot=owner===t.slug?t:{...t,name:(await getTopic(db,owner))?.name||t.name};
+  if(await enqueueTeam(db,{slug:owner,name:ot.name,brief:t.description,priority:why.p,note:why.note+' ['+t.slug+']'}))queued.push(owner+' ('+why.note+' ['+t.slug+'])');
  }
+ queued.push(...await spinOff(db));
  return queued;
+}
+// Spinning off: a subtopic gets a team of its own when its demand calls for it (reader queries waiting, or 100+ views
+// in 30 days), or when its branch's team has more than SPIN_BACKLOG (12) subtopics still to cover — then up to three
+// of the most important wait no longer. Each gets its own editor, collector and reviewer and starts with a build.
+async function spinOff(db:Queryable):Promise<string[]>{
+ const out:string[]=[];const {setTeam,uncovered}=await import('./ownership');
+ const demand=(await db.query<{slug:string;name:string;brief:string}>(`select t.slug, t.name, coalesce(t.scope->>'brief', t.description) brief from topics t
+  where t.status <> 'archived' and t.scope->>'team' is not null and t.scope->>'team' <> t.slug and (
+   (select count(*) from inbox i join editors e on e.id=i.editor_id where e.topic_id=t.id and i.triaged_at is null) >= 5 or
+   (select coalesce(sum(v.n),0) from ranking_views v join rankings rk on rk.slug=v.slug where rk.topic_id=t.id and v.day > current_date - 30) >= 100)
+  limit 20`).catch(()=>({rows:[]}))).rows;
+ for(const d of demand){await setTeam(db,d.slug,d.slug);if(await enqueueTeam(db,{slug:d.slug,name:d.name,brief:d.brief,priority:2,note:'build: spun off for demand'}))out.push(d.slug+' (spun off: demand)');}
+ const limit=Number(process.env.SPIN_BACKLOG||12);
+ const teams=(await db.query<{team:string}>(`select scope->>'team' team from topics t where status <> 'archived' and scope->>'team' is not null
+  and not exists (select 1 from rankings r where r.topic_id=t.id) group by 1 having count(*) > $1::int limit 50`,[limit]).catch(()=>({rows:[]}))).rows;
+ for(const {team} of teams){
+  const list=await uncovered(db,team);if(list.length<=limit)continue;
+  // The team keeps its first subtopic; the next most important ones get teams of their own.
+  for(const u of list.slice(1,4)){await setTeam(db,u.slug,u.slug);
+   const brief=String((await db.query<{b:string}>("select coalesce(scope->>'brief', description) b from topics where slug=$1::text",[u.slug])).rows[0]?.b||u.description);
+   if(await enqueueTeam(db,{slug:u.slug,name:u.name,brief,priority:u.priority===1?1:0,note:'build: spun off from '+team}))out.push(u.slug+' (spun off from '+team+')');}
+ }
+ return out;
 }
 
 // ───────────── subtopic proposals ─────────────
@@ -119,7 +147,10 @@ export async function runManagerDaily(log:Log=()=>{}):Promise<{decisions:number;
    const parent=d.parent?await getTopic(db,d.parent):null;if(d.parent&&!parents.has(d.parent)&&!parent)continue;
    const t=await getTopic(db,d.topic)??await createTopic(db,{slug:d.topic,name:d.name,description:d.brief,parentId:parent?.id??null});
    if(parent&&!t.parentId)await setTopicParent(db,t.id,parent.id);
-   if(await enqueueTeam(db,{slug:t.slug,name:d.name,brief:d.brief+(qs.length?'\nReaders searched for: '+qs.slice(0,20).join('; '):''),parentSlug:parent?.slug??null,priority:1}))newTopics.push(t.slug);
+   const brief=d.brief+(qs.length?'\nReaders searched for: '+qs.slice(0,20).join('; '):'');
+   // Under a parent, the new topic joins the parent's team; a new top-level subject gets a team of its own.
+   if(parent){await adoptSubtopic(db,t.slug,parent.slug,brief);newTopics.push(t.slug);}
+   else{const {setTeam}=await import('./ownership');await setTeam(db,t.slug,t.slug);if(await enqueueTeam(db,{slug:t.slug,name:d.name,brief,priority:1}))newTopics.push(t.slug);}
   }
  }
  // Subtopic proposals: approved ones become topics with a team; every decision goes back to the proposing topic.
@@ -131,7 +162,8 @@ export async function runManagerDaily(log:Log=()=>{}):Promise<{decisions:number;
    const t=await getTopic(db,p.slug)??await createTopic(db,{slug:p.slug,name:p.name,description:p.brief,parentId:parent.id});
    if(!t.parentId)await setTopicParent(db,t.id,parent.id);
    const brief=(d.brief&&d.brief.length>=40?d.brief:p.brief)+'\nClassification basis: '+p.basis;
-   if(await enqueueTeam(db,{slug:t.slug,name:p.name,brief,parentSlug:parent.slug,priority:0}))newTopics.push(t.slug);
+   // A new subtopic belongs to its parent's team (dividing a field is not staffing it); that team covers it next.
+   await adoptSubtopic(db,t.slug,parent.slug,brief);newTopics.push(t.slug);
   }
   if(parent){const {recordDecision}=await import('./config');
    await recordDecision(db,parent.id,{by:'manager',conflict:'Subtopic proposal: '+p.name+' ('+p.slug+')',decision:d.decision==='approve'?'approved: the subtopic has its own team now':d.decision==='revise'?'revise and propose again':'rejected',why:d.reason.slice(0,1000)});}
@@ -170,8 +202,10 @@ export async function runTeamQueue(spentUsd:()=>Promise<number>,log:(slug:string
   // The workflow follows why the team was queued (build, repair, expand, review, sources).
   const hasPages=Number((await db.query<{n:number}>('select count(*)::int n from rankings r join topics t on t.id=r.topic_id where t.slug=$1::text',[next.slug])).rows[0]?.n||0)>0;
   const kind=workflowOf(String(next.note||''),hasPages);
-  void runTopicTeam({slug:next.slug,name:next.name,brief:next.brief,kind,log:e=>log(next.slug,e)})
-   .then(res=>db.query(`update team_queue set status='done', finished_at=now(), note=$2::text where slug=$1::text`,[next.slug,res.verdict.approved?'approved':'not approved']))
+  void runTopicTeam({slug:next.slug,name:next.name,brief:next.brief,kind,note:String(next.note||''),log:e=>log(next.slug,e)})
+   // A team with subtopics still to cover goes back to the queue for its next focus.
+   .then(res=>res.more?db.query(`update team_queue set status='queued', started_at=null, finished_at=now(), note='build: next subtopic' where slug=$1::text`,[next.slug])
+    :db.query(`update team_queue set status='done', finished_at=now(), note=$2::text where slug=$1::text`,[next.slug,res.verdict.approved?'approved':'not approved']))
    .catch(async e=>{await db.query(`update team_queue set status='failed', finished_at=now(), note=$2::text where slug=$1::text`,[next.slug,String((e as Error).message).slice(0,500)]);
     const {raiseIssue}=await import('@/app/ops/issues');
     await raiseIssue(db,{source:'scheduler',topic:next.slug,severity:'major',title:'Team run crashed',detail:String((e as Error).stack||e).slice(0,4000),fingerprint:'team-crash:'+next.slug}).catch(()=>{});})
@@ -208,11 +242,22 @@ export async function tendTree(log:Log=()=>{}):Promise<{subject:string;added:str
   const slug=a.slug.toLowerCase().trim();if(!/^[a-z0-9][a-z0-9-]{1,60}$/.test(slug)||!inBranch.has(a.parent)||await getTopic(db,slug)||a.brief.length<40)continue;
   const parent=await getTopic(db,a.parent);if(!parent)continue;
   const t=await createTopic(db,{slug,name:a.name.slice(0,120),description:a.brief.slice(0,2000),parentId:parent.id});
-  if(await enqueueTeam(db,{slug:t.slug,name:t.name,brief:a.brief+'\nClassification basis: '+a.basis,parentSlug:parent.slug,priority:0,note:'tree: '+root.slug}))added.push(slug);
+  await adoptSubtopic(db,t.slug,parent.slug,a.brief+'\nClassification basis: '+a.basis);added.push(slug);
  }
  if(r.flags.length){const {raiseIssue}=await import('@/app/ops/issues');
   for(const f of r.flags.slice(0,10))await raiseIssue(db,{source:'manager',topic:root.slug,severity:'minor',title:'Tree: '+f.kind+' — '+f.slugs.join(', '),detail:f.why,fingerprint:'tree:'+f.kind+':'+[...f.slugs].sort().join(',')}).catch(()=>{});}
  await setState(db,'manager.garden',{at:new Date().toISOString(),index:i,subject:root.slug,status:'done',added,summary:r.summary.slice(0,1000)});
  log({event:'tree_tended',subject:root.slug,added,flags:r.flags.length});
  return {subject:root.slug,added};
+}
+
+// A new subtopic joins its parent's team: it is owned by that team (the parent's own team, or the parent itself when
+// the parent is a leaf with a team) and the team is queued to cover it next.
+export async function adoptSubtopic(db:Queryable,slug:string,parentSlug:string,brief:string){
+ const {teamOf,setTeam}=await import('./ownership');
+ const team=await teamOf(db,parentSlug);
+ await setTeam(db,slug,team);
+ await db.query(`update topics set scope=coalesce(scope,'{}'::jsonb)||jsonb_build_object('brief',$2::text,'priority',2) where slug=$1::text`,[slug,brief.slice(0,4000)]);
+ const t=await getTopic(db,team);
+ await enqueueTeam(db,{slug:team,name:t?.name||team,brief:t?.description||brief,priority:1,note:'build: new subtopic ['+slug+']'});
 }
