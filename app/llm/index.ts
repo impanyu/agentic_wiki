@@ -34,4 +34,4 @@ export function embedder():Embedder{return llm().embedder();}
 export function siteEmbed(texts:string[],signal?:AbortSignal){return llm().siteEmbed(texts,signal);}
 // Current month's metered OpenAI spend against LLM_MONTHLY_BUDGET_USD.
 export function llmSpend(){return llm().spend();}
-export function llmStatus(){const l=llm();return {rates:l.tracker.snapshot(),chains:Object.fromEntries((['premium','agent','fast','vision','translate','review'] as TaskClass[]).map(c=>[c,l.chain({class:c}).map(e=>e.id)]))};}
+export function llmStatus(){const l=llm();return {rates:l.tracker.snapshot(),chains:Object.fromEntries((['premium','agent','fast','vision','translate','instant','review'] as TaskClass[]).map(c=>[c,l.chain({class:c}).map(e=>e.id)]))};}

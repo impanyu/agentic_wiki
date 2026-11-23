@@ -63,6 +63,8 @@ export const BASE_CATALOG:Catalog={
   fast:['gemini:gemini-3.8-flash-lite','nrp:gpt-oss','openai'],
   // Page translation: the open models that answered a 20-item batch fastest (gemma, minimax ~40 s; deepseek ~55 s;
   // gpt-oss ~130 s under load), spread over several so many batches run at once.
+  // A reader is waiting (a page's first view in a language): only models that answer in seconds.
+  instant:['gemini:gemini-3.8-flash-lite','openai'],
   translate:['nrp:gemma','nrp:minimax','gemini:gemini-3.8-flash-lite','nrp:deepseek-v4-flash','nrp:qwen3','nrp:gpt-oss','openai'],
   vision:['nrp:qwen3','nrp:gemma','gemini:gemini-3.8-flash','openrouter:nemotron-3.5-super-vl','openai'],
  },

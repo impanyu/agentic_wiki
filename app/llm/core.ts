@@ -62,7 +62,7 @@ export function createLLM(deps:Deps){
   else if(cls==='review'){
    const avoid=familyOf(request.avoidModel),base=c.chains.agent;
    ids.push(...base.filter(id=>c.models[id]&&c.models[id].family!==avoid),...base);
-  }else if(cls==='agent'||cls==='fast'||cls==='vision'||cls==='translate')ids.push(...c.chains[cls]);
+  }else if(cls==='agent'||cls==='fast'||cls==='vision'||cls==='translate'||cls==='instant')ids.push(...c.chains[cls]);
   else throw Error('LLM_CLASS_INVALID: '+cls);
   // Images in a non-vision class: try the vision chain's free models too.
   if(need.vision&&cls!=='vision')ids.push(...c.chains.vision);

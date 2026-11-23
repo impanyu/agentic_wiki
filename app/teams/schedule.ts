@@ -97,11 +97,11 @@ export async function recomputeIndices(type:string):Promise<string[]>{
 // a minute (CONTENT_TRANSLATE_BATCHES, default 6; 0 stops it).
 export async function translateContent(){
  const batches=Number(process.env.CONTENT_TRANSLATE_BATCHES??20);if(!(batches>0))return 0;
- const db=await entityDb();const {translatePending,queueTreeTranslations}=await import('@/app/i18n/content');
+ const db=await entityDb();const {queueTreeTranslations}=await import('@/app/i18n/content');
  // Once a day the topic tree's names and descriptions are queued for the most-read languages.
  {const {getState,setState}=await import('./manager');const st=await getState(db,'translate.tree').catch(()=>null);
   if(!st||Date.now()-Date.parse(String(st.at))>20*3600_000){await setState(db,'translate.tree',{at:new Date().toISOString()});void queueTreeTranslations(db).then(q=>console.log('[translate] queued',q,'tree texts')).catch(e=>console.error('[translate] queue failed',(e as Error).message));}}
- const n=await translatePending(db,{concurrency:Number(process.env.CONTENT_TRANSLATE_CONCURRENCY||12),size:40,budgetMs:50_000}).catch(e=>{console.error('[translate] failed',(e as Error).message);return 0;});
+ const {startTranslationPool}=await import('@/app/i18n/content');startTranslationPool(db,Number(process.env.CONTENT_TRANSLATE_WORKERS||16));const n=0;
  if(n)console.log('[translate]',n,'texts');
  return n;
 }

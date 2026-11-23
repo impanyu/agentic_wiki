@@ -1,10 +1,10 @@
 import {createHash} from 'node:crypto';
 import type {Queryable} from '@/app/entity-db/client';
 import {DEFAULT_LOCALE,LOCALES} from './locales';
-// Content translation (the pages' own words, not the interface): titles, labels, sentences and short attribute values
-// of a page model are looked up per language; a text never seen in that language is queued and the page shows it in
-// English meanwhile; the heartbeat translates the queue in batches (translatePending). Proper names, numbers,
-// units and links are kept. A page in another language is indexed only when nothing on it is still waiting.
+// Content translation (the pages' own words, not the interface): titles, labels, sentences, table cells and units of a
+// page model, stored once per language. One language per page: a text not translated yet is translated before the
+// page is shown (localizeContent); a pool of background workers translates ahead of readers (startTranslationPool).
+// Proper names, numbers and links are kept. A page in another language is indexed only when nothing on it is missing.
 const KEYS=new Set(['title','name','label','lead','text','description','detail','subtitle','about','caption','note','kicker','summary','heading','paragraphs','baseTitle','question','unitLabel','unit']);
 const SKIP=new Set(['href','slug','key','id','image','url','code','format','currency','period','year','entity_id','type','column']);
 const hashOf=(s:string)=>createHash('sha1').update(s).digest('hex').slice(0,20);
@@ -56,9 +56,9 @@ function apply(v:unknown,map:Map<string,string>,key=''):unknown{
  if(v&&typeof v==='object'){const o:Record<string,unknown>={};for(const [k,x] of Object.entries(v)){o[k]=SKIP.has(k)?x:apply(x,map,k);}return o;}
  return v;
 }
-// Texts being translated right now (lang:hash), so concurrent requests and the background queue do not translate
-// the same text twice at once.
-const inflight=new Set<string>();
+// Texts being translated right now (lang:hash → the batch's promise), so concurrent requests and the background pool
+// share one translation of each text instead of starting another.
+const inflight=new Map<string,Promise<unknown>>();
 async function save(db:Queryable,lang:string,pairs:[string,string][],out:Record<string,string>,map?:Map<string,string>){
  const hs:string[]=[],ts:string[]=[];
  for(const [h,src] of pairs){const t=out[src];if(typeof t==='string'&&t.trim()){hs.push(h);ts.push(t.trim().slice(0,4000));map?.set(src,t.trim());}}
@@ -66,66 +66,77 @@ async function save(db:Queryable,lang:string,pairs:[string,string][],out:Record<
  const failed=pairs.filter(([,src])=>!(typeof out[src]==='string'&&out[src].trim())).map(([h])=>h);
  if(failed.length)await db.query('update translations set attempts=attempts+1, updated_at=now() where lang=$1::text and hash = any($2::text[])',[lang,failed]);
 }
-// Translates chunks of [hash, source] in parallel (each chunk saved when it returns, even after the caller stopped
-// waiting); resolves when all are done.
-function translateChunks(db:Queryable,lang:string,pairs:[string,string][],size:number,map?:Map<string,string>,cls:'fast'|'translate'='translate'):Promise<unknown>[]{
+type Cls='instant'|'translate';
+// Translates [hash, source] pairs in parallel chunks (each saved when it returns, even after the caller stopped
+// waiting). Returns a promise per chunk, plus the promises of pairs another request is already translating.
+function translateChunks(db:Queryable,lang:string,pairs:[string,string][],size:number,cls:Cls):Promise<unknown>[]{
  const name=LOCALES.find(l=>l.code===lang)?.name||lang;
- const todo=pairs.filter(([h])=>!inflight.has(lang+':'+h));
- const out:Promise<unknown>[]=[];
+ const out:Promise<unknown>[]=[],todo:[string,string][]=[];
+ for(const p of pairs){const f=inflight.get(lang+':'+p[0]);if(f)out.push(f);else todo.push(p);}
  for(let i=0;i<todo.length;i+=size){
-  const chunk=todo.slice(i,i+size);for(const [h] of chunk)inflight.add(lang+':'+h);
-  out.push(translateBatch(chunk.map(c=>c[1]),lang,name,cls)
-   .then(r=>save(db,lang,chunk,r,map),async e=>{await save(db,lang,chunk,{});console.warn('[translate]',lang,(e as Error).message.slice(0,160));})
-   .catch(()=>{}).finally(()=>{for(const [h] of chunk)inflight.delete(lang+':'+h);}));
+  const chunk=todo.slice(i,i+size);
+  const job=translateBatch(chunk.map(c=>c[1]),lang,name,cls)
+   .then(r=>save(db,lang,chunk,r),async e=>{await save(db,lang,chunk,{});console.warn('[translate]',lang,(e as Error).message.slice(0,160));})
+   .catch(()=>{}).finally(()=>{for(const [h] of chunk)if(inflight.get(lang+':'+h)===job)inflight.delete(lang+':'+h);});
+  for(const [h] of chunk)inflight.set(lang+':'+h,job);
+  out.push(job);
  }
- return out;
+ return [...new Set(out)];
 }
-// Translates a page model into a language: what is translated already is put in; everything else on the page is
-// translated right away in parallel batches (the first reader waits up to CONTENT_SYNC_MS on the fast chain, the batches finish and are
-// stored even if they take longer), and anything still missing goes first in the background queue.
-// Returns the model and whether anything is still waiting (the page is then kept out of search indexes).
+// Translates a page model into a language. One language per page: what is translated already is put in, and
+// everything still missing is translated before the page is shown — in parallel batches on models that answer in
+// seconds (the "instant" chain), waiting up to CONTENT_SYNC_MS (15 s). Pre-translation makes this rare. Numbers and
+// units may stay as they are; every other word is in the reader's language.
+// Returns the model and whether anything is still missing (the page is then kept out of search indexes).
 export async function localizeContent<T>(db:Queryable,model:T,locale:string):Promise<{model:T;complete:boolean}>{
  if(!locale||locale===DEFAULT_LOCALE||!LOCALES.some(l=>l.code===locale))return {model,complete:true};
  const texts=new Set<string>();collect(model,texts);
  if(!texts.size)return {model,complete:true};
- const list=[...texts].slice(0,800),hashes=list.map(hashOf);
+ const list=[...texts].slice(0,1500),hashes=list.map(hashOf);
  const map=new Map<string,string>();
  try{
   const r=await db.query<{hash:string;text:string|null;status:string;attempts:number}>('select hash, text, status, attempts from translations where lang=$1::text and hash = any($2::text[])',[locale,hashes]);
   const got=new Map(r.rows.map(x=>[x.hash,x]));const missing:[string,string][]=[];
-  list.forEach((s,i)=>{const g=got.get(hashes[i]);if(g?.status==='done'&&g.text)map.set(s,g.text);else if(!g||Number(g.attempts)<3)missing.push([hashes[i],s]);});
+  list.forEach((s,i)=>{const g=got.get(hashes[i]);if(g?.status==='done'&&g.text)map.set(s,g.text);else missing.push([hashes[i],s]);});
   if(missing.length){
-   // Queued with reader priority (texts pre-queued for this language move up too).
    await db.query(`insert into translations(lang,hash,source,priority) select $1::text, x.h, x.s, 1 from unnest($2::text[],$3::text[]) as x(h,s)
-    on conflict (lang, hash) do update set priority = 1 where translations.status = 'pending' and translations.priority < 1`,[locale,missing.map(m=>m[0]),missing.map(m=>m[1])]);
-   const limit=Number(process.env.CONTENT_SYNC_LIMIT||400),ms=Number(process.env.CONTENT_SYNC_MS||2500);
-   if(limit>0){
-    const jobs=translateChunks(db,locale,missing.slice(0,limit),25,map,'fast');
+    on conflict (lang, hash) do update set priority = greatest(translations.priority, 1), attempts = least(translations.attempts, 2) where translations.status = 'pending'`,[locale,missing.map(m=>m[0]),missing.map(m=>m[1])]);
+   const ms=Number(process.env.CONTENT_SYNC_MS||15000);
+   if(ms>0){
+    const jobs=translateChunks(db,locale,missing,20,'instant');
     await Promise.race([Promise.all(jobs),new Promise(r=>setTimeout(r,ms))]);
+    const done=await db.query<{hash:string;text:string}>(`select hash, text from translations where lang=$1::text and status='done' and hash = any($2::text[])`,[locale,missing.map(m=>m[0])]);
+    const byHash=new Map(missing);for(const d of done.rows){const src=byHash.get(d.hash);if(src&&d.text)map.set(src,d.text);}
    }
   }
  }catch{return {model,complete:false};}
- return {model:apply(model,new Map(map)) as T,complete:map.size>=list.length};
+ return {model:apply(model,map) as T,complete:map.size>=list.length};
 }
-// Background: the waiting texts, readers' first, then pre-translation; CONTENT_TRANSLATE_CONCURRENCY batches at
-// once, for up to budgetMs (the heartbeat calls it once a minute).
-let busy=false;
-export async function translatePending(db:Queryable,{concurrency=8,size=40,budgetMs=50_000}:{concurrency?:number;size?:number;budgetMs?:number}={}):Promise<number>{
- if(busy)return 0;busy=true;let done=0;const until=Date.now()+budgetMs;
- try{
-  while(Date.now()<until){
-   const rows=(await db.query<{lang:string;hash:string;source:string}>(`select lang, hash, source from translations where status='pending' and attempts<3 order by priority desc, created_at limit $1::int`,[concurrency*size*2])).rows
-    .filter(r=>!inflight.has(r.lang+':'+r.hash));
-   if(!rows.length)break;
-   const byLang=new Map<string,[string,string][]>();for(const r of rows){const l=byLang.get(r.lang)??[];l.push([r.hash,r.source]);byLang.set(r.lang,l);}
-   const jobs:Promise<unknown>[]=[];
-   for(const [lang,pairs] of byLang){if(jobs.length>=concurrency)break;jobs.push(...translateChunks(db,lang,pairs.slice(0,size*(concurrency-jobs.length)),size).slice(0,concurrency-jobs.length));}
-   await Promise.all(jobs);done+=Math.min(rows.length,jobs.length*size);
+// Background translation: a pool of workers, each taking the next waiting batch (highest priority first: the home
+// page, subject pages, texts readers met, then the rest of the tree) as soon as its last one is done. Started once
+// per worker process; runs for the life of the process.
+let pool=0;
+export function startTranslationPool(db:Queryable,workers=16,size=40){
+ if(pool)return pool;pool=workers;
+ const worker=async(n:number)=>{
+  await new Promise(r=>setTimeout(r,n*500));
+  for(;;){
+   try{
+    const rows=(await db.query<{lang:string;hash:string;source:string}>(`select lang, hash, source from translations where status='pending' and attempts<3 order by priority desc, created_at limit 400`)).rows
+     .filter(r=>!inflight.has(r.lang+':'+r.hash));
+    if(!rows.length){await new Promise(r=>setTimeout(r,15_000));continue;}
+    const lang=rows[0].lang,pairs=rows.filter(r=>r.lang===lang).slice(0,size).map(r=>[r.hash,r.source] as [string,string]);
+    const t0=Date.now();await Promise.all(translateChunks(db,lang,pairs,size,'translate'));
+    done+=pairs.length;if(Date.now()-t0<1000)await new Promise(r=>setTimeout(r,1000));
+   }catch(e){console.warn('[translate] pool',(e as Error).message.slice(0,160));await new Promise(r=>setTimeout(r,10_000));}
   }
- }finally{busy=false;}
- return done;
+ };
+ for(let i=0;i<workers;i++)void worker(i);
+ setInterval(()=>{if(done){console.log('[translate]',done,'texts in the last 5 min');done=0;}},5*60_000).unref?.();
+ return pool;
 }
-async function translateBatch(texts:string[],lang:string,name:string,cls:'fast'|'translate'='translate'):Promise<Record<string,string>>{
+let done=0;
+async function translateBatch(texts:string[],lang:string,name:string,cls:Cls='translate'):Promise<Record<string,string>>{
  const {respond}=await import('@/app/llm');
  const schema={type:'object',additionalProperties:false,required:['items'],properties:{items:{type:'array',items:{type:'object',additionalProperties:false,required:['source','text'],properties:{source:{type:'string'},text:{type:'string'}}}}}};
  const r=await respond({class:cls,store:false,instructions:`You translate the text of RankWiki, a public ranking and encyclopedia site, from English into ${name} (${lang}). Translate each item fully and naturally, as a well-edited reference site in that language would. Some items mark linked words as <0>…</0>, <3>…</3>: keep every such tag pair exactly once, around the words that mean the same in your translation (reorder them as the grammar needs). Keep: brand, product, company and person names as they are (use the established ${name} name of a famous person or work if one exists); place names in their established ${name} form; every number, date, unit symbol, currency sign, ordinal meaning and {placeholder} exactly. Return every item with its source unchanged.`,
