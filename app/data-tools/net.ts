@@ -18,12 +18,12 @@ export function friendlyError(e:unknown,url:string):Error{
  if(/ENOTFOUND|EAI_AGAIN/.test(m))return Error('The host does not exist: '+new URL(url).hostname);
  return e instanceof Error?e:Error(m);
 }
-export async function fetchText(input:string|URL,signal:AbortSignal,options:{accept?:string;anyType?:boolean;maxBytes?:number}={}){
+export async function fetchText(input:string|URL,signal:AbortSignal,options:{accept?:string;anyType?:boolean;maxBytes?:number;headers?:Record<string,string>}={}){
  const url=typeof input==='string'?publicUrl(input):input;
  try{
-  const r=await fetchSource(url,signal,{maxBytes:options.maxBytes||20*1024*1024,accept:options.accept||'application/json,text/csv,application/xml,text/xml,text/html;q=0.9,*/*;q=0.5',allowType:t=>options.anyType?!/^(image|video|audio|font)\/|zip|pdf/.test(t):DATA_TYPES.test(t)});
+  const r=await fetchSource(url,signal,{headers:options.headers,maxBytes:options.maxBytes||20*1024*1024,accept:options.accept||'application/json,text/csv,application/xml,text/xml,text/html;q=0.9,*/*;q=0.5',allowType:t=>options.anyType?!/^(image|video|audio|font)\/|zip|pdf/.test(t):DATA_TYPES.test(t)});
   return {url:r.url,type:r.type,text:new TextDecoder(r.charset||'utf-8').decode(r.bytes)};
- }catch(e){throw friendlyError(e,url.href);}
+ }catch(e){const {redactSecrets}=await import('./secrets');const f=friendlyError(e,url.href);throw Error(redactSecrets(f.message));}
 }
 // For the browser: a request may go out only when its host resolves to public IPv4 addresses.
 const dnsCache=new Map<string,{at:number;ok:boolean}>();

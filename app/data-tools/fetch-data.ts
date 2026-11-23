@@ -5,8 +5,9 @@ import {extractTables,htmlTitle} from './html';
 import {evaluateJsonata,resultRows} from './query';
 import {paginate,setParam} from './paging';
 import {sourceText} from '@/app/url-content/fetch';
+import {resolveSecrets,redactSecrets,resolveHeaders} from './secrets';
 // fetch_data: one public URL (optionally several pages of it) → one dataset.
-export type FetchDataArgs={url:string;format:'auto'|DataFormat;select:string;tableIndex:number;pages:number;nextPage:string;title:string};
+export type FetchDataArgs={url:string;format:'auto'|DataFormat;select:string;tableIndex:number;pages:number;nextPage:string;title:string;headers?:string};
 type Parsed={raw:unknown;rows:Row[];format:DataFormat;note?:string;title?:string;tables?:unknown[]};
 const scopeHint=(raw:unknown)=>{try{return JSON.stringify(raw,(k,v)=>Array.isArray(v)&&v.length>3?[...v.slice(0,2),'…'+v.length+' items']:typeof v==='string'&&v.length>60?v.slice(0,60)+'…':v).slice(0,600);}catch{return '';}};
 export async function parseResponse(text:string,contentType:string,url:string,format:FetchDataArgs['format'],select:string,tableIndex:number):Promise<Parsed>{
@@ -39,10 +40,12 @@ export async function fetchData(args:FetchDataArgs,scope:string,signal:AbortSign
  if(maxPages>1&&!nextPage)throw Error('To follow several pages give nextPage: a JSONata expression over the parsed response that returns the next URL or null, e.g. for the World Bank API: \'$[0].page < $[0].pages ? $setParam($url, "page", $[0].page + 1) : null\'.');
  let format:DataFormat='json',note:string|undefined,listed:Parsed|null=null;
  const fetchOne=async(url:string)=>{
-  const res=await fetchText(url,signal,{anyType:args.format!=='auto'&&!!args.format});
-  const p=await parseResponse(res.text,res.type,res.url,args.format||'auto',args.select||'',Number.isInteger(args.tableIndex)?args.tableIndex:0);
+  // Keys ({{secret:…}} in the URL or headers) are put in only for the request; everything kept shows the placeholder.
+  const res=await fetchText(resolveSecrets(url),signal,{anyType:args.format!=='auto'&&!!args.format,headers:resolveHeaders(args.headers||'')});
+  const shown=redactSecrets(res.url);
+  const p=await parseResponse(res.text,res.type,shown,args.format||'auto',args.select||'',Number.isInteger(args.tableIndex)?args.tableIndex:0);
   format=p.format;note=note||p.note;if(p.tables&&args.tableIndex===-1)listed=p;
-  return {rows:p.rows,raw:p.raw,url:res.url};
+  return {rows:p.rows,raw:p.raw,url:shown};
  };
  const run=await paginate(args.url,maxPages,fetchOne,async(page,i)=>{
   if(!nextPage)return null;

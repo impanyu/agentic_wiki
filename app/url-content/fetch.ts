@@ -39,7 +39,7 @@ export function urlKeys(url:URL){
  for(const scheme of ['https://','http://'])for(const h of [host,'www.'+host])for(const p of [path||'/',path+'/'])for(const q of new Set([url.search,cleanQuery(url),'']))keys.add('url:'+scheme+h+p+q);
  return [...keys];
 }
-export type FetchOptions={accept?:string;allowType?:(type:string)=>boolean;maxBytes?:number;referer?:string};
+export type FetchOptions={accept?:string;allowType?:(type:string)=>boolean;maxBytes?:number;referer?:string;headers?:Record<string,string>};
 const documentTypes=['text/html','application/xhtml+xml','text/plain','text/markdown','application/json','application/pdf'];
 export async function fetchSource(url:URL,signal:AbortSignal,options:FetchOptions={}){
  const max=options.maxBytes||limit;
@@ -54,7 +54,7 @@ export async function fetchSource(url:URL,signal:AbortSignal,options:FetchOption
   });
   if(!addresses.length||addresses.some(a=>!publicIPv4(a.address)))throw Error('URL_PRIVATE');
   const result=await new Promise<{status:number;location?:string;type:string;charset?:string;bytes:Buffer}>((resolve,reject)=>{
-   const req=(url.protocol==='https:'?httpsRequest:httpRequest)(url,{method:'GET',agent:false,family:4,signal:deadline,lookup:(_host,_options,callback)=>callback(null,addresses[0].address,4),headers:{Accept:options.accept||'text/html,application/pdf,text/plain,application/json','Accept-Encoding':'identity','User-Agent':'AgenticWiki/1.0 (page reader)',...(options.referer?{Referer:options.referer}:{})}},res=>{
+   const req=(url.protocol==='https:'?httpsRequest:httpRequest)(url,{method:'GET',agent:false,family:4,signal:deadline,lookup:(_host,_options,callback)=>callback(null,addresses[0].address,4),headers:{Accept:options.accept||'text/html,application/pdf,text/plain,application/json','Accept-Encoding':'identity','User-Agent':'AgenticWiki/1.0 (page reader)',...(options.referer?{Referer:options.referer}:{}),...(options.headers||{})}},res=>{
     const status=res.statusCode||0;
     if(status>=300&&status<400){res.destroy();resolve({status,location:res.headers.location,type:'',bytes:Buffer.alloc(0)});return;}
     if(status<200||status>=300){res.destroy();reject(Error('URL_UNAVAILABLE'));return;}

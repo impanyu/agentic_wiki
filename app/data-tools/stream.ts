@@ -8,7 +8,8 @@ import {publicIPv4,sourceUrl} from '@/app/url-content/fetch';
 // redirect re-checks as fetchSource, but no size limit and no overall deadline — only an idle timeout.
 // gzip is undone on the fly (a ".gz" file or a gzip content-encoding).
 export async function openStream(input:string,signal:AbortSignal,{idleMs=120_000}:{idleMs?:number}={}):Promise<{url:string;type:string;body:Readable}>{
- let url=sourceUrl(input);if(!url)throw Error('This is not a valid public http(s) address: '+input);
+ const {resolveSecrets}=await import('./secrets');
+ let url=sourceUrl(resolveSecrets(input));if(!url)throw Error('This is not a valid public http(s) address.');
  for(let redirects=0;redirects<=5;redirects++){
   signal.throwIfAborted();
   const addresses=await lookup(url.hostname,{all:true,family:4});
@@ -21,7 +22,7 @@ export async function openStream(input:string,signal:AbortSignal,{idleMs=120_000
   });
   const status=res.statusCode||0;
   if(status>=300&&status<400){res.resume();const loc=res.headers.location;if(!loc)break;const next=sourceUrl(new URL(loc,url).href);if(!next)throw Error('Redirect to a non-public address.');url=next;continue;}
-  if(status<200||status>=300){res.resume();throw Error('HTTP '+status+' for '+url.href);}
+  if(status<200||status>=300){res.resume();const {redactSecrets}=await import('./secrets');throw Error('HTTP '+status+' for '+redactSecrets(url.href));}
   const type=String(res.headers['content-type']||'').split(';')[0].trim().toLowerCase();
   if(/^(image|video|audio|font)\//.test(type)||/zip|pdf/.test(type)&&!/gzip/.test(type))throw Error('Not a data file ('+type+'): '+url.href);
   res.setTimeout(idleMs,()=>res.destroy(Error('The download stalled: '+url!.href)));
