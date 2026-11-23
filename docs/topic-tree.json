@@ -3984,6 +3984,502 @@
   "description": "Notable people ranked by achievement, influence and public data.",
   "children": [
    {
+    "slug": "creators-influencers",
+    "name": "Creators and influencers",
+    "kind": "knowledge",
+    "description": "Influencers, vloggers and creators on every platform and in every niche, ranked on public audience statistics.",
+    "children": [
+     {
+      "slug": "creators-by-platform",
+      "name": "By platform",
+      "kind": "knowledge",
+      "description": "Top accounts on each social platform.",
+      "children": [
+       {
+        "slug": "tiktok-creators",
+        "name": "TikTok creators",
+        "kind": "knowledge",
+        "description": "TikTok creators ranked on followers, growth and engagement. Only public accounts of public figures and creators (verified or above a follower threshold), from public statistics; no private individuals.",
+        "entity": "TikTok account",
+        "universe": "TikTok accounts with more than 1 million followers",
+        "criteria": [
+         "followers",
+         "follower growth (30 days)",
+         "engagement rate (public likes and comments per post ÷ followers)",
+         "posts per week",
+         "influence index = log followers × engagement × growth"
+        ],
+        "sources": [
+         "Wikipedia list of most-followed TikTok accounts",
+         "TikTok public profile statistics (official embeds)",
+         "TikTok Research API (where granted)"
+        ],
+        "priority": 1
+       },
+       {
+        "slug": "instagram-influencers",
+        "name": "Instagram influencers",
+        "kind": "knowledge",
+        "description": "Instagram influencers ranked on followers, growth and engagement. Only public accounts of public figures and creators (verified or above a follower threshold), from public statistics; no private individuals.",
+        "entity": "Instagram account",
+        "universe": "Instagram accounts with more than 1 million followers",
+        "criteria": [
+         "followers",
+         "follower growth (30 days)",
+         "engagement rate (public likes and comments per post ÷ followers)",
+         "posts per week",
+         "influence index = log followers × engagement × growth"
+        ],
+        "sources": [
+         "Wikipedia list of most-followed Instagram accounts",
+         "Instagram public profile statistics"
+        ],
+        "priority": 1
+       },
+       {
+        "slug": "x-accounts",
+        "name": "Most-followed X accounts",
+        "kind": "knowledge",
+        "description": "X accounts ranked on followers and engagement. Only public accounts of public figures and creators (verified or above a follower threshold), from public statistics; no private individuals.",
+        "entity": "X account",
+        "universe": "X (Twitter) accounts with more than 1 million followers",
+        "criteria": [
+         "followers",
+         "follower growth (30 days)",
+         "engagement rate (public likes and comments per post ÷ followers)",
+         "posts per week",
+         "influence index = log followers × engagement × growth"
+        ],
+        "sources": [
+         "Wikipedia list of most-followed X accounts",
+         "X public profile statistics"
+        ],
+        "priority": 2
+       },
+       {
+        "slug": "douyin-creators",
+        "name": "Douyin creators (抖音达人)",
+        "kind": "knowledge",
+        "description": "Douyin creators ranked on followers, growth and engagement. Only public accounts of public figures and creators (verified or above a follower threshold), from public statistics; no private individuals.",
+        "entity": "Douyin account",
+        "universe": "Douyin accounts with more than 1 million followers",
+        "criteria": [
+         "followers",
+         "follower growth (30 days)",
+         "engagement rate (public likes and comments per post ÷ followers)",
+         "posts per week",
+         "influence index = log followers × engagement × growth"
+        ],
+        "sources": [
+         "Douyin public profile statistics",
+         "public Chinese creator rankings (Feigua, Chanmama public lists)"
+        ],
+        "priority": 1
+       },
+       {
+        "slug": "bilibili-uploaders",
+        "name": "Bilibili uploaders (B站UP主)",
+        "kind": "knowledge",
+        "description": "Bilibili uploaders ranked on followers, views and engagement. Only public accounts of public figures and creators (verified or above a follower threshold), from public statistics; no private individuals.",
+        "entity": "Bilibili uploader",
+        "universe": "Bilibili uploaders with more than 500,000 followers",
+        "criteria": [
+         "followers",
+         "follower growth (30 days)",
+         "engagement rate (public likes and comments per post ÷ followers)",
+         "posts per week",
+         "influence index = log followers × engagement × growth",
+         "video views"
+        ],
+        "sources": [
+         "Bilibili public API (user stats)",
+         "Bilibili annual Top 100 UP主 list"
+        ],
+        "priority": 1
+       },
+       {
+        "slug": "xiaohongshu-creators",
+        "name": "Xiaohongshu creators (小红书博主)",
+        "kind": "knowledge",
+        "description": "Xiaohongshu creators ranked on followers and engagement. Only public accounts of public figures and creators (verified or above a follower threshold), from public statistics; no private individuals.",
+        "entity": "Xiaohongshu account",
+        "universe": "Xiaohongshu accounts with more than 500,000 followers",
+        "criteria": [
+         "followers",
+         "follower growth (30 days)",
+         "engagement rate (public likes and comments per post ÷ followers)",
+         "posts per week",
+         "influence index = log followers × engagement × growth"
+        ],
+        "sources": [
+         "Xiaohongshu public profile statistics",
+         "public creator rankings"
+        ],
+        "priority": 2
+       },
+       {
+        "slug": "kuaishou-creators",
+        "name": "Kuaishou creators (快手达人)",
+        "kind": "knowledge",
+        "description": "Kuaishou creators ranked on followers and engagement. Only public accounts of public figures and creators (verified or above a follower threshold), from public statistics; no private individuals.",
+        "entity": "Kuaishou account",
+        "universe": "Kuaishou accounts with more than 1 million followers",
+        "criteria": [
+         "followers",
+         "follower growth (30 days)",
+         "engagement rate (public likes and comments per post ÷ followers)",
+         "posts per week",
+         "influence index = log followers × engagement × growth"
+        ],
+        "sources": [
+         "Kuaishou public profile statistics",
+         "public creator rankings"
+        ],
+        "priority": 2
+       },
+       {
+        "slug": "weibo-accounts",
+        "name": "Weibo accounts (微博大V)",
+        "kind": "knowledge",
+        "description": "Weibo accounts ranked on followers and engagement. Only public accounts of public figures and creators (verified or above a follower threshold), from public statistics; no private individuals.",
+        "entity": "Weibo account",
+        "universe": "Weibo accounts with more than 1 million followers",
+        "criteria": [
+         "followers",
+         "follower growth (30 days)",
+         "engagement rate (public likes and comments per post ÷ followers)",
+         "posts per week",
+         "influence index = log followers × engagement × growth"
+        ],
+        "sources": [
+         "Weibo public profile statistics",
+         "Weibo official influence rankings"
+        ],
+        "priority": 2
+       },
+       {
+        "slug": "kick-streamers",
+        "name": "Kick streamers",
+        "kind": "knowledge",
+        "description": "Kick streamers ranked on followers and watch time. Only public accounts of public figures and creators (verified or above a follower threshold), from public statistics; no private individuals.",
+        "entity": "Kick channel",
+        "universe": "Kick channels with public follower counts",
+        "criteria": [
+         "followers",
+         "follower growth (30 days)",
+         "engagement rate (public likes and comments per post ÷ followers)",
+         "posts per week",
+         "influence index = log followers × engagement × growth",
+         "hours streamed"
+        ],
+        "sources": [
+         "Kick public channel pages",
+         "public streaming statistics sites"
+        ],
+        "priority": 3
+       },
+       {
+        "slug": "vtubers",
+        "name": "VTubers",
+        "kind": "knowledge",
+        "description": "VTubers ranked on subscribers, growth and live audiences. Only public accounts of public figures and creators (verified or above a follower threshold), from public statistics; no private individuals.",
+        "entity": "VTuber",
+        "universe": "virtual YouTubers (Hololive, Nijisanji, independents) with public channel statistics",
+        "criteria": [
+         "subscribers",
+         "subscriber growth",
+         "concurrent viewers record",
+         "superchat earnings (public trackers)",
+         "popularity index = subscribers × growth × live viewers"
+        ],
+        "sources": [
+         "YouTube Data API",
+         "Hololive and Nijisanji official talent lists",
+         "Wikipedia list of VTubers"
+        ],
+        "priority": 2
+       },
+       {
+        "slug": "newsletters",
+        "name": "Newsletters and Substacks",
+        "kind": "knowledge",
+        "description": "Newsletters ranked on subscribers and reach. Only public accounts of public figures and creators (verified or above a follower threshold), from public statistics; no private individuals.",
+        "entity": "newsletter",
+        "universe": "paid and free newsletters on Substack, Beehiiv and Ghost with public subscriber figures",
+        "criteria": [
+         "subscribers (public)",
+         "paid subscribers (public badges)",
+         "posting frequency",
+         "growth",
+         "reach index = subscribers × frequency"
+        ],
+        "sources": [
+         "Substack leaderboards",
+         "Beehiiv public pages",
+         "publisher announcements"
+        ],
+        "priority": 3
+       }
+      ]
+     },
+     {
+      "slug": "creators-by-niche",
+      "name": "By niche",
+      "kind": "knowledge",
+      "description": "Influencers by what they cover, across platforms.",
+      "children": [
+       {
+        "slug": "beauty-influencers",
+        "name": "Beauty influencers",
+        "kind": "knowledge",
+        "description": "Beauty and makeup influencers ranked across platforms. Only public accounts of public figures and creators (verified or above a follower threshold), from public statistics; no private individuals.",
+        "entity": "beauty creator",
+        "universe": "beauty and makeup creators with more than 1 million followers on any platform",
+        "criteria": [
+         "followers",
+         "follower growth (30 days)",
+         "engagement rate (public likes and comments per post ÷ followers)",
+         "posts per week",
+         "influence index = log followers × engagement × growth",
+         "platforms"
+        ],
+        "sources": [
+         "YouTube Data API",
+         "platform public statistics",
+         "Wikipedia lists"
+        ],
+        "priority": 1
+       },
+       {
+        "slug": "fitness-influencers",
+        "name": "Fitness influencers",
+        "kind": "knowledge",
+        "description": "Fitness influencers ranked across platforms. Only public accounts of public figures and creators (verified or above a follower threshold), from public statistics; no private individuals.",
+        "entity": "fitness creator",
+        "universe": "fitness and health creators with more than 500,000 followers",
+        "criteria": [
+         "followers",
+         "follower growth (30 days)",
+         "engagement rate (public likes and comments per post ÷ followers)",
+         "posts per week",
+         "influence index = log followers × engagement × growth",
+         "platforms"
+        ],
+        "sources": [
+         "YouTube Data API",
+         "platform public statistics"
+        ],
+        "priority": 1
+       },
+       {
+        "slug": "food-creators",
+        "name": "Food creators",
+        "kind": "knowledge",
+        "description": "Food and cooking creators ranked across platforms. Only public accounts of public figures and creators (verified or above a follower threshold), from public statistics; no private individuals.",
+        "entity": "food creator",
+        "universe": "cooking and food creators with more than 500,000 followers",
+        "criteria": [
+         "followers",
+         "follower growth (30 days)",
+         "engagement rate (public likes and comments per post ÷ followers)",
+         "posts per week",
+         "influence index = log followers × engagement × growth",
+         "platforms"
+        ],
+        "sources": [
+         "YouTube Data API",
+         "platform public statistics"
+        ],
+        "priority": 1
+       },
+       {
+        "slug": "travel-vloggers",
+        "name": "Travel vloggers",
+        "kind": "knowledge",
+        "description": "Travel vloggers ranked across platforms. Only public accounts of public figures and creators (verified or above a follower threshold), from public statistics; no private individuals.",
+        "entity": "travel creator",
+        "universe": "travel vloggers with more than 300,000 followers",
+        "criteria": [
+         "followers",
+         "follower growth (30 days)",
+         "engagement rate (public likes and comments per post ÷ followers)",
+         "posts per week",
+         "influence index = log followers × engagement × growth",
+         "countries covered"
+        ],
+        "sources": [
+         "YouTube Data API",
+         "platform public statistics"
+        ],
+        "priority": 1
+       },
+       {
+        "slug": "tech-reviewers",
+        "name": "Tech reviewers",
+        "kind": "knowledge",
+        "description": "Tech reviewers ranked on audience and engagement. Only public accounts of public figures and creators (verified or above a follower threshold), from public statistics; no private individuals.",
+        "entity": "tech creator",
+        "universe": "technology review channels with more than 300,000 subscribers",
+        "criteria": [
+         "followers",
+         "follower growth (30 days)",
+         "engagement rate (public likes and comments per post ÷ followers)",
+         "posts per week",
+         "influence index = log followers × engagement × growth",
+         "review count"
+        ],
+        "sources": [
+         "YouTube Data API",
+         "platform public statistics"
+        ],
+        "priority": 1
+       },
+       {
+        "slug": "gaming-creators",
+        "name": "Gaming creators",
+        "kind": "knowledge",
+        "description": "Gaming creators ranked across platforms. Only public accounts of public figures and creators (verified or above a follower threshold), from public statistics; no private individuals.",
+        "entity": "gaming creator",
+        "universe": "gaming YouTubers and streamers with more than 1 million followers",
+        "criteria": [
+         "followers",
+         "follower growth (30 days)",
+         "engagement rate (public likes and comments per post ÷ followers)",
+         "posts per week",
+         "influence index = log followers × engagement × growth",
+         "hours streamed"
+        ],
+        "sources": [
+         "YouTube Data API",
+         "Twitch public statistics",
+         "platform public statistics"
+        ],
+        "priority": 1
+       },
+       {
+        "slug": "finance-influencers",
+        "name": "Finance creators",
+        "kind": "knowledge",
+        "description": "Finance creators ranked across platforms. Only public accounts of public figures and creators (verified or above a follower threshold), from public statistics; no private individuals.",
+        "entity": "finance creator",
+        "universe": "personal finance and investing creators with more than 300,000 followers",
+        "criteria": [
+         "followers",
+         "follower growth (30 days)",
+         "engagement rate (public likes and comments per post ÷ followers)",
+         "posts per week",
+         "influence index = log followers × engagement × growth"
+        ],
+        "sources": [
+         "YouTube Data API",
+         "platform public statistics"
+        ],
+        "priority": 2
+       },
+       {
+        "slug": "education-creators",
+        "name": "Education creators",
+        "kind": "knowledge",
+        "description": "Educational creators ranked on audience and engagement. Only public accounts of public figures and creators (verified or above a follower threshold), from public statistics; no private individuals.",
+        "entity": "education creator",
+        "universe": "educational channels (science, history, languages) with more than 500,000 subscribers",
+        "criteria": [
+         "followers",
+         "follower growth (30 days)",
+         "engagement rate (public likes and comments per post ÷ followers)",
+         "posts per week",
+         "influence index = log followers × engagement × growth"
+        ],
+        "sources": [
+         "YouTube Data API",
+         "platform public statistics"
+        ],
+        "priority": 2
+       },
+       {
+        "slug": "kids-family-creators",
+        "name": "Kids and family channels",
+        "kind": "knowledge",
+        "description": "Kids and family channels ranked on audience. Only public accounts of public figures and creators (verified or above a follower threshold), from public statistics; no private individuals.",
+        "entity": "family channel",
+        "universe": "children's and family channels with more than 1 million subscribers",
+        "criteria": [
+         "followers",
+         "follower growth (30 days)",
+         "engagement rate (public likes and comments per post ÷ followers)",
+         "posts per week",
+         "influence index = log followers × engagement × growth"
+        ],
+        "sources": [
+         "YouTube Data API"
+        ],
+        "priority": 2
+       },
+       {
+        "slug": "fashion-influencers",
+        "name": "Fashion influencers",
+        "kind": "knowledge",
+        "description": "Fashion influencers ranked across platforms. Only public accounts of public figures and creators (verified or above a follower threshold), from public statistics; no private individuals.",
+        "entity": "fashion creator",
+        "universe": "fashion and style creators with more than 500,000 followers",
+        "criteria": [
+         "followers",
+         "follower growth (30 days)",
+         "engagement rate (public likes and comments per post ÷ followers)",
+         "posts per week",
+         "influence index = log followers × engagement × growth"
+        ],
+        "sources": [
+         "platform public statistics",
+         "YouTube Data API"
+        ],
+        "priority": 2
+       },
+       {
+        "slug": "car-creators",
+        "name": "Car creators",
+        "kind": "knowledge",
+        "description": "Car creators ranked on audience and engagement. Only public accounts of public figures and creators (verified or above a follower threshold), from public statistics; no private individuals.",
+        "entity": "car creator",
+        "universe": "automotive review and car-culture creators with more than 300,000 followers",
+        "criteria": [
+         "followers",
+         "follower growth (30 days)",
+         "engagement rate (public likes and comments per post ÷ followers)",
+         "posts per week",
+         "influence index = log followers × engagement × growth"
+        ],
+        "sources": [
+         "YouTube Data API",
+         "platform public statistics"
+        ],
+        "priority": 3
+       },
+       {
+        "slug": "pet-influencers",
+        "name": "Pet influencers",
+        "kind": "knowledge",
+        "description": "Pet influencers ranked on followers and engagement. Only public accounts of public figures and creators (verified or above a follower threshold), from public statistics; no private individuals.",
+        "entity": "pet account",
+        "universe": "pet accounts with more than 500,000 followers",
+        "criteria": [
+         "followers",
+         "follower growth (30 days)",
+         "engagement rate (public likes and comments per post ÷ followers)",
+         "posts per week",
+         "influence index = log followers × engagement × growth"
+        ],
+        "sources": [
+         "platform public statistics",
+         "Wikipedia lists"
+        ],
+        "priority": 3
+       }
+      ]
+     }
+    ]
+   },
+   {
     "slug": "public-life",
     "name": "Public life",
     "kind": "knowledge",
