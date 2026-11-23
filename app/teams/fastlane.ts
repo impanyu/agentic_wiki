@@ -1,6 +1,6 @@
 import type {EntityDb} from '@/app/entity-db/client';
-// Fast lane: a topic gets a first ranking and entity pages within minutes, from Wikidata, before its team's full
-// workflow has run. One model call maps the topic to Wikidata classes and numeric properties (reusing the measures the
+// Fast lane (Wikidata starter): a topic's data is preloaded from Wikidata before its team's full workflow runs —
+// never shown to readers (ranking status 'starter', no page template): the team cross-checks it with other sources. One model call maps the topic to Wikidata classes and numeric properties (reusing the measures the
 // type's schema already defines); programs query the top entities by the main measure (SI-normalised values, one
 // unit per measure), their other measures, Wikipedia article, picture and homepage, load them and publish the
 // ranking. A topic whose query finds too few entities is left to its team. The team deepens every topic later
@@ -168,8 +168,8 @@ export async function fastLaneTopic(db:EntityDb,t:Topic):Promise<{ok:boolean;rea
  const type=normalizeType(type0||p.typeLabel||t.slug);
  await db.query(`insert into entity_types(type,topic_id,label,plural,schema,template,status,updated_by) values ($1::text,$2::uuid,$3::text,$4::text,'{}'::jsonb,'{}'::jsonb,'published','fastlane')
   on conflict (type) do update set topic_id=coalesce(entity_types.topic_id,excluded.topic_id), status='published', label=case when entity_types.label='' then excluded.label else entity_types.label end, plural=case when entity_types.plural='' then excluded.plural else entity_types.plural end`,[type,t.id,p.typeLabel||type,p.plural||'']);
- // An entity page needs a template; until the editor designs one, the default (built from the measures) is used.
- await db.query(`update entity_types set template='{"page":{"minMetrics":1},"auto":"fastlane"}'::jsonb where type=$1::text and template='{}'::jsonb`,[type]);
+ // No template and no public page: Wikidata alone is not trusted. The team cross-checks these values with other
+ // sources, designs the pages, and the review publishes them.
  if(!type0)await db.query(`update topics set scope=coalesce(scope,'{}'::jsonb)||jsonb_build_object('type',$2::text) where id=$1::uuid`,[t.id,type]);
  for(const m of metrics)await db.query(`insert into metrics(key,version,label,unit,description,methodology,sort_order,format,kind,created_by,status,used)
    select $1::text,1,$2::text,$3::text,$4::text,$5::text,$6::text,'','observed','fastlane','published',true where not exists (select 1 from metrics where key=$1::text)`,
@@ -179,9 +179,8 @@ export async function fastLaneTopic(db:EntityDb,t:Topic):Promise<{ok:boolean;rea
  const res=await upsertEntities(db,rows,{type,nameColumn:'name',idColumns:{wikidata:'wikidata'},imageColumn:'image',attributeColumns:['wikipedia','website'],topicId:t.id,
   metricColumns:Object.fromEntries(metrics.map(m=>['m_'+m.key,{metric:m.key,unit:unitOf(m.key),period:'p_'+m.key}]))},{source:'Wikidata (query.wikidata.org)'});
  const slug=(t.slug+'-ranking').slice(0,120);
- await db.query(`insert into rankings(topic_id,title,scope,criteria,slug,config,status) select $1::uuid,$2::text,jsonb_build_object('type',$3::text,'filters','{}'::jsonb),$4::text[],$5::text,'{"fastlane":true}'::jsonb,'draft'
+ await db.query(`insert into rankings(topic_id,title,scope,criteria,slug,config,status) select $1::uuid,$2::text,jsonb_build_object('type',$3::text,'filters','{}'::jsonb),$4::text[],$5::text,'{"fastlane":true}'::jsonb,'starter'
   where not exists (select 1 from rankings where slug=$5::text)`,[t.id,p.title||t.name,type,metrics.map(m=>m.key),slug]);
- const {refreshPages}=await import('@/app/entity-db/repo');await refreshPages(db,{type});
  return {ok:true,reason:'',entities:res.inserted+res.merged,ranking:slug};
 }
 
