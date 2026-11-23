@@ -6,19 +6,54 @@ import {DEFAULT_LOCALE,LOCALES} from './locales';
 // English meanwhile; the heartbeat translates the queue in batches (translatePending). Proper names, numbers,
 // units and links are kept. A page in another language is indexed only when nothing on it is still waiting.
 const KEYS=new Set(['title','name','label','lead','text','description','detail','subtitle','about','caption','note','kicker','summary','heading','paragraphs','baseTitle','question','unitLabel','unit']);
-const SKIP=new Set(['rows','href','slug','key','id','image','url','code','format','currency','period','year','entity_id','type','column','props_rows']);
+const SKIP=new Set(['href','slug','key','id','image','url','code','format','currency','period','year','entity_id','type','column']);
 const hashOf=(s:string)=>createHash('sha1').update(s).digest('hex').slice(0,20);
 const translatable=(s:string)=>s.length>=2&&s.length<=1200&&/\p{L}{2}/u.test(s)&&!/^(https?:|\/|#|data:)/.test(s)&&!/^[\p{Lu}\d_-]{2,12}$/u.test(s);
+// A number followed by its unit ("72.24 years", "2,702.48 USD per person"): the unit is translated, the number kept.
+const NUM_UNIT=/^([+−-]?\d[\d.,\s  ]*%?)\s+(\p{L}[\p{L}\p{N}\s/.²³₂·()'’-]*)$/u;
+// A sentence with links is a list of parts ({text, href?}); it is translated as one sentence, the linked words marked
+// <n>…</n> (n = the part's index) so the translation keeps them linked, in the order the language needs.
+type Part={text:string;href?:string};
+const isParts=(v:unknown):v is Part[]=>Array.isArray(v)&&v.length>0&&v.every(p=>p&&typeof p==='object'&&typeof (p as Part).text==='string'&&Object.keys(p as object).every(k=>k==='text'||k==='href'));
+const PART_KEYS=new Set(['leadParts','paragraphParts','parts']);
+const marked=(parts:Part[])=>parts.map((p,i)=>p.href?`<${i}>${p.text}</${i}>`:p.text).join('').trim();
+function unmark(t:string,parts:Part[]):Part[]|null{
+ const out:Part[]=[];let last=0;const used=new Set<number>();
+ for(const m of t.matchAll(/<(\d+)>([\s\S]*?)<\/\1>/g)){const i=Number(m[1]);if(!parts[i]?.href||used.has(i))return null;used.add(i);
+  if(m.index!>last)out.push({text:t.slice(last,m.index)});out.push({text:m[2],href:parts[i].href});last=m.index!+m[0].length;}
+ if(last<t.length)out.push({text:t.slice(last)});
+ // Every link must survive, and no stray tag may be left.
+ if(parts.some((p,i)=>p.href&&!used.has(i))||out.some(p=>/<\/?\d+>/.test(p.text)))return null;
+ return out.filter(p=>p.text);
+}
+// Cells of a table (a ranking's rows): every text cell is page text (names, regions, categories) except ids, addresses,
+// periods and source names.
+const CELL_SKIP=/^(id|entity_id|slug|href|url|image|period|code|type|num)$|_(source|url|id|href|code)$/;
 // Every translatable text in a value (by key), in order.
 function collect(v:unknown,out:Set<string>,key=''){
- if(typeof v==='string'){if(KEYS.has(key)&&translatable(v.trim()))out.add(v.trim());return;}
+ if(typeof v==='string'){const x=v.trim();if(!x)return;
+  const nu=NUM_UNIT.exec(x);if(nu){if(translatable(nu[2].trim()))out.add(nu[2].trim());return;}
+  if((KEYS.has(key)||key==='cell')&&translatable(x)&&!/^[\d\s.,%+−-]+$/.test(x))out.add(x);return;}
+ if(PART_KEYS.has(key)&&Array.isArray(v)){
+  if(isParts(v)){const m=marked(v);if(translatable(m))out.add(m);return;}
+  if(v.every(isParts)){for(const s of v as Part[][]){const m=marked(s);if(translatable(m))out.add(m);}return;}
+ }
+ if(key==='rows'&&Array.isArray(v)){for(const r of v)if(r&&typeof r==='object')for(const [k,x] of Object.entries(r))if(!CELL_SKIP.test(k))collect(x,out,KEYS.has(k)?k:'cell');return;}
  if(Array.isArray(v)){for(const x of v)collect(x,out,key==='paragraphs'?'paragraphs':key);return;}
- if(v&&typeof v==='object')for(const [k,x] of Object.entries(v)){if(SKIP.has(k))continue;collect(x,out,k==='parts'||k==='leadParts'||k==='paragraphParts'?'text':k);}
+ if(v&&typeof v==='object')for(const [k,x] of Object.entries(v)){if(SKIP.has(k))continue;collect(x,out,k);}
 }
 function apply(v:unknown,map:Map<string,string>,key=''):unknown{
- if(typeof v==='string'){if(!KEYS.has(key))return v;const t=map.get(v.trim());return t??v;}
+ if(typeof v==='string'){const x=v.trim();
+  const nu=NUM_UNIT.exec(x);if(nu){const t=map.get(nu[2].trim());return t?nu[1].trim()+' '+t:v;}
+  if(!KEYS.has(key)&&key!=='cell')return v;const t=map.get(x);return t??v;}
+ if(PART_KEYS.has(key)&&Array.isArray(v)){
+  const one=(s:Part[])=>{const t=map.get(marked(s));return t?unmark(t,s)??s:s;};
+  if(isParts(v))return one(v);
+  if(v.every(isParts))return (v as Part[][]).map(one);
+ }
+ if(key==='rows'&&Array.isArray(v))return v.map(r=>r&&typeof r==='object'?Object.fromEntries(Object.entries(r).map(([k,x])=>[k,CELL_SKIP.test(k)?x:apply(x,map,KEYS.has(k)?k:'cell')])):r);
  if(Array.isArray(v))return v.map(x=>apply(x,map,key==='paragraphs'?'paragraphs':key));
- if(v&&typeof v==='object'){const o:Record<string,unknown>={};for(const [k,x] of Object.entries(v)){o[k]=SKIP.has(k)?x:apply(x,map,k==='parts'||k==='leadParts'||k==='paragraphParts'?'text':k);}return o;}
+ if(v&&typeof v==='object'){const o:Record<string,unknown>={};for(const [k,x] of Object.entries(v)){o[k]=SKIP.has(k)?x:apply(x,map,k);}return o;}
  return v;
 }
 // Texts being translated right now (lang:hash), so concurrent requests and the background queue do not translate
@@ -93,7 +128,7 @@ export async function translatePending(db:Queryable,{concurrency=8,size=40,budge
 async function translateBatch(texts:string[],lang:string,name:string,cls:'fast'|'translate'='translate'):Promise<Record<string,string>>{
  const {respond}=await import('@/app/llm');
  const schema={type:'object',additionalProperties:false,required:['items'],properties:{items:{type:'array',items:{type:'object',additionalProperties:false,required:['source','text'],properties:{source:{type:'string'},text:{type:'string'}}}}}};
- const r=await respond({class:cls,store:false,instructions:`You translate the text of RankWiki, a public ranking and encyclopedia site, from English into ${name} (${lang}). Translate each item fully and naturally, as a well-edited reference site in that language would. Keep: brand, product, company and person names as they are (use the established ${name} name of a famous person or work if one exists); place names in their established ${name} form; every number, date, unit symbol, currency sign, ordinal meaning and {placeholder} exactly. Return every item with its source unchanged.`,
+ const r=await respond({class:cls,store:false,instructions:`You translate the text of RankWiki, a public ranking and encyclopedia site, from English into ${name} (${lang}). Translate each item fully and naturally, as a well-edited reference site in that language would. Some items mark linked words as <0>…</0>, <3>…</3>: keep every such tag pair exactly once, around the words that mean the same in your translation (reorder them as the grammar needs). Keep: brand, product, company and person names as they are (use the established ${name} name of a famous person or work if one exists); place names in their established ${name} form; every number, date, unit symbol, currency sign, ordinal meaning and {placeholder} exactly. Return every item with its source unchanged.`,
   input:JSON.stringify(texts),max_output_tokens:12000,text:{format:{type:'json_schema',name:'translations',schema,strict:true}}} as never);
  const text=(r.output||[]).flatMap(o=>'content' in o&&Array.isArray(o.content)?o.content:[]).map((c:{type?:string;text?:string})=>c.type==='output_text'?c.text||'':'').join('');
  const parsed=JSON.parse(text.replace(/^```(?:json)?\s*|\s*```$/g,'')||'{}') as {items?:{source:string;text:string}[]};

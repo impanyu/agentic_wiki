@@ -17,7 +17,10 @@ export const dynamic = 'force-dynamic';
 const translated=async<T,>(v:T,locale:string):Promise<T>=>(await localizeContent(await entityDb(),{v},locale).catch(()=>({model:{v}}))).model.v;
 // /?page=<id> is the app view of a page; its canonical, crawlable address is /p/<id>/<slug>.
 export async function generateMetadata({searchParams}:{searchParams:Promise<Record<string,string|string[]|undefined>>}):Promise<Metadata>{
- const id=(await searchParams).page;if(typeof id!=='string'||!id)return PUBLIC_EDITION?localeMeta('/',await requestLocale()):{};
+ const id=(await searchParams).page;
+ // The public home: the site's title and tagline in the reader's language.
+ if(typeof id!=='string'||!id){if(!PUBLIC_EDITION)return {};const ui=await serverUi();const tag=ui.t('Search any entity, rank any category');
+  return {title:`${SITE_NAME} · ${tag}`,description:tag,...localeMeta('/',ui.locale)};}
  const page=await loadPublicPage(id).catch(()=>null);if(!page)return {};
  return {title:`${page.title} · ${SITE_NAME}`,description:(page.summary||page.title).slice(0,300),alternates:{canonical:pagePath(page.id,page.title)}};
 }

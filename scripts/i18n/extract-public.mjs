@@ -4,10 +4,11 @@
 import {readFileSync,writeFileSync} from 'node:fs';
 const FILES=['app/rankings/view.tsx','app/explore.tsx','app/search-box.tsx','app/home.tsx','app/i18n/switcher.tsx','app/theme.tsx',
  'app/workflows/viz/ranking.tsx','app/workflows/viz/entity-viz.tsx','app/workflows/viz/entity-charts.tsx',
- 'app/rankings/ranking-page.tsx','app/e/entity-page.tsx','app/topics/topic-page.tsx','app/me/page.tsx'];
+ 'app/rankings/ranking-page.tsx','app/e/entity-page.tsx','app/topics/topic-page.tsx','app/me/page.tsx',
+ 'app/workspace.tsx','app/voice-input.tsx','app/workflows/viz/media.tsx','app/search/page.tsx'];
 // Text the shared workspace toolbar shows on the public home page, and labels passed to t() through variables.
 const EXTRA=['Search an entity or a ranking — e.g. Countries, iPhone 17, Perfumes','Open answer','Open answer · Enter','Sign in','Sign out','Sign in with Google','Home','Question or context',
- 'Recently visited','No visited pages yet.','Loading…','Loading more…','Load more','Remove from history','Generating','Wiki page','Web app'];
+ 'Recently visited','No visited pages yet.','Loading…','Loading more…','Load more','Remove from history','Generating','Wiki page','Web app','Search any entity, rank any category'];
 const keys=new Set(EXTRA);
 const call=/(?<![\w$])t\(\s*(['"])((?:\\.|(?!\1).)+?)\1/g;
 for(const f of FILES){const src=readFileSync(f,'utf8');for(const m of src.matchAll(call))keys.add(m[2].replace(/\\(['"])/g,'$1'));}

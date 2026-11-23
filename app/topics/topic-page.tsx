@@ -29,11 +29,13 @@ const load=cache((slug:string)=>topicData.get(slug,async()=>loadTopicNav(await e
 export async function generateMetadata(props:Props):Promise<Metadata>{
  const nav=await load(decode((await props.params).slug)).catch(()=>null);
  if(!nav?.topic)return {title:SITE_NAME,robots:{index:false}};
- const t=nav.topic;
+ const locale=await requestLocale();
+ // The title and description in the reader's language, like the page.
+ const t=(await localizeContent(await entityDb(),{topic:nav.topic},locale)).model.topic!;
  const description=(t.description||`${t.name}: ${t.rankings} rankings and ${t.pages} entity pages.`).slice(0,300);
  // A topic still being built (no published ranking yet) is browsable but kept out of search engines until it has content.
  const building=t.rankings===0;
- return {title:`${t.name} · ${SITE_NAME}`,description,...localeMeta(canonicalPath(topicPath(t.slug),await pathMaps(await entityDb())),await requestLocale()),openGraph:{title:t.name,description,url:canonicalPath(topicPath(t.slug),await pathMaps(await entityDb())),siteName:SITE_NAME,type:'website'},...(building?{robots:{index:false,follow:true}}:{})};
+ return {title:`${t.name} · ${SITE_NAME}`,description,...localeMeta(canonicalPath(topicPath(t.slug),await pathMaps(await entityDb())),locale),openGraph:{title:t.name,description,url:canonicalPath(topicPath(t.slug),await pathMaps(await entityDb())),siteName:SITE_NAME,type:'website'},...(building?{robots:{index:false,follow:true}}:{})};
 }
 
 export async function TopicPage(props:Props){
