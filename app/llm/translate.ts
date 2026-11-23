@@ -106,7 +106,7 @@ export function fromChat(data:any,options:{json:boolean}):LLMResponse{
   output.push({type:'function_call',call_id:c?.id||syntheticId('call'),name:String(c?.function?.name||''),arguments:typeof args==='string'?args:JSON.stringify(args??{}),status:'completed'});
  }
  const u=data?.usage||{},input=u.prompt_tokens||0,out=u.completion_tokens||0;
- return {id:data?.id?SYNTHETIC+data.id:syntheticId('resp'),status:choice?.finish_reason==='length'?'incomplete':'completed',output,usage:{input_tokens:input,output_tokens:out,total_tokens:u.total_tokens||input+out,input_tokens_details:{cached_tokens:u.prompt_tokens_details?.cached_tokens||0}}};
+ return {id:data?.id?SYNTHETIC+data.id:syntheticId('resp'),status:choice?.finish_reason==='length'?'incomplete':'completed',output,usage:{input_tokens:input,output_tokens:out,total_tokens:u.total_tokens||input+out,input_tokens_details:{cached_tokens:u.prompt_tokens_details?.cached_tokens||u.prompt_cache_hit_tokens||0}}};
 }
 // Items produced by a Chat provider can appear in a later OpenAI request when the router falls
 // back mid-run: give OpenAI only shapes it accepts (no synthetic ids or substituted searches).

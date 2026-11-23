@@ -16,6 +16,17 @@ export const OPENAI_PRICES:Record<string,Price>={
  'text-embedding-3-small':{input:0.02,cachedInput:0.02,output:0},
  'text-embedding-3-large':{input:0.13,cachedInput:0.13,output:0},
 };
+// Paid chat providers (OpenAI-compatible APIs), USD per 1M tokens: their own list prices at the PEAK rate, so the
+// daily cap is never underestimated. DeepSeek: https://api-docs.deepseek.com/quick_start/pricing — checked 2026-11-23.
+export const CHAT_PRICES:Record<string,Price>={
+ 'deepseek-v4-flash':{input:0.30,cachedInput:0.006,output:1.20},
+ 'deepseek-flash':{input:0.30,cachedInput:0.006,output:1.20},
+};
+export function chatCostUsd(model:string,usage:{input_tokens?:number;output_tokens?:number;input_tokens_details?:{cached_tokens?:number}}|undefined){
+ const p=CHAT_PRICES[model];if(!p)return 0;
+ const input=usage?.input_tokens||0,cached=Math.min(input,usage?.input_tokens_details?.cached_tokens||0),output=usage?.output_tokens||0;
+ return ((input-cached)*p.input+cached*p.cachedInput+output*p.output)/1e6;
+}
 // Built-in web search tool calls: $10 per 1,000 calls (content tokens billed as tokens).
 export const OPENAI_WEB_SEARCH_PER_CALL=0.01;
 const FALLBACK:Price={input:4,cachedInput:0.4,output:20};

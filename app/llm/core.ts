@@ -1,7 +1,7 @@
 // Provider-agnostic router. Pure: every dependency (env, fetch, clock, usage store) is injected,
 // so tests run it with fakes. app/llm/index.ts wires it to the app.
 import {loadCatalog,type Catalog,type ModelEntry} from './catalog';
-import {costUsd} from './prices';
+import {costUsd,chatCostUsd} from './prices';
 import {RateTracker,monthKey,nextMonth,retryAfterMs,type Block} from './limits';
 import {toChat,fromChat,forOpenAI,requirements,inputItems,syntheticId} from './translate';
 import {schemaErrors,extractJson} from './schema';
@@ -9,7 +9,7 @@ import {webSearch,searchConfigured} from './search';
 import type {LLMRequest,LLMResponse,OutputItem,StreamHandlers,TaskClass,InputItem,CallInfo} from './types';
 
 export type UsageRow={createdAt:string;month:string;class:TaskClass;provider:string;model:string;status:string;latencyMs:number;inputTokens:number;cachedTokens:number;outputTokens:number;costUsd:number;webSearches:number;fallbackReason:string|null};
-export type UsageStore={record(row:UsageRow):Promise<void>;monthSpend(month:string):Promise<number>};
+export type UsageStore={record(row:UsageRow):Promise<void>;monthSpend(month:string):Promise<number>;daySpend?(day:string,provider:string):Promise<number>};
 export type Deps={
  env:(name:string)=>string|undefined;fetch:typeof fetch;usage:UsageStore;now?:()=>number;
  openaiDefaults?:(body:Record<string,any>)=>Record<string,unknown>;
@@ -33,6 +33,7 @@ export function createLLM(deps:Deps){
  // ---------- budget ----------
  let spendCache:{month:string;value:number;loadedAt:number}|null=null;
  const budget=()=>{const raw=deps.env('LLM_MONTHLY_BUDGET_USD'),v=raw?Number(raw):NaN;return Number.isFinite(v)&&v>=0?v:300;};
+ const dayCache={day:'',at:0,value:0};
  async function monthSpend(){
   const month=monthKey(now());
   if(!spendCache||spendCache.month!==month||now()-spendCache.loadedAt>60000){
@@ -167,6 +168,13 @@ export function createLLM(deps:Deps){
    let waitUntil=Infinity;
    for(const entry of entries){
     if(failed.has(entry.id))continue;
+    // A paid chat provider has a daily cap (<PROVIDER>_DAILY_USD, default $10): once today's spend reaches it, the
+    // chain moves on to the free models until midnight UTC.
+    if(entry.provider==='deepseek'){
+     const cap=Number(deps.env('DEEPSEEK_DAILY_USD')??10),day=new Date(now()).toISOString().slice(0,10);
+     const spent=dayCache.day===day&&now()-dayCache.at<60_000?dayCache.value:await (deps.usage.daySpend?.(day,'deepseek')??Promise.resolve(0)).then(v=>{dayCache.day=day;dayCache.at=now();dayCache.value=v;return v;}).catch(()=>dayCache.value);
+     if(!(spent<cap)){if(!fallbacks.some(f=>f.model===entry.id))fallbacks.push({model:entry.id,reason:'daily_cap'});failed.add(entry.id);continue;}
+    }
     if(entry.provider==='openai'&&cls!=='site-embed'&&cls!=='embed'){
      const s=await spend();
      if(s.overBudget){if(!fallbacks.some(f=>f.model===entry.id))fallbacks.push({model:entry.id,reason:'over_budget'});failed.add(entry.id);lastKind=lastKind||'budget';continue;}
@@ -219,7 +227,8 @@ export function createLLM(deps:Deps){
     return {result,usage:result.usage,info:{provider:'openai',model,catalogId:entry.id,latencyMs:now()-t0,costUsd:costUsd(model,result.usage,searches),webSearches:searches}};
    }
    const {webSearches,...result}=await callChat(entry,request,signal);
-   return {result,usage:result.usage,info:{provider:entry.provider,model:entry.model,catalogId:entry.id,latencyMs:now()-t0,costUsd:0,webSearches}};
+   const cost=chatCostUsd(entry.model,result.usage);if(cost&&dayCache.day===new Date(now()).toISOString().slice(0,10))dayCache.value+=cost;
+   return {result,usage:result.usage,info:{provider:entry.provider,model:entry.model,catalogId:entry.id,latencyMs:now()-t0,costUsd:cost,webSearches}};
   });
  }
  // Streams text and tool-argument deltas. OpenAI streams natively; Chat providers deliver the
@@ -234,7 +243,7 @@ export function createLLM(deps:Deps){
      if(item.type==='function_call'&&handlers.onToolArguments){emitted=true;handlers.onToolArguments(item.name||'',item.arguments||'');}
      if(item.type==='message')for(const c of item.content||[])if(c.text&&handlers.onTextDelta){emitted=true;handlers.onTextDelta(c.text);}
     }
-    return {result,usage:result.usage,info:{provider:entry.provider,model:entry.model,catalogId:entry.id,latencyMs:now()-t0,costUsd:0,webSearches}};
+    return {result,usage:result.usage,info:{provider:entry.provider,model:entry.model,catalogId:entry.id,latencyMs:now()-t0,costUsd:chatCostUsd(entry.model,result.usage),webSearches}};
    }
    if(!deps.readEvents)throw Error('LLM streaming is not configured.');
    const model=openaiModel(request.class,request),body=forOpenAI({...(deps.openaiDefaults?.({...request,model})||{}),...request,model,stream:true});
