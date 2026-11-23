@@ -20,11 +20,16 @@ export default async function ProfilePage(){
    <div><span className="db-kicker">{admin?t('Administrator'):t('Reader')}</span><h1>{user.displayName||user.email}</h1><p className="lead">{user.email}</p></div>
   </header>
   {admin&&<section className="rw-explore"><h2>{t('Administration')}</h2>
-   <div className="rw-types">
-    <a className="rw-type" href="/admin"><strong>{t('System overview')}</strong><span>{t('Issues, traffic, model costs, teams')}</span></a>
-    <a className="rw-type" href="/admin?tab=issues"><strong>{t('Issues')}</strong><span>{t('Problems the agents could not solve')}</span></a>
-    <a className="rw-type" href="/admin?tab=costs"><strong>{t('Model costs')}</strong><span>{t('Spending by day and model')}</span></a>
-   </div></section>}
+   <nav className="adm-links" aria-label={t('Administration')}>
+    {([['/admin',t('Overview'),t('Pages, teams, open issues and spending at a glance')],
+      ['/admin?tab=issues',t('Issues'),t('Problems the agents could not solve')],
+      ['/admin?tab=teams',t('Teams and data'),t('Team queue, agent runs and collection rules')],
+      ['/admin?tab=services',t('Services'),t('Models, search and data APIs: keys, quotas and use')],
+      ['/admin?tab=costs',t('Model costs'),t('Spending by day and model')],
+      ['/admin?tab=traffic',t('Traffic'),t('Page views and searches')],
+      ['/admin?tab=config',t('Configuration'),t('Settings in effect (secrets never shown)')]] as const).map(([href,title,note])=>
+     <a key={href} href={href}><strong>{title}</strong><span>{note}</span></a>)}
+   </nav></section>}
   <section className="rw-explore"><h2>{t('Preferences')}</h2>
    <ul className="profile-prefs"><li><span>{t('Language')}</span><b>{lang}</b></li><li><span>{t('Theme')}</span><b>{t('Set with the switch at the top right; remembered on this device.')}</b></li></ul>
   </section>

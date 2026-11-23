@@ -499,3 +499,9 @@ html,body{background:var(--rw-bg)}
 .rw-follow.on{background:var(--rw-gold-soft);border-color:transparent;color:var(--rw-ink)}
 .rw-follow.on svg{color:#e8a400}
 .db-hero .rw-follow{align-self:flex-start}
+/* Administration links on the profile page */
+.adm-links{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:10px}
+.adm-links a{display:flex;flex-direction:column;gap:4px;padding:14px 16px;border-radius:12px;border:1px solid var(--rw-border);background:var(--rw-surface);text-decoration:none;transition:border-color .15s}
+.adm-links a:hover{border-color:var(--rw-ink)}
+.adm-links strong{font-size:14.5px;font-weight:650;color:var(--rw-ink)}
+.adm-links span{font-size:12.5px;line-height:1.45;color:var(--rw-muted)}
