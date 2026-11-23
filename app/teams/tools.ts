@@ -115,9 +115,19 @@ export async function coverage(typeRaw:string,metricsCsv:string,expected:number)
  const recipeHealth=recipes.map(r=>({name:r.name,steps:r.steps.length,status:r.status,lastRunAt:r.lastRunAt,lastOk:(r.lastResult as {ok?:boolean}|null)?.ok??null,problems:checkRecipe(r.steps as never)}));
  const dupes=(await db.query(`select ent_norm(name) k, array_agg(name order by name) names, count(*)::int n from entities where type=$1::text group by ent_norm(name) having count(*)>1 limit 20`,[type])).rows;
  const noIds=Number((await db.query<{n:number}>(`select count(*)::int n from entities where type=$1::text and ids='{}'::jsonb`,[type])).rows[0]?.n||0);
+ // Data checks (the collector's responsibility): a measure mostly zero (a wrong field or a failed parse), entities
+ // whose every value is zero, and names that are not names (no letters, a web address, a sentence, very long).
+ const zeroMetrics=(await db.query<{metric:string;zeros:number;n:number}>(`select o.metric, count(*) filter (where o.value=0)::int zeros, count(*)::int n from observations o join entities e on e.id=o.entity_id
+   where e.type=$1::text group by o.metric having count(*) filter (where o.value=0) >= greatest(5, count(*)/2)`,[type])).rows;
+ const allZero=(await db.query<{name:string}>(`select e.name from entities e where e.type=$1::text and exists (select 1 from observations o where o.entity_id=e.id)
+   and not exists (select 1 from observations o where o.entity_id=e.id and o.value<>0) order by e.name limit 10`,[type])).rows.map(r=>r.name);
+ const oddNames=(await db.query<{name:string}>(`select name from entities where type=$1::text and (name !~ '[[:alpha:]]' or length(name)>120 or name ~* '^https?://|www\\.' or array_length(regexp_split_to_array(trim(name),'\\s+'),1)>9) order by name limit 10`,[type])).rows.map(r=>r.name);
+ const dataProblems=[...zeroMetrics.map(z=>`Metric ${z.metric}: ${z.zeros} of ${z.n} values are 0 — check the field mapping or the parse (remove the wrong values and reload).`),
+  ...(allZero.length?[`Entities whose every value is 0 (probably not real members, or loaded from a broken probe): ${allZero.join('; ')} — fix or remove them.`]:[]),
+  ...(oddNames.length?[`Names that do not look like ${type} names: ${oddNames.join('; ')} — fix the name column or drop these rows.`]:[])];
  return {type,entities:total,expected:expected||null,universeCoverage:expected?Math.round(total/expected*1000)/10+'%':null,entitiesWithoutStandardId:noIds,possibleDuplicates:dupes,metrics:perMetric,
   // Data must stay fresh by itself: every metric needs a recipe that loads it, and every recipe must have run successfully.
-  metricsWithoutRecipe:notInRecipes,recipes:recipeHealth,
+  metricsWithoutRecipe:notInRecipes,recipes:recipeHealth,dataProblems,
   recipeProblems:[...notInRecipes.map(m=>'No recipe loads metric '+m+': it will never be refreshed.'),...recipeHealth.filter(r=>r.lastOk!==true).map(r=>'Recipe '+r.name+(r.lastRunAt?' failed its last run.':' has never been run (run_recipe).')),...recipeHealth.flatMap(r=>r.problems.map(p=>r.name+': '+p))]};
 }
 async function previewPage(path:string){

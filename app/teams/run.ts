@@ -129,8 +129,8 @@ async function askOnce(role:Role,agent:Agent,topicId:string,instructions:string,
    // A collector's report is accepted only when the data refreshes by itself (no recipe problems for the topic's types).
    // A stage's own acceptance check replaces the role's default.
    ...(accept?{maxValidationRetries:3,validateFinal:async()=>accept()}:role==='collector'?{maxValidationRetries:3,validateFinal:async()=>{
-    const problems:string[]=[];for(const t of await listEntityTypes(db,topicId))problems.push(...(await coverage(t.type,'',0)).recipeProblems);
-    return problems.length?'Your report cannot be accepted yet — fix these first (save_recipe with complete steps, then run_recipe until it succeeds): '+problems.slice(0,8).join(' '):undefined;}}:{}),maxCalls:budget.calls,maxInputChars:400_000,
+    const problems:string[]=[];for(const t of await listEntityTypes(db,topicId)){const c=await coverage(t.type,'',0);problems.push(...c.recipeProblems,...c.dataProblems);}
+    return problems.length?'Your report cannot be accepted yet — the data is your responsibility; fix these first (correct the recipe and run_recipe until it succeeds; fix or remove wrong rows): '+problems.slice(0,8).join(' '):undefined;}}:{}),maxCalls:budget.calls,maxInputChars:400_000,
    // A stage may narrow the tools to what its deliverable needs (focus: no browsing while loading).
    extraTools:tools?teamToolDefs(role).filter(t=>tools.includes(t.name)):teamToolDefs(role),executeExtra:(name,args)=>{if(tools&&!tools.includes(name))throw Error(name+' is not used in this stage; use: '+tools.join(', '));return runTeamTool(role,name,args,ctx,topicId);},
    onEvent:e=>{
@@ -218,6 +218,14 @@ const S={
   input:c=>({triage:c.r.triage}),schema:COLLECT_SCHEMA,budget:{rounds:30,calls:70},onFail:'skip'},
  expandDesign:{id:'expand-design',role:'editor',base:'editor',text:'Stage: pages for what readers asked. Add the rankings and template sections the new data supports; preview them and fix what is wrong.',
   input:c=>({triage:c.r.triage,collector:c.r['expand-data']}),budget:{rounds:24,calls:50},onFail:'skip'},
+ // Growing (the routine pass): a topic is never finished. Each pass the editor deepens it — more measures and
+ // attributes, new indices, finer sub-rankings — and the collector loads what the editor adds, from more sources.
+ grow:{id:'grow',role:'editor',base:'editor',text:'Stage: grow. This topic is live; deepen it. From team_state and coverage, compare what it has with what a reader comparing these entities wants and with what public data offers (the type\'s inherited and interface measures, the source register, new sources). Choose the next additions: at least 10 new measures or attributes (a key, label, unit, order and the source that has them — two independent sources where possible), at least 1 new composite index over measures that have data, and new sub-rankings by kind (discipline, category, industry, genre…) and by place (country, region, city) wherever the entities fall into classes; propose_subtopics for parts that deserve their own topic. Update the type schema (set_entity_schema) and record each choice with record_decision; list what the collector must load in your report (open).',
+  input:c=>({}),budget:{rounds:20,calls:36},onFail:'stop'},
+ growData:{id:'grow-data',role:'collector',base:'collector',tools:['team_state','coverage','list_public_sources','call_public_source','fetch_data','extract_tables','query_data','describe_data','crawl_pages','extract_fields','entity_upsert','bulk_import','entity_get','entity_search','set_entity_schema','save_recipe','run_recipe','retract_observations','record_sources','request_access','report_issue'],text:'Stage: load the additions. Load every measure and attribute the editor added (the editor\'s report lists them): survey a second independent source where one exists, cross-check values, save each as a recipe and run it; report what you could not get (unavailable) with the reason.',
+  input:c=>({grow:c.r.grow}),schema:COLLECT_SCHEMA,budget:{rounds:30,calls:70},onFail:'skip'},
+ growDesign:{id:'grow-design',role:'editor',base:'editor',text:'Stage: put the additions on the pages. Add the new measures to the ranking criteria and template sections, compute the new indices, save the new sub-rankings (save_ranking with filters), preview the changed rankings and entity pages and fix what is wrong.',
+  input:c=>({grow:c.r.grow,collector:c.r['grow-data']}),budget:{rounds:24,calls:50},onFail:'skip'},
  sources:{id:'sources',role:'collector',base:'collector',text:'Stage: source review (every 90 days). Go through the source register (team_state → sources): open every chosen source again (still reachable, still current, same format), mark dead or superseded ones rejected and move their recipes to the best remaining source, look for new sources and markets not yet covered, and record every check with record_sources.',
   input:c=>({}),budget:{rounds:24,calls:50},onFail:'stop',
   accept:async c=>{const n=await count(c,"select count(*)::int n from sources where topic_id=$1::uuid and last_ok_at > now() - interval '1 day'",[c.topic.id]);return n>=1?undefined:'Record your checks with record_sources (every source you rechecked, chosen or rejected) before reporting.';}},
@@ -228,7 +236,7 @@ const WORKFLOWS:Record<WorkflowKind,{stages:Stage[];review:'full'|'none'}>={
  build:{stages:[S.plan,S.survey,S.universe,S.starter,S.metrics,S.resolve,S.replace,S.design],review:'full'},
  repair:{stages:[S.repair],review:'none'},
  expand:{stages:[S.triage,S.expandData,S.expandDesign],review:'full'},
- review:{stages:[],review:'full'},
+ review:{stages:[S.grow,S.growData,S.growDesign],review:'full'},
  sources:{stages:[S.sources],review:'none'},
 };
 async function runStage(c:Ctx,st:Stage):Promise<unknown>{

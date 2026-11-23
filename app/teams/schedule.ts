@@ -101,7 +101,7 @@ export async function translateContent(){
  // Once a day the topic tree's names and descriptions are queued for the most-read languages.
  {const {getState,setState}=await import('./manager');const st=await getState(db,'translate.tree').catch(()=>null);
   if(!st||Date.now()-Date.parse(String(st.at))>20*3600_000){await setState(db,'translate.tree',{at:new Date().toISOString()});void queueTreeTranslations(db).then(q=>console.log('[translate] queued',q,'tree texts')).catch(e=>console.error('[translate] queue failed',(e as Error).message));}}
- const {startTranslationPool}=await import('@/app/i18n/content');startTranslationPool(db,Number(process.env.CONTENT_TRANSLATE_WORKERS||16));const n=0;
+ const {startTranslationPool}=await import('@/app/i18n/content');startTranslationPool(db,Number(process.env.CONTENT_TRANSLATE_WORKERS||6));const n=0;
  if(n)console.log('[translate]',n,'texts');
  return n;
 }

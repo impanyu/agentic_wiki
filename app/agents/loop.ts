@@ -6,7 +6,7 @@ export async function runToolLoop(options:{
  payload:Record<string,any>;request:(payload:Record<string,any>)=>Promise<any>;
  execute:(name:string,args:any)=>Promise<ToolResult>;event?:(event:LoopEvent)=>Promise<void>;
  validateFinal?:(response:any,trace:{webSearched:boolean})=>Promise<string|void>;
- signal?:AbortSignal;maxRounds?:number;maxCalls?:number;maxInputChars?:number;maxValidationRetries?:number;timeoutMs?:number;
+ signal?:AbortSignal;maxRounds?:number;maxCalls?:number;maxInputChars?:number;compactAfterChars?:number;maxValidationRetries?:number;timeoutMs?:number;
 }){
  const {payload,request,execute,event}=options;
  const timeout=AbortSignal.timeout(options.timeoutMs??600000),signal=options.signal?AbortSignal.any([options.signal,timeout]):timeout;
@@ -22,6 +22,7 @@ export async function runToolLoop(options:{
    signal?.throwIfAborted();
    if(round===maxRounds||callsUsed>=maxCalls||payload.input.reduce((n:number,i:any)=>n+(typeof i.content==='string'?i.content.length:Array.isArray(i.content)?i.content.reduce((m:number,c:any)=>m+(typeof c.text==='string'?c.text.length:0),0):String(i.output||i.arguments||'').length),0)>maxInputChars){payload.tool_choice='none';limited=true;payload.input.push({role:'user',content:'Execution budget reached. Return an honest final result with completed work, remaining work and any pending approvals. Do not claim unfinished work completed.'});}
    let response:any;
+   compactHistory(payload.input,options.compactAfterChars??60_000);
    for(let attempt=0;attempt<2;attempt++){
     const started=Date.now();
     response=await request(payload);
@@ -66,4 +67,14 @@ export async function runToolLoop(options:{
   }
   throw Error('AGENT_TOOL_BUDGET');
  }catch(error){await event?.({kind:'failed',data:{status:signal?.aborted?'cancelled':'failed',error:error instanceof Error?error.message:'Agent failed'}});throw error;}
+}
+
+// Every model call re-sends the whole conversation, and the response time of the open models grows with its length.
+// Past compactAfterChars, the output of all but the last 4 tool calls is cut to its first 800 characters (the call
+// itself and the start of its result stay, so the agent still knows what it did and what it found).
+export function compactHistory(input:any[],after:number){
+ const size=(i:any)=>typeof i?.output==='string'?i.output.length:typeof i?.content==='string'?i.content.length:Array.isArray(i?.content)?i.content.reduce((m:number,c:any)=>m+(typeof c?.text==='string'?c.text.length:0),0):0;
+ if(!(after>0)||input.reduce((n,i)=>n+size(i),0)<=after)return;
+ const outputs=input.map((i,k)=>i?.type==='function_call_output'&&typeof i.output==='string'?k:-1).filter(k=>k>=0);
+ for(const k of outputs.slice(0,-4)){const o=input[k].output as string;if(o.length>900&&!o.endsWith('[trimmed]'))input[k]={...input[k],output:o.slice(0,800)+' … [trimmed]'};}
 }

@@ -22,11 +22,18 @@ async function postgresDb(url:string):Promise<EntityDb>{
   types:{getTypeParser:((oid:number,format?:'text'|'binary')=>oid===NUMERIC||oid===INT8?toNumber:builtin.getTypeParser(oid,format as 'text')) as never}});
  pool.on('error',e=>console.error('entity-db pool error',e));
  const wrap=(c:{query:(s:string,p:unknown[])=>Promise<{rows:unknown[]}>}):Queryable=>({query:async<T>(s:string,p:unknown[]=[])=>({rows:(await c.query(s,p)).rows as T[]})});
- return {kind:'postgres',...wrap(pool),
-  async tx(fn){const c=await pool.connect();
-   try{await c.query('BEGIN');const out=await fn(wrap(c));await c.query('COMMIT');return out;}
-   catch(e){await c.query('ROLLBACK').catch(()=>{});throw e;}
-   finally{c.release();}},
+ const retryable=(e:unknown)=>['40P01','40001'].includes(String((e as {code?:string})?.code||''));
+ const pause=(n:number)=>new Promise(r=>setTimeout(r,200*(n+1)+Math.random()*300));
+ // Single statements outside a transaction retry the same way.
+ const poolQuery=async<T>(s:string,p:unknown[]=[])=>{for(let attempt=0;;attempt++){try{return {rows:(await pool.query(s,p)).rows as T[]};}catch(e){if(retryable(e)&&attempt<4){await pause(attempt);continue;}throw e;}}};
+ return {kind:'postgres',query:poolQuery,
+  // A deadlock or serialization failure (concurrent loads touching the same rows) is retried a few times: Postgres
+  // aborts one side, and the retry succeeds once the other has committed.
+  async tx(fn){
+   for(let attempt=0;;attempt++){const c=await pool.connect();
+    try{await c.query('BEGIN');const out=await fn(wrap(c));await c.query('COMMIT');return out;}
+    catch(e){await c.query('ROLLBACK').catch(()=>{});if(retryable(e)&&attempt<4){await pause(attempt);continue;}throw e;}
+    finally{c.release();}}},
   close:()=>pool.end()};
 }
 
