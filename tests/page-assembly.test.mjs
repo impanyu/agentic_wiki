@@ -152,7 +152,8 @@ const write=(name,src,map={})=>{let js=tr(src);js=js.replace(/(from\s*|import\()
 for(const f of ['client','schema','metrics','embeddings','units','reserved','repo','inherit','ttl-cache','snapshots'])write(f,readFileSync(`app/entity-db/${f}.ts`,'utf8'));
 writeFileSync(new URL('pure.mjs',out),tr(pure));
 write('paths',readFileSync('app/seo/paths.ts','utf8'),{'@/app/entity-db/reserved':'./reserved.mjs'});
-write('pages',readFileSync('app/entity-db/pages.ts','utf8'),{'@/app/seo/urls':'./pure.mjs','@/app/seo/assemble':'./pure.mjs','@/app/seo/paths':'./paths.mjs'});
+write('pack-rows',readFileSync('app/seo/pack-rows.ts','utf8'));
+write('pages',readFileSync('app/entity-db/pages.ts','utf8'),{'@/app/seo/urls':'./pure.mjs','@/app/seo/assemble':'./pure.mjs','@/app/seo/paths':'./paths.mjs','@/app/seo/pack-rows':'./pack-rows.mjs'});
 const client=await import(new URL('client.mjs',out));
 const pages=await import(new URL('pages.mjs',out));
 const {seed,COUNTRIES}=await import('../scripts/dev/seed-countries-fixture.mjs');
@@ -217,6 +218,7 @@ test('pages are precomputed: stored on first build, served from the copy, rebuil
  const first=await pages.loadRankingPage(db,'country-rankings');
  const row=(await db.query("select type, built_at from page_data where kind='ranking' and key='country-rankings'")).rows[0];
  assert.equal(row.type,'country','stored with its type');
+ assert.equal((await db.query("select data->'rows'->>'packed' p from page_data where kind='ranking' and key='country-rankings'")).rows[0].p,'1','rows stored packed');
  // Served from the copy: a change to the data does not reach the page until it is rebuilt.
  const de=(await db.query("select id from entities where type='country' and name='Germany'")).rows[0].id;
  await db.query("update observations set value = value + 1 where entity_id = $1::uuid and metric = 'population'",[de]);

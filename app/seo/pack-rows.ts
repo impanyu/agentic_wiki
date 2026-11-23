@@ -4,7 +4,8 @@
 type Row=Record<string,unknown>;
 export type PackedRows={packed:1;keys:string[];entities:Row[];data:unknown[][]};
 const round=(v:unknown)=>typeof v==='number'&&!Number.isInteger(v)?Number(v.toPrecision(7)):v;
-export function packRows(rows:Row[],idKey='entity_id'):PackedRows{
+// exact keeps every number as is (stored copies); the page's copy rounds to 7 significant digits.
+export function packRows(rows:Row[],idKey='entity_id',{exact=false}:{exact?:boolean}={}):PackedRows{
  const groups=new Map<string,Row[]>();
  for(const r of rows){const id=String(r[idKey]??r.name??'');const g=groups.get(id);if(g)g.push(r);else groups.set(id,[r]);}
  // A field varies when any entity has two different values (or it is missing in some rows) for it.
@@ -15,7 +16,7 @@ export function packRows(rows:Row[],idKey='entity_id'):PackedRows{
  for(const g of groups.values()){
   const e:Row={};for(const k of all)if(!varying.has(k)&&g[0][k]!==undefined)e[k]=g[0][k];
   const ei=entities.push(e)-1;
-  for(const r of g)data.push([ei,...keys.map(k=>r[k]===undefined?null:round(r[k]))]);
+  for(const r of g)data.push([ei,...keys.map(k=>r[k]===undefined?null:exact?r[k]:round(r[k]))]);
  }
  return {packed:1,keys,entities,data};
 }

@@ -1,5 +1,5 @@
 import type {Queryable} from './client';
-import {buildRankingPage,buildEntityPage} from './pages';
+import {buildRankingPage,buildEntityPage,storedRanking} from './pages';
 import {saveSnapshot,dropSnapshot,type SnapshotKind} from './snapshots';
 // Keeps precomputed pages (page_data) current, on the worker's heartbeat. Each pass takes the pages due, most
 // urgent first, and rebuilds them a few at a time within a time budget:
@@ -47,7 +47,7 @@ async function due(db:Queryable):Promise<Job[]>{
 }
 
 async function rebuild(db:Queryable,j:Job){
- if(j.kind==='ranking'){const v=await buildRankingPage(db,j.key);if(v)await saveSnapshot(db,'ranking',j.key,String(v.def.scope.type||''),v);else await dropSnapshot(db,'ranking',j.key);return;}
+ if(j.kind==='ranking'){const v=storedRanking(await buildRankingPage(db,j.key));if(v)await saveSnapshot(db,'ranking',j.key,String(v.def.scope.type||''),v);else await dropSnapshot(db,'ranking',j.key);return;}
  const v=await buildEntityPage(db,j.key,j.type);if(v)await saveSnapshot(db,'entity',j.key,v.data.entity.type,v);else await dropSnapshot(db,'entity',j.key);
 }
 

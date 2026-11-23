@@ -2,6 +2,7 @@ import type {Queryable,Row} from './client';
 import {getEntity,metricTable,hybridSearch,inScope,RANK_LIMIT} from './repo';
 import {ttlCache} from './ttl-cache';
 import {snapshot} from './snapshots';
+import {packRows,unpackRows,isPacked,type PackedRows} from '@/app/seo/pack-rows';
 import {slugify,questionKey} from '@/app/seo/urls';
 import {topicPaths,canonicalPath,type PathMaps} from '@/app/seo/paths';
 import {formatMetric,entityImage,entityPath,rankingPath,defaultTemplate,mentionKey,type MetricInfo,type MetricFact,type EntityPageData,type Template,type RankingDef,type RankingPageInput,type Point} from '@/app/seo/assemble';
@@ -60,7 +61,14 @@ export async function findEntityBySlug(db:Queryable,type:string,slug:string):Pro
 // A ranking page's data: precomputed (page_data, kept current by the worker), built and stored on a first view.
 // fresh rebuilds it now (an agent checking its own change).
 export async function loadRankingPage(db:Queryable,slug:string,{fresh=false}:{fresh?:boolean}={}):Promise<RankingPageInput|null>{
- return snapshot(db,'ranking',slug,()=>buildRankingPage(db,slug),v=>String(v.def.scope.type||''),fresh);
+ const v=await snapshot<StoredRanking>(db,'ranking',slug,async()=>storedRanking(await buildRankingPage(db,slug)),v=>String(v.def.scope.type||''),fresh);
+ return v?{...v,rows:isPacked(v.rows)?unpackRows(v.rows):v.rows}:null;
+}
+// Stored with its rows packed (an entity's unchanging fields once, not once per period): a country ranking's
+// 14 MB of rows is ~1.5 MB, read and parsed in a fraction of the time.
+type StoredRanking=Omit<RankingPageInput,'rows'>&{rows:RankingPageInput['rows']|PackedRows};
+export function storedRanking(v:RankingPageInput|null):StoredRanking|null{
+ return v?{...v,rows:packRows(v.rows as Record<string,unknown>[],'entity_id',{exact:true})}:null;
 }
 export async function buildRankingPage(db:Queryable,slug:string):Promise<RankingPageInput|null>{
  const def=await getRankingDefinition(db,slug);if(!def)return null;
