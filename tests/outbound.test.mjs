@@ -13,8 +13,12 @@ test('outbound links: the 1–3 a reader needs first, chosen by kind of entity; 
  assert.deepEqual(product.map(x=>x.label),['Product page','Amazon','JD.com'],'product page, then two different stores');
  const person=outboundLinks({type:'football_player',attributes:{wikipedia:'https://en.wikipedia.org/wiki/X',instagram:'https://www.instagram.com/x/',website:'https://x.example/'},ids:{wikidata:'Q1'}});
  assert.deepEqual(person.map(x=>x.label),['Official website','Wikipedia','Instagram']);
- assert.deepEqual(outboundLinks({type:'city',attributes:{},ids:{wikidata:'Q64'}}).map(x=>x.label),['Wikidata'],'Wikidata only when nothing better exists');
- assert.deepEqual(outboundLinks({attributes:{},ids:{}}),[]);
+ assert.deepEqual(outboundLinks({type:'city',attributes:{},ids:{wikidata:'Q64'}}).map(x=>x.href),['https://www.wikidata.org/wiki/Special:GoToLinkedPage/enwiki/Q64'],'a Wikidata id leads to the Wikipedia article');
+ assert.deepEqual(outboundLinks({attributes:{},ids:{}}),[],'nothing at all and no name: nothing');
+ // Identifiers name public pages: a researcher's OpenAlex and ORCID profiles.
+ assert.deepEqual(outboundLinks({type:'researcher',name:'A B',attributes:{},ids:{openalex:'https://openalex.org/A123',orcid:'https://orcid.org/0000-0002-9322-3515'}}).map(x=>x.label),['OpenAlex profile','ORCID']);
+ // Every named entity has at least one link: Wikipedia's search, which opens the article of that name.
+ assert.deepEqual(outboundLinks({type:'gadget',name:'Widget X',attributes:{},ids:{}}).map(x=>x.href),['https://en.wikipedia.org/w/index.php?search=Widget%20X&go=Go']);
 });
 
 test('source text links: dataset codes to their public pages, API addresses to the dataset site',async()=>{

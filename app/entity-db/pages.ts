@@ -367,13 +367,14 @@ async function buildPathMaps(db:Queryable):Promise<AddressTree>{
  const nodes=new Map<string,NodeInfo>(),children=new Map<string,string[]>(),rankings=new Map<string,string>(),mainOf=new Map<string,string>();
  const add=(n:NodeInfo)=>{nodes.set(n.path,n);if(n.parent){const c=children.get(n.parent)??[];c.push(n.path);children.set(n.parent,c);}};
  for(const t of topics){const path=paths.get(t.slug)!;const parent=t.parentId&&topicById.has(t.parentId)?paths.get(topicById.get(t.parentId)!.slug)!:null;add({path,kind:'topic',slug:t.slug,name:t.name,description:t.description,parent});}
- const rows=(await db.query<{slug:string;title:string;topic_id:string|null;scope:Row}>('select slug, title, topic_id, scope from rankings where slug is not null and topic_id is not null and status = any($1::text[]) order by updated_at desc',[PAGE_STATUSES])).rows;
- const byTopic=new Map<string,{slug:string;title:string;type:string;filters:[string,string][]}[]>();
- for(const r of rows){const sc=obj(r.scope);const list=byTopic.get(String(r.topic_id))??[];list.push({slug:String(r.slug),title:String(r.title||r.slug),type:String(sc.type||''),filters:filterEntries(sc.filters)});byTopic.set(String(r.topic_id),list);}
+ const rows=(await db.query<{slug:string;title:string;topic_id:string|null;scope:Row;config:Row}>('select slug, title, topic_id, scope, config from rankings where slug is not null and topic_id is not null and status = any($1::text[]) order by updated_at desc',[PAGE_STATUSES])).rows;
+ const byTopic=new Map<string,{slug:string;title:string;type:string;filters:[string,string][];main:boolean}[]>();
+ for(const r of rows){const sc=obj(r.scope);const list=byTopic.get(String(r.topic_id))??[];list.push({slug:String(r.slug),title:String(r.title||r.slug),type:String(sc.type||''),filters:filterEntries(sc.filters),main:obj(r.config).main===true});byTopic.set(String(r.topic_id),list);}
  for(const [topicId,list] of byTopic){
   const t=topicById.get(topicId);if(!t)continue;const tp=paths.get(t.slug)!;
   // The topic's main ranking: unfiltered, of the topic's one kind of entity (the newest when there are several).
-  const whole=list.filter(r=>!r.filters.length);const kinds=new Set(list.map(r=>r.type));
+  // A ranking marked main (config.main) is the topic's page; other unfiltered rankings (by theme) sit under it.
+  const whole=list.filter(r=>!r.filters.length).sort((a,b)=>Number(b.main)-Number(a.main));const kinds=new Set(list.map(r=>r.type));
   const main=kinds.size===1?whole[0]:undefined;
   const placed=new Map<string,string>();// slug → path
   if(main){placed.set(main.slug,tp);rankings.set(main.slug,tp);mainOf.set(tp,main.slug);const n=nodes.get(tp)!;nodes.set(tp,{...n,kind:'ranking',slug:main.slug});}

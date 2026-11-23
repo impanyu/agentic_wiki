@@ -118,7 +118,13 @@ export default function Ranking({props,setValue,fire,ctx}:VizProps){
  const colorOf=useMemo(()=>{const m=new Map(groups.map((g,i)=>[g,PALETTE[i%PALETTE.length]]));return (e:Entry)=>e.group&&m.get(e.group)||PALETTE[0];},[groups]);
  const maxAbs=useMemo(()=>values.reduce((m,v)=>Math.max(m,Math.abs(v)),0)||1,[values]);
  const inGroup=(e:Entry)=>!group||e.group===group;
- const chartRanked=useMemo(()=>ranked.filter(e=>!group||e.group===group),[ranked,group]);
+ // Compare: the reader picks which entities the charts show (any number, from the whole ranking); empty = the
+ // usual view (top N or the group). Kept in the address (?vs=a|b) so a comparison can be shared.
+ const [picked,setPicked]=useState<string[]>(()=>{try{return (new URL(location.href).searchParams.get('vs')||'').split('|').filter(Boolean).slice(0,30);}catch{return [];}});
+ const [pickQuery,setPickQuery]=useState('');
+ const savePicked=(next:string[])=>{setPicked(next);try{const u=new URL(location.href);if(next.length)u.searchParams.set('vs',next.join('|'));else u.searchParams.delete('vs');history.replaceState(history.state,'',u);}catch{}};
+ const addPick=(name:string)=>{const n=name.trim();if(!n||picked.includes(n)||!entries.some(e=>e.name===n))return;savePicked([...picked,n].slice(0,30));setPickQuery('');};
+ const chartRanked=useMemo(()=>picked.length?ranked.filter(e=>picked.includes(e.name)):ranked.filter(e=>!group||e.group===group),[ranked,group,picked]);
  const noData=t('No data');
  // Every other criterion is a column too, so all the ranking's figures are in the page (and its HTML).
  const others=useMemo(()=>c?criteria.filter(x=>x.key!==c.key):[],[criteria,c]);
@@ -154,7 +160,7 @@ export default function Ranking({props,setValue,fire,ctx}:VizProps){
  const choose=(key:string)=>{if(key===critKey)return;setCritKey(key);setValue(key);fire('change',key);view.onRank?.(key);try{const u=new URL(location.href);u.searchParams.set('rank',key);history.replaceState(history.state,'',u);}catch{}};
 
  // Bar chart: the top N, or every entity with a scroll window.
- const barShown=allBars?chartRanked:chartRanked.slice(0,top);
+ const barShown=allBars||picked.length?chartRanked:chartRanked.slice(0,top);
  const windowSize=Math.max(8,Math.floor((height-24)/28));
  const barHeight=barChartHeight(allBars?BAR_WINDOW:barShown.length);
  const columnWindow=30;
@@ -273,11 +279,20 @@ export default function Ranking({props,setValue,fire,ctx}:VizProps){
    <div className="wf-rank-charttools">
     {views.length>1?<div className="wf-rank-viewbar"><span className="wf-rank-viewlabel">{t('Charts')}</span><div className="wf-rank-views" role="tablist" aria-label={t('Charts')}>{views.map(v=>{const Icon=VIEW_ICONS[v];return <button key={v} type="button" role="tab" aria-selected={v===active} className={v===active?'on':''} onClick={()=>setViewKind(v)}><Icon size={15} aria-hidden="true"/>{t(VIEW_LABELS[v])}</button>;})}</div></div>
      :<span className="wf-rank-charttitle">{c.label}{c.year?' · '+c.year:''}</span>}
-    {active==='bar'&&chartRanked.length>top&&<div className="wf-rank-seg" role="radiogroup" aria-label={t('Bars shown')}>
+    {active==='bar'&&!picked.length&&chartRanked.length>top&&<div className="wf-rank-seg" role="radiogroup" aria-label={t('Bars shown')}>
      <button type="button" role="radio" aria-checked={!allBars} className={!allBars?'on':''} onClick={()=>setAllBars(false)}>{t('Top {n}',{n:top})}</button>
      <button type="button" role="radio" aria-checked={allBars} className={allBars?'on':''} onClick={()=>setAllBars(true)}>{t('All {n}',{n:chartRanked.length})}</button>
     </div>}
     {(active==='scatter'||active==='slope')&&yC&&<label className="wf-rank-select wf-rank-vs"><span>{c.label} {t('vs')}</span><select value={yC.key} onChange={ev=>setYKey(ev.target.value)}>{others.map(x=><option key={x.key} value={x.key}>{x.label}</option>)}</select></label>}
+   </div>
+   <div className="wf-rank-compare" role="group" aria-label={t('Compare')}>
+    <span className="wf-rank-viewlabel">{t('Compare')}</span>
+    {picked.map(n=><span key={n} className="wf-rank-chip">{n}<button type="button" aria-label={t('Remove {name}',{name:n})} onClick={()=>savePicked(picked.filter(x=>x!==n))}>×</button></span>)}
+    <input list={'wf-rank-names-'+critKey} value={pickQuery} placeholder={picked.length?t('Add another'):t('Choose entities to compare')}
+     onChange={ev=>{const v=ev.target.value;setPickQuery(v);if(entries.some(e=>e.name===v))addPick(v);}}
+     onKeyDown={ev=>{if(ev.key==='Enter'){ev.preventDefault();const v=pickQuery.trim().toLowerCase();const hit=entries.find(e=>e.name.toLowerCase()===v)??entries.find(e=>e.name.toLowerCase().startsWith(v));if(hit)addPick(hit.name);}}}/>
+    <datalist id={'wf-rank-names-'+critKey}>{entries.filter(e=>!picked.includes(e.name)).slice(0,2000).map(e=><option key={e.name} value={e.name}/>)}</datalist>
+    {picked.length>0&&<button type="button" className="wf-rank-clear" onClick={()=>savePicked([])}>{t('Clear')}</button>}
    </div>
    {views.length>1&&<div className="wf-rank-charttitle wf-rank-charttitle-sub">{active==='scatter'&&yC?c.label+' × '+yC.label:active==='slope'&&yC?c.label+' → '+yC.label:active==='heatmap'||active==='parallel'||active==='radar'?t('All criteria'):c.label}{c.year?' · '+c.year:''}</div>}
    {mapView&&geoError?<div className="wf-rank-notice">{t('The map could not load.')}</div>
@@ -285,7 +300,7 @@ export default function Ranking({props,setValue,fire,ctx}:VizProps){
     :<ChartBox key={active} gl={active==='map3d'} option={opt} label={c.label}
       height={active==='bar'?barHeight:active==='map'?height:VIEW_HEIGHT[active]??height}
       {...(active==='map'&&geo?{aspect:geoAspect(geo,geoData),extra:MAP_BOTTOM+6}:{})}
-      svg={!allBars&&!group&&active===views[0]?view.charts?.[chartKey(criteria.map(x=>x.key),c.key)+'|'+active]:undefined}
+      svg={!allBars&&!group&&!picked.length&&active===views[0]?view.charts?.[chartKey(criteria.map(x=>x.key),c.key)+'|'+active]:undefined}
       onClick={p=>pick(active==='bar'?barShown[p.dataIndex]:mapView?byKey.get(p.name):chartRanked.find(e=>e.name===p.name))}
       onChart={ch=>{charts.current[active]=ch;}}/>}
   </div>}

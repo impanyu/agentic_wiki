@@ -53,7 +53,24 @@ export function entityKind(type:string,attributes:Record<string,unknown>):keyof 
 }
 const labelOf=(kind:Kind,host:string,key:string)=>kind==='official'?'Official website':kind==='product'?'Product page':kind==='wikipedia'?'Wikipedia':kind==='map'?'Map'
  :key.replace(/_?url$|_?link$/,'').replace(/[_-]+/g,' ').replace(/^./,c=>c.toUpperCase())||host;
-export function outboundLinks(entity:{type?:string;attributes:Record<string,unknown>;ids:Record<string,string>},max=3):OutboundLink[]{
+// Standard identifiers → the public page they name (a researcher's OpenAlex and ORCID profiles, a film's IMDb page,
+// a paper's DOI, a company's LEI record), so every entity with an id has somewhere to go.
+const ID_LINKS:[RegExp,(v:string)=>string|null,string,Kind][]=[
+ [/^openalex$/,v=>/^[AWISCFPT]\d+$/i.test(v.replace(/^.*\//,''))?'https://openalex.org/'+v.replace(/^.*\//,''):null,'OpenAlex profile','profile'],
+ [/^orcid$/,v=>{const m=/(\d{4}-\d{4}-\d{4}-\d{3}[\dX])/i.exec(v);return m?'https://orcid.org/'+m[1]:null;},'ORCID','profile'],
+ [/^imdb$/,v=>/^nm\d+$/.test(v)?'https://www.imdb.com/name/'+v+'/':/^tt\d+$/.test(v)?'https://www.imdb.com/title/'+v+'/':null,'IMDb','profile'],
+ [/^doi$/,v=>/^10\.\d{4,}\//.test(v.replace(/^https?:\/\/(dx\.)?doi\.org\//,''))?'https://doi.org/'+v.replace(/^https?:\/\/(dx\.)?doi\.org\//,''):null,'Paper','paper'],
+ [/^github$/,v=>/^[\w.-]+(\/[\w.-]+)?$/.test(v)?'https://github.com/'+v:null,'GitHub','code'],
+ [/^lei$/,v=>/^[A-Z0-9]{20}$/.test(v)?'https://search.gleif.org/#/record/'+v:null,'LEI record','other'],
+ [/^isbn(13)?$/,v=>/^[\dX-]{10,17}$/.test(v)?'https://openlibrary.org/isbn/'+v.replace(/-/g,''):null,'Open Library','other'],
+ [/^icao$/,v=>/^[A-Z0-9]{4}$/.test(v)?'https://ourairports.com/airports/'+v+'/':null,'OurAirports','other'],
+ [/^(osm|openstreetmap)$/,v=>/^(node|way|relation)\/\d+$/.test(v)?'https://www.openstreetmap.org/'+v:null,'Map','map'],
+ [/^geonames$/,v=>/^\d+$/.test(v)?'https://www.geonames.org/'+v:null,'GeoNames','other'],
+ [/^(steam|steam_appid)$/,v=>/^\d+$/.test(v)?'https://store.steampowered.com/app/'+v+'/':null,'Steam','app'],
+ [/^spotify$/,v=>/^[A-Za-z0-9]{22}$/.test(v)?'https://open.spotify.com/artist/'+v:null,'Spotify','media'],
+ [/^(ticker|stock)$/,v=>/^[A-Z.\-]{1,10}$/.test(v)?'https://finance.yahoo.com/quote/'+v:null,'Stock quote','quote'],
+];
+export function outboundLinks(entity:{type?:string;name?:string;attributes:Record<string,unknown>;ids:Record<string,string>},max=3):OutboundLink[]{
  const attrs=entity.attributes||{};
  const kind=entityKind(String(entity.type||''),attrs),order=ORDER[kind];
  const found:{kind:Kind;label:string;href:string;host:string}[]=[];
@@ -73,6 +90,8 @@ export function outboundLinks(entity:{type?:string;attributes:Record<string,unkn
   if(/flag|logo|image|photo|picture|icon|thumbnail/i.test(k))continue;
   for(const x of (Array.isArray(v)?v:[v]).slice(0,4))if(typeof x==='string'&&/^https?:\/\//i.test(x.trim())&&!/\.(png|jpe?g|gif|webp|svg|avif)(\?|$)/i.test(x.trim()))add(x.trim(),k.toLowerCase());
  }
+ for(const [k,v] of Object.entries(entity.ids||{})){const hit=ID_LINKS.find(([re])=>re.test(k.toLowerCase()));if(!hit)continue;
+  const href=hit[1](String(v).trim());if(href&&!found.some(x=>x.href===href))found.push({kind:hit[3],label:hit[2],href,host:new URL(href).hostname.replace(/^www\./,'')});}
  // A place with coordinates gets a map link.
  const lat=Number(attrs.lat??attrs.latitude),lon=Number(attrs.lon??attrs.lng??attrs.longitude);
  if(kind==='place'&&Number.isFinite(lat)&&Number.isFinite(lon)&&(lat||lon))found.push({kind:'map',label:'Map',href:`https://www.openstreetmap.org/?mlat=${lat}&mlon=${lon}#map=10/${lat}/${lon}`,host:'openstreetmap.org'});
@@ -80,10 +99,14 @@ export function outboundLinks(entity:{type?:string;attributes:Record<string,unkn
  for(const k of order){
   // Stores: up to two different platforms; every other kind: its first link.
   const of=found.filter(x=>x.kind===k&&!pick.includes(x));
-  for(const x of of.slice(0,k==='store'?2:1))if(pick.length<max&&!pick.some(p=>p.host===x.host))pick.push(x);
+  for(const x of of.slice(0,k==='store'||k==='profile'?2:1))if(pick.length<max&&!pick.some(p=>p.host===x.host))pick.push(x);
  }
- // Wikidata only when nothing better exists.
+ // Links of kinds this entity's order does not name, before falling back.
+ for(const x of found)if(pick.length<max&&!pick.includes(x)&&!pick.some(p=>p.host===x.host)&&!order.includes(x.kind))pick.push(x);
+ // A Wikidata id and no Wikipedia link yet: Wikidata sends the reader on to the entity's Wikipedia article.
  const wd=String(entity.ids?.wikidata||'').replace(/^.*\//,'');
- if(pick.length<2&&/^Q\d+$/.test(wd))pick.push({kind:'other',label:'Wikidata',href:'https://www.wikidata.org/wiki/'+wd,host:'wikidata.org'});
+ if(pick.length<max&&/^Q\d+$/.test(wd)&&!pick.some(p=>p.host.endsWith('wikipedia.org')))pick.push({kind:'wikipedia',label:'Wikipedia',href:'https://www.wikidata.org/wiki/Special:GoToLinkedPage/enwiki/'+wd,host:'wikipedia.org'});
+ // Every entity has at least one way out: Wikipedia's search, which opens the article when one has this name.
+ if(!pick.length&&entity.name)pick.push({kind:'wikipedia',label:'Wikipedia',href:'https://en.wikipedia.org/w/index.php?search='+encodeURIComponent(entity.name)+'&go=Go',host:'wikipedia.org'});
  return pick.slice(0,max).map((x,i)=>({label:x.label,href:x.href,host:x.host,primary:i===0}));
 }
