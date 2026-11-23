@@ -30,7 +30,7 @@ const r = await respond({class: 'fast', model: model(), instructions, input, tex
 | class | use | default chain |
 |---|---|---|
 | `premium` | reader-waiting page generation, reviewer verdicts, app QA | OpenAI (caller's model) → free part of `agent` |
-| `agent` | the builders: team editors and collectors (judges — reviewer, manager — use `premium`); a builder step that fails on this chain is redone on `premium` | NRP glm-5 → kimi → deepseek-v4-flash → qwen3 → Gemini 4 Hydrogen → OpenRouter Nemotron Ultra → Groq gpt-oss-120b → OpenAI |
+| `agent` | the builders: team editors and collectors (judges — reviewer, manager — use `premium`); a builder step that fails on this chain is redone on `premium` | NRP deepseek-v4-flash → glm-5 → minimax → qwen3 → kimi → Gemini 4 Hydrogen → OpenRouter Nemotron Ultra → Groq gpt-oss-120b → OpenAI |
 | `fast` | routing, classification, metadata, language detection, summaries | Gemini flash-lite → NRP gpt-oss → OpenAI |
 | `vision` | image understanding | NRP qwen3 → NRP gemma → Gemini flash → OpenRouter Nemotron VL → OpenAI |
 | `review` | independent reviewer; pass `avoidModel` (the editor's model) | `agent` chain, other families first |

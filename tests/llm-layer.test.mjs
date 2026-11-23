@@ -84,17 +84,17 @@ test('chain falls back on 429 (honoring Retry-After), retries a 5xx once, and sk
  const keys={NRP_LLM_TOKEN:'n',GEMINI_API_KEY:'g',GROQ_API_KEY:'q',OPENAI_API_KEY:'o'};
  let mode='429';
  const h=harness(keys,(url,body)=>{
-  if(body.model==='glm-5'){if(mode==='429')return reply(429,'slow down',{'retry-after':'30'});return reply(503,'busy');}
-  if(body.model==='kimi')return reply(200,textReply('from kimi'));
+  if(body.model==='deepseek-v4-flash'){if(mode==='429')return reply(429,'slow down',{'retry-after':'30'});return reply(503,'busy');}
+  if(body.model==='glm-5')return reply(200,textReply('from glm'));
   return reply(200,textReply('other'));
  });
  const r=await h.llm.respond({class:'agent',input:'hello'});
- assert.equal(r.output[0].content[0].text,'from kimi');assert.equal(r.llm.model,'kimi');
- assert.deepEqual(r.llm.fallbacks,[{model:'nrp:glm-5',reason:'rate:429'}]);
- // glm-5 is cooling down for 30s: not even tried.
- h.calls.length=0;await h.llm.respond({class:'agent',input:'again'});assert.deepEqual(h.calls.map(c=>c.body.model),['kimi']);
+ assert.equal(r.output[0].content[0].text,'from glm');assert.equal(r.llm.model,'glm-5');
+ assert.deepEqual(r.llm.fallbacks,[{model:'nrp:deepseek-v4-flash',reason:'rate:429'}]);
+ // deepseek is cooling down for 30s: not even tried.
+ h.calls.length=0;await h.llm.respond({class:'agent',input:'again'});assert.deepEqual(h.calls.map(c=>c.body.model),['glm-5']);
  h.advance(31000);mode='5xx';h.calls.length=0;
- await h.llm.respond({class:'agent',input:'x'});assert.deepEqual(h.calls.map(c=>c.body.model),['glm-5','glm-5','kimi']);
+ await h.llm.respond({class:'agent',input:'x'});assert.deepEqual(h.calls.map(c=>c.body.model),['deepseek-v4-flash','deepseek-v4-flash','glm-5']);
  assert.ok(h.rows.some(r=>r.status==='error:server:503'));
  // Daily quota: Gemini flash-lite allows 1000/day; exhaust it and fast skips to the next model.
  const g=harness({GEMINI_API_KEY:'g',NRP_LLM_TOKEN:'n'},(url,body)=>reply(200,textReply(body.model)));
@@ -153,8 +153,8 @@ test('daily quotas reset at midnight Pacific (DST-aware) or UTC',()=>{
 test('review prefers a different model family than the editor used',async()=>{
  const h=harness({NRP_LLM_TOKEN:'n',GEMINI_API_KEY:'g',GROQ_API_KEY:'q'},(url,body)=>reply(200,textReply(body.model)));
  const chain=h.llm.chain({class:'review',avoidModel:'qwen3'}).map(e=>e.id);
- assert.equal(chain[0],'nrp:glm-5');assert.equal(chain.at(-1),'nrp:qwen3');
- const r=await h.llm.respond({class:'review',avoidModel:'glm-5',input:'judge'});assert.equal(r.llm.model,'kimi');
+ assert.equal(chain[0],'nrp:deepseek-v4-flash');assert.equal(chain.at(-1),'nrp:qwen3');
+ const r=await h.llm.respond({class:'review',avoidModel:'deepseek-v4-flash',input:'judge'});assert.equal(r.llm.model,'glm-5');
  assert.equal(h.llm.chain({class:'review',avoidModel:'gpt-5.6-terra'}).find(e=>e.family==='gpt-oss')?.id,'groq:gpt-oss-120b');
  assert.ok(!h.llm.chain({class:'review',avoidModel:'gemini-3.8-flash'}).slice(0,4).some(e=>e.family==='gemini'));
 });

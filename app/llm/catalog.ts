@@ -36,6 +36,7 @@ export const BASE_CATALOG:Catalog={
   m('nrp:deepseek-v4-flash','nrp','deepseek-v4-flash','deepseek',chat({context:131072,maxOutput:32768}),{concurrency:4},{timeoutMs:180000}),
   m('nrp:glm-5','nrp','glm-5','glm',chat({context:131072,maxOutput:32768,thinkTags:true}),{concurrency:4},{timeoutMs:180000}),
   m('nrp:kimi','nrp','kimi','kimi',chat({context:131072,maxOutput:32768}),{concurrency:4},{timeoutMs:180000}),
+  m('nrp:minimax','nrp','minimax','minimax',chat({vision:true,context:1000000,maxOutput:32768}),{concurrency:4},{timeoutMs:180000}),
   m('nrp:gemma','nrp','gemma','gemma',chat({vision:true,context:131072,maxOutput:8192}),{concurrency:4}),
   m('nrp:gpt-oss','nrp','gpt-oss','gpt-oss',chat({reasoningEffort:true,context:131072,maxOutput:16384}),{concurrency:6}),
   m('nrp:qwen3-embedding','nrp','qwen3-embedding','qwen',chat({tools:false}),{concurrency:4},{embed:{dims:4096,supportsDimensions:true,matryoshka:true,maxBatch:64}}),
@@ -54,7 +55,8 @@ export const BASE_CATALOG:Catalog={
  chains:{
   premium:['openai'],
   // Builders' chain (team editors and collectors): the strongest open models first, the commercial model last.
-  agent:['nrp:glm-5','nrp:kimi','nrp:deepseek-v4-flash','nrp:qwen3','gemini:gemini-4-hydrogen','openrouter:nemotron-3-ultra','groq:gpt-oss-120b','openai'],
+  // Ordered by NRP's published standing (Artificial Analysis Intelligence Index): DeepSeek V4.1 Flash, then GLM-5.
+  agent:['nrp:deepseek-v4-flash','nrp:glm-5','nrp:minimax','nrp:qwen3','nrp:kimi','gemini:gemini-4-hydrogen','openrouter:nemotron-3-ultra','groq:gpt-oss-120b','openai'],
   fast:['gemini:gemini-3.8-flash-lite','nrp:gpt-oss','openai'],
   vision:['nrp:qwen3','nrp:gemma','gemini:gemini-3.8-flash','openrouter:nemotron-3.5-super-vl','openai'],
  },
