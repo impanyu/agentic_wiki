@@ -31,15 +31,18 @@ export const BASE_CATALOG:Catalog={
   // "openai" = the model the caller selected (OPENAI_MODEL / OPENAI_AGENT_MODEL), passed through unchanged.
   m('openai','openai','(caller)','openai',chat({vision:true,reasoningEffort:true,context:400000,maxOutput:128000})),
   m('openai:text-embedding-3-small','openai','text-embedding-3-small','openai',chat({tools:false}),{},{embed:{dims:1536,supportsDimensions:true,matryoshka:true,maxBatch:256}}),
-  // NRP Nautilus managed LLMs: no published quotas; keep concurrency modest.
-  m('nrp:qwen3','nrp','qwen3','qwen',chat({vision:true,context:262144,maxOutput:32768,thinkTags:true}),{concurrency:4},{timeoutMs:180000}),
-  m('nrp:deepseek-v4-flash','nrp','deepseek-v4-flash','deepseek',chat({context:131072,maxOutput:32768}),{concurrency:4},{timeoutMs:180000}),
-  m('nrp:glm-5','nrp','glm-5','glm',chat({context:131072,maxOutput:32768,thinkTags:true}),{concurrency:4},{timeoutMs:180000}),
-  m('nrp:kimi','nrp','kimi','kimi',chat({context:131072,maxOutput:32768}),{concurrency:4},{timeoutMs:180000}),
-  m('nrp:minimax','nrp','minimax','minimax',chat({vision:true,context:1000000,maxOutput:32768}),{concurrency:4},{timeoutMs:180000}),
-  m('nrp:gemma','nrp','gemma','gemma',chat({vision:true,context:131072,maxOutput:8192}),{concurrency:4}),
-  m('nrp:gpt-oss','nrp','gpt-oss','gpt-oss',chat({reasoningEffort:true,context:131072,maxOutput:16384}),{concurrency:6}),
-  m('nrp:qwen3-embedding','nrp','qwen3-embedding','qwen',chat({tools:false}),{concurrency:4},{embed:{dims:4096,supportsDimensions:true,matryoshka:true,maxBatch:64}}),
+  // NRP Nautilus managed LLMs. Fair Use Policy (nrp.ai/documentation/userdocs/ai/llm-managed/fair-use/, Nov 2026):
+  // per-user concurrency kimi/glm-5 2, minimax/gemma 8, qwen3/deepseek-v4-flash/gpt-oss/qwen3-embedding 16; the gateway
+  // also caps 48k output tokens/minute per token and model (HTTP 429, handled by the cooldown). Long requests (>35% of
+  // context) are limited to 1 at a time. We stay a little under the published limits.
+  m('nrp:qwen3','nrp','qwen3','qwen',chat({vision:true,context:262144,maxOutput:32768,thinkTags:true}),{concurrency:12},{timeoutMs:180000}),
+  m('nrp:deepseek-v4-flash','nrp','deepseek-v4-flash','deepseek',chat({context:131072,maxOutput:32768}),{concurrency:12},{timeoutMs:180000}),
+  m('nrp:glm-5','nrp','glm-5','glm',chat({context:131072,maxOutput:32768,thinkTags:true}),{concurrency:2},{timeoutMs:180000}),
+  m('nrp:kimi','nrp','kimi','kimi',chat({context:131072,maxOutput:32768}),{concurrency:2},{timeoutMs:180000}),
+  m('nrp:minimax','nrp','minimax','minimax',chat({vision:true,context:1000000,maxOutput:32768}),{concurrency:6},{timeoutMs:180000}),
+  m('nrp:gemma','nrp','gemma','gemma',chat({vision:true,context:131072,maxOutput:8192}),{concurrency:6}),
+  m('nrp:gpt-oss','nrp','gpt-oss','gpt-oss',chat({reasoningEffort:true,context:131072,maxOutput:16384}),{concurrency:12}),
+  m('nrp:qwen3-embedding','nrp','qwen3-embedding','qwen',chat({tools:false}),{concurrency:12},{embed:{dims:4096,supportsDimensions:true,matryoshka:true,maxBatch:64}}),
   // Gemini API free tier; daily quotas reset at midnight Pacific time.
   m('gemini:gemini-4-hydrogen','gemini','gemini-4-hydrogen','gemini',chat({vision:true,reasoningEffort:true,context:1048576,maxOutput:65536}),{rpm:5,tpm:250000,rpd:100,dayReset:'pacific'},{timeoutMs:180000}),
   m('gemini:gemini-3.8-flash','gemini','gemini-3.8-flash','gemini',chat({vision:true,reasoningEffort:true,context:1048576,maxOutput:65536}),{rpm:10,tpm:250000,rpd:250,dayReset:'pacific'}),
