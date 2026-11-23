@@ -20,12 +20,15 @@ async function wikidataId(e:{ids:Record<string,string>},signal:AbortSignal):Prom
 // Fills, for every entity with a page: its links (homepage = Wikidata P856, English Wikipedia article = the enwiki
 // sitelink, and the Wikidata id itself), its introduction (the lead of the Wikipedia article, credited) and its
 // picture — whatever the collectors left out. Checked again after a week when nothing was found.
+// Entities still missing an introduction, picture or links; the same predicate as the partial index entities_intro_due
+// (schema v17), so the minute's batch is read from the index instead of the whole table.
+export const INTRO_DUE=`has_page and (description = '' or image is null or not (attributes ? 'wikipedia') or not (attributes ? 'website'))
+   and (ids ?| array['wikidata','orcid','openalex','imdb'] or attributes ? 'wikipedia')`;
 export async function fillIntroductions(db:Queryable,limit=40):Promise<number>{
  const rows=(await db.query<{id:string;ids:Record<string,string>;attributes:Record<string,unknown>;image:string|null;description:string}>(`select id, ids, attributes, image, description from entities
-  where has_page and (description = '' or image is null or not (attributes ? 'wikipedia') or not (attributes ? 'website'))
-   and (ids ?| array['wikidata','orcid','openalex','imdb'] or attributes ? 'wikipedia')
-   and coalesce((attributes->>'intro_checked_at')::timestamptz, 'epoch') < now() - interval '7 days'
-  order by updated_at desc limit $1::int`,[limit])).rows;
+  where ${INTRO_DUE}
+   and (attributes->>'intro_checked_at' is null or attributes->>'intro_checked_at' < $2::text)
+  order by attributes->>'intro_checked_at' nulls first limit $1::int`,[limit,new Date(Date.now()-7*864e5).toISOString()])).rows;
  let n=0;
  const one=async(e:typeof rows[number])=>{
   const signal=AbortSignal.timeout(25000);
@@ -56,7 +59,7 @@ export async function fillIntroductions(db:Queryable,limit=40):Promise<number>{
    await db.query(`update entities set description = case when $2::text is not null then $2::text else description end, image = coalesce(image, $3::text),
      attributes = attributes || $4::jsonb, ids = ids || $5::jsonb, updated_at = now() where id = $1::uuid`,[e.id,desc,img,JSON.stringify(patch),JSON.stringify(idPatch)]);
    if(desc||img||patch.website||patch.wikipedia)n++;
-  }catch{await db.query(`update entities set attributes = attributes || jsonb_build_object('intro_checked_at', now()::text) where id = $1::uuid`,[e.id]).catch(()=>{});}
+  }catch{await db.query(`update entities set attributes = attributes || jsonb_build_object('intro_checked_at', $2::text) where id = $1::uuid`,[e.id,new Date().toISOString()]).catch(()=>{});}
  };
  // A few at a time (Wikidata and Wikipedia ask for moderate request rates).
  for(let i=0;i<rows.length;i+=8)await Promise.all(rows.slice(i,i+8).map(one));

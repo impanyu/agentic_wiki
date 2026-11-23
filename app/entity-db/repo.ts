@@ -600,7 +600,8 @@ export async function refreshLatestRanks(q:Queryable,type:string,metric:{key:str
    where e.type = $1::text and o.metric = $2::text and o.metric_version = $3::int order by o.entity_id, o.period desc, o.retrieved_at desc),
   rk as (select entity_id, rank() over (order by value ${order==='asc'?'asc':'desc'}) as rk, count(*) over () as n from v)
   update entities e set latest = jsonb_set(e.latest, array['metrics', $4::text], (e.latest->'metrics'->$4::text) || jsonb_build_object('rank', rk.rk, 'of', rk.n))
-  from rk where e.id = rk.entity_id and e.latest->'metrics' ? $4::text`,[type,metric.key,metric.version,slot]);
+  from rk where e.id = rk.entity_id and e.latest->'metrics' ? $4::text
+   and ((e.latest->'metrics'->$4::text->>'rank') is distinct from rk.rk::text or (e.latest->'metrics'->$4::text->>'of') is distinct from rk.n::text)`,[type,metric.key,metric.version,slot]);
  return 1;
 }
 // Keeps the snapshot current after a write: values/relations of the touched entities, ranks of the touched metrics in their types.

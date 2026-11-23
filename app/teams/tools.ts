@@ -128,7 +128,7 @@ export async function coverage(typeRaw:string,metricsCsv:string,expected:number)
  // Values far above the rest of the top (more than 20× the median of the top 20) are often a source's typo or wrong
  // unit: each must be checked against a second source before the ranking is published.
  const extremes=(await db.query<{metric:string;name:string;value:number;med:number}>(`with v as (select o.metric, e.name, o.value, row_number() over (partition by o.metric order by o.value desc) rn
-   from (select distinct on (entity_id, metric) entity_id, metric, value from observations order by entity_id, metric, period desc) o join entities e on e.id=o.entity_id where e.type=$1::text and o.value>0),
+   from (select distinct on (o.entity_id, o.metric) o.entity_id, o.metric, o.value from observations o join entities t on t.id=o.entity_id where t.type=$1::text order by o.entity_id, o.metric, o.period desc) o join entities e on e.id=o.entity_id where o.value>0),
   m as (select metric, percentile_cont(0.5) within group (order by value) med from v where rn<=20 group by metric having count(*)>=10)
   select v.metric, v.name, v.value, m.med from v join m using (metric) where v.rn<=5 and v.value > 20*m.med order by v.metric, v.value desc limit 15`,[type])).rows;
  const toVerify=extremes.map(x=>`${x.name}: ${x.metric} = ${x.value} (the top 20's median is ${Math.round(x.med)}) — confirm with a second source, or correct it.`);

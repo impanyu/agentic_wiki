@@ -220,6 +220,14 @@ export const MIGRATIONS:Migration[]=[
   "create index if not exists llm_jobs_queued on llm_jobs(model, created_at) where status = 'queued'",
   'create table if not exists llm_workers(id text primary key, models text[] not null, info jsonb not null default \'{}\'::jsonb, last_seen timestamptz not null default now())',
  ]},
+ // Background jobs find their next batch through small partial indexes instead of reading the whole entities table
+ // each minute (embeddings still missing; entities still missing an introduction, picture or links).
+ {version:17,name:'background job indexes',statements:()=>[
+  'create index if not exists entities_embed_pending on entities(updated_at) where embedding is null',
+  `create index if not exists entities_intro_due on entities((attributes->>'intro_checked_at') nulls first)
+    where has_page and (description = '' or image is null or not (attributes ? 'wikipedia') or not (attributes ? 'website'))
+    and (ids ?| array['wikidata','orcid','openalex','imdb'] or attributes ? 'wikipedia')`,
+ ]},
 ];
 export const SCHEMA_VERSION=MIGRATIONS[MIGRATIONS.length-1].version;
 
