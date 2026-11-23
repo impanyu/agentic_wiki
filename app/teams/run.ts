@@ -250,6 +250,11 @@ export async function runTopicTeam({slug,name,brief,kind='build',note='',maxFixR
  const named=/\[([a-z0-9-]+)\]/.exec(note)?.[1];
  const next=kind==='build'&&!named?(await uncovered(db,slug))[0]:undefined;
  const topic=(named&&await getTopic(db,named))||(next&&await getTopic(db,next.slug))||team;
+ // A branch team with nothing left to cover (its subtopics moved or are all covered) has no build to do.
+ if(kind==='build'&&!named&&!next&&(await db.query('select 1 from topics where parent_id=$1::uuid and status <> \'archived\' limit 1',[team.id])).rows.length){
+  log({event:'team_finished',kind,approved:true,note:'nothing to cover'});
+  return {topic:team.slug,team:slug,kind,stages:{},more:false,verdict:{approved:true,issues:[],summary:'nothing to cover'},rounds:[],ruling:null,platformIssues:[]};
+ }
  const focusBrief=String((topic.scope as Record<string,unknown>|undefined)?.brief||topic.description||brief);
  const agents={editor:await spawnAgent('team-editor:'+slug,OWNER),collector:await spawnAgent('team-collector:'+slug,OWNER),reviewer:await spawnAgent('team-review:'+slug,OWNER)};
  // Checkpoints (platform_state "team:<team>:<focus>"): a run cut off by a restart resumes after its last finished
