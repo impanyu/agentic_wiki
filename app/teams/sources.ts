@@ -54,8 +54,9 @@ export async function recordSources(db:Queryable,topicId:string|null,items:Sourc
   const url=String(s.url||'').trim();if(!/^https?:\/\//.test(url))throw Error('Each source needs its http(s) address: '+JSON.stringify(s).slice(0,120));
   if(!['chosen','rejected','candidate'].includes(s.decision))throw Error('decision is chosen, rejected or candidate.');
   const notes=JSON.stringify({name:String(s.name||'').slice(0,200),countries:String(s.countries||'').slice(0,300),covers:String(s.covers||'').slice(0,600),format:String(s.format||'').slice(0,60),decision:s.decision,reason:String(s.reason||'').slice(0,600),at:new Date().toISOString()});
-  await db.query(`insert into sources(topic_id,url,kind,notes) values ($1::uuid,$2::text,$3::text,$4::text)
-   on conflict (coalesce(topic_id::text, ''), url) do update set kind=excluded.kind, notes=excluded.notes`,[topicId,url.slice(0,2000),String(s.kind||'').slice(0,60),notes]);
+  // last_ok_at: when the collector last checked this source (the register's freshness for the 90-day review).
+  await db.query(`insert into sources(topic_id,url,kind,notes,last_ok_at) values ($1::uuid,$2::text,$3::text,$4::text,now())
+   on conflict (coalesce(topic_id::text, ''), url) do update set kind=excluded.kind, notes=excluded.notes, last_ok_at=now()`,[topicId,url.slice(0,2000),String(s.kind||'').slice(0,60),notes]);
   saved++;
  }
  return {saved,register:await listSources(db,topicId)};

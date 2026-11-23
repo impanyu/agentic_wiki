@@ -41,13 +41,15 @@ export async function enqueueTeam(db:Queryable,{slug,name,brief,parentSlug=null,
 
 // Teams come back to their topic: soon when something needs them (a collection rule waiting for repair, readers'
 // queries piling up in the editor's inbox), and for a routine review as often as readers use the topic.
+const SOURCE_REVIEW_DAYS=90;
 export async function scheduleMaintenance(db:Queryable):Promise<string[]>{
- const due=(await db.query<{slug:string;name:string;description:string;repairs:number;inbox:number;last:string|null;passes:number;views:number}>(`select t.slug, t.name, t.description,
+ const due=(await db.query<{slug:string;name:string;description:string;repairs:number;inbox:number;last:string|null;passes:number;views:number;sources_at:string|null}>(`select t.slug, t.name, t.description,
    (select count(*)::int from roadmap_items r join editors e on e.id = r.editor_id where e.topic_id = t.id and r.kind = 'refresh' and r.status = 'pending') repairs,
    (select count(*)::int from inbox i join editors e on e.id = i.editor_id where e.topic_id = t.id and i.triaged_at is null) inbox,
    greatest((select max(coalesce(q.finished_at, q.started_at)) from team_queue q where q.slug = t.slug),(select max(tr.started_at) from team_runs tr where tr.topic_id = t.id))::text last,
    (select count(*)::int from team_runs tr where tr.topic_id = t.id and tr.role = 'reviewer') passes,
-   (select coalesce(sum(v.n),0)::int from ranking_views v join rankings rk on rk.slug = v.slug where rk.topic_id = t.id and v.day > current_date - 30) views
+   (select coalesce(sum(v.n),0)::int from ranking_views v join rankings rk on rk.slug = v.slug where rk.topic_id = t.id and v.day > current_date - 30) views,
+   (select max(coalesce(so.last_ok_at, so.created_at)) from sources so where so.topic_id = t.id)::text sources_at
   from topics t where t.status = 'active' and exists (select 1 from rankings r where r.topic_id = t.id and r.slug is not null)`).catch(()=>({rows:[]}))).rows;
  const queued:string[]=[];
  for(const t of due){
@@ -56,7 +58,9 @@ export async function scheduleMaintenance(db:Queryable):Promise<string[]>{
   // popular one weekly, one with some readers every two weeks, a quiet one monthly.
   const reviewDays=t.passes<=1?7:t.views>=100?7:t.views>=10?14:30;
   const why=t.repairs>0&&hours>3?{p:3,note:'repair: a collection rule is waiting'}:t.inbox>=5&&hours>24?{p:2,note:`expand: ${t.inbox} reader queries waiting`}
-   :hours>reviewDays*24?{p:t.views>=100?1:0,note:`review (every ${reviewDays} days; ${t.views} views in 30 days)`}:null;
+   :hours>reviewDays*24?{p:t.views>=100?1:0,note:`review (every ${reviewDays} days; ${t.views} views in 30 days)`}
+   // The source register is reviewed every 90 days: sources still alive and current, new sources and markets found.
+   :hours>24&&(!t.sources_at||Date.now()-Date.parse(t.sources_at)>SOURCE_REVIEW_DAYS*86400_000)?{p:0,note:'source review: the source register is '+(t.sources_at?'over '+SOURCE_REVIEW_DAYS+' days old':'empty')}:null;
   if(why&&await enqueueTeam(db,{slug:t.slug,name:t.name,brief:t.description,priority:why.p,note:why.note}))queued.push(t.slug+' ('+why.note+')');
  }
  return queued;
