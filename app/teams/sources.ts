@@ -29,7 +29,12 @@ export async function findSources(query:string,country:string,limit=30){
   note:all.length?'Directory entries are leads, not proof: open each one (fetch_data, browse_page) to see what it really holds before recording it.':'The source directory is not available on this server; use web_search.'};
 }
 export async function searchWeb(query:string,count:number,signal?:AbortSignal){
- try{return await webSearch(query,count,n=>process.env[n],fetch,signal);}
+ // Free tiers first; Tavily (pay-as-you-go beyond its free monthly credits) last and capped per day
+ // (TAVILY_DAILY_CAP, default 30 ≈ its free 1,000 a month).
+ const {recordServiceCall,callsToday}=await import('@/app/ops/service-usage');
+ const caps:Record<string,number>={tavily:Number(process.env.TAVILY_DAILY_CAP||30),exa:Number(process.env.EXA_DAILY_CAP||300)};
+ try{return await webSearch(query,count,n=>process.env[n],fetch,signal,{order:['jina','exa','tavily'],
+  allow:async id=>!(id in caps)||await callsToday('search:'+id)<caps[id],done:(id,ok)=>void recordServiceCall('search:'+id,ok)});}
  catch(e){
   const m=(e as Error).message;
   if(m==='WEB_SEARCH_NOT_CONFIGURED'){

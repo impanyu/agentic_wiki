@@ -3,7 +3,7 @@ import {notFound} from 'next/navigation';
 import {getChatGPTUser} from '@/app/chatgpt-auth';
 import {serverUi} from '@/app/i18n/request';
 import {DbShell} from '@/app/rankings/view';
-import {isAdmin,overview,traffic,costs,teams,config,listIssues} from '@/app/ops/admin';
+import {isAdmin,overview,traffic,costs,teams,config,listIssues,services} from '@/app/ops/admin';
 import {entityDb} from '@/app/entity-db/client';
 import {IssueActions} from './issue-actions';
 // /admin: the operators' view of the site and its agents (administrators only: ADMIN_EMAILS). Overview, problems
@@ -11,7 +11,7 @@ import {IssueActions} from './issue-actions';
 export const dynamic='force-dynamic';
 export const metadata:Metadata={title:'Admin · RankWiki',robots:{index:false,follow:false}};
 type Props={searchParams:Promise<Record<string,string|string[]|undefined>>};
-const TABS=[['overview','Overview'],['issues','Issues'],['traffic','Traffic'],['costs','Model costs'],['teams','Teams and data'],['config','Configuration']] as const;
+const TABS=[['overview','Overview'],['issues','Issues'],['traffic','Traffic'],['costs','Model costs'],['services','Services'],['teams','Teams and data'],['config','Configuration']] as const;
 const fmt=(v:unknown)=>typeof v==='number'?v.toLocaleString('en'):String(v??'');
 const usd=(v:unknown)=>'$'+(Number(v)||0).toLocaleString('en',{minimumFractionDigits:2,maximumFractionDigits:2});
 
@@ -83,6 +83,13 @@ export default async function AdminPage({searchParams}:Props){
    <div className="adm-stats"><Stat label="This month (paid models)" value={usd(c.spend?.spentUsd)} note={c.spend?`budget ${usd(c.spend.budgetUsd)} · resets ${String(c.spend.resetsAt||'').slice(0,10)}`:''} tone={c.spend?.overBudget?'bad':undefined}/></div>
    <h2>Cost by day (30 days)</h2><Bars points={c.daily.map(r=>({day:r.day,v:Number(r.cost)}))} label="USD per day"/>
    <h2>By model and task class (30 days)</h2><Table rows={c.byModel} cols={[['provider','Provider'],['model','Model'],['class','Class'],['calls','Calls'],['failed','Failed'],['input','Input tokens'],['output','Output tokens'],['cost','Cost',(v)=>usd(v)]]}/>
+  </>;
+ }else if(tab==='services'){
+  const v=await services();
+  body=<>
+   <p className="adm-note">Every model, search provider and data API the agents use: whether it is configured, its plan and cap, and this month's use. Secrets are never shown.</p>
+   <h2>Services</h2><Table rows={v.rows} cols={[['kind','Kind'],['name','Service'],['configured','Key'],['plan','Plan'],['cap','Daily cap'],['today','Today'],['month','This month'],['errors','Errors'],['cost','Cost',(x)=>x==null?'':usd(x)]]}/>
+   <h2>Access the agents asked for</h2>{v.access.length?<Table rows={v.access} cols={[['title','Request'],['topic','First topic'],['occurrences','Requests'],['last','Last asked']]}/>:<p className="adm-note">No open requests.</p>}
   </>;
  }else if(tab==='teams'){
   const t=await teams();

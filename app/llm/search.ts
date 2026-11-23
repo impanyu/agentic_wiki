@@ -19,14 +19,18 @@ export const SEARCH_PROVIDERS:SearchProvider[]=[
  }},
 ];
 export function searchConfigured(env:(name:string)=>string|undefined){return SEARCH_PROVIDERS.some(p=>env(p.keyEnv));}
-export async function webSearch(query:string,count:number,env:(name:string)=>string|undefined,fetcher:typeof fetch,signal?:AbortSignal){
+// hooks.allow: whether a provider may be used now (e.g. a daily cap on a pay-as-you-go plan); hooks.done: counts each call.
+export async function webSearch(query:string,count:number,env:(name:string)=>string|undefined,fetcher:typeof fetch,signal?:AbortSignal,hooks:{order?:string[];allow?:(id:string)=>Promise<boolean>;done?:(id:string,ok:boolean)=>void}={}){
  const errors:string[]=[];
- for(const provider of SEARCH_PROVIDERS){
+ const providers=hooks.order?[...SEARCH_PROVIDERS].sort((a,b)=>(hooks.order!.indexOf(a.id)+1||99)-(hooks.order!.indexOf(b.id)+1||99)):SEARCH_PROVIDERS;
+ for(const provider of providers){
   const key=env(provider.keyEnv);if(!key)continue;
+  if(hooks.allow&&!await hooks.allow(provider.id)){errors.push(provider.id+': daily cap reached');continue;}
   try{
    const results=(await provider.search(query,Math.max(1,Math.min(10,count||5)),key,fetcher,signal?AbortSignal.any([signal,AbortSignal.timeout(20000)]):AbortSignal.timeout(20000))).filter(r=>/^https?:\/\//.test(r.url));
+   hooks.done?.(provider.id,true);
    return {provider:provider.id,results};
-  }catch(error){if(signal?.aborted)throw error;errors.push(error instanceof Error?error.message:String(error));}
+  }catch(error){hooks.done?.(provider.id,false);if(signal?.aborted)throw error;errors.push(error instanceof Error?error.message:String(error));}
  }
  throw Error(errors.length?'WEB_SEARCH_FAILED: '+errors.join('; '):'WEB_SEARCH_NOT_CONFIGURED');
 }

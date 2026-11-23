@@ -45,6 +45,42 @@ export async function costs(days=30){
  return {daily,byModel,spend};
 }
 
+// Every external service the platform and its agents use, in one place: models (calls, failures, cost) per provider,
+// search providers and public data APIs (calls and errors per day), with whether each is configured and its cap.
+const SERVICES:{id:string;name:string;kind:'model'|'search'|'data';keyEnv?:string;plan:string;cap?:string}[]=[
+ {id:'openai',name:'OpenAI (gpt-5.6-terra, gpt-5.4-mini, embeddings)',kind:'model',keyEnv:'OPENAI_API_KEY',plan:'paid, per token'},
+ {id:'nrp',name:'NRP Nautilus (DeepSeek V4.1 Flash, GLM-5, MiniMax, Qwen3, Kimi)',kind:'model',keyEnv:'NRP_LLM_TOKEN',plan:'free (non-commercial); per-model concurrency 2–16; 48k output tokens/min'},
+ {id:'gemini',name:'Google Gemini',kind:'model',keyEnv:'GEMINI_API_KEY',plan:'free tier (project without billing)'},
+ {id:'openrouter',name:'OpenRouter',kind:'model',keyEnv:'OPENROUTER_API_KEY',plan:'free models + paid'},
+ {id:'groq',name:'Groq',kind:'model',keyEnv:'GROQ_API_KEY',plan:'free tier, rate-limited'},
+ {id:'search:jina',name:'Jina search',kind:'search',keyEnv:'JINA_API_KEY',plan:'free tokens (10k per search), then paid'},
+ {id:'search:exa',name:'Exa search',kind:'search',keyEnv:'EXA_API_KEY',plan:'free credit, then paid',cap:'EXA_DAILY_CAP (default 300/day)'},
+ {id:'search:tavily',name:'Tavily search',kind:'search',keyEnv:'TAVILY_API_KEY',plan:'1,000 free credits/month, then pay-as-you-go',cap:'TAVILY_DAILY_CAP (default 30/day)'},
+ {id:'source:youtube',name:'YouTube Data API',kind:'data',keyEnv:'YOUTUBE_API_KEY',plan:'free, 10,000 units/day'},
+ {id:'source:github',name:'GitHub API',kind:'data',keyEnv:'GITHUB_TOKEN',plan:'60/hour without a token, 5,000/hour with'},
+ {id:'source:openalex',name:'OpenAlex',kind:'data',keyEnv:'OPENALEX_API_KEY',plan:'free (key optional)'},
+ {id:'source:coingecko',name:'CoinGecko',kind:'data',keyEnv:'COINGECKO_API_KEY',plan:'free demo key optional'},
+];
+export async function services(){
+ const db=await entityDb();
+ const usage=(await db.query<{service:string;today:number;today_errors:number;month:number;month_errors:number}>(`select service,
+   sum(calls) filter (where day=current_date)::int today, sum(errors) filter (where day=current_date)::int today_errors,
+   sum(calls) filter (where day>=date_trunc('month',current_date))::int month, sum(errors) filter (where day>=date_trunc('month',current_date))::int month_errors
+   from service_usage where day > current_date - 40 group by service`).catch(()=>({rows:[]}))).rows;
+ const use=new Map(usage.map(u=>[u.service,u]));
+ const since=new Date(new Date().getUTCFullYear(),new Date().getUTCMonth(),1).toISOString();
+ const models=((await database().prepare("SELECT provider, COUNT(*) calls, SUM(CASE WHEN status<>'ok' THEN 1 ELSE 0 END) failed, ROUND(SUM(cost_usd),2) cost FROM llm_usage WHERE created_at>=? GROUP BY provider").bind(since).all<{provider:string;calls:number;failed:number;cost:number}>()).results||[]);
+ const byProvider=new Map(models.map(m=>[m.provider,m]));
+ const rows=SERVICES.map(s=>{const u=use.get(s.id),m=s.kind==='model'?byProvider.get(s.id):undefined;
+  return {kind:s.kind,name:s.name,configured:s.keyEnv?(process.env[s.keyEnv]?'yes':'no'):'—',plan:s.plan,cap:s.cap?s.cap.replace(/\(default (\d+)\/day\)/,(_x,d)=>'('+(process.env[s.cap!.split(' ')[0]]||d)+'/day)'):'',
+   today:m?'':u?.today??0,month:m?m.calls:u?.month??0,errors:m?m.failed:u?.month_errors??0,cost:m?m.cost:null};});
+ // Public data sources called by name (source:<id>) that are not listed above.
+ const known=new Set(SERVICES.map(s=>s.id));
+ const others=usage.filter(u=>!known.has(u.service)).map(u=>({kind:u.service.split(':')[0],name:u.service.split(':').slice(1).join(':'),configured:'—',plan:'',cap:'',today:u.today??0,month:u.month??0,errors:u.month_errors??0,cost:null}));
+ const access=(await db.query(`select title, topic, occurrences, to_char(last_seen_at,'YYYY-MM-DD HH24:MI') last from issues where source='access' and status='open' order by occurrences desc, last_seen_at desc limit 50`).catch(()=>({rows:[]}))).rows;
+ return {rows:[...rows,...others.sort((a,b)=>b.month-a.month)],access};
+}
+
 export async function teams(){
  const db=await entityDb();
  const queue=(await db.query(`select slug, name, status, note, priority, to_char(created_at,'YYYY-MM-DD HH24:MI') created, to_char(started_at,'YYYY-MM-DD HH24:MI') started, to_char(finished_at,'YYYY-MM-DD HH24:MI') finished from team_queue order by case status when 'running' then 0 when 'queued' then 1 else 2 end, coalesce(finished_at, started_at, created_at) desc limit 100`)).rows;

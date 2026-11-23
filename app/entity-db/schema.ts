@@ -192,6 +192,11 @@ export const MIGRATIONS:Migration[]=[
   'create index if not exists issues_open on issues(last_seen_at desc) where status = \'open\'',
   'create table if not exists page_views(kind text not null, key text not null, day date not null default current_date, n integer not null default 0, primary key (kind, key, day))',
  ]},
+ // Calls to external services other than the models (search providers, public data APIs): per day, for the admin
+ // page and for daily caps on pay-as-you-go services.
+ {version:13,name:'service usage',statements:()=>[
+  'create table if not exists service_usage(day date not null default current_date, service text not null, calls integer not null default 0, errors integer not null default 0, primary key (day, service))',
+ ]},
 ];
 export const SCHEMA_VERSION=MIGRATIONS[MIGRATIONS.length-1].version;
 
