@@ -13,7 +13,7 @@ for(const f of readdirSync(dir).filter(f=>f.endsWith('.json')&&f!=='en.json')){
  for(const k of Object.keys(d))if(!(k in en))delete d[k];
  if(missing.length){
   const r=await fetch('https://api.openai.com/v1/chat/completions',{method:'POST',headers:{Authorization:'Bearer '+key,'Content-Type':'application/json'},body:JSON.stringify({model,response_format:{type:'json_object'},messages:[
-   {role:'system',content:`Translate the user-interface strings of RankWiki, a public ranking and encyclopedia website, from English into ${langName(code)}. Return one JSON object mapping each English string (unchanged, as the key) to its translation. Keep placeholders such as {count}, {n}, {q}, {k}, {pct} exactly. Never translate "RankWiki". Use the concise, natural wording a well-made website uses.`},
+   {role:'system',content:`Translate the user-interface strings of RankWiki, a public ranking and encyclopedia website, from English into ${langName(code)}. Return one JSON object mapping each English string (unchanged, as the key) to its translation. Keep placeholders such as {count}, {n}, {q}, {k}, {pct} exactly. Never translate "RankWiki". Translate every string into the language's own words, including chart and media terms (treemap, sunburst, donut, heatmap, scatter, radar, fork, live, picture-in-picture, percentile, median, top 20): one page must read in one language. Keep English only for brand names. Use the concise, natural wording a well-made website uses.`},
    {role:'user',content:JSON.stringify(missing)}]})});
   const j=await r.json();if(!r.ok)throw Error(code+': '+JSON.stringify(j).slice(0,300));
   const out=JSON.parse(j.choices[0].message.content);

@@ -71,6 +71,8 @@ export async function EntityPage(props:Props){
  const typeTopic=(await (await entityDb()).query<{slug:string}>('select t.slug from entity_types et join topics t on t.id=et.topic_id where et.type=$1::text',[e.type])).rows[0]?.slug;
  const topicPath=typeTopic?maps.topics.get(typeTopic):undefined;
  const trail=topicPath?[...nodeTrail(maps,topicPath),{name:maps.nodes.get(topicPath)?.name||kicker,href:topicPath}]:[];
+ // The way here in the reader's language.
+ const ltrail=(await localizeContent(await entityDb(),{trail},locale)).model.trail;
  const main=d.rankings.find(r=>!r.filters||!Object.keys(r.filters).length);const mainHref=main?canonicalPath(rankingPath(main.slug),maps):topicPath;const L=<T,>(v:T)=>localizeLinks(canonicalLinks(v,maps),locale);
  // One address per entity: an alias's slug or another spelling redirects to the name's slug.
  if(first!==data.num||slug!==slugify(e.name)||!data.canonical)permanentRedirect(localizeLinks(path,locale));
@@ -92,7 +94,7 @@ export async function EntityPage(props:Props){
    </ol></section>}
    {model.asOf&&<p className="wf-muted data-as-of">{t('Data as of {date}.',{date:fmtDate(model.asOf,locale)})}</p>}
   </>}>
-   {trail.length>0&&<Breadcrumbs trail={L(trail.slice(0,-1).map(x=>({name:x.name,href:x.href})))} current={trail[trail.length-1].name}/>}
+   {ltrail.length>0&&<Breadcrumbs trail={L(ltrail.slice(0,-1).map(x=>({name:x.name,href:x.href})))} current={ltrail[ltrail.length-1].name}/>}
    <header className={'wiki-heading db-hero entity-hero'+(model.image?' has-image':'')}>
     {model.image&&<img className="entity-picture" src={model.image} alt={model.title} loading="eager" referrerPolicy="no-referrer"/>}
     <div className="entity-hero-text">{mainHref?<a className="db-kicker" href={L(mainHref)}>{kicker.charAt(0).toUpperCase()+kicker.slice(1)}</a>:<span className="db-kicker">{kicker.charAt(0).toUpperCase()+kicker.slice(1)}</span>}<h1>{model.title}</h1>{intro.text&&<p className="entity-intro"><LinkedText parts={L(introParts)}/>{/wikipedia\.org/.test(introSource)&&<> <a className="intro-source" href={introSource} target="_blank" rel="noopener noreferrer">{t('From Wikipedia')}</a></>}</p>}{model.lead.length>0&&<p className="lead">{L(leadParts).map((s,i)=><span key={i}>{i?' ':''}<LinkedText parts={s}/></span>)}</p>}

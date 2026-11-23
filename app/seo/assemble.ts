@@ -276,8 +276,8 @@ export function assembleEntityPage(d:EntityPageData,locale='en'):EntityPageModel
    case 'location_map':{const loc=locationOf(e);if(loc)sections.push({component:'location_map',title:s.title||'Location',props:loc});break;}
    case 'relations':{
     const link=(r:{id?:string;name:string})=>{const h=pageOfRel(r);return h?{href:h}:{};};
-    const rels=[...d.relations.outgoing.map(r=>({predicate:humanize(r.predicate),name:r.name,type:r.type,...link(r)})),
-     ...d.relations.incoming.flatMap(g=>g.sample.map(x=>({predicate:inverseLabel(g.predicate),name:x.name,type:g.type,...link(x)})))];
+    const rels=[...d.relations.outgoing.map(r=>({predicate:humanize(r.predicate),name:r.name,type:r.type,...(r.type?{typeLabel:humanize(r.type).toLowerCase()}:{}),...link(r)})),
+     ...d.relations.incoming.flatMap(g=>g.sample.map(x=>({predicate:inverseLabel(g.predicate),name:x.name,type:g.type,...(g.type?{typeLabel:humanize(g.type).toLowerCase()}:{}),...link(x)})))];
     if(!rels.length)break;d.relations.outgoing.forEach(r=>relUsed.add(r.predicate));
     sections.push({component:'relation_graph',title:s.title||'Related',props:{center:{name:e.name},relations:rels.slice(0,80)}});
     break;}

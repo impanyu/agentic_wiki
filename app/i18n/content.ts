@@ -5,7 +5,7 @@ import {DEFAULT_LOCALE,LOCALES} from './locales';
 // page model, stored once per language. One language per page: a text not translated yet is translated before the
 // page is shown (localizeContent); a pool of background workers translates ahead of readers (startTranslationPool).
 // Proper names, numbers and links are kept. A page in another language is indexed only when nothing on it is missing.
-const KEYS=new Set(['title','name','label','lead','text','description','detail','subtitle','about','caption','note','kicker','summary','heading','paragraphs','baseTitle','question','unitLabel','unit','what','predicate','subtitle','headline','tagline','alt']);
+const KEYS=new Set(['title','name','label','lead','text','description','detail','subtitle','about','caption','note','kicker','summary','heading','paragraphs','baseTitle','question','unitLabel','unit','what','predicate','subtitle','headline','tagline','alt','typeLabel']);
 const SKIP=new Set(['href','slug','key','id','image','url','code','format','currency','period','year','entity_id','type','column']);
 const hashOf=(s:string)=>createHash('sha1').update(s).digest('hex').slice(0,20);
 const translatable=(s:string)=>s.length>=2&&s.length<=1200&&/\p{L}{2}/u.test(s)&&!/^(https?:|\/|#|data:)/.test(s)&&!/^[\p{Lu}\d_-]{2,12}$/u.test(s);

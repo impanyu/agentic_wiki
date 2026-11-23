@@ -272,7 +272,7 @@ export function normalizeRelations(raw:unknown,limit=80):Relation[]{
  for(const r of evList(raw)){
   if(!evIsObj(r))continue;const predicate=evText(r.predicate??r.relation)||'related',name=evText(r.name??r.object);
   if(!name||seen.has(predicate+'\u0000'+name))continue;seen.add(predicate+'\u0000'+name);
-  out.push({predicate,name,href:safeHref(r.href),type:evText(r.type)||null});
+  out.push({predicate,name,href:safeHref(r.href),type:evText(r.typeLabel??r.type)||null});
   if(out.length>=limit)break;
  }
  return out;
