@@ -1,5 +1,6 @@
 import type {Queryable,Row} from './client';
 import {getEntity,metricTable,hybridSearch,inScope,RANK_LIMIT} from './repo';
+import {ttlCache} from './ttl-cache';
 import {slugify,questionKey} from '@/app/seo/urls';
 import {topicPaths,canonicalPath,type PathMaps} from '@/app/seo/paths';
 import {formatMetric,entityImage,entityPath,rankingPath,defaultTemplate,mentionKey,type MetricInfo,type MetricFact,type EntityPageData,type Template,type RankingDef,type RankingPageInput,type Point} from '@/app/seo/assemble';
@@ -95,6 +96,11 @@ export async function loadEntityPageByNum(db:Queryable,num:string):Promise<Entit
  const r=(await db.query<{id:string;type:string}>('select id, type from entities where num = $1::bigint and has_page',[num])).rows[0];
  return r?loadEntityData(db,String(r.id),String(r.type),true):null;
 }
+// The ranking tables entity pages show (peers over a type, each sub-ranking the entity is in) are the same for every
+// member of a type: computed once and shared for a few minutes, so a page of a large type is not 3 s of table scans.
+type MetricTableArgs=Parameters<typeof metricTable>[1];
+const typeTables=ttlCache<Awaited<ReturnType<typeof metricTable>>>(5*60_000,400);
+const sharedTable=(db:Queryable,args:MetricTableArgs)=>typeTables.get(JSON.stringify(args),()=>metricTable(db,args));
 // By type and name (the older address form, and lookups by name).
 export async function loadEntityPage(db:Queryable,type:string,slug:string):Promise<EntityPageLoad|null>{
  const found=await findEntityBySlug(db,type,slug);if(!found)return null;
@@ -127,7 +133,7 @@ async function loadEntityData(db:Queryable,id:string,type:string,canonical:boole
  const tpl=typeInfo.template||defaultTemplate(data);
  const peerKeys=templateMetrics(tpl).peer.filter(k=>metrics[k]).slice(0,12);
  if(peerKeys.length){
-  const t=await metricTable(db,{type,metrics:peerKeys,period:'latest'});
+  const t=await sharedTable(db,{type,metrics:peerKeys,period:'latest'});
   // Peers link to their pages (by number); one without a page is named only.
   const nums=await withPages(db,t.rows.map(r=>String(r.entity_id)));
   for(const m of t.metrics)data.peers[m.key]=t.rows.filter(r=>typeof r[m.column]==='number'&&Number(r[m.column+'_rank'])<=RANK_LIMIT).map(r=>({name:String(r.name),value:Number(r[m.column]),
@@ -178,7 +184,7 @@ async function entityRankings(db:Queryable,d:EntityPageData,metrics:Record<strin
   try{
    // Only the sub-rankings the entity is in (a membership query, not a table per scope).
    if(!await inScope(db,{type:r.scope.type,filters:r.scope.filters},d.entity.id))continue;
-   const t=await metricTable(db,{type:r.scope.type,filters:r.scope.filters,metrics:crit,period:'latest'});
+   const t=await sharedTable(db,{type:r.scope.type,filters:r.scope.filters,metrics:crit,period:'latest'});
    const row=t.rows.find(x=>x.entity_id===d.entity.id);
    out.push({slug:r.slug,title:r.title,filters:r.scope.filters||{},ranks:t.metrics.map(m=>({key:m.column,label:m.label,rank:row&&typeof row[m.column+'_rank']==='number'?Number(row[m.column+'_rank']):!row&&metrics[m.key]?RANK_LIMIT+1:null,of:m.count||null}))});
   }catch(e){console.warn('entity page: ranking scope failed',r.slug,(e as Error).message);}
