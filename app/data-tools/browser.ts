@@ -2,8 +2,8 @@ import {chromiumPath} from '@/app/workflows/render';
 import {allowedRequestUrl,publicUrl} from './net';
 import {guardProxy} from './proxy';
 import {describeShape,jsonRows,detectChallenge,type Challenge} from './parse';
-// Headless Chromium for JavaScript-built public pages. One browser per process, one page at a
-// time (a queue), a fresh context per call (no cookies or storage kept), downloads, service
+// Headless Chromium for JavaScript-built public pages. One browser per process, a few pages at a
+// time (BROWSER_PAGES), a fresh context per call (no cookies or storage kept), downloads, service
 // workers and permission prompts refused. Every request goes through a pinned-address proxy
 // (proxy.ts) and route interception, so only public hosts are reached — redirects, subresources
 // and WebSockets included.
@@ -14,7 +14,7 @@ export type Rendered={url:string;title:string;html:string;text:string;json:Captu
 const NOISE=/telemetry|analytics|collect\b|beacon|sentry|awswaf|captcha|recaptcha|hcaptcha|stripe\.com|doubleclick|google-analytics|googletagmanager|segment\.io|mixpanel|amplitude|hotjar|clarity\.ms|consent|onetrust|cookielaw|datadome|perimeterx|newrelic|nr-data/i;
 const HARD_TIMEOUT=45_000,JSON_MAX=5*1024*1024,JSON_KEEP=40;
 const UA={desktop:'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',mobile:'Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Mobile Safari/537.36'};
-let browserPromise:Promise<any>|null=null,idle:ReturnType<typeof setTimeout>|null=null,queue:Promise<unknown>=Promise.resolve();
+let browserPromise:Promise<any>|null=null,idle:ReturnType<typeof setTimeout>|null=null;
 export const browserAvailable=()=>!!chromiumPath();
 async function browser(){
  const executablePath=chromiumPath();
@@ -24,7 +24,14 @@ async function browser(){
 }
 function scheduleClose(){if(idle)clearTimeout(idle);idle=setTimeout(()=>{const p=browserPromise;browserPromise=null;p?.then(b=>b.close()).catch(()=>{});},90_000);idle.unref?.();}
 // Runs one rendering job at a time.
-function exclusive<T>(job:()=>Promise<T>):Promise<T>{const run=queue.then(job,job);queue=run.catch(()=>{});return run;}
+// A few pages at once (BROWSER_PAGES, default 2) in one shared browser: several teams browse at the same time
+// without each launching its own Chromium (the VM has 4 cores and is shared with the site).
+const SLOTS=Math.max(1,Math.min(6,Number(process.env.BROWSER_PAGES)||2));let active=0;const waiting:(()=>void)[]=[];
+async function exclusive<T>(job:()=>Promise<T>):Promise<T>{
+ if(active>=SLOTS)await new Promise<void>(r=>waiting.push(r));
+ active++;
+ try{return await job();}finally{active--;waiting.shift()?.();}
+}
 export async function renderPage(address:string,options:{waitFor?:string;scrolls?:number;device?:'desktop'|'mobile';captureJson?:boolean},signal?:AbortSignal):Promise<Rendered>{
  const start=publicUrl(address);
  return exclusive(async()=>{
