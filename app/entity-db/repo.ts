@@ -47,8 +47,13 @@ type Match={id:string;ids:Record<string,string>;tsv:string};
 //    when ids point at different entities the first (wikidata first) wins and the conflicting keys are not written;
 // 2. else same type and a shared normalised name/alias, unless both carry the same id key with different values;
 // 3. else a new entity. Existing ids are never overwritten; aliases are merged; attributes are updated.
+// A metric key as a readable label ("race_wins" → "Race wins"): never show a key to readers.
+export const keyLabel=(key:string)=>{const s=String(key||'').replace(/_+/g,' ').trim();return s.charAt(0).toUpperCase()+s.slice(1);};
+const labelOf=(label:string|undefined,key:string)=>{const l=String(label||'').trim();return !l||l===key||/^[a-z0-9]+(_[a-z0-9]+)+$/.test(l)?keyLabel(key):l;};
+// Footnote marks a source table puts after a name ("Lewis Hamilton~", "Ayrton Senna^", "Name†") are not part of it.
+export const cleanName=(name:string)=>String(name||'').trim().replace(/(?<=[\p{L}\p{N}).])\s*[~^*†‡§¶]+$/u,'').trim();
 export async function upsertEntity(q:Queryable,input:EntityInput):Promise<{id:string;action:'inserted'|'merged';idConflicts:number}>{
- const type=normalizeType(input.type),name=String(input.name||'').trim().slice(0,300);
+ const type=normalizeType(input.type),name=cleanName(String(input.name||'')).slice(0,300);
  if(!name)throw Error('An entity needs a name.');
  const ids:Record<string,string>={};
  for(const [k,v] of Object.entries(input.ids||{})){const key=k.trim().toLowerCase();const n=normalizeId(key,v);if(n&&/^[a-z][a-z0-9_]{0,40}$/.test(key))ids[key]=n;}
@@ -163,8 +168,8 @@ export async function recordObservations(db:EntityDb,list:ObservationInput[]):Pr
 }
 async function ensureObservedMetrics(db:Queryable,list:{key:string;unit:string}[]){
  for(const m of list){if(!METRIC_KEY.test(m.key))throw Error('Invalid metric key "'+m.key+'".');
-  await db.query(`insert into metrics(key,version,label,unit,kind,created_by,status,used) select $1::text,1,$1::text,$2::text,'observed','system','published',true
-   where not exists (select 1 from metrics where key = $1::text)`,[m.key,m.unit]);
+  await db.query(`insert into metrics(key,version,label,unit,kind,created_by,status,used) select $1::text,1,$3::text,$2::text,'observed','system','published',true
+   where not exists (select 1 from metrics where key = $1::text)`,[m.key,m.unit,keyLabel(m.key)]);
   await db.query("update metrics set used = true where key = $1::text and kind = 'observed' and not used",[m.key]);}
 }
 
@@ -189,7 +194,7 @@ async function saveMetric(db:EntityDb,input:MetricInput,kind:'observed'|'derived
   const latest=(await q.query("select * from metrics where key=$1::text order by version desc limit 1",[key])).rows[0];
   const prev=latest?metricRow(latest):null;
   if(prev&&prev.kind!==kind)throw Error(`Metric "${key}" is ${prev.kind}; choose another key for a ${kind} metric.`);
-  const next={label:input.label?.trim()||prev?.label||key,unit:input.unit??prev?.unit??'',description:input.description??prev?.description??'',methodology:input.methodology??prev?.methodology??'',
+  const next={label:labelOf(input.label?.trim()||prev?.label,key),unit:input.unit??prev?.unit??'',description:input.description??prev?.description??'',methodology:input.methodology??prev?.methodology??'',
    order:input.order||prev?.order||'desc',format:input.format??prev?.format??'',createdBy:input.createdBy||prev?.createdBy||'system'};
   const status=kind==='derived'?'draft':'published';
   const insert=async(version:number)=>{await q.query(`insert into metrics(key,version,label,unit,description,methodology,sort_order,format,kind,definition,created_by,status)
