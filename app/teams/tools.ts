@@ -125,9 +125,16 @@ export async function coverage(typeRaw:string,metricsCsv:string,expected:number)
  const dataProblems=[...zeroMetrics.map(z=>`Metric ${z.metric}: ${z.zeros} of ${z.n} values are 0 — check the field mapping or the parse (remove the wrong values and reload).`),
   ...(allZero.length?[`Entities whose every value is 0 (probably not real members, or loaded from a broken probe): ${allZero.join('; ')} — fix or remove them.`]:[]),
   ...(oddNames.length?[`Names that do not look like ${type} names: ${oddNames.join('; ')} — fix the name column or drop these rows.`]:[])];
+ // Values far above the rest of the top (more than 20× the median of the top 20) are often a source's typo or wrong
+ // unit: each must be checked against a second source before the ranking is published.
+ const extremes=(await db.query<{metric:string;name:string;value:number;med:number}>(`with v as (select o.metric, e.name, o.value, row_number() over (partition by o.metric order by o.value desc) rn
+   from (select distinct on (entity_id, metric) entity_id, metric, value from observations order by entity_id, metric, period desc) o join entities e on e.id=o.entity_id where e.type=$1::text and o.value>0),
+  m as (select metric, percentile_cont(0.5) within group (order by value) med from v where rn<=20 group by metric having count(*)>=10)
+  select v.metric, v.name, v.value, m.med from v join m using (metric) where v.rn<=5 and v.value > 20*m.med order by v.metric, v.value desc limit 15`,[type])).rows;
+ const toVerify=extremes.map(x=>`${x.name}: ${x.metric} = ${x.value} (the top 20's median is ${Math.round(x.med)}) — confirm with a second source, or correct it.`);
  return {type,entities:total,expected:expected||null,universeCoverage:expected?Math.round(total/expected*1000)/10+'%':null,entitiesWithoutStandardId:noIds,possibleDuplicates:dupes,metrics:perMetric,
   // Data must stay fresh by itself: every metric needs a recipe that loads it, and every recipe must have run successfully.
-  metricsWithoutRecipe:notInRecipes,recipes:recipeHealth,dataProblems,
+  metricsWithoutRecipe:notInRecipes,recipes:recipeHealth,dataProblems,toVerify,
   recipeProblems:[...notInRecipes.map(m=>'No recipe loads metric '+m+': it will never be refreshed.'),...recipeHealth.filter(r=>r.lastOk!==true).map(r=>'Recipe '+r.name+(r.lastRunAt?' failed its last run.':' has never been run (run_recipe).')),...recipeHealth.flatMap(r=>r.problems.map(p=>r.name+': '+p))]};
 }
 async function previewPage(path:string){

@@ -149,7 +149,7 @@ export async function fastLaneTopic(db:EntityDb,t:Topic):Promise<{ok:boolean;rea
  const res=await upsertEntities(db,rows,{type,nameColumn:'name',idColumns:{wikidata:'wikidata'},imageColumn:'image',attributeColumns:['wikipedia','website'],topicId:t.id,
   metricColumns:Object.fromEntries(metrics.map(m=>['m_'+m.key,{metric:m.key,unit:unitOf(m.key),period:'p_'+m.key}]))},{source:'Wikidata (query.wikidata.org)'});
  const slug=(t.slug+'-ranking').slice(0,120);
- await db.query(`insert into rankings(topic_id,title,scope,criteria,slug,config,status) select $1::uuid,$2::text,jsonb_build_object('type',$3::text,'filters','{}'::jsonb),$4::text[],$5::text,'{"fastlane":true}'::jsonb,'published'
+ await db.query(`insert into rankings(topic_id,title,scope,criteria,slug,config,status) select $1::uuid,$2::text,jsonb_build_object('type',$3::text,'filters','{}'::jsonb),$4::text[],$5::text,'{"fastlane":true}'::jsonb,'draft'
   where not exists (select 1 from rankings where slug=$5::text)`,[t.id,p.title||t.name,type,metrics.map(m=>m.key),slug]);
  const {refreshPages}=await import('@/app/entity-db/repo');await refreshPages(db,{type});
  return {ok:true,reason:'',entities:res.inserted+res.merged,ranking:slug};

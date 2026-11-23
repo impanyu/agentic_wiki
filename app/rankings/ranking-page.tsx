@@ -69,6 +69,8 @@ export async function generateMetadata(props:Props):Promise<Metadata>{
  return {title:`${name} · ${SITE_NAME}`,description:description.slice(0,300),
   ...(origin?{metadataBase:new URL(origin)}:{}),
   ...localeMeta(path,locale,loc.complete),
+  // A draft (not reviewed yet, e.g. a Wikidata starter) is shown but not indexed until the team's review approves it.
+  ...(v.input.def.status==='draft'?{robots:{index:false,follow:true}}:{}),
   openGraph:{type:'article',title:name,description:description.slice(0,300),url:path,siteName:SITE_NAME},
   twitter:{card:'summary',title:name,description:description.slice(0,300)}};
 }
