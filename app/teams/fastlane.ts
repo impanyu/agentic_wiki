@@ -131,10 +131,16 @@ export async function fastLaneTopic(db:EntityDb,t:Topic):Promise<{ok:boolean;rea
   // A value matches when it is within a factor of 2 of the anchor, allowing the model's unit to differ by a power of
   // 1000 (m vs km, m² vs km²) — but not by 100 (hectares read as km²) or 10.
   const fits=(v:number,a:number)=>[1,1e3,1e6,1e-3,1e-6].some(f=>{const x=v/(a*f);return x>0.5&&x<2;});
-  let found=0;
-  for(const a of p.anchors){const hit=find(a.name);if(!hit)continue;found++;
+  let found=0;const anchorValues:number[]=[];
+  for(const a of p.anchors){const hit=find(a.name);if(!hit)continue;found++;anchorValues.push(hit[1]);
    if(!fits(hit[1],a.value))return {ok:false,reason:`anchor "${a.name}" has ${hit[1]} on Wikidata, expected about ${a.value}: wrong unit or wrong data`};}
   if(found<Math.max(2,Math.ceil(p.anchors.length/2)))return {ok:false,reason:`only ${found} of ${p.anchors.length} well-known leaders (${p.anchors.map(a=>a.name).join(', ')}) are among the results: the Wikidata class looks incomplete`};
+  // The anchors are the true leaders: an entity far beyond them (a proposed tower of 4,000 m, a height in feet read as
+  // metres) is not a real leader but bad data, and is left out.
+  const best=main.order==='asc'?Math.min(...anchorValues):Math.max(...anchorValues);
+  const dropped=items.filter(id=>{const v=mainVals.get(id)!.v;return main.order==='asc'?v<best/1.5:v>best*1.5;});
+  if(dropped.length>items.length*0.2)return {ok:false,reason:`${dropped.length} entities lie far beyond the known leaders: the data looks unreliable`};
+  for(const id of dropped){items.splice(items.indexOf(id),1);mainVals.delete(id);}
  }
  const per=new Map<string,Map<string,Val>>([[main.key,mainVals]]);
  for(const m of p.metrics.slice(1)){
