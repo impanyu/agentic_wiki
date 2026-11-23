@@ -155,7 +155,17 @@ export async function runTopicTeam({slug,name,brief,maxFixRounds=2,log=()=>{}}:{
  const topic=await getTopic(db,slug)??await createTopic(db,{slug,name,description:brief});
  const editor=await spawnAgent('team-editor:'+slug,OWNER),collector=await spawnAgent('team-collector:'+slug,OWNER),reviewer=await spawnAgent('team-review:'+slug,OWNER);
  const topicInfo={topic:{slug,name,brief}};
- const plan=await ask('editor',editor,topic.id,EDITOR_PLAN,{...topicInfo,step:'plan'},PLAN_SCHEMA,log,{rounds:24,calls:40});
+ // Finished steps are kept (platform_state "team:<slug>") so a run cut off by a restart resumes after the last
+ // finished step instead of starting over; a checkpoint older than 12 hours is not reused.
+ const {getState,setState}=await import('./manager');const key='team:'+slug;
+ const saved=await getState(db,key).catch(()=>null);
+ const fresh=saved&&typeof saved.at==='string'&&Date.now()-Date.parse(saved.at)<12*3600_000?saved as Record<string,unknown>:{};
+ const done:Record<string,unknown>={...fresh};
+ const step=async<T,>(name:string,run:()=>Promise<T>):Promise<T>=>{
+  if(name in done){log({event:'resumed',step:name});return done[name] as T;}
+  const out=await run();done[name]=out;done.at=new Date().toISOString();await setState(db,key,done).catch(()=>{});return out;
+ };
+ const plan=await step('plan',()=>ask('editor',editor,topic.id,EDITOR_PLAN,{...topicInfo,step:'plan'},PLAN_SCHEMA,log,{rounds:24,calls:40}));
  // Collector and editor work in passes: each pass continues from the plan's open items and the previous report,
  // so a long job survives one pass running out of time or budget.
  const passes=async(role:Role,agent:Agent,instructions:string,step:string,extra:Record<string,unknown>,budget:{rounds:number;calls:number},max=3)=>{
@@ -167,8 +177,8 @@ export async function runTopicTeam({slug,name,brief,maxFixRounds=2,log=()=>{}}:{
   }
   return reports;
  };
- const collected=await passes('collector',collector,COLLECTOR,'collect',{plan},{rounds:40,calls:90});
- const built=await passes('editor',editor,EDITOR_BUILD,'design',{plan,collector:collected[collected.length-1]},{rounds:32,calls:70});
+ const collected=await step('collect',()=>passes('collector',collector,COLLECTOR,'collect',{plan},{rounds:40,calls:90}));
+ const built=await step('design',()=>passes('editor',editor,EDITOR_BUILD,'design',{plan,collector:collected[collected.length-1]},{rounds:32,calls:70}));
  let verdict=await ask('reviewer',reviewer,topic.id,REVIEWER,{...topicInfo,step:'review',plan},VERDICT_SCHEMA,log,{rounds:32,calls:70}) as {approved:boolean;issues:{owner:string;severity:string}[];summary:string};
  const rounds:unknown[]=[];
  const teamIssues=()=>verdict.issues.filter(x=>x.owner!=='platform'&&x.severity!=='minor');
@@ -208,5 +218,7 @@ export async function runTopicTeam({slug,name,brief,maxFixRounds=2,log=()=>{}}:{
  // A newly published topic gets its place in the navigation tree.
  if(verdict.approved||!teamIssues().length)await placeTopic(slug,log).catch(e=>log({event:'topic_place_failed',error:(e as Error).message}));
  log({event:'team_finished',approved:verdict.approved});
+ // The run finished: its checkpoint is cleared (the next run of this team starts fresh).
+ await db.query('delete from platform_state where key=$1::text',[key]).catch(()=>{});
  return {topic:topic.slug,plan,collected,built,fixRounds:rounds,ruling,verdict,platformIssues};
 }
