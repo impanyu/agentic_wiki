@@ -18,21 +18,26 @@ export function due(r:Pick<Recipe,'schedule'|'status'|'lastRunAt'>,now=Date.now(
  const gap=r.status==='failed'?Math.min(every,86400e3):every;
  return now-new Date(r.lastRunAt).getTime()>=gap;
 }
-let running=false,lastRan='';
-export async function runDueRecipes(limit=1){
+// Up to CRAWLER_CONCURRENCY recipes run at once (default 3); each heartbeat starts what is due into free slots.
+let running=false,lastRan='';const active=new Set<string>();
+export async function runDueRecipes(limit=Math.max(1,Number(process.env.CRAWLER_CONCURRENCY||3))){
  if(running)return {ran:0};running=true;
  try{
   // A long bulk load continuing over many ticks takes turns with the other due recipes.
-  const db=await entityDb();const ready=(await listRecipes(db)).filter(r=>due(r)).sort((a,b)=>Number(a.id===lastRan)-Number(b.id===lastRan));let ran=0;
-  for(const r of ready.slice(0,limit)){
-   lastRan=r.id;const result=await runRecipe(db,r).catch(e=>({ok:false,steps:[],error:(e as Error).message}));ran++;
-   if(!result.ok)await reportFailure(r,result).catch(e=>console.error('crawler: report failed',(e as Error).message));
-   // Fresh data: the editors' indices over this type are recomputed from it at once.
-   else if(!(result as {partial?:boolean}).partial)await recomputeIndices(r.type).catch(e=>console.error('crawler: index recompute failed',(e as Error).message));
-   console.log('[crawler]',r.type+'/'+r.name,result.ok?((result as {partial?:boolean}).partial?'partial (continues next tick)':'ok'):'failed');
+  const db=await entityDb();const ready=(await listRecipes(db)).filter(r=>due(r)&&!active.has(r.id)).sort((a,b)=>Number(a.id===lastRan)-Number(b.id===lastRan));let ran=0;
+  for(const r of ready.slice(0,Math.max(0,limit-active.size))){
+   lastRan=r.id;active.add(r.id);ran++;
+   void runOne(db,r).finally(()=>active.delete(r.id));
   }
   return {ran};
  }finally{running=false;}
+}
+async function runOne(db:Awaited<ReturnType<typeof entityDb>>,r:Recipe){
+ const result=await runRecipe(db,r).catch(e=>({ok:false,steps:[],error:(e as Error).message}));
+ if(!result.ok)await reportFailure(r,result).catch(e=>console.error('crawler: report failed',(e as Error).message));
+ // Fresh data: the editors' indices over this type are recomputed from it at once.
+ else if(!(result as {partial?:boolean}).partial)await recomputeIndices(r.type).catch(e=>console.error('crawler: index recompute failed',(e as Error).message));
+ console.log('[crawler]',r.type+'/'+r.name,result.ok?((result as {partial?:boolean}).partial?'partial (continues next tick)':'ok'):'failed');
 }
 async function reportFailure(r:Recipe,result:{steps?:{id:string;ok:boolean;error?:string}[];drift?:string[];error?:string}){
  const db=await entityDb();const t=await getEntityType(db,r.type);const editorId=await topicEditorId(db,t?.topicId??null);if(!editorId)return;

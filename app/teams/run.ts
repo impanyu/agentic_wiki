@@ -83,16 +83,24 @@ Return approved=true only when nothing blocking or major remains for the team; l
 
 type Log=(e:Record<string,unknown>)=>void;
 // Models: the builders (editor, collector) work on the strongest open models first, with the commercial model
-// as the last link of their chain (the "agent" class); the judges (reviewer, manager) use the commercial model.
+// as the last link of their chain (the "agent" class); the reviewer judges on open models of another family ("review"),
+// the manager on the commercial model.
 // A builder step that fails or never passes its checks on the open chain is redone once on the commercial model,
 // so an open model can never lower the quality floor.
 async function ask(role:Role,agent:Agent,topicId:string,instructions:string,task:unknown,schema:Record<string,unknown>,log:Log,budget:{rounds:number;calls:number}){
  const builder=role==='editor'||role==='collector';
+ // The team's reviewer judges on open models too (a different family from the builders', so it is an independent
+ // check), with the commercial model as its fallback; the manager's rulings stay on the commercial model.
+ // REVIEWER_CLASS=premium puts reviews back on the commercial model.
+ if(role==='reviewer'&&process.env.REVIEWER_CLASS!=='premium'){
+  try{return await askOnce(role,agent,topicId,instructions,task,schema,log,budget,'review');}
+  catch(e){log({event:'escalated',role,from:'review',to:'premium',reason:(e as Error).message.slice(0,300)});return askOnce(role,agent,topicId,instructions,task,schema,log,budget,'premium');}
+ }
  if(!builder)return askOnce(role,agent,topicId,instructions,task,schema,log,budget,'premium');
  try{return await askOnce(role,agent,topicId,instructions,task,schema,log,budget,'agent');}
  catch(e){log({event:'escalated',role,from:'agent',to:'premium',reason:(e as Error).message.slice(0,300)});return askOnce(role,agent,topicId,instructions,task,schema,log,budget,'premium');}
 }
-async function askOnce(role:Role,agent:Agent,topicId:string,instructions:string,task:unknown,schema:Record<string,unknown>,log:Log,budget:{rounds:number;calls:number},llmClass:'agent'|'premium'){
+async function askOnce(role:Role,agent:Agent,topicId:string,instructions:string,task:unknown,schema:Record<string,unknown>,log:Log,budget:{rounds:number;calls:number},llmClass:'agent'|'premium'|'review'){
  const db=await entityDb();
  const runId=await startTeamRun(db,{topicId,role,task:typeof task==='string'?task:JSON.stringify(task)});
  const ctx={userId:OWNER,ownerId:OWNER,language:'en',visibility:'public',agent:{id:agent.id}} as unknown as AgentContext;
@@ -100,7 +108,7 @@ async function askOnce(role:Role,agent:Agent,topicId:string,instructions:string,
  let calls=0;
  try{
   const result=await askAgent(agent,RULES+'\n\n'+instructions,task,schema,undefined,undefined,[],{
-   llmClass,timeoutMs:40*60_000,maxRounds:budget.rounds,
+   llmClass,...(llmClass==='review'?{avoidModel:'deepseek-v4-flash'}:{}),timeoutMs:40*60_000,maxRounds:budget.rounds,
    // A verdict must rest on evidence gathered in this review.
    ...(role==='reviewer'?{validateFinal:async()=>calls<6?'Check with your tools before deciding (coverage, preview_page of every ranking and several entity pages, spot checks against the source); then return the verdict.':undefined}:{}),
    // A collector's report is accepted only when the data refreshes by itself (no recipe problems for the topic's types).
