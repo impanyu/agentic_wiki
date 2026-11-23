@@ -125,6 +125,13 @@ export async function pretranslateLanding(){
  }catch(e){console.error('[translate] landing failed',(e as Error).message);landingAt=0;return 0;}
 }
 
+// Wikidata starter (app/teams/fastlane.ts): topics without a ranking get a first ranking and entity pages from
+// Wikidata while they wait for their team; the team's workflow then deepens them. FASTLANE_WORKERS (default 2).
+export async function startFastLaneOnce(){
+ const n=Number(process.env.FASTLANE_WORKERS??2);if(!(n>0))return 0;
+ const db=await entityDb();const {startFastLane}=await import('./fastlane');return startFastLane(db,n);
+}
+
 // Topic counts (rankings, types, pages over each subtree) for the tree pages, every three minutes.
 let statsAt=0;
 export async function refreshStats(){
