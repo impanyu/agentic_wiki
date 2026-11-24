@@ -35,6 +35,16 @@ export function mergeTemplates(chainGeneralFirst:Row[]):Row{
 // military equipment that also has the aircraft interface. Interfaces declared anywhere on the line are inherited.
 // Effective = each type of the line, most general first, preceded by the interfaces it declares; only additions.
 export async function effectiveType(db:Queryable,type:string):Promise<{schema:Row;template:Row;extends:string[];interfaces:string[]}>{
+ // A tag interface (one an editor defined for a class: gaming laptops among laptops) is that class plus the tag's own
+ // additions: its pages and rankings show everything a member has.
+ const own=await rowOf(db,type);const applies=own&&obj(own.schema).kind==='interface'&&typeof obj(own.schema).appliesTo==='string'?String(obj(own.schema).appliesTo):'';
+ if(applies&&applies!==type){
+  const base=await effectiveType(db,applies);
+  const layers=[...(await typeChain(db,type)).reverse()].map(l=>({schema:{...l.schema,extends:undefined,interfaces:undefined,kind:undefined,appliesTo:undefined,rule:undefined},template:l.template}));
+  const schema=mergeSchemas([base.schema,...layers.map(l=>l.schema)]);schema.extends=applies;schema.interfaces=base.interfaces;schema.kind='interface';
+  const tpls=[base.template,...layers.map(l=>l.template)];
+  return {schema,template:tpls.some(t=>Object.keys(t).length)?mergeTemplates(tpls):{},extends:[...base.extends,applies],interfaces:base.interfaces};
+ }
  const chain=(await typeChain(db,type)).reverse();
  const layers:{schema:Row;template:Row}[]=[];const ifaces:string[]=[];
  for(const c of chain){
@@ -48,8 +58,17 @@ export async function effectiveType(db:Queryable,type:string):Promise<{schema:Ro
  const schema=mergeSchemas(layers.map(l=>l.schema));schema.extends=chain.length>1?chain[chain.length-2].type:undefined;schema.interfaces=ifaces;
  return {schema,template:layers.some(l=>Object.keys(l.template).length)?mergeTemplates(layers.map(l=>l.template)):{},extends:chain.slice(0,-1).map(c=>c.type).reverse(),interfaces:ifaces};
 }
-export async function listInterfaces(db:Queryable):Promise<{type:string;label:string;description:string}[]>{
- return (await db.query<{type:string;label:string;description:string}>("select type, label, description from entity_types where schema->>'kind' = 'interface' order by type")).rows;
+export async function listInterfaces(db:Queryable):Promise<{type:string;label:string;description:string;appliesTo:string|null;rule:string|null}[]>{
+ return (await db.query<{type:string;label:string;description:string;appliesTo:string|null;rule:string|null}>(`select type, label, description, schema->>'appliesTo' "appliesTo", schema->>'rule' rule from entity_types where schema->>'kind' = 'interface' order by type`)).rows;
+}
+// A tag interface's class: the type its members are (gaming_laptop → laptop); null for anything else.
+let ifaceCache:{at:number;map:Map<string,string>}|null=null;
+export async function interfaceClass(db:Queryable,type:string):Promise<string|null>{
+ if(!ifaceCache||Date.now()-ifaceCache.at>60_000){
+  const rows=(await db.query<{type:string;applies:string}>(`select type, schema->>'appliesTo' applies from entity_types where schema->>'kind' = 'interface' and schema ? 'appliesTo'`)).rows;
+  ifaceCache={at:Date.now(),map:new Map(rows.map(r=>[r.type,r.applies]))};
+ }
+ return ifaceCache.map.get(type)??null;
 }
 // The type a new type of this topic extends: the main type of the nearest topic above it that has one.
 export async function parentTypeFor(db:Queryable,topicId:string|null,self:string):Promise<string|null>{
@@ -64,6 +83,7 @@ export async function parentTypeFor(db:Queryable,topicId:string|null,self:string
 let subCache:{at:number;map:Map<string,string[]>}|null=null;
 export async function withSubtypes(db:Queryable,type:string):Promise<string[]>{
  if(!subCache||Date.now()-subCache.at>60_000){
+  // Interfaces do not pull the types that declare them into their rankings; a tag's members are tagged entities.
   const rows=(await db.query<{type:string;parent:string|null}>("select type, schema->>'extends' parent from entity_types")).rows;
   const kids=new Map<string,string[]>();for(const r of rows)if(r.parent){const l=kids.get(r.parent)??[];l.push(r.type);kids.set(r.parent,l);}
   subCache={at:Date.now(),map:kids};
@@ -72,4 +92,4 @@ export async function withSubtypes(db:Queryable,type:string):Promise<string[]>{
  for(let i=0;i<out.length&&out.length<500;i++)for(const k of subCache.map.get(out[i])||[])if(!seen.has(k)){seen.add(k);out.push(k);}
  return out;
 }
-export function clearTypeCache(){subCache=null;}
+export function clearTypeCache(){subCache=null;ifaceCache=null;}

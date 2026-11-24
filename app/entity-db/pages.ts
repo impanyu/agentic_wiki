@@ -439,7 +439,11 @@ export async function resolvePath(db:Queryable,segments:string[]):Promise<Resolv
  if(node)return node.kind==='ranking'?{kind:'ranking',slug:node.slug}:{kind:'topic',slug:node.slug};
  const last=segs[segs.length-1];
  const to=maps.topics.get(last)??maps.rankings.get(last)??null;
- return to&&to!==here?{kind:'redirect',to}:null;
+ if(to&&to!==here)return {kind:'redirect',to};
+ // A subtopic that became a tag of its parent's class: its address leads to the parent.
+ const conv=(await db.query<{p:string}>(`select scope->>'convertedTo' p from topics where slug=$1::text and status='archived' and scope ? 'convertedTo'`,[last]).catch(()=>({rows:[]}))).rows[0]?.p;
+ const up=conv?maps.topics.get(conv)??null:null;
+ return up&&up!==here?{kind:'redirect',to:up}:null;
 }
 // The way to a node (its ancestors, top first) and its children, for breadcrumbs and browsing.
 export function nodeTrail(maps:AddressTree,path:string):{name:string;href:string}[]{

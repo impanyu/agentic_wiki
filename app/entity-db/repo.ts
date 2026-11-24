@@ -64,7 +64,10 @@ async function recordCandidates(q:Queryable,id:string,name:string,ids:Record<str
  for(const o of others){const [b,reason]=o.split('|');await q.query(`insert into entity_candidates(a,b,reason) values ($1::uuid,$2::uuid,$3::text) on conflict do nothing`,[id,b,reason]);}
 }
 export async function upsertEntity(q:Queryable,input:EntityInput):Promise<{id:string;action:'inserted'|'merged';idConflicts:number}>{
- const type=normalizeType(input.type),name=cleanName(String(input.name||'')).slice(0,300);
+ // An entity loaded under a tag interface (gaming_laptop) is one of the tag's class (laptop), tagged with it.
+ const asType=normalizeType(input.type);const {interfaceClass}=await import('./inherit');const cls=await interfaceClass(q,asType).catch(()=>null);
+ if(cls&&cls!==asType){const r=await upsertEntity(q,{...input,type:cls});await q.query(`update entities set also_types=array(select distinct unnest(also_types||$2::text[])) where id=$1::uuid`,[r.id,[asType]]);return r;}
+ const type=asType,name=cleanName(String(input.name||'')).slice(0,300);
  if(!name)throw Error('An entity needs a name.');
  const ids:Record<string,string>={};
  for(const [k,v] of Object.entries(input.ids||{})){const key=k.trim().toLowerCase();const n=normalizeId(key,v);if(n&&/^[a-z][a-z0-9_]{0,40}$/.test(key))ids[key]=n;}
@@ -328,6 +331,11 @@ export async function inScope(db:Queryable,scope:Scope,entityId:string):Promise<
  const p=new Params();const where=await scopeSql(db,p,scope);
  const r=await db.query(`select 1 from entities e where ${where} and e.id = ${p.add(entityId)}::uuid limit 1`,p.list);
  return r.rows.length>0;
+}
+// The ids of the entities in a scope (type and filters), at most `limit`.
+export async function entitySearchIds(db:Queryable,scope:Scope,limit=5000):Promise<string[]>{
+ const p=new Params();const where=await scopeSql(db,p,scope);
+ return (await db.query<{id:string}>(`select e.id from entities e where ${where} limit ${Math.max(1,Math.min(20000,Math.floor(limit)))}`,p.list)).rows.map(r=>r.id);
 }
 async function scopeSql(q:Queryable,p:Params,scope:Scope,a='e'):Promise<string>{
  const parts:string[]=['true'];

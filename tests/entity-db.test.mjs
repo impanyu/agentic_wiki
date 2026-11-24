@@ -14,6 +14,8 @@ for(const f of ['client','schema','metrics','embeddings','units','reserved','rep
  js=js.replace(/(from\s*|import\()\s*(['"])([^'"]+)\2/g,(m,pre,q,spec)=>stubs[spec]?`${pre}'${stubs[spec]}'`:spec.startsWith('./')?`${pre}'${spec}.mjs'`:m);
  writeFileSync(new URL(f+'.mjs',out),js);
 }
+{let js=ts.transpileModule(readFileSync(new URL('../app/teams/trunk.ts',import.meta.url),'utf8'),{compilerOptions:{module:ts.ModuleKind.ESNext,target:ts.ScriptTarget.ES2022}}).outputText;
+ js=js.replace(/(from\s*|import\()\s*(['"])@\/app\/entity-db\/([a-z-]+)\2/g,(m,pre,q,f)=>`${pre}'./${f}.mjs'`);writeFileSync(new URL('trunk.mjs',out),js);}
 const client=await import(new URL('client.mjs',out));
 const schema=await import(new URL('schema.mjs',out));
 const repo=await import(new URL('repo.mjs',out));
@@ -451,4 +453,32 @@ test('retracting a ruled-out source rebuilds the snapshot from what remains; kee
  const r=await repo.retractObservations(db,{type:'retract_land',metric:'land_km2',keepSource:'worldbank:'});
  assert.equal(r.removed,1);assert.equal(r.remaining,2);assert.deepEqual(r.sourcesLeft.map(x=>x.source),['worldbank:AG.SRF']);
  const s=await snap();assert.equal(s.period,'2024');assert.equal(Number(s.value),480);
+});
+
+test('trunk and tags: an off-division subtopic becomes a tag of its class; tagged entities are in the tag\'s rankings',async()=>{
+ const trunk=await import(new URL('trunk.mjs',out));const inh=await import(new URL('inherit.mjs',out));
+ const P=await repo.createTopic(db,{slug:'t-laptops',name:'Laptops'});const C=await repo.createTopic(db,{slug:'t-gaming-laptops',name:'Gaming laptops',description:'Laptops built for games: a dedicated GPU and a high refresh-rate screen.',parentId:P.id});
+ await db.query(`insert into entity_types(type,topic_id,schema) values ('t_laptop',$1,'{"metrics":[{"key":"weight_kg"}]}'),('t_gaming_laptop',$2,'{"extends":"t_laptop","metrics":[{"key":"gpu_score"}]}')`,[P.id,C.id]);inh.clearTypeCache();
+ const a=await repo.upsertEntity(db,{type:'t_laptop',name:'Zephyrus G14'});const b=await repo.upsertEntity(db,{type:'t_gaming_laptop',name:'Zephyrus G14 '});
+ await repo.upsertEntity(db,{type:'t_gaming_laptop',name:'Legion 7'});
+ await assert.rejects(trunk.checkTrunkSplit(db,'t-laptops',''),/division/);
+ await trunk.setDivision(db,'t-laptops','form factor');
+ await assert.rejects(trunk.checkTrunkSplit(db,'t-laptops','use case'),/tag/);await trunk.checkTrunkSplit(db,'t-laptops','By form-factor');
+ const r=await trunk.convertToInterface(db,'t-gaming-laptops','use case, not form factor');assert.equal(r.ok,true);
+ const et=(await db.query("select topic_id, schema from entity_types where type='t_gaming_laptop'")).rows[0];
+ assert.equal(et.schema.kind,'interface');assert.equal(et.schema.appliesTo,'t_laptop');assert.equal(et.schema.extends,undefined);assert.equal(et.topic_id,P.id);
+ const rows=(await db.query("select name, type, also_types from entities where type in ('t_laptop','t_gaming_laptop') order by name")).rows;
+ assert.ok(rows.every(x=>x.type==='t_laptop'),'members are of the class');assert.ok(rows.every(x=>x.also_types.includes('t_gaming_laptop')),'and tagged');
+ assert.equal((await db.query("select status from topics where slug='t-gaming-laptops'")).rows[0].status,'archived');
+ // Loaded under the tag later: the class, tagged. Scope of the tag = its members; the class scope has all.
+ await repo.upsertEntity(db,{type:'t_gaming_laptop',name:'ROG Strix'});
+ const strix=(await db.query("select type, also_types from entities where name='ROG Strix'")).rows[0];assert.equal(strix.type,'t_laptop');assert.deepEqual(strix.also_types,['t_gaming_laptop']);
+ await repo.upsertEntity(db,{type:'t_laptop',name:'ThinkPad X1'});
+ assert.equal((await repo.entitySearchIds(db,{type:'t_gaming_laptop'})).length,3);assert.equal((await repo.entitySearchIds(db,{type:'t_laptop'})).length,4);
+ const eff=await inh.effectiveType(db,'t_gaming_laptop');assert.deepEqual(eff.schema.metrics.map(m=>m.key),['weight_kg','gpu_score'],'a tag has its class\'s schema plus its own');
+ // An editor's own tag: defined, then entities tagged by name.
+ await trunk.defineInterface(db,P.id,{type:'t_business_laptop',label:'business laptop',rule:'Sold in the maker\'s business line (ThinkPad, Latitude, EliteBook) per the maker\'s site.'});
+ const t=await trunk.tagEntities(db,P.id,{iface:'t_business_laptop',entities:['ThinkPad X1','Nope'],evidence:'https://example.com/thinkpad'});
+ assert.equal(t.tagged,1);assert.deepEqual(t.unknown,['Nope']);assert.equal((await repo.entitySearchIds(db,{type:'t_business_laptop'})).length,1);
+ void a;void b;
 });
