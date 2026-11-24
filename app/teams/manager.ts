@@ -237,7 +237,8 @@ export async function runTeamQueue(spentUsd:()=>Promise<number>,log:(slug:string
 // ───────────── tending the tree ─────────────
 // Growth does not wait for readers: every few hours the manager takes the next top-level subject in turn, sees its
 // branch, and opens the subtopics that are missing (established classifications only; at most 10 a round, each with a
-// brief and a team) and flags duplicates or misplaced topics for the operators.
+// brief and a team, each one value of its parent's division: the manager's own decision, as it approves editors' proposals), regroups
+// over-wide nodes, and flags duplicates or misplaced topics for the operators.
 const GARDEN_SCHEMA={type:'object',additionalProperties:false,required:['add','regroup','flags','summary'],properties:{
  regroup:{type:'array',items:{type:'object',additionalProperties:false,required:['parent','slug','name','division','basis','brief','members'],properties:{parent:{type:'string'},slug:{type:'string'},name:{type:'string'},division:{type:'string'},basis:{type:'string'},brief:{type:'string'},members:{type:'array',items:{type:'string'}}}}},
  add:{type:'array',items:{type:'object',additionalProperties:false,required:['parent','slug','name','division','basis','brief'],properties:{parent:{type:'string'},slug:{type:'string'},name:{type:'string'},division:{type:'string'},basis:{type:'string'},brief:{type:'string'}}}},
@@ -260,7 +261,7 @@ export async function tendTree(log:Log=()=>{}):Promise<{subject:string;added:str
  const branchSlugs=new Set(lines.map(l=>l.trim().split(' — ')[0]));const inBranchOf=(slug:string)=>branchSlugs.has(slug);
  const manager=await spawnAgent('team-manager',OWNER);
  const general=await getTopic(db,'general')??await createTopic(db,{slug:'general',name:'General',description:'Queries no topic covers yet.'});
- // Nodes over the limit: the gardener must group their subtopics under intermediate topics.
+ // Nodes over the limit: the manager groups their subtopics under intermediate topics.
  const wide=[...kids.entries()].filter(([,k])=>k.length>MAX_CHILDREN).map(([id,k])=>({slug:tree.find(t=>t.id===id)?.slug,children:k.length})).filter(w=>w.slug&&inBranchOf(w.slug!));
  const r=await askManager(manager,general.id,GARDEN+'\nBranch lines show each node\'s division in [brackets] when set.',{subject:root.name,branch:lines.slice(0,1500).join('\n'),maxChildren:MAX_CHILDREN,tooWide:wide},GARDEN_SCHEMA,log) as {add:{parent:string;slug:string;name:string;division:string;basis:string;brief:string}[];regroup:{parent:string;slug:string;name:string;division:string;basis:string;brief:string;members:string[]}[];flags:{kind:string;slugs:string[];why:string}[];summary:string};
  const inBranch=new Set(lines.map(l=>l.trim().split(' — ')[0]));const added:string[]=[];
