@@ -45,7 +45,8 @@ export const BASE_CATALOG:Catalog={
   // context) are limited to 1 at a time. We stay a little under the published limits.
   m('nrp:qwen3','nrp','qwen3','qwen',chat({vision:true,context:262144,maxOutput:32768,thinkTags:true}),{concurrency:12},{timeoutMs:120000}),
   m('pool:local','pool','local','local',chat({context:131072,maxOutput:16384}),{concurrency:64},{timeoutMs:300000}),
-  // Our smaller GPUs (the RTX 6000 machine, the V100s; ~30B models): extraction only, never the builders' work.
+  // Our smaller GPUs (the RTX 6000 machine, the V100s; ~30B models): extraction, translation, short tasks — never the
+  // builders' work.
   m('pool:small','pool','small','local',chat({context:32768,maxOutput:8192}),{concurrency:16},{timeoutMs:300000}),
   m('deepseek:v4-flash','deepseek','deepseek-v4-flash','deepseek',chat({context:131072,maxOutput:32768}),{concurrency:64},{timeoutMs:120000}),
   m('nrp:deepseek-v4-flash','nrp','deepseek-v4-flash','deepseek',chat({context:131072,maxOutput:32768}),{concurrency:12},{timeoutMs:120000}),
@@ -84,11 +85,12 @@ export const BASE_CATALOG:Catalog={
   // The team's reviewer: a model family other than the builder's where possible (an independent check).
   review:['pool:local','openai:luna','deepseek:v4-flash'],
   // Short background tasks.
-  fast:['gemini:gemini-3.8-flash-lite','openai:luna','deepseek:v4-flash'],
+  fast:['gemini:gemini-3.8-flash-lite','pool:small','openai:luna'],
   // A reader is waiting (a page's first view in a language): only models that answer in seconds.
-  instant:['gemini:gemini-3.8-flash-lite','openai:luna'],
-  // Page translation (background); never the builders' first choices, so translation does not slow the teams.
-  translate:['gemini:gemini-3.8-flash-lite','openai:luna','pool:local'],
+  instant:['gemini:gemini-3.8-flash-lite','pool:small','openai:luna'],
+  // Page translation (background): our smaller GPUs first (Qwen3.6 35B/27B translated as well as GPT-5.6 in our tests,
+  // 2026-11-23), never the L40S first, so translation does not slow the teams.
+  translate:['pool:small','gemini:gemini-3.8-flash-lite','openai:luna','pool:local'],
   // Reading facts out of web pages at scale (recipes' llm_extract steps): only our own GPUs, never a paid model; the
   // smaller GPUs first so the L40S stays with the builders.
   extract:['pool:small','pool:local'],
