@@ -35,12 +35,26 @@ function llm(){
   openaiDefaults:body=>reasoningOptions(String(body.model||'')),
  });
 }
-export function respond(request:LLMRequest,signal?:AbortSignal):Promise<LLMResponse>{return llm().respond(request,signal);}
+// Every model call of the site goes through one scheduler (the worker process's): see ./remote.
+export function respondLocal(request:LLMRequest,signal?:AbortSignal):Promise<LLMResponse>{return llm().respond(request,signal);}
+export async function respond(request:LLMRequest,signal?:AbortSignal):Promise<LLMResponse>{
+ const r=await import('./remote');
+ return r.delegated()?r.viaScheduler('respond',{request},()=>respondLocal(request,signal),signal):respondLocal(request,signal);
+}
 export function respondStream(request:LLMRequest,handlers:StreamHandlers,signal?:AbortSignal):Promise<LLMResponse>{return llm().respondStream(request,handlers,signal);}
 // Entity-index embeddings: fixed model + dimension (ENTITY_EMBED_MODEL / ENTITY_EMBED_DIM).
-export function embedder():Embedder{return llm().embedder();}
+export function embedderLocal():Embedder{return llm().embedder();}
+export function embedder():Embedder{
+ const local=embedderLocal();
+ if(process.env.RANKWIKI_ROLE!=='web')return local;
+ return Object.assign(async(texts:string[],signal?:AbortSignal)=>{const r=await import('./remote');return r.delegated()?r.viaScheduler('embed',{texts},()=>local(texts,signal),signal):local(texts,signal);},{model:local.model,dims:local.dims});
+}
 // The site's question/page-profile vectors (text-embedding-3-small, 512 dims). Never changes.
-export function siteEmbed(texts:string[],signal?:AbortSignal){return llm().siteEmbed(texts,signal);}
+export function siteEmbedLocal(texts:string[],signal?:AbortSignal){return llm().siteEmbed(texts,signal);}
+export async function siteEmbed(texts:string[],signal?:AbortSignal):Promise<number[][]>{
+ const r=await import('./remote');
+ return r.delegated()?r.viaScheduler('siteEmbed',{texts},()=>siteEmbedLocal(texts,signal),signal):siteEmbedLocal(texts,signal);
+}
 // Current month's metered OpenAI spend against LLM_MONTHLY_BUDGET_USD.
 export function llmSpend(){return llm().spend();}
 export function llmStatus(){const l=llm();return {rates:l.tracker.snapshot(),chains:Object.fromEntries((['premium','agent','fast','vision','translate','instant','review','extract','extract-test'] as TaskClass[]).map(c=>[c,l.chain({class:c}).map(e=>e.id)]))};}
