@@ -8,7 +8,7 @@ import {localePath,dirOf,splitLocale} from '@/app/i18n/locales';
 import {LanguageSwitcher} from '@/app/i18n/switcher';
 import {SearchBox} from '@/app/search-box';
 import {isPacked,unpackRows} from '@/app/seo/pack-rows';
-import {NodeGrid,recordVisit,RecentlyViewed,FollowButton} from '@/app/explore';
+import {NodeGrid,recordVisit,FollowButton} from '@/app/explore';
 import type {NodeCard} from '@/app/entity-db/pages';
 import {SITE_NAME,PUBLIC_EDITION} from '@/app/edition';
 import {AskTargets,RankingView} from '@/app/seo/link-context';
@@ -45,7 +45,7 @@ export function DbShell({locale='en',dictionary={},askTargets,className,query=''
   </header>
   <main className="browser-content">
    {/* Page content is written in English for now; the interface around it is in the reader's language. */}
-   <article className={className} lang="en" dir={dirOf(locale)}>{children}<RecentlyViewed/>{references}</article>
+   <article className={className} lang="en" dir={dirOf(locale)}>{children}{references}</article>
   </main>
  </div></AskTargets.Provider></UiContext.Provider>;
 }

@@ -14,6 +14,8 @@ export default async function ProfilePage(){
  if(!user)redirect(chatGPTSignInPath('/me'));
  const ui=await serverUi();const admin=isAdmin(user);const t=ui.t;
  const lang=LOCALES.find(l=>l.code===ui.locale)?.name??'English';
+ const {entityDb}=await import('@/app/entity-db/client');
+ const recent=(await (await entityDb()).query<{href:string;title:string;at:string}>('select href, title, at::text at from reader_history where user_id=$1::text order by at desc limit 10',[user.userId]).catch(()=>({rows:[]}))).rows;
  return <DbShell locale={ui.locale} dictionary={ui.dict} askTargets={{}} className="answer template-profile-v1" account={{name:user.displayName}}>
   <header className="wiki-heading db-hero profile-hero">
    <span className="profile-avatar" aria-hidden="true">{(user.displayName||user.email).slice(0,1).toUpperCase()}</span>
@@ -30,6 +32,9 @@ export default async function ProfilePage(){
       ['/admin?tab=config',t('Configuration'),t('Settings in effect (secrets never shown)')]] as const).map(([href,title,note])=>
      <a key={href} href={href}><strong>{title}</strong><span>{note}</span></a>)}
    </nav></section>}
+  {recent.length>0&&<section className="rw-explore"><h2>{t('History')}</h2>
+   <ol className="history-list">{recent.map(r=><li key={r.href}><a href={r.href}>{r.title}</a><time dateTime={r.at}>{new Date(r.at).toLocaleDateString(ui.locale,{dateStyle:'medium'})}</time></li>)}</ol>
+   <p><a href="/me/history">{t('All history')} →</a></p></section>}
   <section className="rw-explore"><h2>{t('Preferences')}</h2>
    <ul className="profile-prefs"><li><span>{t('Language')}</span><b>{lang}</b></li><li><span>{t('Theme')}</span><b>{t('Set with the switch at the top right; remembered on this device.')}</b></li></ul>
   </section>

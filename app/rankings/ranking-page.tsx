@@ -109,6 +109,7 @@ export async function RankingPage(props:Props){
  return <>
   <script type="application/ld+json" dangerouslySetInnerHTML={{__html:jsonLd(ld)}}/>
   <DbShell locale={locale} dictionary={dict} askTargets={L(askTargets)} className="answer template-ranking-v1" account={account} references={<>
+<p className="rank-disclaimer">{t('Rankings are built from public data, which can be incomplete or inaccurate, and sources can differ. An entity without data for a criterion or year is not ranked on it. Rankings may therefore not be fully accurate.')}</p>
 {loc.about.length>0&&<section aria-labelledby="about-ranking"><h2 id="about-ranking">{t('About this ranking')}</h2><ul>{loc.about.map((x,i)=><li key={i}>{linkParts(x).map((p,j)=>p.href?<a key={j} href={p.href} target="_blank" rel="noopener noreferrer" className="ext">{p.text}</a>:<span key={j}>{p.text}</span>)}</li>)}</ul></section>}
   </>}>
    {base!==internal&&<Breadcrumbs trail={L(loc.trail)} current={loc.current.name}/>}

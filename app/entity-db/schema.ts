@@ -305,6 +305,11 @@ export const MIGRATIONS:Migration[]=[
   'alter table team_queue add column if not exists worker text',
   'alter table team_queue add column if not exists heartbeat_at timestamptz',
  ]},
+ // A signed-in reader's browsing history (their profile lists it, newest first); one row per page, last visit kept.
+ {version:24,name:'reader history',statements:()=>[
+  'create table if not exists reader_history(user_id text not null, href text not null, title text not null, kind text not null, at timestamptz not null default now(), primary key(user_id, href))',
+  'create index if not exists reader_history_recent on reader_history(user_id, at desc)',
+ ]},
 ];
 export const SCHEMA_VERSION=MIGRATIONS[MIGRATIONS.length-1].version;
 

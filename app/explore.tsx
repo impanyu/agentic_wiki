@@ -93,6 +93,8 @@ const VISITS='rw-visits';
 const readVisits=():Visit[]=>{try{const v=JSON.parse(localStorage.getItem(VISITS)||'[]');return Array.isArray(v)?v.filter(x=>x&&typeof x.href==='string'&&typeof x.title==='string'):[];}catch{return [];}};
 export function recordVisit(v:Omit<Visit,'at'>){
  try{const list=[{...v,at:Date.now()},...readVisits().filter(x=>x.href!==v.href)].slice(0,24);localStorage.setItem(VISITS,JSON.stringify(list));}catch{}
+ // Signed-in readers keep their whole history in their account (profile → History).
+ void fetch('/api/me/history',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(v),keepalive:true}).catch(()=>{});
 }
 export function RecentlyViewed(){
  const {t}=useUi();
