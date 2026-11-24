@@ -2,7 +2,7 @@
 import {useEffect,useMemo,useRef,useState} from 'react';
 import {Search,ArrowDownWideNarrow,ArrowUpNarrowWide,ChartColumn,LayoutGrid,ChartPie,Sun,Map as MapIcon,Box,ChartScatter,TrendingUp,ChartNoAxesColumn,SquareSplitVertical,Grid3x3,ChartSpline,ArrowDownUp,Radar,ChartLine,ListOrdered,Play,type LucideIcon} from 'lucide-react';
 import type {VizProps} from './types';
-import {type Entry,type Summary,normalizeCriteria,toEntries,rankEntries,summarize,makeFormatter,shareOf,groupsOf,linkParts,parseNumber,periodKeyOf,rowPeriods,rowsAt,seriesOf,LATEST} from './ranking-data';
+import {type Entry,type Summary,normalizeCriteria,toEntries,rankEntries,summarize,makeFormatter,shareOf,groupsOf,linkParts,parseNumber,periodKeyOf,rowPeriods,rankablePeriods,rowsAt,seriesOf,LATEST} from './ranking-data';
 import {useAskLink,useRankingView} from '@/app/seo/link-context';
 import {geoKind,geoKeyOf,registerGeo,baseRegion,pointOf,geoAspect,type GeoData} from './ranking-geo';
 import {useTheme} from '@/app/theme';
@@ -85,7 +85,9 @@ export default function Ranking({props,setValue,fire,ctx}:VizProps){
  // Time: rows in long form (one per entity and period) let the reader rank any period (?year=) or the latest
  // value of each entity; the time views plot every period.
  const periodKey=useMemo(()=>periodKeyOf(props.rows,nameKey,props.periodKey),[props.rows,nameKey,props.periodKey]);
- const periods=useMemo(()=>periodKey?rowPeriods(props.rows,periodKey):[],[props.rows,periodKey]);
+ const allPeriods=useMemo(()=>periodKey?rowPeriods(props.rows,periodKey):[],[props.rows,periodKey]);
+ // The year picker offers only years most entities were measured in; the time views still plot every year.
+ const periods=useMemo(()=>periodKey?rankablePeriods(props.rows,{nameKey,periodKey,keys:criteria.map(x=>x.key)},allPeriods):[],[props.rows,periodKey,nameKey,criteria,allPeriods]);
  const initialPeriod=view.period&&periods.includes(view.period)?view.period:typeof props.period==='string'&&periods.includes(props.period)?props.period:LATEST;
  const [period,setPeriod]=useState(initialPeriod);
  useEffect(()=>{const y=new URLSearchParams(location.search).get('year');if(y&&periods.includes(y))setPeriod(y);},[periods]);
@@ -95,7 +97,7 @@ export default function Ranking({props,setValue,fire,ctx}:VizProps){
  const [critKey,setCritKey]=useState(initial);
  useEffect(()=>{const fromUrl=new URLSearchParams(location.search).get('rank');if(fromUrl&&criteria.some(c=>c.key===fromUrl))setCritKey(fromUrl);},[criteria]);
  const c=criteria.find(x=>x.key===critKey)??criteria.find(x=>x.key===initial)??criteria[0];
- const timeSeries=useMemo(()=>periodKey&&c&&periods.length>1?{periods:[...periods].reverse(),series:seriesOf(props.rows,{nameKey,periodKey,key:c.key})}:null,[periodKey,c,periods,props.rows,nameKey]);
+ const timeSeries=useMemo(()=>periodKey&&c&&allPeriods.length>1?{periods:[...allPeriods].reverse(),series:seriesOf(props.rows,{nameKey,periodKey,key:c.key})}:null,[periodKey,c,allPeriods,props.rows,nameKey]);
  const choosePeriod=(p:string)=>{setPeriod(p);view.onPeriod?.(p);try{const u=new URL(location.href);if(p===LATEST)u.searchParams.delete('year');else u.searchParams.set('year',p);replaceUrl(u);}catch{}};
  const height=typeof props.height==='number'&&props.height>=200?Math.min(props.height,1200):420;
  const top=typeof props.top==='number'&&props.top>=1?Math.floor(props.top):20;
@@ -226,7 +228,7 @@ export default function Ranking({props,setValue,fire,ctx}:VizProps){
    </div>
    <div className="wf-rank-picker">
     {periods.length>1&&<label className="wf-rank-select wf-rank-period"><span>{t('Year')}</span><select value={period} onChange={ev=>choosePeriod(ev.target.value)}>
-     <option value={LATEST}>{t('Latest')}</option>{periods.map(p=><option key={p} value={p}>{p}</option>)}</select></label>}
+     <option value={LATEST}>{t('Latest available')}</option>{periods.map(p=><option key={p} value={p}>{p}</option>)}</select></label>}
     {criteria.length>1&&(pills
      ?<div className="wf-rank-pills" role="radiogroup" aria-label={t('Rank by')}>{criteria.map(x=><button key={x.key} type="button" role="radio" aria-checked={x.key===c.key} className={x.key===c.key?'on':''} onClick={()=>choose(x.key)}>{x.label}</button>)}</div>
      :<label className="wf-rank-select"><span>{t('Rank by')}</span><select value={c.key} onChange={ev=>choose(ev.target.value)}>{criteria.map(x=><option key={x.key} value={x.key}>{x.label}</option>)}</select></label>)}

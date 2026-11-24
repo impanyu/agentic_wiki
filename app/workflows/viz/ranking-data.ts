@@ -203,6 +203,15 @@ export function rowPeriods(rows:unknown,key:string):string[]{
  const s=new Set<string>();for(const r of Array.isArray(rows)?rows:[])if(isObj(r)){const p=periodText(r[key]);if(p)s.add(p);}
  return [...s].sort((a,b)=>comparePeriods(b,a));
 }
+// The periods a reader may rank by: those where most entities have a value. A year with a handful of values is not a
+// ranking of that year (the rest would be listed without data), so it is not offered; "latest" stays.
+export function rankablePeriods(rows:unknown,o:{nameKey:string;periodKey:string;keys:string[]},periods:string[]):string[]{
+ const by=new Map<string,Set<string>>();const any=new Set<string>();
+ for(const r of Array.isArray(rows)?rows:[]){if(!isObj(r))continue;const n=text(r[o.nameKey]),p=periodText(r[o.periodKey]);if(!n||!p)continue;
+  if(!o.keys.some(k=>parseNumber(r[k])!=null))continue;any.add(n);let s=by.get(p);if(!s){s=new Set();by.set(p,s);}s.add(n);}
+ const need=Math.max(Math.min(10,any.size),Math.ceil(any.size*0.5));
+ return periods.filter(p=>(by.get(p)?.size||0)>=need);
+}
 // The rows the latest view needs: for each entity, the row holding each criterion's most recent value (plus the rows
 // of one extra period, for a page opened on ?year=). rowsAt(…, latest) over them gives the same table as over all rows,
 // so a page can send these first and fetch the full history afterwards.
@@ -226,7 +235,8 @@ export function rowsAt(rows:unknown,o:{nameKey:string;periodKey:string;period:st
  const out:Obj[]=[];
  for(const list of by.values()){
   list.sort((a,b)=>comparePeriods(periodText(b[o.periodKey]),periodText(a[o.periodKey])));
-  if(o.period!==LATEST){const r=list.find(x=>periodText(x[o.periodKey])===o.period);out.push(r?{...r,...Object.fromEntries(o.keys.map(k=>['__period.'+k,o.period]))}:{...list[0],...Object.fromEntries(o.keys.map(k=>[k,null]))});continue;}
+  // A chosen period lists only the entities measured in it: an entity without a value that year is not ranked.
+  if(o.period!==LATEST){const r=list.find(x=>periodText(x[o.periodKey])===o.period);if(r&&o.keys.some(k=>parseNumber(r[k])!=null))out.push({...r,...Object.fromEntries(o.keys.map(k=>['__period.'+k,o.period]))});continue;}
   const row:Obj={...list[0]};
   for(const k of o.keys){const r=list.find(x=>parseNumber(x[k])!=null);row[k]=r?r[k]:null;if(r)row['__period.'+k]=periodText(r[o.periodKey]);}
   out.push(row);

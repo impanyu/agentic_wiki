@@ -39,8 +39,14 @@ export async function checkRanking(db:Queryable,def:RankingDef):Promise<QaIssue[
  if(keys.length){
   const cov=(await db.query<{metric:string;n:number}>(`select o.metric, count(distinct o.entity_id)::int n from observations o join entities e on e.id=o.entity_id where ${m.where} and o.metric = any($${m.args.length+1}::text[]) group by o.metric`,[...m.args,keys])).rows;
   for(const k of keys){const have=cov.find(c=>c.metric===k)?.n||0;const share=have/n;
-   if(share<QA.minCriterionCoverage)out.push({severity:'major',owner:'collector',target:t+' → '+k,problem:`Criterion ${k} is measured for ${have} of ${n} entities (${Math.round(share*100)}%; at least ${Math.round(QA.minCriterionCoverage*100)}% needed).`,fix:'Collect it for the missing entities (other sources and markets), or the editor drops it from this ranking.'});}
+   // The criterion the ranking opens on, or one barely measured, leaves readers a list of "no data": a blocker.
+   const main=k===String(def.config?.default||keys[0]).split('@')[0];
+   if(share<QA.minCriterionCoverage)out.push({severity:main||share<0.2?'blocker':'major',owner:'collector',target:t+' → '+k,problem:`Criterion ${k} is measured for ${have} of ${n} entities (${Math.round(share*100)}%; at least ${Math.round(QA.minCriterionCoverage*100)}% needed).`,fix:'Collect it for the missing entities (other sources and markets), or the editor drops it from this ranking.'});}
  }
+ // The grouping attribute (config.group: country, region, category…) known for nearly every entity, or the groups mislead.
+ const group=typeof def.config?.group==='string'?def.config.group:'';
+ if(group){const g=Number((await db.query<{n:number}>(`select count(*)::int n from entities e where ${m.where} and coalesce(e.attributes->>$${m.args.length+1}::text,'')<>''`,[...m.args,group])).rows[0]?.n||0);
+  if(g<0.8*n)out.push({severity:'major',owner:'collector',target:t+' → '+group,problem:`The grouping attribute ${group} is known for ${g} of ${n} entities (${Math.round(g/n*100)}%; at least 80% needed).`,fix:'Fill the attribute for every entity (from the universe source or another), or the editor removes the grouping.'});}
  // Each criterion carries its history: a measured metric with one or two periods although its source (or another)
  // offers earlier years, and nobody declared that no history exists (declare_no_history).
  if(keys.length){const {coverage}=await import('./tools');
