@@ -385,7 +385,15 @@ export function createLLM(deps:Deps){
   if(!configured(entry))throw Error('AI_SETUP');
   return embedWith(entry,c.siteEmbed.dims,'site-embed',texts,signal);
  }
- return {respond,respondStream,embedder,siteEmbed,spend,chain,catalog,tracker};
+ // The scheduler right now: each configured model's slots and use, and the requests waiting per task class.
+ function schedulerState(){
+  const rates=tracker.snapshot() as Record<string,{active:number;today:number;cooldownUntil:string|null;cooldownReason:string|null}>;
+  const models=Object.values(catalog().models).filter(m=>!m.embed&&configured(m)).map(m=>{const r=rates[m.id];return {id:m.id,provider:m.provider,slots:slotsOf(m)??null,active:r?.active||0,today:r?.today||0,cooldownUntil:r?.cooldownUntil||null,cooldownReason:r?.cooldownReason||null};});
+  const byPrio=new Map<number,{n:number;oldest:number}>();for(const w of waiters){const x=byPrio.get(w.prio)??{n:0,oldest:w.at};x.n++;x.oldest=Math.min(x.oldest,w.at);byPrio.set(w.prio,x);}
+  const classes=Object.entries(PRIORITY).map(([cls,p])=>({cls,priority:p!,chain:chain({class:cls as TaskClass}).map(e=>e.id),waiting:byPrio.get(p!)?.n||0,oldestWaitS:byPrio.has(p!)?Math.round((now()-byPrio.get(p!)!.oldest)/1000):0}));
+  return {at:new Date(now()).toISOString(),models,classes,waiting:waiters.length};
+ }
+ return {respond,respondStream,embedder,siteEmbed,spend,chain,catalog,tracker,schedulerState};
 }
 // True when a completed web search is in the output: OpenAI's built-in search, or our
 // web_search function tool, which the layer executes and reports as the same item type.

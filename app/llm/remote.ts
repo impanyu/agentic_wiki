@@ -25,6 +25,7 @@ export async function viaScheduler<T>(op:string,payload:Record<string,unknown>,l
 }
 export async function runScheduled(b:{op?:string;request?:unknown;texts?:string[]},signal:AbortSignal){
  const llm=await import('./index');
+ if(b.op==='state')return llm.schedulerStateLocal();
  if(b.op==='respond')return llm.respondLocal(b.request as LLMRequest,signal);
  if(b.op==='siteEmbed')return llm.siteEmbedLocal((b.texts||[]).map(String),signal);
  if(b.op==='embed')return llm.embedderLocal()((b.texts||[]).map(String),signal);

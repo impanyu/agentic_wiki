@@ -123,3 +123,17 @@ export function config(){
  };
 }
 export {listIssues};
+
+// The model layer now: the scheduler's slots, use and queues; our GPU workers; the last hour per model.
+export async function modelLayer(){
+ const {schedulerState}=await import('@/app/llm');
+ const state=await schedulerState().catch(e=>({error:(e as Error).message}) as never);
+ const db=await entityDb();
+ const workers=(await db.query<{id:string;model:string;slots:number;busy:number;done:number;failed:number;seen:number}>(`select id, array_to_string(models,',') model, (info->>'slots')::int slots, (info->>'busy')::int busy, (info->>'done')::int done, (info->>'failed')::int failed,
+   extract(epoch from now()-last_seen)::int seen from llm_workers where last_seen > now() - interval '1 day' order by last_seen desc`)).rows;
+ const queue=(await db.query<{model:string;queued:number;claimed:number}>(`select model, count(*) filter (where status='queued')::int queued, count(*) filter (where status='claimed')::int claimed from llm_jobs where status in ('queued','claimed') group by model`)).rows;
+ const since=new Date(Date.now()-3600_000).toISOString();
+ const hour=((await database().prepare(`SELECT provider||':'||model model, COUNT(*) calls, SUM(CASE WHEN status<>'ok' THEN 1 ELSE 0 END) failed, ROUND(AVG(CASE WHEN status='ok' THEN latency_ms END)/1000.0,1) avg_s, SUM(output_tokens) out_tokens, ROUND(SUM(cost_usd),2) cost
+   FROM llm_usage WHERE created_at>=? AND class NOT IN ('embed','site-embed') GROUP BY 1 ORDER BY calls DESC`).bind(since).all<Record<string,unknown>>()).results||[]);
+ return {state,workers,queue,hour};
+}

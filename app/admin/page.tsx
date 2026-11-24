@@ -3,7 +3,7 @@ import {notFound} from 'next/navigation';
 import {getChatGPTUser} from '@/app/chatgpt-auth';
 import {serverUi} from '@/app/i18n/request';
 import {DbShell} from '@/app/rankings/view';
-import {isAdmin,overview,traffic,costs,teams,config,listIssues,services} from '@/app/ops/admin';
+import {isAdmin,overview,traffic,costs,teams,config,listIssues,services,modelLayer} from '@/app/ops/admin';
 import {entityDb} from '@/app/entity-db/client';
 import {IssueActions} from './issue-actions';
 // /admin: the operators' view of the site and its agents (administrators only: ADMIN_EMAILS). Overview, problems
@@ -11,7 +11,7 @@ import {IssueActions} from './issue-actions';
 export const dynamic='force-dynamic';
 export const metadata:Metadata={title:'Admin · RankWiki',robots:{index:false,follow:false}};
 type Props={searchParams:Promise<Record<string,string|string[]|undefined>>};
-const TABS=[['overview','Overview'],['issues','Issues'],['traffic','Traffic'],['costs','Model costs'],['services','Services'],['teams','Teams and data'],['config','Configuration']] as const;
+const TABS=[['overview','Overview'],['issues','Issues'],['traffic','Traffic'],['models','Models now'],['costs','Model costs'],['services','Services'],['teams','Teams and data'],['config','Configuration']] as const;
 const fmt=(v:unknown)=>typeof v==='number'?v.toLocaleString('en'):String(v??'');
 const usd=(v:unknown)=>'$'+(Number(v)||0).toLocaleString('en',{minimumFractionDigits:2,maximumFractionDigits:2});
 
@@ -76,6 +76,18 @@ export default async function AdminPage({searchParams}:Props){
    <h2>Searches by day</h2><Bars points={t.searches.map(r=>({day:r.day,v:r.n}))} label="Searches"/>
    <h2>Most viewed pages</h2><Table rows={t.top} cols={[['kind','Kind'],['key','Page',(v)=><a href={String(v)}>{String(v)}</a>],['n','Views']]}/>
    <h2>Searches that found nothing</h2><Table rows={t.unanswered} cols={[['query','Query'],['n','Times'],['handled','Seen by the manager',(v)=>v?'yes':'not yet']]}/>
+  </>;
+ }else if(tab==='models'){
+  const m=await modelLayer();const st=m.state as {at?:string;models?:Record<string,unknown>[];classes?:Record<string,unknown>[];waiting?:number;error?:string};
+  const used=(st.models||[]).reduce((n,x)=>n+Number(x.active||0),0),slots=(st.models||[]).reduce((n,x)=>n+Number(x.slots||0),0);
+  body=<>
+   <p className="adm-note">Live view of the model scheduler{st.at?` at ${st.at.slice(11,19)} UTC`:''}. Every model request of the site goes through it: each task class tries its models in order and waits in its queue when all are full.{st.error?` Scheduler unreachable: ${st.error}`:''}</p>
+   <div className="adm-stats"><Stat label="Requests running" value={fmt(used)} note={slots?`of ${fmt(slots)} limited slots`:''}/><Stat label="Requests waiting" value={fmt(st.waiting||0)} tone={(st.waiting||0)>0?'warn':undefined}/><Stat label="GPU workers online" value={fmt(m.workers.filter(w=>Number(w.seen)<90).length)} note={`${fmt(m.workers.filter(w=>Number(w.seen)<90).reduce((n,w)=>n+Number(w.busy||0),0))} of ${fmt(m.workers.filter(w=>Number(w.seen)<90).reduce((n,w)=>n+Number(w.slots||0),0))} GPU slots busy`}/></div>
+   <h2>Models</h2><Table rows={st.models||[]} cols={[['id','Model'],['slots','Slots',(v)=>v==null?'no limit':fmt(v)],['active','Running'],['today','Calls today (this process)'],['cooldownReason','Paused',(v,r)=>v?`${String(v)} until ${String(r.cooldownUntil||'').slice(11,16)}`:'']]}/>
+   <h2>Queues by task class</h2><Table rows={st.classes||[]} cols={[['cls','Class'],['priority','Priority'],['chain','Models in order',(v)=>(v as string[]).join(' → ')],['waiting','Waiting'],['oldestWaitS','Oldest wait (s)']]}/>
+   <h2>Our GPU workers</h2><Table rows={m.workers} cols={[['id','Worker'],['model','Serves'],['slots','Slots'],['busy','Busy'],['done','Done'],['failed','Failed'],['seen','Last seen (s ago)']]}/>
+   <h2>GPU job table</h2><Table rows={m.queue} cols={[['model','Pool'],['queued','Queued'],['claimed','Being answered']]}/>
+   <h2>Last hour by model</h2><Table rows={m.hour} cols={[['model','Model'],['calls','Calls'],['failed','Failed'],['avg_s','Avg time (s)'],['out_tokens','Output tokens'],['cost','Cost',(v)=>usd(v)]]}/>
   </>;
  }else if(tab==='costs'){
   const c=await costs(30);

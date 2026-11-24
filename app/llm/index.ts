@@ -57,4 +57,7 @@ export async function siteEmbed(texts:string[],signal?:AbortSignal):Promise<numb
 }
 // Current month's metered OpenAI spend against LLM_MONTHLY_BUDGET_USD.
 export function llmSpend(){return llm().spend();}
+// The model scheduler's live state (slots, use, queues), read from the process that runs it.
+export function schedulerStateLocal(){return llm().schedulerState();}
+export async function schedulerState(){const r=await import('./remote');return r.delegated()?r.viaScheduler('state',{},async()=>schedulerStateLocal()):schedulerStateLocal();}
 export function llmStatus(){const l=llm();return {rates:l.tracker.snapshot(),chains:Object.fromEntries((['premium','agent','fast','vision','translate','instant','review','extract','extract-test'] as TaskClass[]).map(c=>[c,l.chain({class:c}).map(e=>e.id)]))};}
