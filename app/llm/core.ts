@@ -5,6 +5,10 @@ import {costUsd,chatCostUsd} from './prices';
 // Only a paid provider's calls cost money: the same model served free (NRP, our own GPUs) costs nothing.
 const PAID=new Set(['deepseek']);
 // Providers billed per call, each with a daily cap (<PROVIDER>_DAILY_USD) and together under the monthly budget.
+// Thinking (reasoning before answering) where judgment matters — planning, agent decisions, reviews — and not for
+// mechanical work (extraction, translation, short answers), where it only adds time. Applies to our own GPU models
+// (Qwen chat template enable_thinking); OpenAI's effort follows the same classes (app/llm/index.ts).
+export const THINKING_CLASSES=new Set(['premium','review','agent','vision']);
 export const DAILY_CAPPED:Record<string,number>={deepseek:8,openai:8};
 const paidCost=(entry:{provider:string;model:string},usage:Parameters<typeof chatCostUsd>[1])=>PAID.has(entry.provider)?chatCostUsd(entry.model,usage):0;
 import {RateTracker,monthKey,nextMonth,retryAfterMs,type Block} from './limits';
@@ -108,7 +112,7 @@ export function createLLM(deps:Deps){
   const provider=catalog().providers[entry.provider];
   let data:any;
   if(entry.provider==='pool'){
-   try{data=await deps.pool!.run(entry.model,{...toChat(body,entry,{webSearch:webSearchEnabled}) as Record<string,unknown>,...(entry.chatExtra||{})},Math.max(entry.timeoutMs||300000,Number((body as {timeoutMs?:number}).timeoutMs)||0),signal,undefined);}
+   try{data=await deps.pool!.run(entry.model,{...toChat(body,entry,{webSearch:webSearchEnabled}) as Record<string,unknown>,chat_template_kwargs:{enable_thinking:THINKING_CLASSES.has(String(body.class||''))},...(entry.chatExtra||{})},Math.max(entry.timeoutMs||300000,Number((body as {timeoutMs?:number}).timeoutMs)||0),signal,undefined);}
    // A busy pool is not an error of the model: no cooldown for everyone else (route waits in the queue as a last resort).
    catch(e){const m=(e as Error).message;throw new ProviderError(/timeout/.test(m)?'timeout':'server',m);}
   }else{

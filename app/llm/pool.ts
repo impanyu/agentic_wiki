@@ -21,7 +21,10 @@ export async function poolOnline(model:string){
 }
 export async function poolRun(model:string,body:Record<string,unknown>,timeoutMs:number,signal?:AbortSignal,queueWaitMs=120_000):Promise<any>{
  const db=await entityDb();
- const id=(await db.query<{id:string}>('insert into llm_jobs(model, body) values ($1::text, $2::jsonb) returning id',[model,JSON.stringify(body)])).rows[0].id;
+ // Its size in tokens (input ≈ characters / 3.5, plus the output it may write), so only a worker whose context per
+ // slot holds it takes it.
+ const json=JSON.stringify(body),est=Math.ceil(json.length/3.5)+Number((body as {max_tokens?:number}).max_tokens||4096);
+ const id=(await db.query<{id:string}>('insert into llm_jobs(model, body, est_tokens) values ($1::text, $2::jsonb, $3::int) returning id',[model,json,est])).rows[0].id;
  const t0=Date.now();
  try{
   for(;;){

@@ -32,7 +32,9 @@ function llm(){
   // Our own GPUs (lab machine, HCC jobs) through the pull queue.
   pool:{available:m=>poolAvailableSync(m),slots:m=>poolMod?.poolSlots(m),run:(m,b,t,s,w)=>import('./pool').then(p=>p.poolRun(m,b,t,s,w))},
   // Same defaults the direct OpenAI helper applied: explicit effort for known model families.
-  openaiDefaults:body=>reasoningOptions(String(body.model||'')),
+  // Reasoning effort by task class: judgment gets more, mechanical work none (THINKING_CLASSES in ./core).
+  openaiDefaults:body=>{const cls=String(body.class||''),m=String(body.model||'');
+   return reasoningOptions(m,'',cls==='review'||cls==='premium'?'medium':cls==='agent'||cls==='vision'?'low':cls?'none':undefined);},
  });
 }
 // Every model call of the site goes through one scheduler (the worker process's): see ./remote.

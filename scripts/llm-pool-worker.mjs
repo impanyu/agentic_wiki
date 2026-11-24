@@ -4,7 +4,7 @@
 // RankWiki over outbound HTTPS. No inbound port, no tunnel. No dependencies (Node 18+).
 //
 //   RANKWIKI_URL=https://rankwiki.aisoup.net LLM_POOL_TOKEN=… LOCAL_BASE=http://127.0.0.1:8000/v1 LOCAL_MODEL=<served model name> \
-//   POOL_MODEL=local CONCURRENCY=8 node llm-pool-worker.mjs
+//   POOL_MODEL=local CONCURRENCY=8 [CTX_PER_SLOT=16384] node llm-pool-worker.mjs   (CTX_PER_SLOT: the context one request may use; longer requests go to other workers)
 //
 // POOL_MODEL is the name the agents ask for (app/llm/catalog.ts: pool:local → "local"); LOCAL_MODEL is the model name
 // the local server serves. Stop with Ctrl-C (claimed requests are answered first).
@@ -44,7 +44,7 @@ async function loop(){
   const queued=await localWaiting();
   const free=queued>0?0:SLOTS-busy;
   try{
-   const r=await post('/api/llm/pool/claim',{worker:WORKER,models:[POOL_MODEL],max:free,info:{local:LOCAL_MODEL,slots:SLOTS,busy,done,failed}},AbortSignal.timeout(40_000));
+   const r=await post('/api/llm/pool/claim',{worker:WORKER,models:[POOL_MODEL],max:free,info:{local:LOCAL_MODEL,slots:SLOTS,busy,done,failed,ctxPerSlot:Number(env('CTX_PER_SLOT'))||0}},AbortSignal.timeout(40_000));
    if(!r.ok){console.warn('claim: HTTP',r.status,(await r.text()).slice(0,200));await new Promise(s=>setTimeout(s,10_000));continue;}
    const {jobs=[]}=await r.json();
    for(const j of jobs)void answer(j);

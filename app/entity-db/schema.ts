@@ -310,6 +310,10 @@ export const MIGRATIONS:Migration[]=[
   'create table if not exists reader_history(user_id text not null, href text not null, title text not null, kind text not null, at timestamptz not null default now(), primary key(user_id, href))',
   'create index if not exists reader_history_recent on reader_history(user_id, at desc)',
  ]},
+ // A pool request's size, so a worker takes only what fits its context per slot (a V100 llama.cpp slot holds 16k).
+ {version:25,name:'pool request size',statements:()=>[
+  'alter table llm_jobs add column if not exists est_tokens integer not null default 0',
+ ]},
 ];
 export const SCHEMA_VERSION=MIGRATIONS[MIGRATIONS.length-1].version;
 

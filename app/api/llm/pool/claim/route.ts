@@ -13,11 +13,17 @@ export async function POST(request:Request){
  await db.query(`insert into llm_workers(id, models, info, last_seen) values ($1::text, $2::text[], $3::jsonb, now())
   on conflict (id) do update set models=excluded.models, info=excluded.info, last_seen=now()`,[worker,models,JSON.stringify(b.info||{})]);
  if(max===0)return Response.json({jobs:[]});
+ // The context one request may use on this worker: what it reports (ctxPerSlot), else the operators' setting for its
+ // name (POOL_WORKER_CONTEXT "swan-v100=16384,…"; a V100 llama.cpp job splits 65,536 over 4 slots), else no limit.
+ const limits=String(process.env.POOL_WORKER_CONTEXT||'swan-v100=16384').split(',').map(x=>x.split('=')).filter(x=>x.length===2);
+ const reported=Number((b.info as {ctxPerSlot?:unknown}|undefined)?.ctxPerSlot)||0;
+ const configured=Number(limits.find(([p])=>worker.startsWith(p.trim()))?.[1])||0;
+ const ctx=reported||configured||2_000_000;
  const until=Date.now()+20_000;
  for(;;){
   const jobs=(await db.query<{id:string;model:string;body:unknown}>(`update llm_jobs set status='claimed', claimed_by=$1::text, claimed_at=now()
-    where id in (select id from llm_jobs where status='queued' and model = any($2::text[]) order by created_at limit $3::int for update skip locked)
-    returning id, model, body`,[worker,models,max])).rows;
+    where id in (select id from llm_jobs where status='queued' and model = any($2::text[]) and est_tokens <= $4::int order by created_at limit $3::int for update skip locked)
+    returning id, model, body`,[worker,models,max,ctx])).rows;
   if(jobs.length||Date.now()>until||request.signal.aborted)return Response.json({jobs});
   await new Promise(r=>setTimeout(r,500));
  }
