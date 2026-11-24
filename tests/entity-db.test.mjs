@@ -480,5 +480,9 @@ test('trunk and tags: an off-division subtopic becomes a tag of its class; tagge
  await trunk.defineInterface(db,P.id,{type:'t_business_laptop',label:'business laptop',rule:'Sold in the maker\'s business line (ThinkPad, Latitude, EliteBook) per the maker\'s site.'});
  const t=await trunk.tagEntities(db,P.id,{iface:'t_business_laptop',entities:['ThinkPad X1','Nope'],evidence:'https://example.com/thinkpad'});
  assert.equal(t.tagged,1);assert.deepEqual(t.unknown,['Nope']);assert.equal((await repo.entitySearchIds(db,{type:'t_business_laptop'})).length,1);
+ const u=await trunk.revertConversion(db,'t-gaming-laptops');assert.equal(u.ok,true);
+ assert.equal((await db.query("select status from topics where slug='t-gaming-laptops'")).rows[0].status,'active');
+ assert.equal((await db.query("select schema->>'extends' e from entity_types where type='t_gaming_laptop'")).rows[0].e,'t_laptop');
+ assert.equal((await db.query("select count(*)::int n from entities where type='t_gaming_laptop'")).rows[0].n,3,'members retyped back');
  void a;void b;
 });
