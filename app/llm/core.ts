@@ -108,7 +108,7 @@ export function createLLM(deps:Deps){
   const provider=catalog().providers[entry.provider];
   let data:any;
   if(entry.provider==='pool'){
-   try{data=await deps.pool!.run(entry.model,{...toChat(body,entry,{webSearch:webSearchEnabled}) as Record<string,unknown>,...(entry.chatExtra||{})},entry.timeoutMs||300000,signal,undefined);}
+   try{data=await deps.pool!.run(entry.model,{...toChat(body,entry,{webSearch:webSearchEnabled}) as Record<string,unknown>,...(entry.chatExtra||{})},Math.max(entry.timeoutMs||300000,Number((body as {timeoutMs?:number}).timeoutMs)||0),signal,undefined);}
    // A busy pool is not an error of the model: no cooldown for everyone else (route waits in the queue as a last resort).
    catch(e){const m=(e as Error).message;throw new ProviderError(/timeout/.test(m)?'timeout':'server',m);}
   }else{
