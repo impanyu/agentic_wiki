@@ -235,7 +235,7 @@ export default function Ranking({props,setValue,fire,ctx}:VizProps){
      {e.group&&<span className="wf-rank-chip" style={{['--c' as any]:colorOf(e)}}>{e.group}</span>}
     </div>
    </td>
-   <td className="wf-rank-val">{e.value==null?<span className="wf-rank-dash">{noData}</span>:fmt(e.value)}</td>
+   <td className="wf-rank-val">{e.value==null?<span className="wf-rank-dash">{noData}</span>:<><span className="full">{fmt(e.value)}</span><span className="short">{shortFmt(e.value)}</span></>}</td>
    <td className="wf-rank-barcell" aria-hidden="true">{e.value!=null&&<span className="wf-rank-track"><i style={{width:Math.max(1.5,Math.abs(e.value)/maxAbs*100)+'%',background:e.value<0?`linear-gradient(90deg,${rgba(NEG,.45)},${NEG})`:`linear-gradient(90deg,${rgba(colorOf(e),.45)},${colorOf(e)})`}}/></span>}</td>
    <td className="wf-rank-share">{share?share.kind==='share'?share.text:t('Top {pct}',{pct:share.text}):''}</td>
   </tr>;

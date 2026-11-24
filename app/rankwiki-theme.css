@@ -543,3 +543,16 @@ html,body{background:var(--rw-bg)}
 .wf-rank-pager a.on{background:var(--rw-accent);border-color:var(--rw-accent);color:#fff;font-weight:600}
 .wf-rank-pager .off{opacity:.4}
 .history-pagewrap{display:inline-flex;gap:6px;align-items:center}
+
+/* Narrow screens: the table fits the screen — names wrap (the region chip goes under the name), numbers in short form. */
+.wf-rank-table .wf-rank-val .short{display:none}
+@media (max-width:640px){
+ .wf-rank-table{table-layout:fixed;width:100%}
+ .wf-rank-table .wf-rank-val .full{display:none}.wf-rank-table .wf-rank-val .short{display:inline}
+ .wf-rank-table th.wf-rank-val,.wf-rank-table td.wf-rank-val{width:30%}
+ .wf-rank-table th.wf-rank-pos,.wf-rank-table td.wf-rank-pos{width:46px}
+ .wf-rank-entity{flex-wrap:wrap;row-gap:3px;min-width:0}
+ .wf-rank-entity a,.wf-rank-entity>span:not(.wf-rank-chip){min-width:0;overflow-wrap:anywhere}
+ .wf-rank-table .wf-rank-chip{font-size:10.5px;padding:1px 6px}
+ .wf-rank-tablewrap{overflow-x:hidden}
+}
