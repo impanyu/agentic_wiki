@@ -88,7 +88,9 @@ export const BASE_CATALOG:Catalog={
   // Builders (team editors and collectors): Qwen3.5-122B on our L40S, GPT-5.6 Luna, DeepSeek V4 Flash.
   agent:['pool:local','openai:luna','deepseek:v4-flash'],
   // The team's reviewer: a model family other than the builder's where possible (an independent check).
-  review:['pool:local','openai:luna','deepseek:v4-flash'],
+  // The reviewer is the quality gate's judgement: the strongest affordable model first (within OpenAI's daily cap),
+  // then our own.
+  review:['openai:terra','pool:local','openai:luna','deepseek:v4-flash'],
   // Short background tasks.
   fast:['pool:small','gemini:gemini-3.8-flash-lite','openai:luna'],
   // A reader is waiting (a page's first view in a language): only models that answer in seconds. Our RTX 6000 answers

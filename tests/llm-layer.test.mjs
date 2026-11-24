@@ -71,7 +71,8 @@ test('with only OPENAI_API_KEY every class resolves to OpenAI, the body passes t
  const h=harness({OPENAI_API_KEY:'k'},()=>reply(200,openaiReply('hi')));
  // The routing table names the OpenAI tiers: Terra for escalations (then Luna), Luna everywhere else.
  assert.deepEqual(h.llm.chain({class:'premium'}).map(e=>e.id),['openai:terra','openai:luna']);
- for(const c of ['agent','fast','vision','review'])assert.deepEqual(h.llm.chain({class:c}).map(e=>e.id),['openai:luna']);
+ for(const c of ['agent','fast','vision'])assert.deepEqual(h.llm.chain({class:c}).map(e=>e.id),['openai:luna']);
+ assert.deepEqual(h.llm.chain({class:'review'}).map(e=>e.id),['openai:terra','openai:luna']);
  const body={class:'fast',model:'gpt-5.4-mini',store:false,instructions:'x',input:'y',text:{format:{type:'json_object'}},reasoning:{effort:'none'}};
  const r=await h.llm.respond(body);
  assert.equal(h.calls[0].url,'https://api.openai.com/v1/responses');
