@@ -284,6 +284,10 @@ export const MIGRATIONS:Migration[]=[
   'create table if not exists extract_cache(key text primary key, result jsonb not null, model text not null default \'\', created_at timestamptz not null default now())',
   'create index if not exists extract_cache_created on extract_cache(created_at)',
  ]},
+ // A merged duplicate's page address keeps working: its number points at the entity that absorbed it.
+ {version:21,name:'entity redirects',statements:()=>[
+  'create table if not exists entity_redirects(num bigint primary key, to_id uuid not null references entities(id) on delete cascade)',
+ ]},
 ];
 export const SCHEMA_VERSION=MIGRATIONS[MIGRATIONS.length-1].version;
 

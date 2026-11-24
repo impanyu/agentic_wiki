@@ -1,4 +1,5 @@
 import type {EntityDb,Queryable,Row} from './client';
+import {typeFamily} from './dedup';
 import {RESERVED_SEGMENTS} from './reserved';
 import {GLOBAL_ID_KEYS,storedEmbedDim} from './schema';
 import {getEmbedder,toVector,entityText} from './embeddings';
@@ -59,17 +60,22 @@ export async function upsertEntity(q:Queryable,input:EntityInput):Promise<{id:st
  for(const [k,v] of Object.entries(input.ids||{})){const key=k.trim().toLowerCase();const n=normalizeId(key,v);if(n&&/^[a-z][a-z0-9_]{0,40}$/.test(key))ids[key]=n;}
  const order=Object.keys(ids).sort((a,b)=>Number(!GLOBAL_ID_KEYS.includes(a as never))-Number(!GLOBAL_ID_KEYS.includes(b as never)));
  let target:Match|null=null;let conflicts=0;const drop=new Set<string>();
+ // The type's family (itself, ancestors, descendants, siblings under a specific parent): overlapping topics collect the
+ // same things, which must stay one entity (app/entity-db/dedup.ts).
+ const family=await typeFamily(q,type).catch(()=>[type]);
  for(const k of order){
   const global=GLOBAL_ID_KEYS.includes(k as never);
-  const r=await q.query<Match>('select id, ids, tsv::text as tsv from entities where ids @> $1::jsonb and ($3::boolean or type = $2::text) limit 1',[JSON.stringify({[k]:ids[k]}),type,global]);
+  const r=await q.query<Match>('select id, ids, tsv::text as tsv from entities where ids @> $1::jsonb and ($3::boolean or type = any($2::text[])) limit 1',[JSON.stringify({[k]:ids[k]}),family,global]);
   const row=r.rows[0];if(!row)continue;
   if(!target)target=row;else if(row.id!==target.id){drop.add(k);conflicts++;}
  }
  const aliases=(input.aliases||[]).map(a=>String(a).trim().slice(0,300)).filter(Boolean);
  if(!target){
-  const r=await q.query<Match>(`select id, ids, tsv::text as tsv from entities where type = $1::text and name_keys && ent_keys($2::text, $3::text[])
-   order by (ent_norm(name) = ent_norm($2::text)) desc, created_at limit 10`,[type,name,aliases]);
-  target=r.rows.find(row=>!Object.keys(ids).some(k=>row.ids[k]!=null&&row.ids[k]!==ids[k]))||null;
+  // Same name in the family; the same country too when both have one (Paris, France is not Paris, Texas).
+  const country=String((input.attributes as Record<string,unknown>|undefined)?.country??'').trim();
+  const r=await q.query<Match&{c:string|null;t:string}>(`select id, ids, tsv::text as tsv, attributes->>'country' c, type t from entities where type = any($1::text[]) and name_keys && ent_keys($2::text, $3::text[])
+   order by (type = $4::text) desc, (ent_norm(name) = ent_norm($2::text)) desc, created_at limit 10`,[family,name,aliases,type]);
+  target=r.rows.find(row=>!Object.keys(ids).some(k=>row.ids[k]!=null&&row.ids[k]!==ids[k])&&(row.t===type||!country||!row.c||row.c===country))||null;
  }
  if(target)for(const k of Object.keys(ids))if(target.ids[k]!=null&&target.ids[k]!==ids[k]&&!drop.has(k)){drop.add(k);conflicts++;}
  const writeIds=Object.fromEntries(Object.entries(ids).filter(([k])=>!drop.has(k)));

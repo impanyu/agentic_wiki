@@ -112,7 +112,9 @@ type EntityPageBuilt=Omit<EntityPageLoad,'canonical'>;
 // By the entity's permanent number (its page address /e/<num>/<slug>).
 export async function loadEntityPageByNum(db:Queryable,num:string,{fresh=false}:{fresh?:boolean}={}):Promise<EntityPageLoad|null>{
  if(!/^\d{1,18}$/.test(num))return null;
- const r=(await db.query<{id:string;type:string}>('select id, type from entities where num = $1::bigint and has_page',[num])).rows[0];
+ // A merged duplicate's number leads to the entity that absorbed it.
+ const r=(await db.query<{id:string;type:string}>('select id, type from entities where num = $1::bigint and has_page',[num])).rows[0]
+  ??(await db.query<{id:string;type:string}>('select e.id, e.type from entity_redirects d join entities e on e.id=d.to_id where d.num=$1::bigint and e.has_page',[num]).catch(()=>({rows:[] as {id:string;type:string}[]}))).rows[0];
  return r?loadEntityData(db,String(r.id),String(r.type),true,fresh):null;
 }
 // The ranking tables entity pages show (peers over a type, each sub-ranking the entity is in) are the same for every
