@@ -74,25 +74,27 @@ export const BASE_CATALOG:Catalog={
  // Removed 2026-11-23 after 3 days of production measurements (success rate per call): nrp:kimi 7%, nrp:gpt-oss 20%,
  // nrp:glm-5 53%, nrp:qwen3 61%, nrp:minimax 69% as a builder (91% as a reviewer, kept there), groq:gpt-oss-120b 0%
  // (our requests exceed its size limit), gemini:gemini-4-hydrogen 7% (daily quota), openrouter nemotron 70%.
+ // NRP removed from every chain 2026-11-23 (last 24 h: deepseek-v4-flash 31–59% success at ~70 s, minimax 14–87%).
+ // When the paid models reach their caps, tasks run on our own GPUs only (slower, never more money).
  chains:{
   // Escalation: a task the agent chain failed (or a caller asking for the best model).
   premium:['openai:terra'],
-  // Builders (team editors and collectors): Qwen3.5-122B on our L40S, DeepSeek V4 Flash, GPT-5.6 Luna, NRP's DeepSeek.
-  agent:['pool:local','deepseek:v4-flash','openai:luna','nrp:deepseek-v4-flash'],
+  // Builders (team editors and collectors): Qwen3.5-122B on our L40S, GPT-5.6 Luna, DeepSeek V4 Flash.
+  agent:['pool:local','openai:luna','deepseek:v4-flash'],
   // The team's reviewer: a model family other than the builder's where possible (an independent check).
-  review:['pool:local','nrp:minimax','openai:luna','deepseek:v4-flash'],
+  review:['pool:local','openai:luna','deepseek:v4-flash'],
   // Short background tasks.
   fast:['gemini:gemini-3.8-flash-lite','openai:luna','deepseek:v4-flash'],
   // A reader is waiting (a page's first view in a language): only models that answer in seconds.
   instant:['gemini:gemini-3.8-flash-lite','openai:luna'],
   // Page translation (background); never the builders' first choices, so translation does not slow the teams.
-  translate:['gemini:gemini-3.8-flash-lite','openai:luna','pool:local','nrp:gemma'],
+  translate:['gemini:gemini-3.8-flash-lite','openai:luna','pool:local'],
   // Reading facts out of web pages at scale (recipes' llm_extract steps): only our own GPUs, never a paid model; the
   // smaller GPUs first so the L40S stays with the builders.
   extract:['pool:small','pool:local'],
   // An agent testing extraction on a few pages before saving the recipe: our own models, else free models.
-  'extract-test':['pool:small','pool:local','nrp:deepseek-v4-flash','gemini:gemini-3.8-flash-lite'],
-  vision:['nrp:gemma','gemini:gemini-3.8-flash','openai:luna','openrouter:nemotron-3.5-super-vl'],
+  'extract-test':['pool:small','pool:local','gemini:gemini-3.8-flash-lite'],
+  vision:['gemini:gemini-3.8-flash','openai:luna','openrouter:nemotron-3.5-super-vl'],
  },
  // premium -> (over budget or failing) -> the free part of this chain.
  premiumFallback:'agent',

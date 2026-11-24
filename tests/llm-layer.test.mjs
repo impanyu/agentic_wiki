@@ -82,7 +82,7 @@ test('with only OPENAI_API_KEY every class resolves to OpenAI, the body passes t
  assert.equal(L.costUsd('gpt-5.4-mini',{input_tokens:0,output_tokens:0},2),0.02);
 });
 
-const OLD_CHAINS=JSON.stringify({chains:{agent:['pool:local','deepseek:v4-flash','nrp:deepseek-v4-flash','nrp:glm-5','nrp:minimax','nrp:qwen3','nrp:kimi','gemini:gemini-4-hydrogen','openrouter:nemotron-3-ultra','groq:gpt-oss-120b','openai'],review:['pool:local','deepseek:v4-flash','nrp:deepseek-v4-flash','nrp:glm-5','nrp:minimax','nrp:qwen3','nrp:kimi','gemini:gemini-4-hydrogen','openrouter:nemotron-3-ultra','groq:gpt-oss-120b','openai'],fast:['gemini:gemini-3.8-flash-lite','nrp:gpt-oss','openai']}});
+const OLD_CHAINS=JSON.stringify({chains:{agent:['pool:local','deepseek:v4-flash','nrp:deepseek-v4-flash','nrp:glm-5','nrp:minimax','nrp:qwen3','nrp:kimi','gemini:gemini-4-hydrogen','openrouter:nemotron-3-ultra','groq:gpt-oss-120b','openai'],review:['pool:local','deepseek:v4-flash','nrp:deepseek-v4-flash','nrp:glm-5','nrp:minimax','nrp:qwen3','nrp:kimi','gemini:gemini-4-hydrogen','openrouter:nemotron-3-ultra','groq:gpt-oss-120b','openai'],fast:['gemini:gemini-3.8-flash-lite','nrp:gpt-oss','openai'],vision:['nrp:gemma','gemini:gemini-3.8-flash','openai:luna','openrouter:nemotron-3.5-super-vl']}});
 // The mechanics below are tested over a fixed chain (the production chains change with measurements).
 test('chain falls back on 429 (honoring Retry-After), retries a 5xx once, and skips a model over its daily quota',async()=>{
  const keys={NRP_LLM_TOKEN:'n',GEMINI_API_KEY:'g',GROQ_API_KEY:'q',OPENAI_API_KEY:'o'};
@@ -118,7 +118,7 @@ test('chain falls back on 429 (honoring Retry-After), retries a 5xx once, and sk
 });
 
 test('budget exhaustion sends premium to the free chain until the 1st of next month (UTC)',async()=>{
- const keys={OPENAI_API_KEY:'o',NRP_LLM_TOKEN:'n',LLM_MONTHLY_BUDGET_USD:'50'};
+ const keys={OPENAI_API_KEY:'o',NRP_LLM_TOKEN:'n',LLM_MONTHLY_BUDGET_USD:'50',LLM_CATALOG_OVERRIDES:OLD_CHAINS};
  const h=harness(keys,url=>url.includes('openai.com')?reply(200,openaiReply('premium')):reply(200,textReply('free')),{clock:Date.UTC(2026,10,30,23,59)});
  h.spend.value=month=>month==='2026-11'?50:0;
  const s=await h.llm.spend();assert.deepEqual([s.overBudget,s.budgetUsd,s.remainingUsd,s.resetsAt],[true,50,0,'2026-12-01T00:00:00.000Z']);
@@ -236,7 +236,7 @@ test('the embedder is pinned to one model and dimension and never switches when 
 });
 
 test('streaming: OpenAI streams natively; a Chat provider delivers the whole turn through the same callbacks',async()=>{
- const h=harness({NRP_LLM_TOKEN:'n'},()=>reply(200,textReply('Full article')));
+ const h=harness({NRP_LLM_TOKEN:'n',LLM_CATALOG_OVERRIDES:OLD_CHAINS},()=>reply(200,textReply('Full article')));
  const deltas=[];const r=await h.llm.respondStream({class:'agent',input:'x'},{onTextDelta:d=>deltas.push(d)});
  assert.deepEqual(deltas,['Full article']);assert.equal(r.llm.provider,'nrp');
  const o=L.createLLM({env:n=>n==='OPENAI_API_KEY'?'o':undefined,log:()=>{},usage:{record:async()=>{},monthSpend:async()=>0},fetch:async()=>reply(200,{}),readEvents:async function*(){yield {type:'response.output_text.delta',delta:'Hel'};yield {type:'response.output_text.delta',delta:'lo'};yield {type:'error',message:'boom'};}});
