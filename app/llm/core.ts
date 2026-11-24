@@ -108,7 +108,7 @@ export function createLLM(deps:Deps){
   const provider=catalog().providers[entry.provider];
   let data:any;
   if(entry.provider==='pool'){
-   try{data=await deps.pool!.run(entry.model,toChat(body,entry,{webSearch:webSearchEnabled}) as Record<string,unknown>,entry.timeoutMs||300000,signal);}
+   try{data=await deps.pool!.run(entry.model,{...toChat(body,entry,{webSearch:webSearchEnabled}) as Record<string,unknown>,...(entry.chatExtra||{})},entry.timeoutMs||300000,signal);}
    catch(e){const m=(e as Error).message;throw new ProviderError(/timeout/.test(m)?'timeout':/busy/.test(m)?'rate':'server',m,/busy/.test(m)?15000:null);}
   }else{
   const response=await post(provider.base+'/chat/completions',{Authorization:'Bearer '+key(entry),...(provider.headers||{})},toChat(body,entry,{webSearch:webSearchEnabled}),entry.timeoutMs||120000,signal);

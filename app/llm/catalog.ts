@@ -13,7 +13,9 @@ export type ProviderConfig={id:ProviderId;kind:'responses'|'chat';base:string;ke
 export type Limits={rpm?:number;rpd?:number;tpm?:number;concurrency?:number;dayReset?:'utc'|'pacific'};
 export type Capabilities={tools:boolean;vision:boolean;jsonSchema:boolean;jsonObject:boolean;reasoningEffort:boolean;context:number;maxOutput:number;thinkTags?:boolean};
 export type EmbedSpec={dims:number;supportsDimensions:boolean;matryoshka:boolean;maxBatch:number};
-export type ModelEntry={id:string;provider:ProviderId;model:string;family:string;caps:Capabilities;limits:Limits;embed?:EmbedSpec;timeoutMs?:number};
+export type ModelEntry={id:string;provider:ProviderId;model:string;family:string;caps:Capabilities;limits:Limits;embed?:EmbedSpec;timeoutMs?:number;
+ // Extra fields sent with every request to this model (e.g. turning off a local model's thinking).
+ chatExtra?:Record<string,unknown>};
 export type Catalog={providers:Record<ProviderId,ProviderConfig>;models:Record<string,ModelEntry>;chains:Record<Exclude<TaskClass,'embed'|'site-embed'>,string[]>;premiumFallback:'agent';siteEmbed:{model:string;dims:number};defaultEmbed:string[]};
 
 const chat=(o:Partial<Capabilities>={}):Capabilities=>({tools:true,vision:false,jsonSchema:true,jsonObject:true,reasoningEffort:false,context:128000,maxOutput:8192,...o});
@@ -47,7 +49,10 @@ export const BASE_CATALOG:Catalog={
   m('pool:local','pool','local','local',chat({context:131072,maxOutput:16384}),{concurrency:64},{timeoutMs:300000}),
   // Our smaller GPUs (the RTX 6000 machine, the V100s; ~30B models): extraction, translation, short tasks — never the
   // builders' work.
-  m('pool:small','pool','small','local',chat({context:32768,maxOutput:8192}),{concurrency:16},{timeoutMs:300000}),
+  m('pool:small','pool','small','local',chat({context:32768,maxOutput:8192}),{concurrency:16},{timeoutMs:300000,
+   // Qwen3.6 thinks by default: thousands of reasoning tokens for a short extraction or translation (2-4 min on a V100).
+   // These tasks need none; our tests (16/16 extraction, good translations) ran with thinking off.
+   chatExtra:{chat_template_kwargs:{enable_thinking:false}}}),
   m('deepseek:v4-flash','deepseek','deepseek-v4-flash','deepseek',chat({context:131072,maxOutput:32768}),{concurrency:64},{timeoutMs:120000}),
   m('nrp:deepseek-v4-flash','nrp','deepseek-v4-flash','deepseek',chat({context:131072,maxOutput:32768}),{concurrency:12},{timeoutMs:120000}),
   m('nrp:glm-5','nrp','glm-5','glm',chat({context:131072,maxOutput:32768,thinkTags:true}),{concurrency:2},{timeoutMs:120000}),
