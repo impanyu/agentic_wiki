@@ -190,8 +190,8 @@ export default function Ranking({props,setValue,fire,ctx}:VizProps){
  // A ranking stops at ROW_CAP: the top 1,000 on the criterion in view. The first `shown`
  // are visible, the rest are in the HTML but hidden until the reader asks for more.
  const limit=shown,cap=ROW_CAP;
- const showRanked=tRanked.filter(e=>e.rank!=null&&e.rank<=cap).slice(0,cap),showMissing=tRanked.length>=cap?[]:tMissing.slice(0,Math.max(0,cap-showRanked.length));
- const listed=showRanked.length+showMissing.length,total=tRanked.length+tMissing.length;
+ const showRanked=tRanked.filter(e=>e.rank!=null&&e.rank<=cap).slice(0,cap),showMissing:typeof tMissing=[];// entities without data on this criterion are not ranked and not listed
+ const listed=showRanked.length+showMissing.length,total=tRanked.length;
  const hidden=Math.max(0,listed-limit);
 
  if(!c)return <figure className="wf-viz wf-rank"><div className="wf-rank-empty">{t('No criteria to rank by.')}</div></figure>;
@@ -250,7 +250,7 @@ export default function Ranking({props,setValue,fire,ctx}:VizProps){
 
   <div className="wf-rank-tools">
    <label className="wf-rank-search"><Search size={14}/><input type="search" value={query} placeholder={t('Search…')} aria-label={t('Search entities')} onChange={ev=>setQuery(ev.target.value)}/></label>
-   <span className="wf-rank-count">{(q||group)?t('{count} matching',{count:(tRanked.length+tMissing.length).toLocaleString(locale)})+' · ':''}{t('{ranked} ranked',{ranked:summary.ranked.toLocaleString(locale)})}{missing.length?' · '+t('{count} without data',{count:missing.length.toLocaleString(locale)}):''}</span>
+   <span className="wf-rank-count">{(q||group)?t('{count} matching',{count:tRanked.length.toLocaleString(locale)})+' · ':''}{t('{ranked} ranked',{ranked:summary.ranked.toLocaleString(locale)})}</span>
   </div>
 
   <div ref={tableWrap} className="wf-rank-tablewrap">
