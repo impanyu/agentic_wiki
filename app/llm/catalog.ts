@@ -45,8 +45,8 @@ export const BASE_CATALOG:Catalog={
   // context) are limited to 1 at a time. We stay a little under the published limits.
   m('nrp:qwen3','nrp','qwen3','qwen',chat({vision:true,context:262144,maxOutput:32768,thinkTags:true}),{concurrency:12},{timeoutMs:120000}),
   m('pool:local','pool','local','local',chat({context:131072,maxOutput:16384}),{concurrency:64},{timeoutMs:300000}),
-  // Our V100s (llama.cpp, a quantized model): extraction only.
-  m('pool:v100','pool','v100','local',chat({context:32768,maxOutput:8192}),{concurrency:16},{timeoutMs:300000}),
+  // Our smaller GPUs (the RTX 6000 machine, the V100s; ~30B models): extraction only, never the builders' work.
+  m('pool:small','pool','small','local',chat({context:32768,maxOutput:8192}),{concurrency:16},{timeoutMs:300000}),
   m('deepseek:v4-flash','deepseek','deepseek-v4-flash','deepseek',chat({context:131072,maxOutput:32768}),{concurrency:64},{timeoutMs:120000}),
   m('nrp:deepseek-v4-flash','nrp','deepseek-v4-flash','deepseek',chat({context:131072,maxOutput:32768}),{concurrency:12},{timeoutMs:120000}),
   m('nrp:glm-5','nrp','glm-5','glm',chat({context:131072,maxOutput:32768,thinkTags:true}),{concurrency:2},{timeoutMs:120000}),
@@ -87,10 +87,11 @@ export const BASE_CATALOG:Catalog={
   instant:['gemini:gemini-3.8-flash-lite','openai:luna'],
   // Page translation (background); never the builders' first choices, so translation does not slow the teams.
   translate:['gemini:gemini-3.8-flash-lite','openai:luna','pool:local','nrp:gemma'],
-  // Reading facts out of web pages at scale (recipes' llm_extract steps): only our own GPUs, never a paid model.
-  extract:['pool:local','pool:v100'],
+  // Reading facts out of web pages at scale (recipes' llm_extract steps): only our own GPUs, never a paid model; the
+  // smaller GPUs first so the L40S stays with the builders.
+  extract:['pool:small','pool:local'],
   // An agent testing extraction on a few pages before saving the recipe: our own models, else free models.
-  'extract-test':['pool:local','pool:v100','nrp:deepseek-v4-flash','gemini:gemini-3.8-flash-lite'],
+  'extract-test':['pool:small','pool:local','nrp:deepseek-v4-flash','gemini:gemini-3.8-flash-lite'],
   vision:['nrp:gemma','gemini:gemini-3.8-flash','openai:luna','openrouter:nemotron-3.5-super-vl'],
  },
  // premium -> (over budget or failing) -> the free part of this chain.
