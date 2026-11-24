@@ -209,8 +209,15 @@ export function rankablePeriods(rows:unknown,o:{nameKey:string;periodKey:string;
  const by=new Map<string,Set<string>>();const any=new Set<string>();
  for(const r of Array.isArray(rows)?rows:[]){if(!isObj(r))continue;const n=text(r[o.nameKey]),p=periodText(r[o.periodKey]);if(!n||!p)continue;
   if(!o.keys.some(k=>parseNumber(r[k])!=null))continue;any.add(n);let s=by.get(p);if(!s){s=new Set();by.set(p,s);}s.add(n);}
- const need=Math.max(Math.min(10,any.size),Math.ceil(any.size*0.5));
- return periods.filter(p=>(by.get(p)?.size||0)>=need);
+ // A year is offered when its table is representative: it covers a fair share of the entities (30%, at least 10 or
+ // all of a small set) and most of the leaders — at least 6 of the 10 entities ranked highest on their latest value —
+ // so a year view never quietly drops the biggest names.
+ const need=Math.max(Math.min(10,any.size),Math.ceil(any.size*0.3));
+ const key=o.keys[0],latest=new Map<string,{p:string;v:number}>();
+ for(const r of Array.isArray(rows)?rows:[]){if(!isObj(r))continue;const n=text(r[o.nameKey]),p=periodText(r[o.periodKey]),v=parseNumber(r[key]);if(!n||!p||v==null)continue;const c=latest.get(n);if(!c||p>c.p)latest.set(n,{p,v});}
+ const leaders=[...latest.entries()].sort((a,b)=>b[1].v-a[1].v).slice(0,10).map(([n])=>n);
+ const needLeaders=Math.min(6,leaders.length);
+ return periods.filter(p=>{const s=by.get(p);return (s?.size||0)>=need&&leaders.filter(n=>s!.has(n)).length>=needLeaders;});
 }
 // The rows the latest view needs: for each entity, the row holding each criterion's most recent value (plus the rows
 // of one extra period, for a page opened on ?year=). rowsAt(…, latest) over them gives the same table as over all rows,
