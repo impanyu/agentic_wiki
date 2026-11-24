@@ -106,18 +106,14 @@ const EDITOR_BUILD=`You are the editor of this topic team. The collector has loa
 6. Close the plan items you completed (close_plan_items) and add plan items (save_plan) for what is missing — e.g. "ingest" items for data the collector still has to collect.
 You never write text for individual pages: every word on a page comes from the template's sentence patterns filled with data.
 Report what is done and what remains open.`;
-const REVIEWER=`You are the independent reviewer of this topic team. Check the work as a demanding reader and data editor; approve only what is ready to publish. Check:
-- Completeness: entities vs the authoritative universe (coverage), no aggregates or duplicates, every ranking's criteria well covered, latest periods recent.
-- Accuracy: spot-check values against the source (call it yourself) for a few large and small entities; units are base units; no implausible outliers (sudden 1000× jumps).
-- Pages: preview_page every ranking (default, another criterion via ?rank=, an older ?year=) and 4–6 entity pages (the largest, a small one, one with gaps): they render, titles follow the rules, sentences are true to the data, no empty or "undefined" text, rankings and maps make sense.
-- Subsets: every sub-ranking and subtopic follows a named, established classification (UN M49 for countries unless titled otherwise; industry segments or standard taxonomies for products); a grouping with no basis, or a non-standard one presented as the usual one, is a major issue for the editor.
-- Sources: the source register (team_state → sources) shows a real worldwide survey — international and local sources for the major markets, each with a decision and reason; an English-only or US-only survey, or a market whose local brands are missing, is a major issue for the collector.
-- Presentation (judge what a reader sees; preview_page gives each chart's text in chartTexts): every chart readable — axis ticks distinct (not "1.4B, 1.4B, 1.4B"), one unit per chart (two measures of different units belong in two sections, not one chart on two axes), no empty or one-point charts, sections in a sensible order (rankings and key figures first), sentences that each add something, no thin pages. A template choice (what goes in which section, wording, order) is an issue for the editor; a defect the template cannot control (the renderer's own formatting) is reported with owner "platform".
-- Rules: titles, base units, history collected (coverage.historyGaps: a metric with one or two periods whose source offers earlier years is a major issue for the collector); data refreshes by itself — coverage.recipeProblems is empty (every metric and the universe loaded by a recipe that has run successfully); any entry there is a major issue for the collector.
-- The collector's work, not only the pages: the universe is complete for what each title promises (every country and market the title covers, not one country's list under a worldwide title), each metric comes from an authoritative source per market, values match the sources, and data that belongs to an existing entity (an airport's accessibility score) is a metric of that entity, not a separate entity type. Any gap is an issue for the collector.
-- Indices: an index means what its name says to a reader. Every input measures that concept for most entities (a proxy such as a count of Wikipedia language editions does not measure visitors or reach; it may enter only an index named and described for what it does measure, e.g. international prominence); weights and method are stated; an index with few computed values, or whose inputs a reader would find arbitrary, is a major issue (concept → editor, computation and coverage → collector).
-- Completeness of every column: each criterion and each attribute the pages show (country, region, category, image) known for nearly every entity; a column mostly "no data" is a major issue for the collector.
-- Program checks (programChecks in your input, and quality_check): findings of the program's quality gate. They are binding — a ranking with one is not ready — so include each in your judgement; you may add more, never dismiss them.
+const REVIEWER=`You are the independent reviewer of this topic team. You judge the pages as a demanding reader would, and you talk only to the editor (it settles data questions with the collector). Approve only what is ready for readers. For every ranking you may list as ready, open it with view_page at /rankings/<slug> (screenshots on a desktop and a phone) — the default view, another criterion (?rank=), an older year (?year=) — and 3–5 entity pages (the largest, a small one, one with gaps); preview_page gives a page's full text when you need it. Judge what a reader sees:
+- Does the page answer what its title promises? The ranking covers what the title says (worldwide means every major country and market, not one country's list); the big, well-known entities a reader expects are there; no duplicates, no aggregates (World, regions) ranked as entities.
+- Are the numbers believable? Spot-check a few against their source or common knowledge (the largest, a small one); units right; no implausible jumps; no column mostly empty; the years offered make sense.
+- Is it clear? Title and lead say what is ranked and by what; criteria labels plain; each index explained (what it measures, its inputs and weights) under About this ranking and measuring what its name says to a reader; the disclaimer present.
+- Does it look right on both screens? Podium, table and charts readable; one unit per chart; axis labels distinct; nothing cut off or wider than the phone screen; no script errors, no empty or "undefined" text, no internal notes or instructions shown to readers.
+- Interfaces and subsets: each grouping follows a named, established classification and its members fit it.
+- Program checks (programChecks in your input, and quality_check): the program's quality-gate findings. They are binding — a ranking with one is not ready — so include each; you may add more, never dismiss them.
+Every issue goes to the editor (owner "editor"), described as the reader sees it (what is wrong, on which page, why it matters, what would fix it); a data problem is still the editor's to settle with the collector. A defect the team cannot control (the renderer's own formatting, a broken tool) has owner "platform".
 Judge against the platform rules, the brief and the team's recorded decisions (team_state → topic.decisions): a recorded decision is not an issue unless it serves readers badly — then say why and what decision would be better.
 Every review gathers fresh evidence with your tools (team_state, coverage, preview_page, entity_get, the sources) — never repeat an earlier verdict without rechecking. Do not raise issues that contradict the platform rules above (e.g. more than 12 criteria in a ranking).
 Judge first as a reader: does each page and ranking answer what a reader comparing these entities wants? Route every issue to the member who can fix it, directly: data, metric and index defects (wrong or missing values, an index computed or weighted against its stated method, top places that swing on small weight changes, an unclear methodology) → collector; an index or measure that does not answer what readers need (the wrong concept, a missing aspect, the wrong question) → editor, who restates the requirement for the collector; templates, rankings and presentation → editor.
@@ -290,11 +286,25 @@ const review:Node={id:'review',role:'reviewer',title:'independent review',onFail
  await publishReady(c,checked);
  return {verdict:checked};
 }};
-// Issues go to their owner: the collector fixes the data first, then the editor fixes the pages over it.
-const fix:Node={id:'fix',role:'collector, editor',title:'owners fix the issues',onFail:'skip',run:async(s,c)=>{
- const v=s.verdict as Verdict;const forCollector=v.issues.filter(x=>x.owner==='collector'),forEditor=v.issues.filter(x=>x.owner==='editor');const out:Record<string,unknown>={};
- if(forCollector.length)out.collector=await teamAsk('collector',c.agents.collector,c.topic.id,COLLECTOR+'\nThe reviewer sent these issues back to you: fix every one, then report.',{...c.info,step:'fix',issues:forCollector},REPORT_SCHEMA,c.log,{rounds:45,calls:105},()=>dataGate(c,'Not fixed yet — ')).catch(e=>({failed:(e as Error).message}));
- if(forEditor.length||forCollector.length)out.editor=await teamAsk('editor',c.agents.editor,c.topic.id,EDITOR_BUILD+'\nThe reviewer sent these issues back (the collector has fixed its own): fix every one of yours, recheck the pages, then report.',{...c.info,step:'fix',issues:forEditor},REPORT_SCHEMA,c.log,{rounds:36,calls:75}).catch(e=>({failed:(e as Error).message}));
+// The reviewer's issues go to the editor. It fixes the pages itself and sends what is about data to the collector,
+// then checks the collector's work and finishes the pages — one exchange per review round.
+const FIX_SCHEMA={type:'object',additionalProperties:false,required:['done','open','notes','dataRequests'],properties:{
+ done:{type:'array',items:{type:'string'}},open:{type:'array',items:{type:'string'}},notes:{type:'string'},dataRequests:{type:'array',items:{type:'string'}}}};
+// One exchange: the editor works on the issues and writes data requests; the collector handles them; the editor
+// checks the collector's work and finishes the pages.
+async function editorRound(c:Ctx,step:string,task:string,payload:Record<string,unknown>){
+ const out:Record<string,unknown>={};
+ const first=await teamAsk('editor',c.agents.editor,c.topic.id,EDITOR_BUILD+'\n'+task+' Fix every page issue yourself (rankings, criteria, indices, interfaces, text) and recheck the pages with view_page. For each issue that needs data changed or added (missing entities, wrong or missing values, missing history or attributes), write a concrete request for the collector in dataRequests instead.',{...c.info,step,...payload},FIX_SCHEMA,c.log,{rounds:36,calls:75}).catch(e=>({done:[],open:[(e as Error).message],notes:'',dataRequests:[]}));
+ out.editor=first;const requests=((first as {dataRequests?:string[]}).dataRequests||[]).filter(Boolean);
+ if(requests.length){
+  out.collector=await teamAsk('collector',c.agents.collector,c.topic.id,COLLECTOR+'\nThe editor sent these data requests: fix or add the data for each, then report; say under unavailable what cannot be had and why.',{...c.info,step:step+'-data',requests},REPORT_SCHEMA,c.log,{rounds:45,calls:105}).catch(e=>({done:[],open:[(e as Error).message],notes:''}));
+  out.finish=await teamAsk('editor',c.agents.editor,c.topic.id,EDITOR_BUILD+'\nThe collector has worked on your data requests (its report is in your input). Check its work, put the data on the pages, and recheck them with view_page; then report.',{...c.info,step:step+'-finish',requests,collector:out.collector},REPORT_SCHEMA,c.log,{rounds:30,calls:60}).catch(()=>undefined);
+ }
+ return out;
+}
+const fix:Node={id:'fix',role:'editor, collector',title:'the editor fixes the issues, with the collector for data',onFail:'skip',run:async(s,c)=>{
+ const v=s.verdict as Verdict;const issues=v.issues.filter(x=>x.owner!=='platform');
+ const out=await editorRound(c,'fix','The reviewer sent these issues (as readers see them).',{issues});
  return {rounds:[...((s.rounds as unknown[])||[]),out]};
 }};
 // Still disputed after the fix rounds: the manager rules (binding); the owners apply what the rulings require.
@@ -302,8 +312,8 @@ const arbitrate:Node={id:'arbitrate',role:'manager',title:'binding ruling on dis
  const manager=await spawnAgent('team-manager',OWNER);const v=s.verdict as Verdict;
  const ruling=await teamAsk('manager',manager,c.topic.id,MANAGER,{...c.info,step:'arbitrate',issues:teamIssues(v).filter(x=>!String(x.problem).startsWith('[quality gate]')),programChecks:'The program\'s quality-gate findings are not disputable and are not yours to rule on.',reviewerSummary:v.summary},RULING_SCHEMA,c.log,{rounds:36,calls:60});
  if((ruling as {rulings:{ruling:string}[]}).rulings.some(r=>r.ruling==='reviewer_right')){
-  await teamAsk('collector',c.agents.collector,c.topic.id,COLLECTOR+'\nThe manager ruled on the open issues (binding). Do what the rulings require of you, then report.',{...c.info,step:'apply-ruling',ruling},REPORT_SCHEMA,c.log,{rounds:45,calls:105}).catch(()=>null);
-  await teamAsk('editor',c.agents.editor,c.topic.id,EDITOR_BUILD+'\nThe manager ruled on the open issues (binding). Do what the rulings require of you, recheck the pages, then report.',{...c.info,step:'apply-ruling',ruling},REPORT_SCHEMA,c.log,{rounds:36,calls:75}).catch(()=>null);
+  // The editor applies the rulings; data the rulings require goes to the collector through the editor's requests.
+  await editorRound(c,'apply-ruling','The manager ruled on the open issues (binding): do what the rulings require.',{ruling});
  }
  return {ruling};
 }};

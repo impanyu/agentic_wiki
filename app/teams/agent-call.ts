@@ -37,11 +37,11 @@ async function askOnce(role:Role,agent:Agent,topicId:string,instructions:string,
    llmClass,...(llmClass==='review'?{avoidModel:'deepseek-v4-flash'}:{}),timeoutMs:40*60_000,maxRounds:budget.rounds,
    // A verdict must rest on evidence gathered in this review.
    ...(role==='reviewer'?{validateFinal:async(response:any)=>{
-    if(calls<6)return 'Check with your tools before deciding (coverage, quality_check, preview_page of every ranking and several entity pages, spot checks against the source); then return the verdict.';
+    if(calls<6)return 'Check with your tools before deciding (view_page of every ranking you may list as ready — /rankings/<slug> — and several entity pages, quality_check, spot checks); then return the verdict.';
     // Every ranking listed as ready must have been looked at in this review (preview_page of that ranking).
     let ready:string[]=[];try{const text=(response?.output||[]).flatMap((o:any)=>o?.content||[]).map((c:any)=>c?.text||'').join('');ready=(JSON.parse(text).ready||[]).map(String);}catch{}
-    const unseen=ready.filter(slug=>!used.some(u=>u.tool==='preview_page'&&u.args.includes(slug)));
-    if(unseen.length)return 'You listed as ready rankings you did not preview in this review: '+unseen.slice(0,10).join(', ')+'. preview_page each (and check its data), or remove it from ready.';
+    const unseen=ready.filter(slug=>!used.some(u=>u.tool==='view_page'&&u.args.includes(slug)));
+    if(unseen.length)return 'You listed as ready rankings you did not look at in this review: '+unseen.slice(0,10).join(', ')+'. Open each with view_page (/rankings/<slug>) and judge it as a reader, or remove it from ready.';
     if(!used.some(u=>u.tool==='coverage'))return 'Run coverage for the topic\'s entity types before deciding.';
     if(!used.some(u=>u.tool==='quality_check'))return 'Run quality_check (the program\'s gate) before deciding.';
     return undefined;}}:{}),

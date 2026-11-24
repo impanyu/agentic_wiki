@@ -50,12 +50,13 @@ const teamTools={
  quality_check:tool('quality_check','The program\'s quality gate for this topic\'s rankings (binding: a ranking with a finding is not published): too few entities, criteria measured for too few of them, one country\'s data under a worldwide title. Run it before reporting.',{}),
  declare_no_history:tool('declare_no_history','Collector: declare that a metric has no history anywhere — only after you looked for earlier years in its source and in other sources. Clears it from coverage.historyGaps. sourcesTried: the sources you checked for earlier years and what each offers (at least two, with addresses).',{type:string,metric:string,sourcesTried:string}),
  record_sources:tool('record_sources','Collector: record your source survey in the topic\'s source register — every candidate source you examined, chosen or not, so later runs and reviews build on it. itemsJson: JSON array string of {url, name, kind (statistics|regulator|registry|association|catalog|retail|spec_site|dataset|api|other), countries (e.g. "CN, IN" or "world"), covers (what entities and fields, how many, which years), format (api|bulk|csv|html), decision (chosen|rejected|candidate), reason}.',{itemsJson:string}),
+ view_page:tool('view_page','Open a page of this site in a real browser, as a reader sees it: screenshots on a desktop (1280px) and a phone (390px) come back as images, with script errors and whether anything is wider than the screen. Look at every part a reader sees — the title and lead, the podium, the table, the charts, the year and criterion pickers, the about text — and judge it as a reader. path: e.g. "/geography/countries" or "/rankings/country-rankings?rank=gdp".',{path:string}),
  preview_page:tool('preview_page','Open a page of this site as a reader or crawler sees it (server-rendered HTML, no scripts): returns status, title, the visible text (first 8,000 characters), the number of table rows, charts and links. path: e.g. "/rankings/country-rankings", "/rankings/country-rankings?year=2005", "/e/country/france".',{path:string}),
 };
 const ROLE_TOOLS:Record<Role,string[]>={
  collector:['team_state','coverage','quality_check','list_interfaces','tag_entities','web_search','find_sources','record_sources','declare_no_history','set_entity_schema','save_recipe','run_recipe','retract_observations','close_plan_items','request_access','report_issue'],
- editor:['team_state','coverage','quality_check','set_entity_template','save_ranking','save_plan','close_plan_items','missing_pages','read_inbox','triage_queries','record_decision','preview_page','propose_subtopics','define_interface','set_interfaces','list_interfaces','request_access','report_issue'],
- reviewer:['team_state','coverage','quality_check','web_search','find_sources','preview_page','report_issue'],
+ editor:['team_state','coverage','quality_check','set_entity_template','save_ranking','save_plan','close_plan_items','missing_pages','read_inbox','triage_queries','record_decision','view_page','preview_page','propose_subtopics','define_interface','set_interfaces','list_interfaces','request_access','report_issue'],
+ reviewer:['team_state','coverage','quality_check','view_page','preview_page','report_issue'],
  manager:['team_state','coverage','preview_page','record_decision','set_topic_brief','report_issue'],
 };
 // Data tools without save_data (that writes Page files); the reviewer reads, never writes.
@@ -246,6 +247,9 @@ export async function runTeamTool(role:Role,name:string,args:Record<string,unkno
   case 'tag_entities':{if(!topicId)throw Error('This team has no topic.');const {tagEntities}=await import('./trunk');
    const list=json(String(args.entitiesJson||'[]'),'entitiesJson');const filters=json(String(args.filtersJson||'{}'),'filtersJson');
    return {data:await tagEntities(db,topicId,{iface:String(args.iface||''),entities:Array.isArray(list)?list.map(String):[],filters:filters&&typeof filters==='object'&&!Array.isArray(filters)?filters as Record<string,unknown>:{},evidence:String(args.evidence||''),remove:args.remove===true})};}
+  case 'view_page':{const {viewPage}=await import('./view-page');const v=await viewPage(String(args.path||''),signal);
+   return {data:{path:v.path,status:v.status,title:v.title,screens:v.shots.map(s=>({viewport:s.viewport,errors:s.errors,widerThanScreen:s.overflow,pageHeight:s.height})),note:'The screenshots follow as images (desktop first, then phone).'},
+    parts:[{type:'input_text',text:'Screenshots of '+v.path+' (desktop, then phone):'},...v.shots.map(s=>({type:'input_image',image_url:'data:image/jpeg;base64,'+s.image,detail:'high'}))]} as {data:unknown};}
   case 'list_interfaces':{const {listInterfaces}=await import('@/app/entity-db/inherit');return {data:{interfaces:await listInterfaces(db)}};}
   case 'set_interfaces':{
    const type=normalizeType(String(args.type||''));const list=json(args.interfacesJson,'interfacesJson');if(!Array.isArray(list))throw Error('interfacesJson: a JSON array of interface names.');

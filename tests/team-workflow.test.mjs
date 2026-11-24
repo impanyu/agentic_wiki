@@ -62,10 +62,10 @@ test('build: unavailable metrics go to the editor to decide, replacements back t
  const c=ctx();c.r._maxFixRounds=2;await ch.WORKFLOWS.build.run(c.r,c);
  assert.deepEqual(calls.slice(4),['collector:collect','editor:data-check','reviewer:early-review','editor:resolve','collector:replace','editor:design','reviewer:review']);
 });
-test('review loop: issues go to their owners for at most the fix rounds, then the manager rules and the reviewer reviews once more',async()=>{
+test('review loop: every issue goes to the editor for at most the fix rounds, then the manager rules and the reviewer reviews once more',async()=>{
  const calls=team({'reviewer:review':issues('collector'),'reviewer:re-review':issues('collector'),'manager':{rulings:[{ruling:'reviewer_right'}],brief:''},'reviewer:review-after-ruling':issues('collector')});
  const c=ctx();c.r._maxFixRounds=2;const s=await ch.WORKFLOWS.review.run(c.r,c);
- assert.deepEqual(calls,['editor:grow','collector:grow-data','editor:data-check','editor:grow-design','reviewer:review','collector:fix','editor:fix','reviewer:re-review','collector:fix','editor:fix','reviewer:re-review','manager:arbitrate','collector:apply-ruling','editor:apply-ruling','reviewer:review-after-ruling']);
+ assert.deepEqual(calls,['editor:grow','collector:grow-data','editor:data-check','editor:grow-design','reviewer:review','editor:fix','reviewer:re-review','editor:fix','reviewer:re-review','manager:arbitrate','editor:apply-ruling','reviewer:review-after-ruling']);
  assert.equal(s.rounds.length,2);assert.equal(s.verdict.approved,false);
  // Editor issues only: the editor fixes alone.
  const calls2=team({'reviewer:review':issues('editor'),'reviewer:re-review':approved});
@@ -96,4 +96,10 @@ test('the editor accepts the data or sends the collector back for more rows, col
  const calls2=team({'editor:data-check':{satisfied:false,rows:['x'],columns:[],indices:[],notes:''},'reviewer:review':approved});
  const c2=ctx();c2.r._maxFixRounds=2;await ch.WORKFLOWS.build.run(c2.r,c2);
  assert.equal(calls2.filter(x=>x==='collector:data-more').length,3);
+});
+
+test('the reviewer talks to the editor only; data the editor needs goes to the collector through it, then back to the editor',async()=>{
+ const calls=team({'reviewer:review':issues('collector'),'editor:fix':{done:[],open:[],notes:'',dataRequests:['load the missing Asian makers']},'reviewer:re-review':approved});
+ const c=ctx();c.r._maxFixRounds=2;await ch.WORKFLOWS.expand.run(c.r,c);
+ assert.deepEqual(calls.slice(4),['reviewer:review','editor:fix','collector:fix-data','editor:fix-finish','reviewer:re-review']);
 });

@@ -46,7 +46,7 @@ export const BASE_CATALOG:Catalog={
   // also caps 48k output tokens/minute per token and model (HTTP 429, handled by the cooldown). Long requests (>35% of
   // context) are limited to 1 at a time. We stay a little under the published limits.
   m('nrp:qwen3','nrp','qwen3','qwen',chat({vision:true,context:262144,maxOutput:32768,thinkTags:true}),{concurrency:12},{timeoutMs:120000}),
-  m('pool:local','pool','local','local',chat({context:131072,maxOutput:16384}),{concurrency:64},{timeoutMs:300000}),
+  m('pool:local','pool','local','local',chat({vision:true,context:131072,maxOutput:16384}),{concurrency:64},{timeoutMs:300000}),
   // Our smaller GPUs (the RTX 6000 machine, the V100s; ~30B models): extraction, translation, short tasks — never the
   // builders' work.
   m('pool:small','pool','small','local',chat({context:32768,maxOutput:8192}),{concurrency:16},{timeoutMs:300000,
