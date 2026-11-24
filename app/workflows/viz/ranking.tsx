@@ -149,8 +149,8 @@ export default function Ranking({props,setValue,fire,ctx}:VizProps){
  const noData=t('No data');
  // Every other criterion is a column too, so all the ranking's figures are in the page (and its HTML).
  const others=useMemo(()=>c?criteria.filter(x=>x.key!==c.key):[],[criteria,c]);
- const otherFmt=useMemo(()=>new Map(others.map(x=>[x.key,makeFormatter(x,entries.map(e=>parseNumber(e.row[x.key])).filter((v):v is number=>v!=null),locale)])),[others,entries,locale]);
- const cols=5+others.length;
+ // The table shows only the criterion it is ranked by; the other criteria are one click away in the picker above.
+ const cols=5;
 
  // Views under the leaderboard: the template's list (props.views) or one chosen from the data — bars always,
  // share views (treemap, donut) for quantities that add up, maps for countries or U.S. states, a scatter
@@ -238,7 +238,6 @@ export default function Ranking({props,setValue,fire,ctx}:VizProps){
    <td className="wf-rank-val">{e.value==null?<span className="wf-rank-dash">{noData}</span>:fmt(e.value)}</td>
    <td className="wf-rank-barcell" aria-hidden="true">{e.value!=null&&<span className="wf-rank-track"><i style={{width:Math.max(1.5,Math.abs(e.value)/maxAbs*100)+'%',background:e.value<0?`linear-gradient(90deg,${rgba(NEG,.45)},${NEG})`:`linear-gradient(90deg,${rgba(colorOf(e),.45)},${colorOf(e)})`}}/></span>}</td>
    <td className="wf-rank-share">{share?share.kind==='share'?share.text:t('Top {pct}',{pct:share.text}):''}</td>
-   {others.map(x=>{const v=parseNumber(e.row[x.key]);return <td key={x.key} className="wf-rank-other">{v==null?'—':otherFmt.get(x.key)!(v)}</td>;})}
   </tr>;
  };
 
@@ -281,9 +280,7 @@ export default function Ranking({props,setValue,fire,ctx}:VizProps){
      <th className="wf-rank-pos">{t('Rank')}</th><th className="wf-rank-name">{t('Name')}</th>
      <th className="wf-rank-val">{c.label}</th><th className="wf-rank-barcell" aria-hidden="true"/>
      <th className="wf-rank-share">{summary.aggregate==='sum'&&summary.min>=0?t('Share'):t('Percentile')}</th>
-     {others.map(x=><th key={x.key} className="wf-rank-other" title={t('Rank by')+' '+x.label}>{view.rankHref
-      ?<a href={view.rankHref(x.key)} onClick={ev=>{ev.preventDefault();choose(x.key);}}>{x.label}</a>
-      :<button type="button" onClick={()=>choose(x.key)}>{x.label}</button>}</th>)}
+
     </tr></thead>
     <tbody key={c.key+'|'+(group??'')}>
      {showRanked.map(row)}
