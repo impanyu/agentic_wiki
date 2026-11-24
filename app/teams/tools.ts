@@ -273,8 +273,9 @@ export async function runTeamTool(role:Role,name:string,args:Record<string,unkno
    await embedNow(def.id).catch(e=>console.warn('ranking vectors deferred',(e as Error).message));
    // Checked at once: a ranking with a quality-gate finding is held from readers until it passes (the sweep releases it).
    const {checkRanking}=await import('./qa');const qa=await checkRanking(db,def).catch(()=>[]);
-   if(qa.length&&def.status!=='published')await db.query(`update rankings set status='held', updated_at=now() where slug=$1::text`,[def.slug]);
-   return {data:{...def,...(qa.length?{status:def.status==='published'?def.status:'held',qualityGate:qa}:{})}};}
+   const block=qa.some(i=>i.severity==='blocker');
+   if(block&&def.status!=='published')await db.query(`update rankings set status='held', config=config||jsonb_build_object('heldFrom',$2::text), updated_at=now() where slug=$1::text`,[def.slug,def.status==='held'?'draft':def.status]);
+   return {data:{...def,...(qa.length?{status:block&&def.status!=='published'?'held':def.status,qualityGate:qa}:{})}};}
   case 'save_plan':{
    const editorId=await topicEditorId(db,topicId);if(!editorId)throw Error('No topic.');
    const items=json(args.itemsJson,'itemsJson');if(!Array.isArray(items)||!items.length||items.length>50)throw Error('itemsJson: a list of 1–50 items.');

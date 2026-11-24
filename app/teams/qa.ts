@@ -41,7 +41,7 @@ export async function checkRanking(db:Queryable,def:RankingDef):Promise<QaIssue[
   for(const k of keys){const have=cov.find(c=>c.metric===k)?.n||0;const share=have/n;
    // The criterion the ranking opens on, or one barely measured, leaves readers a list of "no data": a blocker.
    const main=k===String(def.config?.default||keys[0]).split('@')[0];
-   if(share<QA.minCriterionCoverage)out.push({severity:main||share<0.2?'blocker':'major',owner:'collector',target:t+' → '+k,problem:`Criterion ${k} is measured for ${have} of ${n} entities (${Math.round(share*100)}%; at least ${Math.round(QA.minCriterionCoverage*100)}% needed).`,fix:'Collect it for the missing entities (other sources and markets), or the editor drops it from this ranking.'});}
+   if(share<QA.minCriterionCoverage)out.push({severity:(main&&share<0.3)||share<0.2?'blocker':'major',owner:'collector',target:t+' → '+k,problem:`Criterion ${k} is measured for ${have} of ${n} entities (${Math.round(share*100)}%; at least ${Math.round(QA.minCriterionCoverage*100)}% needed).`,fix:'Collect it for the missing entities (other sources and markets), or the editor drops it from this ranking.'});}
  }
  // Indices among the criteria: a stated method naming every input, and every input measured for most entities (an
  // index computed from a few inputs, or from inputs most entities lack, is not what its name says).
@@ -95,7 +95,7 @@ export async function checkRanking(db:Queryable,def:RankingDef):Promise<QaIssue[
 export async function checkTopic(db:Queryable,topicId:string):Promise<{issues:QaIssue[];failing:string[]}>{
  const defs=await listRankingDefs(db,{topicId});const issues:QaIssue[]=[];const failing=new Set<string>();
  for(const d of defs){const x=await checkRanking(db,d).catch(e=>[{severity:'major' as const,owner:'collector' as const,target:d.slug,problem:'Quality check failed: '+(e as Error).message.slice(0,200),fix:'Check the ranking scope and data.'}]);
-  if(x.length)failing.add(d.slug);issues.push(...x);}
+  if(x.some(i=>i.severity==='blocker'))failing.add(d.slug);issues.push(...x);}
  const types=(await db.query<{type:string;n:number}>(`select et.type, (select count(*)::int from entities e where e.type=et.type) n from entity_types et where et.topic_id=$1::uuid`,[topicId])).rows;
  for(const {type,n} of types){
   if(n<1)continue;
@@ -117,11 +117,14 @@ export async function qaSweep(db:Queryable,log:(e:Record<string,unknown>)=>void=
  const held:string[]=[],released:string[]=[];const topics=new Map<string,string[]>();
  for(const d of defs){
   const issues=await checkRanking(db,d).catch(()=>null);if(!issues)continue;
-  // Strict: any finding (blocker or major) keeps a ranking from readers until its team fixes it.
-  const blocked=issues.length>0;
-  if(blocked&&d.status!=='held'){await db.query(`update rankings set status='held', updated_at=now() where slug=$1::text`,[d.slug]);held.push(d.slug);
-   if(d.topicId)topics.set(d.topicId,[...(topics.get(d.topicId)||[]),d.slug]);}
-  else if(!blocked&&d.status==='held'){await db.query(`update rankings set status='draft', updated_at=now() where slug=$1::text`,[d.slug]);released.push(d.slug);}
+  // Only a blocker (the ranking would mislead: too few entities, its main criterion barely measured, a one-country
+  // set titled as worldwide) takes a ranking away from readers; other findings stay visible and go to the team to fix.
+  // A held ranking returns to the status it had (published, or draft awaiting its review) once it passes.
+  const blocked=issues.some(i=>i.severity==='blocker');
+  if(issues.length&&d.topicId&&!(d.status==='held'&&blocked))topics.set(d.topicId,[...(topics.get(d.topicId)||[]),d.slug]);
+  if(blocked&&d.status!=='held'){await db.query(`update rankings set status='held', config=config||jsonb_build_object('heldFrom',$2::text), updated_at=now() where slug=$1::text`,[d.slug,d.status]);held.push(d.slug);}
+  else if(!blocked&&d.status==='held'){const back=String((d.config as {heldFrom?:string}).heldFrom||'published');
+   await db.query(`update rankings set status=$2::text, config=config-'heldFrom', updated_at=now() where slug=$1::text`,[d.slug,back==='draft'?'draft':'published']);released.push(d.slug);}
  }
  const queued:string[]=[];
  const {teamOf}=await import('./ownership');const {enqueueTeam}=await import('./manager');
