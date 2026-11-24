@@ -1,4 +1,4 @@
-import test from 'node:test';import assert from 'node:assert/strict';import {readFileSync,writeFileSync,mkdirSync} from 'node:fs';import {createHash} from 'node:crypto';import ts from 'typescript';
+process.env.RANKS_SYNC='1';import test from 'node:test';import assert from 'node:assert/strict';import {readFileSync,writeFileSync,mkdirSync} from 'node:fs';import {createHash} from 'node:crypto';import ts from 'typescript';
 // Entity database (rankwiki) against in-memory PGlite (Postgres + pgvector in WASM).
 // The TS modules are transpiled into node_modules/.cache so their package imports (pglite, zod) resolve;
 // '@/…' imports are replaced by small stubs.

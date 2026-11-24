@@ -653,8 +653,18 @@ export async function syncLatest(db:Queryable,entityIds:string[],metrics:{key:st
  for(let i=0;i<ids.length;i+=1000){await refreshLatestValues(db,ids.slice(i,i+1000));await refreshPages(db,{ids:ids.slice(i,i+1000)});}
  if(!metrics.length)return;
  const types=(await db.query<{type:string}>('select distinct type from entities where id = any($1::uuid[])',[ids])).rows.map(r=>r.type);
- for(const t of types)for(const m of metrics)await refreshLatestRanks(db,t,m);
+ for(const t of types)for(const m of metrics)await queueRanks(db,t,m);
 }
+// Ranks are display data: a burst of writes to one type and metric recomputes them once (debounced, at most once a
+// minute per type and metric) instead of after every batch.
+const rankQueue=new Map<string,{db:Queryable;type:string;metric:{key:string;version:number}}>();let rankTimer:ReturnType<typeof setTimeout>|null=null;
+async function queueRanks(db:Queryable,type:string,metric:{key:string;version:number}){
+ if(process.env.RANKS_SYNC==='1'){await refreshLatestRanks(db,type,metric);return;}
+ rankQueue.set(type+'\u0000'+metric.key+'\u0000'+metric.version,{db,type,metric});
+ if(!rankTimer){rankTimer=setTimeout(async()=>{rankTimer=null;const jobs=[...rankQueue.values()];rankQueue.clear();
+  for(const j of jobs)await refreshLatestRanks(j.db,j.type,j.metric).catch(e=>console.warn('ranks refresh failed',j.type,j.metric.key,(e as Error).message));},60_000);(rankTimer as {unref?:()=>void}).unref?.();}
+}
+export async function flushRanks(){if(rankTimer){clearTimeout(rankTimer);rankTimer=null;}const jobs=[...rankQueue.values()];rankQueue.clear();for(const j of jobs)await refreshLatestRanks(j.db,j.type,j.metric);}
 // Recreates every snapshot (or one type's) from observations and relations.
 export async function rebuildLatest(db:Queryable,{type}:{type?:string}={}):Promise<{entities:number}>{
  const t=type?normalizeType(type):null;

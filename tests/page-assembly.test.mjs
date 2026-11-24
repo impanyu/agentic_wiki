@@ -1,4 +1,4 @@
-import test from 'node:test';import assert from 'node:assert/strict';import {readFileSync,writeFileSync,mkdirSync} from 'node:fs';import ts from 'typescript';
+process.env.RANKS_SYNC='1';import test from 'node:test';import assert from 'node:assert/strict';import {readFileSync,writeFileSync,mkdirSync} from 'node:fs';import ts from 'typescript';
 // Database-driven pages: text assembly (app/seo/assemble.ts, pure) and the page data builders
 // (app/entity-db/pages.ts) against an in-memory PGlite seeded with the development fixture.
 const tr=src=>ts.transpile(src,{module:ts.ModuleKind.ESNext,target:ts.ScriptTarget.ES2022});

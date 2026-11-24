@@ -92,6 +92,8 @@ export const MIGRATIONS:Migration[]=[
     retrieved_at timestamptz not null default now(), primary key (entity_id, metric, period, source))`,
   'create index if not exists observations_metric on observations(metric, metric_version, period)',
   'create index if not exists observations_source on observations(source)',
+  // Latest value per entity of one metric (ranks, rankings): an index-ordered scan instead of a sort.
+  'create index if not exists observations_metric_entity on observations(metric, metric_version, entity_id, period desc, retrieved_at desc) include (value)',
 
   `create table if not exists rankings(id uuid primary key default gen_random_uuid(), topic_id uuid references topics(id) on delete set null,
     title text not null default '', scope jsonb not null default '{}'::jsonb, criteria text[] not null default '{}'::text[], page_id text, built_at timestamptz not null default now())`,

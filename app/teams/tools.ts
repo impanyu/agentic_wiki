@@ -81,7 +81,7 @@ async function teamState(type:string,topicId:string|null){
  const counts=await typeCounts(db);
  const metrics=(await db.query(`select o.metric, count(distinct o.entity_id)::int entities, min(o.period) first, max(o.period) last, m.label, m.unit, m.kind
   from observations o join entities e on e.id=o.entity_id left join metrics m on m.key=o.metric and m.version=1
-  where $1::text is null or e.type=$1::text group by o.metric, m.label, m.unit, m.kind order by o.metric limit 200`,[type?normalizeType(type):null])).rows;
+  where e.type = any($1::text[]) group by o.metric, m.label, m.unit, m.kind order by o.metric limit 200`,[type?[normalizeType(type)]:types.map(t=>t.type)])).rows;
  return {
   topic:topicId?await topicBrief(db,topicId):null,
   // The trunk at this node (its one division criterion and its subtopics) and this topic's tags (interfaces) with members.
