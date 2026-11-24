@@ -132,11 +132,14 @@ export async function divisionSweep(edb:EntityDb,limit=60,log:(e:Row)=>void=()=>
    input.push({node:n.slug,name:n.name,entityType:n.cls||'',subtopics:kids.map(k=>({slug:k.slug,name:k.name,hasSubtopics:!k.leaf}))});
   }
   let out:{node:string;division:string;trunk:string[];tags:string[];other:string[];why:string}[]=[];
-  try{
+  // Our GPUs are shared with the teams: a busy pool is retried a few times before the batch waits for the next run.
+  let failure='';
+  for(let attempt=0;attempt<4;attempt++)try{failure='';
    const r=await respond({class:'agent',store:false,instructions:SWEEP,input:JSON.stringify({nodes:input}),text:{format:{type:'json_schema',name:'divisions',schema:SWEEP_SCHEMA,strict:true}},max_output_tokens:6000} as never);
    const text=((r as {output?:{content?:{type?:string;text?:string}[]}[]}).output||[]).flatMap(o=>o.content||[]).map(c=>c.type==='output_text'?c.text||'':'').join('');
-   out=(JSON.parse(text) as {nodes:typeof out}).nodes||[];
-  }catch(e){log({event:'division_sweep_failed',error:(e as Error).message});break;}
+   out=(JSON.parse(text) as {nodes:typeof out}).nodes||[];break;
+  }catch(e){failure=(e as Error).message;await new Promise(r=>setTimeout(r,30_000*(attempt+1)));}
+  if(failure){log({event:'division_sweep_failed',error:failure});continue;}
   for(const o of out){
    const n=batch.find(b=>b.slug===o.node);if(!n)continue;
    const kids=new Set(input.find(x=>x.node===n.slug)!.subtopics.map(k=>k.slug));

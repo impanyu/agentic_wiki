@@ -76,18 +76,20 @@ export async function fillVectors(){
 }
 
 // The manager's daily review and the team queue, on the same heartbeat (one review at a time).
-let reviewing=false,lastMaintenance=0;
+let reviewing=false,lastMaintenance=0,sweeping=false,lastSweep=0;
 export async function manageTeams(){
  const {entityDb}=await import('@/app/entity-db/client');const {managerDue,runManagerDaily,runTeamQueue}=await import('./manager');
  const {llmSpend}=await import('@/app/llm');
  const db=await entityDb();
  if(!reviewing&&await managerDue(db)){reviewing=true;void runManagerDaily(e=>console.log('[manager]',JSON.stringify(e))).catch(e=>console.error('[manager] failed',(e as Error).message)).finally(()=>{reviewing=false;});}
+ // Every 15 minutes, one sweep at a time: the next nodes of the tree get their division judged (proposals only).
+ if(!sweeping&&Date.now()-lastSweep>15*60_000){sweeping=true;lastSweep=Date.now();const {divisionSweep}=await import('./trunk');void divisionSweep(db,Number(process.env.DIVISION_SWEEP_NODES||24),e=>console.log('[trunk]',JSON.stringify(e))).catch(e=>console.error('[trunk] sweep failed',(e as Error).message)).finally(()=>{sweeping=false;});}
  // Every few hours the manager tends one branch of the tree (missing subtopics, duplicates).
  if(!reviewing){const {tendTree}=await import('./manager');reviewing=true;void tendTree(e=>console.log('[manager]',JSON.stringify(e))).catch(e=>console.error('[manager] tend failed',(e as Error).message)).finally(()=>{reviewing=false;});}
  // At most hourly: teams return to topics that need them.
  const now=Date.now();if(now-lastMaintenance>3600_000){lastMaintenance=now;const {scheduleMaintenance}=await import('./manager');const {dedupSweep,findCandidates,resolveCandidates}=await import('@/app/entity-db/dedup');await dedupSweep(db,300).then(r=>r.merged&&console.log('[dedup] merged',r.merged)).catch(e=>console.error('[dedup] failed',(e as Error).message));
   await findCandidates(db,2000).then(n=>n&&console.log('[dedup] candidates',n)).catch(e=>console.error('[dedup] candidates failed',(e as Error).message));
-  void resolveCandidates(db,400).then(r=>r.judged&&console.log('[dedup] judged',r.judged,'merged',r.merged)).catch(e=>console.error('[dedup] resolve failed',(e as Error).message));{const {divisionSweep}=await import('./trunk');void divisionSweep(db,Number(process.env.DIVISION_SWEEP_NODES||60),e=>console.log('[trunk]',JSON.stringify(e))).catch(e=>console.error('[trunk] sweep failed',(e as Error).message));}const {qaSweep}=await import('./qa');await qaSweep(db,e=>console.log('[qa]',JSON.stringify(e))).catch(e=>console.error('[qa] sweep failed',(e as Error).message));const q=await scheduleMaintenance(db).catch(e=>{console.error('[queue] maintenance failed',(e as Error).message);return [];});if(q.length)console.log('[queue] queued',q.join(', '));}
+  void resolveCandidates(db,400).then(r=>r.judged&&console.log('[dedup] judged',r.judged,'merged',r.merged)).catch(e=>console.error('[dedup] resolve failed',(e as Error).message));const {qaSweep}=await import('./qa');await qaSweep(db,e=>console.log('[qa]',JSON.stringify(e))).catch(e=>console.error('[qa] sweep failed',(e as Error).message));const q=await scheduleMaintenance(db).catch(e=>{console.error('[queue] maintenance failed',(e as Error).message);return [];});if(q.length)console.log('[queue] queued',q.join(', '));}
  const started=await runTeamQueue(async()=>(await llmSpend()).spentUsd,(slug,e)=>console.log('[team:'+slug+']',JSON.stringify(e)));
  if(started.length)console.log('[queue] started',started.join(', '));
 }
