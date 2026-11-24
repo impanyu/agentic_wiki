@@ -508,3 +508,24 @@ html,body{background:var(--rw-bg)}
 /* Entity introduction under the name */
 .entity-intro{margin:10px 0 0;max-width:68ch;font-size:15.5px;line-height:1.6;color:var(--rw-text)}
 .entity-intro .intro-source{font-size:12px;color:var(--rw-muted);text-decoration:underline;text-underline-offset:2px;white-space:nowrap}
+
+/* Podium: gold, silver and bronze medals on stepped cards (first place tallest, in the middle). */
+.wf-rank-podium{gap:14px;margin:8px 0 22px}
+.wf-rank-podium li{gap:7px;padding:18px 12px 18px;border-width:1px;border-style:solid;border-radius:14px;position:relative;overflow:hidden}
+.wf-rank-podium li::before{content:"";position:absolute;inset:0 0 auto 0;height:4px}
+.wf-rank-podium li.p1::before{background:linear-gradient(90deg,#f4c430,#b8860b)}
+.wf-rank-podium li.p2::before{background:linear-gradient(90deg,#d5dae2,#8a93a3)}
+.wf-rank-podium li.p3::before{background:linear-gradient(90deg,#e09a5c,#a35a22)}
+.wf-rank-podium li.p1{padding-top:26px;padding-bottom:28px;box-shadow:0 14px 30px -18px rgba(184,134,11,.55)}
+.wf-rank-podium li.p2{padding-top:20px}
+.wf-rank-medal{width:44px;height:55px;flex:none;filter:drop-shadow(0 3px 4px rgba(15,23,42,.18))}
+.p1 .wf-rank-medal{width:56px;height:70px}
+.wf-rank-podium .wf-rank-avatar{width:48px;height:48px}
+.wf-rank-podium li.p1 .wf-rank-avatar{width:60px;height:60px}
+.wf-rank-podium-name{font-size:15px}
+.p1 .wf-rank-podium-name{font-size:16.5px}
+@media (max-width:640px){
+ .wf-rank-medal{width:32px;height:40px}.p1 .wf-rank-medal{width:40px;height:50px}
+ .wf-rank-podium .wf-rank-avatar{width:34px;height:34px}.wf-rank-podium li.p1 .wf-rank-avatar{width:42px;height:42px}
+ .wf-rank-podium li{padding:14px 6px 12px}.wf-rank-podium li.p1{padding-top:18px;padding-bottom:16px}
+}

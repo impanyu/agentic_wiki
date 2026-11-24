@@ -60,6 +60,19 @@ function ChartBox({option,height,label,aspect,extra=0,onClick,onChart,svg,gl}:{o
 }
 
 // A small round image (flag, logo) or, without one or when it fails, the initial.
+// A medal for the podium: a ribbon and a gold, silver or bronze disc with the place on it (inline SVG, no image).
+const MEDAL={1:['#fff3b0','#f4c430','#b8860b','#8a6508'],2:['#ffffff','#d5dae2','#9aa3b2','#6b7484'],3:['#ffd9b3','#d8894b','#a35a22','#7a3f12']} as const;
+function Medal({place}:{place:1|2|3}){
+ const [hi,mid,lo,edge]=MEDAL[place],id='wf-medal-'+place;
+ return <svg className="wf-rank-medal" viewBox="0 0 64 80" aria-hidden="true">
+  <defs><linearGradient id={id} x1="0" y1="0" x2="1" y2="1"><stop offset="0" stopColor={hi}/><stop offset=".45" stopColor={mid}/><stop offset="1" stopColor={lo}/></linearGradient>
+   <linearGradient id={id+'r'} x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor="#3b5bdb"/><stop offset="1" stopColor="#2f4ac0"/></linearGradient></defs>
+  <path d="M14 0h14l8 30h-14z" fill={'url(#'+id+'r)'}/><path d="M50 0H36l-8 30h14z" fill="#e03131"/>
+  <circle cx="32" cy="50" r="24" fill={edge}/><circle cx="32" cy="50" r="21.5" fill={'url(#'+id+')'}/>
+  <circle cx="32" cy="50" r="16.5" fill="none" stroke={edge} strokeOpacity=".35" strokeWidth="1.5"/>
+  <text x="32" y="57" textAnchor="middle" fontSize="20" fontWeight="800" fill={edge}>{place}</text>
+ </svg>;
+}
 function Avatar({e,color}:{e:Entry;color:string}){
  const [broken,setBroken]=useState(false);
  return e.image&&!broken?<img className="wf-rank-avatar" src={e.image} alt="" loading="lazy" referrerPolicy="no-referrer" onError={()=>setBroken(true)}/>
@@ -248,7 +261,7 @@ export default function Ranking({props,setValue,fire,ctx}:VizProps){
   </div>
 
   {podium.length===3&&<ol className="wf-rank-podium" aria-label={t('Top 3')}>{podium.map(e=>{const share=shareOf(e,summary,locale);const l=askLink(e.question);return <li key={e.index} className={'p'+e.rank} onClick={()=>pick(e)}>
-   <span className="wf-rank-podium-medal">{e.rank}</span>
+   <Medal place={e.rank as 1|2|3}/>
    <Avatar e={e} color={colorOf(e)}/>
    <span className="wf-rank-podium-name">{l.href?<a href={l.href} rel={l.rel} onClick={ev=>ev.stopPropagation()}>{e.name}</a>:e.name}</span>
    <span className="wf-rank-podium-val">{fmt(e.value!)}</span>
