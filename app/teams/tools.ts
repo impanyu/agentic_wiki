@@ -54,7 +54,7 @@ const teamTools={
 };
 const ROLE_TOOLS:Record<Role,string[]>={
  collector:['team_state','coverage','quality_check','list_interfaces','tag_entities','web_search','find_sources','record_sources','declare_no_history','set_entity_schema','save_recipe','run_recipe','retract_observations','close_plan_items','request_access','report_issue'],
- editor:['team_state','coverage','quality_check','web_search','find_sources','set_entity_template','save_ranking','save_plan','close_plan_items','missing_pages','read_inbox','triage_queries','record_decision','preview_page','propose_subtopics','define_interface','tag_entities','set_interfaces','list_interfaces','request_access','report_issue'],
+ editor:['team_state','coverage','quality_check','set_entity_template','save_ranking','save_plan','close_plan_items','missing_pages','read_inbox','triage_queries','record_decision','preview_page','propose_subtopics','define_interface','set_interfaces','list_interfaces','request_access','report_issue'],
  reviewer:['team_state','coverage','quality_check','web_search','find_sources','preview_page','report_issue'],
  manager:['team_state','coverage','preview_page','record_decision','set_topic_brief','report_issue'],
 };
