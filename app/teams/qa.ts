@@ -68,16 +68,18 @@ export async function checkTopic(db:Queryable,topicId:string):Promise<{issues:Qa
  return {issues,failing:[...failing]};
 }
 
-// The whole site, on a schedule: a published ranking that fails the gate goes back to draft (readers never see it)
-// and its team is queued for a review that fixes it. Returns what it did.
-export async function qaSweep(db:Queryable,log:(e:Record<string,unknown>)=>void=()=>{}):Promise<{checked:number;unpublished:string[];queued:string[]}>{
- const defs=(await listRankingDefs(db)).filter(d=>d.status==='published');
- const unpublished:string[]=[];const topics=new Map<string,string[]>();
+// The whole site, on a schedule. Readers see published rankings and, while a topic is being built, its drafts; a
+// ranking that fails a blocker of the gate is "held" instead (readers never see it) and its team is queued for a
+// review that fixes it. A held ranking that passes again returns to draft. Returns what it did.
+export async function qaSweep(db:Queryable,log:(e:Record<string,unknown>)=>void=()=>{}):Promise<{checked:number;held:string[];released:string[];queued:string[]}>{
+ const defs=(await listRankingDefs(db)).filter(d=>['published','draft','held'].includes(d.status));
+ const held:string[]=[],released:string[]=[];const topics=new Map<string,string[]>();
  for(const d of defs){
-  const issues=await checkRanking(db,d).catch(()=>[] as QaIssue[]);
-  if(!issues.some(x=>x.severity==='blocker'))continue;
-  await db.query(`update rankings set status='draft', updated_at=now() where slug=$1::text`,[d.slug]);unpublished.push(d.slug);
-  if(d.topicId)topics.set(d.topicId,[...(topics.get(d.topicId)||[]),d.slug]);
+  const issues=await checkRanking(db,d).catch(()=>null);if(!issues)continue;
+  const blocked=issues.some(x=>x.severity==='blocker');
+  if(blocked&&d.status!=='held'){await db.query(`update rankings set status='held', updated_at=now() where slug=$1::text`,[d.slug]);held.push(d.slug);
+   if(d.topicId)topics.set(d.topicId,[...(topics.get(d.topicId)||[]),d.slug]);}
+  else if(!blocked&&d.status==='held'){await db.query(`update rankings set status='draft', updated_at=now() where slug=$1::text`,[d.slug]);released.push(d.slug);}
  }
  const queued:string[]=[];
  const {teamOf}=await import('./ownership');const {enqueueTeam}=await import('./manager');
@@ -87,6 +89,6 @@ export async function qaSweep(db:Queryable,log:(e:Record<string,unknown>)=>void=
   const name=owner===t.slug?t.name:String((await db.query<{name:string}>('select name from topics where slug=$1::text',[owner])).rows[0]?.name||t.name);
   if(await enqueueTeam(db,{slug:owner,name,brief:t.description,priority:2,note:'review: quality gate failed for '+slugs.slice(0,5).join(', ')+' ['+t.slug+']'}))queued.push(owner);
  }
- if(unpublished.length)log({event:'qa_sweep',checked:defs.length,unpublished,queued});
- return {checked:defs.length,unpublished,queued};
+ if(held.length||released.length)log({event:'qa_sweep',checked:defs.length,held,released,queued});
+ return {checked:defs.length,held,released,queued};
 }
