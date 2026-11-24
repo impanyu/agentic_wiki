@@ -135,7 +135,7 @@ export async function divisionSweep(edb:EntityDb,limit=60,log:(e:Row)=>void=()=>
   // Our GPUs are shared with the teams: a busy pool is retried a few times before the batch waits for the next run.
   let failure='';
   for(let attempt=0;attempt<4;attempt++)try{failure='';
-   const r=await respond({class:'agent',store:false,instructions:SWEEP,input:JSON.stringify({nodes:input}),text:{format:{type:'json_schema',name:'divisions',schema:SWEEP_SCHEMA,strict:true}},max_output_tokens:6000} as never);
+   const r=await respond({class:'review',store:false,instructions:SWEEP,input:JSON.stringify({nodes:input}),text:{format:{type:'json_schema',name:'divisions',schema:SWEEP_SCHEMA,strict:true}},max_output_tokens:6000} as never);
    const text=((r as {output?:{content?:{type?:string;text?:string}[]}[]}).output||[]).flatMap(o=>o.content||[]).map(c=>c.type==='output_text'?c.text||'':'').join('');
    out=(JSON.parse(text) as {nodes:typeof out}).nodes||[];break;
   }catch(e){failure=(e as Error).message;await new Promise(r=>setTimeout(r,30_000*(attempt+1)));}
