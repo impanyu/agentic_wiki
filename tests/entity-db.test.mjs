@@ -49,9 +49,9 @@ test('identity across the system: one record per thing in a type family, overlap
  // Same name in another country: a different university.
  const w=await db.tx(q=>repo.upsertEntity(q,{type:'asian_univ',name:'Peking University',attributes:{country:'Taiwan'}}));
  assert.notEqual(w.id,u.id);
- // An unrelated type with a prefixed name: a candidate pair for the resolver, not a silent duplicate.
+ // An unrelated type with the same name: a candidate pair for the resolver, not a silent duplicate.
  const c=await db.tx(q=>repo.upsertEntity(q,{type:'country',name:'Japan'}));
- const e=await db.tx(q=>repo.upsertEntity(q,{type:'expat_dest',name:'Expat destination Japan'}));
+ const e=await db.tx(q=>repo.upsertEntity(q,{type:'expat_dest',name:'Japan'}));
  assert.notEqual(e.id,c.id);
  assert.equal((await db.query("select count(*)::int n from entity_candidates where a=$1::uuid and b=$2::uuid",[e.id,c.id])).rows[0].n,1);
 });

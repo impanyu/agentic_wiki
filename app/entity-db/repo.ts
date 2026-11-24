@@ -58,7 +58,7 @@ async function recordCandidates(q:Queryable,id:string,name:string,ids:Record<str
  const others=new Set<string>();
  for(const [k,v] of Object.entries(ids)){for(const r of (await q.query<{id:string}>(`select id from entities where ids @> $1::jsonb and not (type = any($2::text[])) and id<>$3::uuid limit 5`,[JSON.stringify({[k]:v}),family,id])).rows)others.add(r.id+'|id '+k);}
  const n=(await q.query<{id:string;c:string|null}>(`select id, attributes->>'country' c from entities where id<>$1::uuid and not (type = any($2::text[]))
-  and (ent_norm(name) = ent_norm($3::text) or (length(ent_norm(name)) >= 4 and ent_norm($3::text) like '% ' || ent_norm(name)))
+  and ent_norm(name) = ent_norm($3::text)
   limit 8`,[id,family,name])).rows;
  for(const r of n)if(!country||!r.c||r.c===country)others.add(r.id+'|name');
  for(const o of others){const [b,reason]=o.split('|');await q.query(`insert into entity_candidates(a,b,reason) values ($1::uuid,$2::uuid,$3::text) on conflict do nothing`,[id,b,reason]);}
@@ -97,7 +97,7 @@ export async function upsertEntity(q:Queryable,input:EntityInput):Promise<{id:st
    values ($1::text,$2::text,ent_merge_aliases($2::text,$3::text[]),$4::text,$5::jsonb,$6::jsonb,nullif($7::text,''),nullif($8::text,''),$9::uuid) returning id`,
    [type,name,aliases,description,JSON.stringify(writeIds),JSON.stringify(attributes),image,pageId,topicId]);
   // System-wide: anything outside the family that may be the same thing (the same standard id under another type,
-  // the same name, or a name that is another entity's name with a prefix: "Expat destination India") is recorded
+  // or the same name) is recorded
   // as a candidate; the resolver (app/entity-db/dedup.ts) judges each pair and merges the same ones.
   await recordCandidates(q,r.rows[0].id,name,ids,family,String((input.attributes as Record<string,unknown>|undefined)?.country??'')).catch(()=>{});
   return {id:r.rows[0].id,action:'inserted',idConflicts:conflicts};

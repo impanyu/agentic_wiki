@@ -293,6 +293,7 @@ export const MIGRATIONS:Migration[]=[
  {version:22,name:'entity identity',statements:()=>[
   "alter table entities add column if not exists also_types text[] not null default '{}'",
   'create index if not exists entities_also_types on entities using gin(also_types)',
+  'create index if not exists entities_norm_name on entities(ent_norm(name))',
   'create table if not exists entity_candidates(a uuid not null references entities(id) on delete cascade, b uuid not null references entities(id) on delete cascade, reason text not null default \'\', verdict text, judged_at timestamptz, created_at timestamptz not null default now(), primary key(a,b))',
   'create index if not exists entity_candidates_pending on entity_candidates(created_at) where verdict is null',
  ]},
