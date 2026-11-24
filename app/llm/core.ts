@@ -4,6 +4,8 @@ import {loadCatalog,type Catalog,type ModelEntry} from './catalog';
 import {costUsd,chatCostUsd} from './prices';
 // Only a paid provider's calls cost money: the same model served free (NRP, our own GPUs) costs nothing.
 const PAID=new Set(['deepseek']);
+// Providers billed per call, each with a daily cap (<PROVIDER>_DAILY_USD) and together under the monthly budget.
+const DAILY_CAPPED:Record<string,number>={deepseek:8,openai:8};
 const paidCost=(entry:{provider:string;model:string},usage:Parameters<typeof chatCostUsd>[1])=>PAID.has(entry.provider)?chatCostUsd(entry.model,usage):0;
 import {RateTracker,monthKey,nextMonth,retryAfterMs,type Block} from './limits';
 import {toChat,fromChat,forOpenAI,requirements,inputItems,syntheticId} from './translate';
@@ -37,7 +39,8 @@ export function createLLM(deps:Deps){
  // ---------- budget ----------
  let spendCache:{month:string;value:number;loadedAt:number}|null=null;
  const budget=()=>{const raw=deps.env('LLM_MONTHLY_BUDGET_USD'),v=raw?Number(raw):NaN;return Number.isFinite(v)&&v>=0?v:300;};
- const dayCache={day:'',at:0,value:0};
+ const dayCache:Record<string,{day:string;at:number;value:number}>={};
+ const addDay=(provider:string,cost:number)=>{const dc=dayCache[provider];if(cost&&dc&&dc.day===new Date(now()).toISOString().slice(0,10))dc.value+=cost;};
  async function monthSpend(){
   const month=monthKey(now());
   if(!spendCache||spendCache.month!==month||now()-spendCache.loadedAt>60000){
@@ -97,7 +100,7 @@ export function createLLM(deps:Deps){
   throw new ProviderError('client',response.status+' '+text,null,response.status);
  }
  async function callOpenAI(entry:ModelEntry,request:LLMRequest,signal?:AbortSignal):Promise<LLMResponse>{
-  const model=openaiModel(request.class,request),body=forOpenAI({...(deps.openaiDefaults?.({...request,model})||{}),...request,model});
+  const model=entry.model!=='(caller)'?entry.model:openaiModel(request.class,request),body=forOpenAI({...(deps.openaiDefaults?.({...request,model})||{}),...request,model});
   const response=await post(catalog().providers.openai.base+'/responses',{Authorization:'Bearer '+key(entry)},body,entry.timeoutMs||65000,signal);
   const data=await response.json() as LLMResponse;if(!data.model)data.model=model;return data;
  }
@@ -178,14 +181,13 @@ export function createLLM(deps:Deps){
    let waitUntil=Infinity;
    for(const entry of entries){
     if(failed.has(entry.id))continue;
-    // A paid chat provider has a daily cap (<PROVIDER>_DAILY_USD, default $10): once today's spend reaches it, the
-    // chain moves on to the free models until midnight UTC.
-    if(entry.provider==='deepseek'){
-     const cap=Number(deps.env('DEEPSEEK_DAILY_USD')??10),day=new Date(now()).toISOString().slice(0,10);
-     const spent=dayCache.day===day&&now()-dayCache.at<60_000?dayCache.value:await (deps.usage.daySpend?.(day,'deepseek')??Promise.resolve(0)).then(v=>{dayCache.day=day;dayCache.at=now();dayCache.value=v;return v;}).catch(()=>dayCache.value);
+    // Paid providers have a daily cap (<PROVIDER>_DAILY_USD; defaults: DeepSeek $8, OpenAI $8) and share the monthly
+    // budget (LLM_MONTHLY_BUDGET_USD): once reached, the chain moves on to the free models until the next day/month.
+    if(entry.provider in DAILY_CAPPED&&cls!=='site-embed'&&cls!=='embed'){
+     const cap=Number(deps.env(entry.provider.toUpperCase()+'_DAILY_USD')??DAILY_CAPPED[entry.provider]),day=new Date(now()).toISOString().slice(0,10);
+     const dc=dayCache[entry.provider]??=({day:'',at:0,value:0});
+     const spent=dc.day===day&&now()-dc.at<60_000?dc.value:await (deps.usage.daySpend?.(day,entry.provider)??Promise.resolve(0)).then(v=>{dc.day=day;dc.at=now();dc.value=v;return v;}).catch(()=>dc.value);
      if(!(spent<cap)){if(!fallbacks.some(f=>f.model===entry.id))fallbacks.push({model:entry.id,reason:'daily_cap'});failed.add(entry.id);continue;}
-    }
-    if(entry.provider==='openai'&&cls!=='site-embed'&&cls!=='embed'){
      const s=await spend();
      if(s.overBudget){if(!fallbacks.some(f=>f.model===entry.id))fallbacks.push({model:entry.id,reason:'over_budget'});failed.add(entry.id);lastKind=lastKind||'budget';continue;}
     }
@@ -210,7 +212,7 @@ export function createLLM(deps:Deps){
       const e=error instanceof ProviderError?error:new ProviderError('server',error instanceof Error?error.message:String(error));
       lastKind=e.kind;
       log('LLM call failed',{model:entry.id,kind:e.kind,message:e.message.slice(0,300)});
-      await record({class:cls,provider:entry.provider,model:entry.provider==='openai'?openaiModel(cls,request):entry.model,status:'error:'+e.kind+(e.status?':'+e.status:''),latencyMs:now()-t0,inputTokens:0,cachedTokens:0,outputTokens:0,costUsd:0,webSearches:0,fallbackReason:null});
+      await record({class:cls,provider:entry.provider,model:entry.provider==='openai'&&entry.model==='(caller)'?openaiModel(cls,request):entry.model,status:'error:'+e.kind+(e.status?':'+e.status:''),latencyMs:now()-t0,inputTokens:0,cachedTokens:0,outputTokens:0,costUsd:0,webSearches:0,fallbackReason:null});
       if(!canFallBack())throw Error(e.kind==='rate'?'AI_LIMIT':'AI_UNAVAILABLE');
       const provider=catalog().providers[entry.provider];
       if(e.kind==='daily')tracker.exhaustDay(entry);
@@ -234,10 +236,11 @@ export function createLLM(deps:Deps){
    const t0=now();
    if(entry.provider==='openai'){
     const result=await callOpenAI(entry,request,signal),searches=(result.output||[]).filter(o=>o.type==='web_search_call').length,model=String(result.model||openaiModel(request.class,request));
-    return {result,usage:result.usage,info:{provider:'openai',model,catalogId:entry.id,latencyMs:now()-t0,costUsd:costUsd(model,result.usage,searches),webSearches:searches}};
+    const cost=costUsd(model,result.usage,searches);addDay('openai',cost);
+    return {result,usage:result.usage,info:{provider:'openai',model,catalogId:entry.id,latencyMs:now()-t0,costUsd:cost,webSearches:searches}};
    }
    const {webSearches,...result}=await callChat(entry,request,signal);
-   const cost=paidCost(entry,result.usage);if(cost&&dayCache.day===new Date(now()).toISOString().slice(0,10))dayCache.value+=cost;
+   const cost=paidCost(entry,result.usage);addDay(entry.provider,cost);
    return {result,usage:result.usage,info:{provider:entry.provider,model:entry.model,catalogId:entry.id,latencyMs:now()-t0,costUsd:cost,webSearches}};
   });
  }
@@ -256,7 +259,7 @@ export function createLLM(deps:Deps){
     return {result,usage:result.usage,info:{provider:entry.provider,model:entry.model,catalogId:entry.id,latencyMs:now()-t0,costUsd:paidCost(entry,result.usage),webSearches}};
    }
    if(!deps.readEvents)throw Error('LLM streaming is not configured.');
-   const model=openaiModel(request.class,request),body=forOpenAI({...(deps.openaiDefaults?.({...request,model})||{}),...request,model,stream:true});
+   const model=entry.model!=='(caller)'?entry.model:openaiModel(request.class,request),body=forOpenAI({...(deps.openaiDefaults?.({...request,model})||{}),...request,model,stream:true});
    const response=await post(catalog().providers.openai.base+'/responses',{Authorization:'Bearer '+key(entry)},body,entry.timeoutMs||120000,signal);
    if(!response.body)throw new ProviderError('server','no stream body');
    let completed:LLMResponse|undefined;const toolArguments=new Map<string,{name:string;text:string}>();

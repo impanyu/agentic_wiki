@@ -34,6 +34,10 @@ export const BASE_CATALOG:Catalog={
  models:Object.fromEntries([
   // "openai" = the model the caller selected (OPENAI_MODEL / OPENAI_AGENT_MODEL), passed through unchanged.
   m('openai','openai','(caller)','openai',chat({vision:true,reasoningEffort:true,context:400000,maxOutput:128000})),
+  // Fixed OpenAI models for the chains (prices in prices.ts): Luna is the low-cost tier (scored like Terra on our
+  // extraction and translation tests, 2026-11-23), Terra the stronger tier kept for escalations.
+  m('openai:luna','openai','gpt-5.6-luna','openai',chat({vision:true,reasoningEffort:true,context:400000,maxOutput:128000})),
+  m('openai:terra','openai','gpt-5.6-terra','openai',chat({vision:true,reasoningEffort:true,context:400000,maxOutput:128000})),
   m('openai:text-embedding-3-small','openai','text-embedding-3-small','openai',chat({tools:false}),{},{embed:{dims:1536,supportsDimensions:true,matryoshka:true,maxBatch:256}}),
   // NRP Nautilus managed LLMs. Fair Use Policy (nrp.ai/documentation/userdocs/ai/llm-managed/fair-use/, Nov 2026):
   // per-user concurrency kimi/glm-5 2, minimax/gemma 8, qwen3/deepseek-v4-flash/gpt-oss/qwen3-embedding 16; the gateway
@@ -41,6 +45,8 @@ export const BASE_CATALOG:Catalog={
   // context) are limited to 1 at a time. We stay a little under the published limits.
   m('nrp:qwen3','nrp','qwen3','qwen',chat({vision:true,context:262144,maxOutput:32768,thinkTags:true}),{concurrency:12},{timeoutMs:120000}),
   m('pool:local','pool','local','local',chat({context:131072,maxOutput:16384}),{concurrency:64},{timeoutMs:300000}),
+  // Our V100s (llama.cpp, a quantized model): extraction only.
+  m('pool:v100','pool','v100','local',chat({context:32768,maxOutput:8192}),{concurrency:16},{timeoutMs:300000}),
   m('deepseek:v4-flash','deepseek','deepseek-v4-flash','deepseek',chat({context:131072,maxOutput:32768}),{concurrency:64},{timeoutMs:120000}),
   m('nrp:deepseek-v4-flash','nrp','deepseek-v4-flash','deepseek',chat({context:131072,maxOutput:32768}),{concurrency:12},{timeoutMs:120000}),
   m('nrp:glm-5','nrp','glm-5','glm',chat({context:131072,maxOutput:32768,thinkTags:true}),{concurrency:2},{timeoutMs:120000}),
@@ -61,27 +67,31 @@ export const BASE_CATALOG:Catalog={
   // Groq free tier for gpt-oss-120b.
   m('groq:gpt-oss-120b','groq','openai/gpt-oss-120b','gpt-oss',chat({reasoningEffort:true,context:131072,maxOutput:32766}),{rpm:30,rpd:1000,tpm:8000,dayReset:'utc'}),
  ]),
+ // THE routing table: for each task, the preferred model first, then the fallbacks in order. Own GPUs (free) first,
+ // then low-cost paid models, free shared models as the reserve; the strong paid model (Terra) only when a task
+ // escalates. Paid models stop for the day at their daily cap (OPENAI_DAILY_USD, DEEPSEEK_DAILY_USD) and the
+ // month at LLM_MONTHLY_BUDGET_USD (all paid providers together).
+ // Removed 2026-11-23 after 3 days of production measurements (success rate per call): nrp:kimi 7%, nrp:gpt-oss 20%,
+ // nrp:glm-5 53%, nrp:qwen3 61%, nrp:minimax 69% as a builder (91% as a reviewer, kept there), groq:gpt-oss-120b 0%
+ // (our requests exceed its size limit), gemini:gemini-4-hydrogen 7% (daily quota), openrouter nemotron 70%.
  chains:{
-  premium:['openai'],
-  // Removed 2026-11-23 after 3 days of production measurements (success rate per call): nrp:kimi 7%, nrp:gpt-oss 20%,
-  // nrp:glm-5 53%, nrp:qwen3 61%, nrp:minimax 69% as a builder (91% as a reviewer, kept there), groq:gpt-oss-120b 0%
-  // (our requests exceed its size limit), gemini:gemini-4-hydrogen 7% (daily quota), openrouter nemotron 70%.
-  // Builders' chain (team editors and collectors): the strongest open models first, the commercial model last.
-  // Ordered by NRP's published standing (Artificial Analysis Intelligence Index): DeepSeek V4.1 Flash, then GLM-5.
-  agent:['pool:local','deepseek:v4-flash','nrp:deepseek-v4-flash','openai'],
-  // The team's reviewer: a model family other than the builders' (an independent check), the commercial model last.
-  review:['pool:local','nrp:minimax','openai'],
-  fast:['gemini:gemini-3.8-flash-lite','openai'],
-  // Page translation (background).
+  // Escalation: a task the agent chain failed (or a caller asking for the best model).
+  premium:['openai:terra'],
+  // Builders (team editors and collectors): Qwen3.5-122B on our L40S, DeepSeek V4 Flash, GPT-5.6 Luna, NRP's DeepSeek.
+  agent:['pool:local','deepseek:v4-flash','openai:luna','nrp:deepseek-v4-flash'],
+  // The team's reviewer: a model family other than the builder's where possible (an independent check).
+  review:['pool:local','nrp:minimax','openai:luna','deepseek:v4-flash'],
+  // Short background tasks.
+  fast:['gemini:gemini-3.8-flash-lite','openai:luna','deepseek:v4-flash'],
   // A reader is waiting (a page's first view in a language): only models that answer in seconds.
-  instant:['gemini:gemini-3.8-flash-lite','openai'],
-  // Never the builders' models (deepseek, glm-5, minimax, qwen3, kimi): translation must not slow the teams down.
-  translate:['gemini:gemini-3.8-flash-lite','pool:local','nrp:gemma','openai'],
+  instant:['gemini:gemini-3.8-flash-lite','openai:luna'],
+  // Page translation (background); never the builders' first choices, so translation does not slow the teams.
+  translate:['gemini:gemini-3.8-flash-lite','openai:luna','pool:local','nrp:gemma'],
   // Reading facts out of web pages at scale (recipes' llm_extract steps): only our own GPUs, never a paid model.
-  extract:['pool:local'],
-  // An agent testing extraction on a few pages before saving the recipe: our own model, else free models — never OpenAI.
-  'extract-test':['pool:local','nrp:deepseek-v4-flash','gemini:gemini-3.8-flash-lite'],
-  vision:['nrp:gemma','gemini:gemini-3.8-flash','openrouter:nemotron-3.5-super-vl','openai'],
+  extract:['pool:local','pool:v100'],
+  // An agent testing extraction on a few pages before saving the recipe: our own models, else free models.
+  'extract-test':['pool:local','pool:v100','nrp:deepseek-v4-flash','gemini:gemini-3.8-flash-lite'],
+  vision:['nrp:gemma','gemini:gemini-3.8-flash','openai:luna','openrouter:nemotron-3.5-super-vl'],
  },
  // premium -> (over budget or failing) -> the free part of this chain.
  premiumFallback:'agent',

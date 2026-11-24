@@ -17,7 +17,7 @@ const usage={
   return Number(row?.spent||0);
  },
  async monthSpend(month:string){
-  const row=await database().prepare("SELECT COALESCE(SUM(cost_usd),0) spent FROM llm_usage WHERE month=? AND provider='openai'").bind(month).first<{spent:number}>();
+  const row=await database().prepare("SELECT COALESCE(SUM(cost_usd),0) spent FROM llm_usage WHERE month=? AND provider IN ('openai','deepseek')").bind(month).first<{spent:number}>();
   return Number(row?.spent||0);
  },
 };

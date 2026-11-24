@@ -69,13 +69,15 @@ test('response translation: tool calls, text, usage, think tags and JSON fences;
 
 test('with only OPENAI_API_KEY every class resolves to OpenAI, the body passes through and cost is metered',async()=>{
  const h=harness({OPENAI_API_KEY:'k'},()=>reply(200,openaiReply('hi')));
- for(const c of ['premium','agent','fast','vision','review'])assert.deepEqual(h.llm.chain({class:c}).map(e=>e.id),['openai']);
+ // The routing table names the OpenAI tiers: Terra for escalations (then Luna), Luna everywhere else.
+ assert.deepEqual(h.llm.chain({class:'premium'}).map(e=>e.id),['openai:terra','openai:luna']);
+ for(const c of ['agent','fast','vision','review'])assert.deepEqual(h.llm.chain({class:c}).map(e=>e.id),['openai:luna']);
  const body={class:'fast',model:'gpt-5.4-mini',store:false,instructions:'x',input:'y',text:{format:{type:'json_object'}},reasoning:{effort:'none'}};
  const r=await h.llm.respond(body);
  assert.equal(h.calls[0].url,'https://api.openai.com/v1/responses');
- const {class:_,...sent}=body;assert.deepEqual(h.calls[0].body,sent);
+ const {class:_,...sent}=body;assert.deepEqual(h.calls[0].body,{...sent,model:'gpt-5.6-luna'});
  assert.equal(r.llm.provider,'openai');assert.equal(r.llm.class,'fast');
- assert.equal(h.rows[0].costUsd,(1000*0.75+100*4.5)/1e6);assert.equal(h.rows[0].month,'2026-11');
+ assert.equal(h.rows[0].costUsd,(1000*0.75+100*4.5)/1e6); // metered at the model the response reportsassert.equal(h.rows[0].month,'2026-11');
  assert.equal(L.costUsd('gpt-5.6-terra',{input_tokens:300000,output_tokens:1000,input_tokens_details:{cached_tokens:100000}}),(200000*4+100000*0.4+1000*18)/1e6);
  assert.equal(L.costUsd('gpt-5.4-mini',{input_tokens:0,output_tokens:0},2),0.02);
 });
@@ -121,7 +123,7 @@ test('budget exhaustion sends premium to the free chain until the 1st of next mo
  h.spend.value=month=>month==='2026-11'?50:0;
  const s=await h.llm.spend();assert.deepEqual([s.overBudget,s.budgetUsd,s.remainingUsd,s.resetsAt],[true,50,0,'2026-12-01T00:00:00.000Z']);
  const r=await h.llm.respond({class:'premium',model:'gpt-5.6-terra',input:'x'});
- assert.equal(r.llm.provider,'nrp');assert.deepEqual(r.llm.fallbacks[0],{model:'openai',reason:'over_budget'});
+ assert.equal(r.llm.provider,'nrp');assert.deepEqual(r.llm.fallbacks[0],{model:'openai:terra',reason:'over_budget'});
  h.setClock(Date.UTC(2026,11,1,0,1));
  const next=await h.llm.respond({class:'premium',model:'gpt-5.6-terra',input:'x'});
  assert.equal(next.llm.provider,'openai');assert.ok(h.spend.months.includes('2026-12'));
@@ -206,7 +208,7 @@ test('built-in web_search becomes a function tool backed by the search chain; no
  const o=harness({LLM_CATALOG_OVERRIDES:OLD_CHAINS,NRP_LLM_TOKEN:'n',OPENAI_API_KEY:'o'},()=>reply(200,openaiReply('x')));
  assert.deepEqual(o.llm.chain({class:'agent',tools:[{type:'web_search'}]}).map(e=>e.id),['openai']);
  assert.deepEqual(o.llm.chain({class:'agent',input:[{role:'user',content:[{type:'input_file',file_data:'x'}]}]}).map(e=>e.id),['openai']);
- assert.deepEqual(o.llm.chain({class:'fast',input:[{role:'user',content:[{type:'input_image',image_url:'u'}]}]}).map(e=>e.id),['openai','nrp:gemma']);
+ assert.deepEqual(o.llm.chain({class:'fast',input:[{role:'user',content:[{type:'input_image',image_url:'u'}]}]}).map(e=>e.id),['openai','nrp:gemma','openai:luna']);
 });
 
 test('the embedder is pinned to one model and dimension and never switches when it is down',async()=>{
