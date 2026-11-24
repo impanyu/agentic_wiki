@@ -38,5 +38,5 @@ test('interfaces (mixins): a type also has what its declared interfaces define, 
  assert.deepEqual(e.extends,['military_drone','military_equipment']);assert.deepEqual(e.interfaces,['iface_aircraft']);
  assert.deepEqual(e.schema.metrics.map(m=>m.key),['units_in_service','range_km','max_altitude_m','payload_kg','endurance_h']);
  assert.equal(e.template.sections.length,1,'interface sections come in too');
- inh.clearTypeCache();assert.deepEqual(await inh.withSubtypes(db,'iface_aircraft'),['iface_aircraft'],'an interface does not pull its users into its rankings');
+ inh.clearTypeCache();assert.deepEqual(await inh.withSubtypes(db,'iface_aircraft'),['iface_aircraft','military_drone','mq9'],'a class implementing an interface, and its subclasses, are its members');
 });

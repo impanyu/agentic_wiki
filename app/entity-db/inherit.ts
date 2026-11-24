@@ -83,9 +83,12 @@ export async function parentTypeFor(db:Queryable,topicId:string|null,self:string
 let subCache:{at:number;map:Map<string,string[]>}|null=null;
 export async function withSubtypes(db:Queryable,type:string):Promise<string[]>{
  if(!subCache||Date.now()-subCache.at>60_000){
-  // Interfaces do not pull the types that declare them into their rankings; a tag's members are tagged entities.
-  const rows=(await db.query<{type:string;parent:string|null}>("select type, schema->>'extends' parent from entity_types")).rows;
-  const kids=new Map<string,string[]>();for(const r of rows)if(r.parent){const l=kids.get(r.parent)??[];l.push(r.type);kids.set(r.parent,l);}
+  // An interface is class-level, like a class: its members are the classes that implement it (with all their
+  // subclasses: military drones implement aircraft, so every military drone is an aircraft) and the entities tagged
+  // with it one by one (entities.also_types, matched by the scope query).
+  const rows=(await db.query<{type:string;parent:string|null;ifaces:string[]|null}>("select type, schema->>'extends' parent, array(select jsonb_array_elements_text(case when jsonb_typeof(schema->'interfaces')='array' then schema->'interfaces' else '[]'::jsonb end)) ifaces from entity_types")).rows;
+  const kids=new Map<string,string[]>();const add=(p:string,c:string)=>{const l=kids.get(p)??[];l.push(c);kids.set(p,l);};
+  for(const r of rows){if(r.parent)add(r.parent,r.type);for(const i of r.ifaces||[])if(i!==r.type)add(i,r.type);}
   subCache={at:Date.now(),map:kids};
  }
  const out=[type],seen=new Set(out);
