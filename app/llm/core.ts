@@ -16,7 +16,7 @@ import type {LLMRequest,LLMResponse,OutputItem,StreamHandlers,TaskClass,InputIte
 export type UsageRow={createdAt:string;month:string;class:TaskClass;provider:string;model:string;status:string;latencyMs:number;inputTokens:number;cachedTokens:number;outputTokens:number;costUsd:number;webSearches:number;fallbackReason:string|null};
 export type UsageStore={record(row:UsageRow):Promise<void>;monthSpend(month:string):Promise<number>;daySpend?(day:string,provider:string):Promise<number>};
 export type Deps={
- pool?:{available(model:string):boolean;run(model:string,body:Record<string,unknown>,timeoutMs:number,signal?:AbortSignal,queueWaitMs?:number):Promise<any>};
+ pool?:{available(model:string):boolean;slots?(model:string):number|undefined;run(model:string,body:Record<string,unknown>,timeoutMs:number,signal?:AbortSignal,queueWaitMs?:number):Promise<any>};
  env:(name:string)=>string|undefined;fetch:typeof fetch;usage:UsageStore;now?:()=>number;
  openaiDefaults?:(body:Record<string,any>)=>Record<string,unknown>;
  readEvents?:(stream:ReadableStream<Uint8Array>)=>AsyncIterable<Record<string,unknown>>;
@@ -108,7 +108,7 @@ export function createLLM(deps:Deps){
   const provider=catalog().providers[entry.provider];
   let data:any;
   if(entry.provider==='pool'){
-   try{data=await deps.pool!.run(entry.model,{...toChat(body,entry,{webSearch:webSearchEnabled}) as Record<string,unknown>,...(entry.chatExtra||{})},entry.timeoutMs||300000,signal,(body as {__poolQueueMs?:number}).__poolQueueMs);}
+   try{data=await deps.pool!.run(entry.model,{...toChat(body,entry,{webSearch:webSearchEnabled}) as Record<string,unknown>,...(entry.chatExtra||{})},entry.timeoutMs||300000,signal,undefined);}
    // A busy pool is not an error of the model: no cooldown for everyone else (route waits in the queue as a last resort).
    catch(e){const m=(e as Error).message;throw new ProviderError(/timeout/.test(m)?'timeout':'server',m);}
   }else{
@@ -170,36 +170,77 @@ export function createLLM(deps:Deps){
   throw new ProviderError('invalid','tool rounds exhausted');
  }
 
- // ---------- routing ----------
+ // ---------- routing: a queue per task class ----------
+ // Like an operating system's scheduler: every request of a class has its chain of models (2–4 options, best first).
+ // It starts on the first model of its chain that has a free slot right now; when all of them are full it waits in
+ // its class's queue (first come, first served; interactive classes ahead of background work) and starts as soon as a
+ // slot on any of its models frees up. Models that cannot serve it at all (no key, daily cap or monthly budget reached,
+ // auth failure, failed on this request) are skipped. A request that waits past its class's limit fails.
+ const PRIORITY:Partial<Record<string,number>>={instant:9,review:6,premium:6,vision:5,agent:4,fast:3,extract:2,'extract-test':2,translate:1};
+ type Waiter={prio:number;at:number;pick:()=>{entry:ModelEntry;release:(t?:number)=>void}|null;wake:(p:{entry:ModelEntry;release:(t?:number)=>void})=>void};
+ const waiters:Waiter[]=[];let pumpTimer:ReturnType<typeof setTimeout>|null=null;
+ function pump(){
+  waiters.sort((a,b)=>b.prio-a.prio||a.at-b.at);
+  for(let k=0;k<waiters.length;){const w=waiters[k],got=w.pick();if(got){waiters.splice(k,1);w.wake(got);}else k++;}
+  // Slots also free up elsewhere (our GPUs serve the other process too; rate windows slide): look again shortly.
+  if(waiters.length&&!pumpTimer){pumpTimer=setTimeout(()=>{pumpTimer=null;pump();},500);(pumpTimer as {unref?:()=>void}).unref?.();}
+ }
+ // A model's slots: its configured concurrency; for our GPU pool, the slots its live workers report.
+ const slotsOf=(entry:ModelEntry)=>{const c=entry.limits.concurrency;const live=entry.provider==='pool'?deps.pool?.slots?.(entry.model):undefined;return typeof live==='number'?Math.min(c??live,live):c;};
+ const limited=(entry:ModelEntry):ModelEntry=>{const c=slotsOf(entry);return c===entry.limits.concurrency?entry:{...entry,limits:{...entry.limits,concurrency:c}};};
+ // Whether this request may use the entry at all now (not whether it has a free slot).
+ async function usable(entry:ModelEntry,cls:string,fallbacks:CallInfo['fallbacks']):Promise<'ok'|'budget'|'no'>{
+  if(entry.provider in DAILY_CAPPED&&cls!=='site-embed'&&cls!=='embed'){
+   // Paid providers have a daily cap (<PROVIDER>_DAILY_USD; defaults: DeepSeek $8, OpenAI $8) and share the monthly
+   // budget (LLM_MONTHLY_BUDGET_USD): once reached, the chain moves on to the free models until the next day/month.
+   const cap=Number(deps.env(entry.provider.toUpperCase()+'_DAILY_USD')??DAILY_CAPPED[entry.provider]),day=new Date(now()).toISOString().slice(0,10);
+   const dc=dayCache[entry.provider]??=({day:'',at:0,value:0});
+   const spent=dc.day===day&&now()-dc.at<60_000?dc.value:await (deps.usage.daySpend?.(day,entry.provider)??Promise.resolve(0)).then(v=>{dc.day=day;dc.at=now();dc.value=v;return v;}).catch(()=>dc.value);
+   if(!(spent<cap)){if(!fallbacks.some(f=>f.model===entry.id))fallbacks.push({model:entry.id,reason:'daily_cap'});return 'no';}
+   const s=await spend();
+   if(s.overBudget){if(!fallbacks.some(f=>f.model===entry.id))fallbacks.push({model:entry.id,reason:'over_budget'});return 'budget';}
+  }
+  const b=tracker.blocked(limited(entry),0);
+  // A daily quota or an auth failure lasts: skip. Concurrency, rate windows and short cooldowns pass: wait.
+  if(b&&(b.reason==='rpd'||/daily|auth/.test(b.reason))){if(!fallbacks.some(f=>f.model===entry.id))fallbacks.push({model:entry.id,reason:b.reason});return 'no';}
+  return 'ok';
+ }
+ const queueLimitMs=(cls:string)=>cls==='instant'?20_000:Number(deps.env('LLM_QUEUE_MAX_S')||1800)*1000;
  async function route<T>(request:LLMRequest,signal:AbortSignal|undefined,run:(entry:ModelEntry,fallbacks:CallInfo['fallbacks'])=>Promise<{result:T;info:Omit<CallInfo,'fallbacks'|'class'>;usage?:any}>,canFallBack:()=>boolean=()=>true):Promise<T>{
   const cls=request.class,entries=chain(request),fallbacks:CallInfo['fallbacks']=[],tokens=estimate(request);
   if(!entries.length){
    const any=Object.values(catalog().models).some(configured);
    throw Error(any?'AI_UNAVAILABLE':'AI_SETUP');
   }
-  const failed=new Set<string>();let lastKind='';const started=now();const poolBusy=new Set<string>();let queued=false;
+  const failed=new Set<string>();let lastKind='';const started=now(),prio=PRIORITY[cls]??3;
   while(true){
-   let waitUntil=Infinity;
-   for(const entry of entries){
-    if(failed.has(entry.id))continue;
-    // Paid providers have a daily cap (<PROVIDER>_DAILY_USD; defaults: DeepSeek $8, OpenAI $8) and share the monthly
-    // budget (LLM_MONTHLY_BUDGET_USD): once reached, the chain moves on to the free models until the next day/month.
-    if(entry.provider in DAILY_CAPPED&&cls!=='site-embed'&&cls!=='embed'){
-     const cap=Number(deps.env(entry.provider.toUpperCase()+'_DAILY_USD')??DAILY_CAPPED[entry.provider]),day=new Date(now()).toISOString().slice(0,10);
-     const dc=dayCache[entry.provider]??=({day:'',at:0,value:0});
-     const spent=dc.day===day&&now()-dc.at<60_000?dc.value:await (deps.usage.daySpend?.(day,entry.provider)??Promise.resolve(0)).then(v=>{dc.day=day;dc.at=now();dc.value=v;return v;}).catch(()=>dc.value);
-     if(!(spent<cap)){if(!fallbacks.some(f=>f.model===entry.id))fallbacks.push({model:entry.id,reason:'daily_cap'});failed.add(entry.id);continue;}
-     const s=await spend();
-     if(s.overBudget){if(!fallbacks.some(f=>f.model===entry.id))fallbacks.push({model:entry.id,reason:'over_budget'});failed.add(entry.id);lastKind=lastKind||'budget';continue;}
-    }
-    const block:Block|null=tracker.blocked(entry,tokens);
-    if(block){
-     if(!fallbacks.some(f=>f.model===entry.id&&f.reason===block.reason))fallbacks.push({model:entry.id,reason:block.reason});
-     if(block.reason==='rpd'||block.reason.startsWith('cooldown'))failed.add(entry.id);
-     waitUntil=Math.min(waitUntil,block.retryAt);continue;
-    }
+   const open:ModelEntry[]=[];
+   for(const entry of entries){if(failed.has(entry.id))continue;const u=await usable(entry,cls,fallbacks);if(u==='ok')open.push(entry);else{failed.add(entry.id);if(u==='budget')lastKind=lastKind||'budget';}}
+   if(!open.length){
+    if(lastKind==='budget')log('LLM monthly budget exhausted and no free model could serve the request',{class:cls});
+    throw Error(lastKind==='rate'||lastKind==='daily'||lastKind==='budget'?'AI_LIMIT':'AI_UNAVAILABLE');
+   }
+   // The first of its models with a free slot; the slot is taken at once so no one else gets it.
+   const take=(e:ModelEntry)=>{const r=tracker.acquire(e,tokens);let done=false;return (t?:number)=>{if(done)return;done=true;r(t);pump();};};
+   const pick=()=>{for(const e of open){if(failed.has(e.id))continue;if(!tracker.blocked(limited(e),tokens))return {entry:e,release:take(e)};}return null;};
+   // First come, first served: a newcomer does not overtake requests already waiting at its priority or above.
+   let got=waiters.some(w=>w.prio>=prio)?null:pick();
+   if(!got){
+    const left=queueLimitMs(cls)-(now()-started);
+    if(left<=0){for(const e of open){const b=tracker.blocked(limited(e),tokens);if(b&&!fallbacks.some(f=>f.model===e.id&&f.reason===b.reason))fallbacks.push({model:e.id,reason:b.reason});}throw Error('AI_LIMIT');}
+    got=await new Promise<{entry:ModelEntry;release:(t?:number)=>void}|null>((resolve,reject)=>{
+     const w:Waiter={prio,at:started,pick,wake:p=>{clearTimeout(timer);signal?.removeEventListener('abort',onAbort);resolve(p);}};
+     const drop=()=>{const k=waiters.indexOf(w);if(k>=0)waiters.splice(k,1);};
+     const timer=setTimeout(()=>{drop();signal?.removeEventListener('abort',onAbort);resolve(null);},Math.min(left,60_000));
+     const onAbort=()=>{clearTimeout(timer);drop();reject(signal?.reason??Error('aborted'));};
+     signal?.addEventListener('abort',onAbort,{once:true});
+     waiters.push(w);pump();
+    });
+    if(!got)continue;// re-check what is usable (a day or budget may have rolled over), then wait again
+   }
+   const entry=got.entry;let release=got.release,t0=now();
     for(let attempt=0;attempt<2;attempt++){
-     const release=tracker.acquire(entry,tokens),t0=now();
+     if(attempt>0){release=take(entry);t0=now();}
      try{
       const {result,info,usage}=await run(entry,fallbacks);
       release(usage?.total_tokens);
@@ -215,7 +256,6 @@ export function createLLM(deps:Deps){
       log('LLM call failed',{model:entry.id,kind:e.kind,message:e.message.slice(0,300)});
       await record({class:cls,provider:entry.provider,model:entry.provider==='openai'&&entry.model==='(caller)'?openaiModel(cls,request):entry.model,status:'error:'+e.kind+(e.status?':'+e.status:''),latencyMs:now()-t0,inputTokens:0,cachedTokens:0,outputTokens:0,costUsd:0,webSearches:0,fallbackReason:null});
       if(!canFallBack())throw Error(e.kind==='rate'?'AI_LIMIT':'AI_UNAVAILABLE');
-      if(entry.provider==='pool'&&/pool busy/.test(e.message)){poolBusy.add(entry.id);fallbacks.push({model:entry.id,reason:'busy'});failed.add(entry.id);break;}
       const provider=catalog().providers[entry.provider];
       if(e.kind==='daily')tracker.exhaustDay(entry);
       else if(e.kind==='rate'){const ms=e.retryAfter??provider.cooldownMs;if(ms>0)tracker.cooldown(entry,ms,'429');}
@@ -224,15 +264,6 @@ export function createLLM(deps:Deps){
       fallbacks.push({model:entry.id,reason:e.kind+(e.status?':'+e.status:'')});failed.add(entry.id);break;
      }
     }
-   }
-   // Everything usable is only briefly rate-limited: wait for the earliest slot.
-   const waiting=entries.some(e=>!failed.has(e.id));
-   if(waiting&&Number.isFinite(waitUntil)&&waitUntil-now()<=MAX_WAIT_MS&&now()-started<MAX_WAIT_MS){await sleep(Math.max(50,waitUntil-now()));signal?.throwIfAborted();continue;}
-   // Nothing else could serve it but our own GPUs were only busy: wait in their queue (up to POOL_QUEUE_WAIT_S, default
-   // 600 s) instead of failing — the request is answered when a GPU frees up.
-   if(poolBusy.size&&!queued&&!signal?.aborted&&cls!=='instant'){queued=true;for(const id of poolBusy)failed.delete(id);(request as {__poolQueueMs?:number}).__poolQueueMs=Number(deps.env('POOL_QUEUE_WAIT_S')||600)*1000;continue;}
-   if(lastKind==='budget')log('LLM monthly budget exhausted and no free model could serve the request',{class:cls});
-   throw Error(waiting||lastKind==='rate'||lastKind==='daily'||lastKind==='budget'?'AI_LIMIT':'AI_UNAVAILABLE');
   }
  }
 

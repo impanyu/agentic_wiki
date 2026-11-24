@@ -244,13 +244,22 @@ test('streaming: OpenAI streams natively; a Chat provider delivers the whole tur
  const seen=[];await assert.rejects(o.respondStream({class:'premium',input:'x'},{onTextDelta:d=>seen.push(d)}),/AI_UNAVAILABLE/);assert.deepEqual(seen,['Hel','lo']);
 });
 
-test('a busy pool does not cool down for everyone: with nothing else available the request waits in the pool queue',async()=>{
- let t=Date.UTC(2026,10,20,12);const waits=[];
- const llm=L.createLLM({env:n=>({LLM_CHAINS:JSON.stringify({chains:{agent:['pool:local']}})})[n],now:()=>t,sleep:async ms=>{t+=ms;},log:()=>{},fetch:async()=>{throw Error('no http');},
-  usage:{record:async()=>{},monthSpend:async()=>0},
-  pool:{available:()=>true,run:async(m,b,timeout,s,wait)=>{waits.push(wait);if(!wait)throw Error('pool busy: no worker took the request within 20 s');return chatReply({role:'assistant',content:'ok'});}}});
- const r=await llm.respond({class:'agent',input:'hi'});
- assert.equal(r.output.find(o=>o.type==='message').content[0].text,'ok');
- assert.deepEqual(waits,[undefined,600000],'first the short wait, then the long queue');
- await assert.rejects(llm.respond({class:'instant',input:'hi'}).catch(e=>{throw e;}),/AI_/,'interactive requests never wait long');
+test('scheduler: a request takes the first model of its chain with a free slot, else waits in its class queue (first come, first served)',async()=>{
+ const make=(chains,keys={})=>{const log=[];let gate=[];
+  const llm=L.createLLM({env:n=>({LLM_CHAINS:JSON.stringify({chains}),...keys})[n],now:()=>Date.UTC(2026,10,20,12),sleep:async()=>{},log:()=>{},
+   fetch:async(url,init)=>{const b=JSON.parse(init.body);log.push('deepseek:'+b.messages.at(-1).content);return reply(200,textReply('ds'));},
+   usage:{record:async()=>{},monthSpend:async()=>0,daySpend:async()=>0},
+   pool:{available:()=>true,slots:()=>1,run:async(m,b)=>{const tag=b.messages.at(-1).content;log.push('pool:'+tag);await new Promise(r=>gate.push(r));return chatReply({role:'assistant',content:'p-'+tag});}}});
+  return {llm,log,open:()=>{const g=gate;gate=[];g.forEach(r=>r());}};};
+ // One GPU slot, nothing else: the second and third wait, then run in arrival order.
+ {const {llm,log,open}=make({agent:['pool:local']});
+  const a=llm.respond({class:'agent',input:'a'}),b=llm.respond({class:'agent',input:'b'}),c=llm.respond({class:'agent',input:'c'});
+  await new Promise(r=>setTimeout(r,50));assert.deepEqual(log,['pool:a'],'one slot: only the first runs');
+  open();await a;await new Promise(r=>setTimeout(r,50));assert.deepEqual(log,['pool:a','pool:b']);
+  open();await b;await new Promise(r=>setTimeout(r,50));open();await c;assert.deepEqual(log,['pool:a','pool:b','pool:c'],'first come, first served');}
+ // GPU full → the next model of the chain takes the overflow at once.
+ {const {llm,log,open}=make({agent:['pool:local','deepseek:v4-flash']},{DEEPSEEK_API_KEY:'k'});
+  const a=llm.respond({class:'agent',input:'a'}),b=llm.respond({class:'agent',input:'b'});
+  const rb=await b;assert.equal(rb.output.find(o=>o.type==='message').content[0].text,'ds');open();await a;
+  assert.deepEqual(log,['pool:a','deepseek:b']);}
 });
