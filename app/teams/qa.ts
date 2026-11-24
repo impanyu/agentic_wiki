@@ -43,6 +43,20 @@ export async function checkRanking(db:Queryable,def:RankingDef):Promise<QaIssue[
    const main=k===String(def.config?.default||keys[0]).split('@')[0];
    if(share<QA.minCriterionCoverage)out.push({severity:main||share<0.2?'blocker':'major',owner:'collector',target:t+' → '+k,problem:`Criterion ${k} is measured for ${have} of ${n} entities (${Math.round(share*100)}%; at least ${Math.round(QA.minCriterionCoverage*100)}% needed).`,fix:'Collect it for the missing entities (other sources and markets), or the editor drops it from this ranking.'});}
  }
+ // Indices among the criteria: a stated method naming every input, and every input measured for most entities (an
+ // index computed from a few inputs, or from inputs most entities lack, is not what its name says).
+ if(keys.length){
+  const idx=(await db.query<{key:string;methodology:string;definition:Record<string,unknown>|null}>(`select distinct on (key) key, methodology, definition from metrics where kind='derived' and key=any($1::text[]) order by key, version desc`,[keys])).rows;
+  for(const x of idx){
+   const inputs=[...new Set((JSON.stringify(x.definition||{}).match(/"(?:metric|key|input)"\s*:\s*"([a-z0-9_]+)"/g)||[]).map(v=>v.replace(/.*"([a-z0-9_]+)"$/,'$1')).filter(k=>k!==x.key))];
+   if(String(x.methodology||'').trim().length<120)out.push({severity:'major',owner:'collector',target:t+' → '+x.key,problem:`Index ${x.key} has no stated method (methodology under 120 characters).`,fix:'Define the method: what it measures, each input, weights, normalization, how missing inputs are handled.'});
+   if(inputs.length){
+    const cov=(await db.query<{metric:string;n:number}>(`select o.metric, count(distinct o.entity_id)::int n from observations o join entities e on e.id=o.entity_id where ${m.where} and o.metric = any($${m.args.length+1}::text[]) group by o.metric`,[...m.args,inputs])).rows;
+    for(const k of inputs){const have=cov.find(c=>c.metric===k)?.n||0;
+     if(have<QA.minCriterionCoverage*n)out.push({severity:'major',owner:'collector',target:t+' → '+x.key+' ← '+k,problem:`Input ${k} of index ${x.key} is measured for ${have} of ${n} entities.`,fix:'Collect the input for the missing entities, or the editor redefines the index with inputs that exist for most entities.'});}
+   }
+  }
+ }
  // The grouping attribute (config.group: country, region, category…) known for nearly every entity, or the groups mislead.
  const group=typeof def.config?.group==='string'?def.config.group:'';
  if(group){const g=Number((await db.query<{n:number}>(`select count(*)::int n from entities e where ${m.where} and coalesce(e.attributes->>$${m.args.length+1}::text,'')<>''`,[...m.args,group])).rows[0]?.n||0);
@@ -52,37 +66,54 @@ export async function checkRanking(db:Queryable,def:RankingDef):Promise<QaIssue[
  if(keys.length){const {coverage}=await import('./tools');
   const gaps=(await coverage(def.scope.type!,keys.join(','),0)).historyGaps;
   for(const g of gaps)out.push({severity:'major',owner:'collector',target:t,problem:g,fix:'Load the earlier years in the metric\'s recipe, or declare_no_history naming the sources checked.'});}
- // A ranking not limited to a country must not be one country's data under a worldwide title.
- if(!def.scope.filters||!Object.keys(def.scope.filters).some(k=>/country|iso/i.test(k))){
-  const rows=(await db.query<{c:string;n:number}>(`select e.attributes->>'country' c, count(*)::int n from entities e where ${m.where} and e.attributes ? 'country' group by 1 order by 2 desc limit 3`,m.args)).rows;
-  const withCountry=rows.reduce((a,r)=>a+r.n,0),total=Number((await db.query<{n:number}>(`select count(*)::int n from entities e where ${m.where} and e.attributes ? 'country'`,m.args)).rows[0]?.n||0);
+ // A ranking not limited to a country must not be one country's data under a worldwide title. The country is read
+ // from any of the usual attributes, so leaving out "country" does not skip the check.
+ if(!def.scope.filters||!Object.keys(def.scope.filters).some(k=>/country|iso|market/i.test(k))){
+  const C="coalesce(nullif(e.attributes->>'country',''),nullif(e.attributes->>'country_code',''),nullif(e.attributes->>'iso2',''),nullif(e.attributes->>'iso3',''))";
+  const rows=(await db.query<{c:string;n:number}>(`select ${C} c, count(*)::int n from entities e where ${m.where} and ${C} is not null group by 1 order by 2 desc limit 3`,m.args)).rows;
+  const total=Number((await db.query<{n:number}>(`select count(*)::int n from entities e where ${m.where} and ${C} is not null`,m.args)).rows[0]?.n||0);
   const top=rows[0];
   if(top&&total>=0.8*n&&top.n/total>QA.maxCountryShare&&!named(def.title,top.c)){
-   const share=Math.round(top.n/total*100);void withCountry;
+   const share=Math.round(top.n/total*100);
    out.push({severity:'blocker',owner:'collector',target:t,problem:`${share}% of this ranking's entities are in ${top.c}, but its title ("${def.title}") presents it as covering everywhere.`,fix:`Collect the other countries' entities and data (each major market's own sources), so the ranking covers what its title says.`});
    out.push({severity:'blocker',owner:'editor',target:t,problem:`The ranking's title presents ${share}% ${top.c} data as a general ranking.`,fix:`Until the collector covers the other markets, limit the ranking to ${top.c} (scope.filters country, and the title names it), and keep the general ranking unpublished.`});
   }
+  // Entities of a place-bound type with no country: the geography of the ranking cannot be checked or shown.
+  if(total>0&&total<0.8*n)out.push({severity:'major',owner:'collector',target:t+' → country',problem:`The country is known for ${total} of ${n} entities.`,fix:'Fill the country attribute for every entity (from the universe source or Wikidata P17).'});
  }
  return out;
 }
 
-// Every ranking of the topic, plus the topic's own page: a topic whose rankings exist must have a main ranking ready.
+// Every ranking of the topic, plus the topic itself: each entity type of the topic has a main ranking (its whole
+// type, no filters) that passes, or the topic page has nothing to show; and no type duplicates another type's
+// entities (data about airports belongs on the airports, as metrics, not on a second "airport profile" type).
 export async function checkTopic(db:Queryable,topicId:string):Promise<{issues:QaIssue[];failing:string[]}>{
  const defs=await listRankingDefs(db,{topicId});const issues:QaIssue[]=[];const failing=new Set<string>();
  for(const d of defs){const x=await checkRanking(db,d).catch(e=>[{severity:'major' as const,owner:'collector' as const,target:d.slug,problem:'Quality check failed: '+(e as Error).message.slice(0,200),fix:'Check the ranking scope and data.'}]);
   if(x.length)failing.add(d.slug);issues.push(...x);}
+ const types=(await db.query<{type:string;n:number}>(`select et.type, (select count(*)::int from entities e where e.type=et.type) n from entity_types et where et.topic_id=$1::uuid`,[topicId])).rows;
+ for(const {type,n} of types){
+  if(n<1)continue;
+  const main=defs.filter(d=>d.scope?.type===type&&!Object.values(d.scope.filters||{}).some(v=>v!==null&&v!==''&&!(Array.isArray(v)&&!v.length)));
+  if(defs.some(d=>d.scope?.type===type)&&!main.some(d=>!failing.has(d.slug)))
+   issues.push({severity:'blocker',owner:'editor',target:type,problem:main.length?`The main ranking of ${type} (${main.map(d=>d.slug).join(', ')}) does not pass the quality gate, so the topic page has nothing to show.`:`${type} has sub-rankings but no main ranking over the whole type, so the topic page has nothing to show.`,fix:'Save (and get passing) a main ranking over the whole type before its sub-rankings.'});
+  const dup=(await db.query<{other:string;k:number}>(`select o.type other, count(distinct e.id)::int k from entities e join entities o on o.type<>e.type and ent_norm(o.name)=ent_norm(e.name)
+   where e.type=$1::text group by o.type order by 2 desc limit 1`,[type])).rows[0];
+  if(dup&&dup.k>=Math.max(5,0.5*n))issues.push({severity:'blocker',owner:'collector',target:type,problem:`${dup.k} of the ${n} ${type} entities are also ${dup.other} entities (same names): this type duplicates ${dup.other}.`,fix:`Load its data as metrics and attributes of the ${dup.other} entities, retire the duplicate type, and point its rankings at ${dup.other}.`});
+ }
  return {issues,failing:[...failing]};
 }
 
 // The whole site, on a schedule. Readers see published rankings and, while a topic is being built, its drafts; a
-// ranking that fails a blocker of the gate is "held" instead (readers never see it) and its team is queued for a
+// ranking with any finding of the gate is "held" instead (readers never see it) and its team is queued for a
 // review that fixes it. A held ranking that passes again returns to draft. Returns what it did.
 export async function qaSweep(db:Queryable,log:(e:Record<string,unknown>)=>void=()=>{}):Promise<{checked:number;held:string[];released:string[];queued:string[]}>{
  const defs=(await listRankingDefs(db)).filter(d=>['published','draft','held'].includes(d.status));
  const held:string[]=[],released:string[]=[];const topics=new Map<string,string[]>();
  for(const d of defs){
   const issues=await checkRanking(db,d).catch(()=>null);if(!issues)continue;
-  const blocked=issues.some(x=>x.severity==='blocker');
+  // Strict: any finding (blocker or major) keeps a ranking from readers until its team fixes it.
+  const blocked=issues.length>0;
   if(blocked&&d.status!=='held'){await db.query(`update rankings set status='held', updated_at=now() where slug=$1::text`,[d.slug]);held.push(d.slug);
    if(d.topicId)topics.set(d.topicId,[...(topics.get(d.topicId)||[]),d.slug]);}
   else if(!blocked&&d.status==='held'){await db.query(`update rankings set status='draft', updated_at=now() where slug=$1::text`,[d.slug]);released.push(d.slug);}

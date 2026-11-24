@@ -31,12 +31,20 @@ async function askOnce(role:Role,agent:Agent,topicId:string,instructions:string,
  const runId=await startTeamRun(db,{topicId,role,task:typeof task==='string'?task:JSON.stringify(task)});
  const ctx={userId:OWNER,ownerId:OWNER,language:'en',visibility:'public',agent:{id:agent.id}} as unknown as AgentContext;
  log({event:'agent_started',role,runId,llmClass});
- let calls=0;
+ let calls=0;const used:{tool:string;args:string}[]=[];
  try{
   const result=await askAgent(agent,instructions,task,schema,undefined,undefined,[],{
    llmClass,...(llmClass==='review'?{avoidModel:'deepseek-v4-flash'}:{}),timeoutMs:40*60_000,maxRounds:budget.rounds,
    // A verdict must rest on evidence gathered in this review.
-   ...(role==='reviewer'?{validateFinal:async()=>calls<6?'Check with your tools before deciding (coverage, preview_page of every ranking and several entity pages, spot checks against the source); then return the verdict.':undefined}:{}),
+   ...(role==='reviewer'?{validateFinal:async(response:any)=>{
+    if(calls<6)return 'Check with your tools before deciding (coverage, quality_check, preview_page of every ranking and several entity pages, spot checks against the source); then return the verdict.';
+    // Every ranking listed as ready must have been looked at in this review (preview_page of that ranking).
+    let ready:string[]=[];try{const text=(response?.output||[]).flatMap((o:any)=>o?.content||[]).map((c:any)=>c?.text||'').join('');ready=(JSON.parse(text).ready||[]).map(String);}catch{}
+    const unseen=ready.filter(slug=>!used.some(u=>u.tool==='preview_page'&&u.args.includes(slug)));
+    if(unseen.length)return 'You listed as ready rankings you did not preview in this review: '+unseen.slice(0,10).join(', ')+'. preview_page each (and check its data), or remove it from ready.';
+    if(!used.some(u=>u.tool==='coverage'))return 'Run coverage for the topic\'s entity types before deciding.';
+    if(!used.some(u=>u.tool==='quality_check'))return 'Run quality_check (the program\'s gate) before deciding.';
+    return undefined;}}:{}),
    // A collector's report is accepted only when the data refreshes by itself (no recipe problems for the topic's types).
    // A stage's own acceptance check replaces the role's default.
    ...(accept?{maxValidationRetries:3,validateFinal:async()=>accept()}:role==='collector'?{maxValidationRetries:3,validateFinal:async()=>{
@@ -45,7 +53,7 @@ async function askOnce(role:Role,agent:Agent,topicId:string,instructions:string,
    // A stage may narrow the tools to what its deliverable needs (focus: no browsing while loading).
    extraTools:tools?teamToolDefs(role).filter(t=>tools.includes(t.name)):teamToolDefs(role),executeExtra:(name,args)=>{if(tools&&!tools.includes(name))throw Error(name+' is not used in this stage; use: '+tools.join(', '));return runTeamTool(role,name,args,ctx,topicId);},
    onEvent:e=>{
-    if(e.kind==='tool_started'){calls++;const d=e.data as {tool:string;arguments:string};void logTeamCall(db,runId,{t:Date.now(),tool:d.tool,args:String(d.arguments).slice(0,2000)});log({event:'tool',role,tool:d.tool});}
+    if(e.kind==='tool_started'){calls++;const d=e.data as {tool:string;arguments:string};used.push({tool:d.tool,args:String(d.arguments)});void logTeamCall(db,runId,{t:Date.now(),tool:d.tool,args:String(d.arguments).slice(0,2000)});log({event:'tool',role,tool:d.tool});}
     else if(e.kind==='tool_finished'){const d=e.data as {tool:string;result:unknown};void logTeamCall(db,runId,{t:Date.now(),tool:d.tool,result:JSON.stringify(d.result).slice(0,3000)});}
    }});
   await finishTeamRun(db,runId,{status:'done',summary:JSON.stringify(result)});

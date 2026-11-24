@@ -98,7 +98,7 @@ async function teamState(type:string,topicId:string|null){
 }
 // Observation checks of a type, cached until its data changes: kept while computed more than a minute after the
 // type's last noted change (data_changes notes at most one change per minute) and the entity count is the same.
-type ObsChecks={rows:Record<string,unknown>[];latest:{metric:string;period:string;n:number}[];lacking:{metric:string;names:string[]}[];
+type ObsChecks={depth:{metric:string;med:number;mx:number}[];rows:Record<string,unknown>[];latest:{metric:string;period:string;n:number}[];lacking:{metric:string;names:string[]}[];
  zeroMetrics:{metric:string;zeros:number;n:number}[];allZero:string[];extremes:{metric:string;name:string;value:number;med:number}[]};
 const obsCache=new Map<string,{at:number;value:Promise<ObsChecks>}>();
 async function observationChecks(db:Awaited<ReturnType<typeof entityDb>>,type:string,keys:string[],total:number):Promise<ObsChecks>{
@@ -123,7 +123,11 @@ async function observationChecks(db:Awaited<ReturnType<typeof entityDb>>,type:st
    from observations o join entities e on e.id=o.entity_id where e.type=$1::text and o.metric=any($2::text[]) order by o.entity_id, o.metric, o.period desc) x group by metric, period`,[type,ms])).rows:[];
   const lacking=partial.length?(await db.query<{metric:string;names:string[]}>(`select m.metric, coalesce(l.names,'{}') names from unnest($2::text[]) m(metric) cross join lateral
    (select array_agg(name order by name) names from (select e.name from entities e where e.type=$1::text and not exists (select 1 from observations o where o.entity_id=e.id and o.metric=m.metric) order by e.name limit 12) z) l`,[type,partial])).rows:[];
-  return {rows,latest,lacking,zeroMetrics,allZero,extremes};
+  // History per entity: periods each entity has (median and best) — one entity with a long history does not hide
+  // hundreds loaded with only their latest year.
+  const depth=ms.length?(await db.query<{metric:string;med:number;mx:number}>(`select metric, percentile_disc(0.5) within group (order by k)::int med, max(k)::int mx
+   from (select o.metric, o.entity_id, count(distinct o.period)::int k from observations o join entities e on e.id=o.entity_id where e.type=$1::text and o.metric=any($2::text[]) group by 1,2) x group by metric`,[type,ms])).rows:[];
+  return {depth,rows,latest,lacking,zeroMetrics,allZero,extremes};
  })();
  obsCache.set(key,{at:Date.now(),value});value.catch(()=>{if(obsCache.get(key)?.value===value)obsCache.delete(key);});
  while(obsCache.size>300)obsCache.delete(obsCache.keys().next().value!);
@@ -163,7 +167,11 @@ export async function coverage(typeRaw:string,metricsCsv:string,expected:number)
  // since 1997, World Bank since 1960) that pages show as trends and rankings over time. Each one is either loaded
  // with its history or recorded as having none (record_sources, why) — derived indices follow their inputs.
  const declared=new Set((await db.query<{key:string}>(`select key from platform_state where key like $1::text`,['nohistory:'+type+':%']).catch(()=>({rows:[] as {key:string}[]}))).rows.map(r=>r.key.slice(('nohistory:'+type+':').length)));
- const historyGaps=rows.filter(r=>!r.derived&&Number(r.periods)<=2&&!declared.has(String(r.metric))).map(r=>`Metric ${r.metric}: only ${r.periods===1?'one period ('+r.last+')':'2 periods ('+r.first+', '+r.last+')'} — load every earlier year the source (or another source) offers, in its recipe; if no source anywhere has history, declare_no_history with the sources you checked.`);
+ const depthOf=(m:string)=>obs.depth.find(d=>d.metric===m);
+ const historyGaps=rows.filter(r=>!r.derived&&!declared.has(String(r.metric))).flatMap(r=>{const m=String(r.metric),d=depthOf(m);
+  if(Number(r.periods)<=2)return [`Metric ${m}: only ${r.periods===1?'one period ('+r.last+')':'2 periods ('+r.first+', '+r.last+')'} — load every earlier year the source (or another source) offers, in its recipe; if no source anywhere has history, declare_no_history with the sources you checked.`];
+  if(d&&d.mx>=5&&d.med<=2&&d.med<d.mx/3)return [`Metric ${m}: most entities have only ${d.med} period(s) while some have ${d.mx} — the history was loaded for a few entities only; load every entity's earlier years (or declare_no_history if the source truly has none for them).`];
+  return [];});
  return {type,entities:total,expected:expected||null,universeCoverage:expected?Math.round(total/expected*1000)/10+'%':null,entitiesWithoutStandardId:noIds,possibleDuplicates:dupes,metrics:perMetric,
   // Data must stay fresh by itself: every metric needs a recipe that loads it, and every recipe must have run successfully.
   metricsWithoutRecipe:notInRecipes,recipes:recipeHealth,dataProblems,historyGaps,toVerify,
@@ -248,7 +256,10 @@ export async function runTeamTool(role:Role,name:string,args:Record<string,unkno
   case 'save_ranking':{const def=await saveRankingDef(db,{slug:String(args.slug),title:String(args.title),scope:json(args.scopeJson,'scopeJson'),criteria:String(args.criteria||'').split(','),config:json(args.configJson||'{}','configJson'),topicId});
    // The ranking's view vectors are ready before anyone searches for it (the heartbeat retries a failure).
    await embedNow(def.id).catch(e=>console.warn('ranking vectors deferred',(e as Error).message));
-   return {data:def};}
+   // Checked at once: a ranking with a quality-gate finding is held from readers until it passes (the sweep releases it).
+   const {checkRanking}=await import('./qa');const qa=await checkRanking(db,def).catch(()=>[]);
+   if(qa.length&&def.status!=='published')await db.query(`update rankings set status='held', updated_at=now() where slug=$1::text`,[def.slug]);
+   return {data:{...def,...(qa.length?{status:def.status==='published'?def.status:'held',qualityGate:qa}:{})}};}
   case 'save_plan':{
    const editorId=await topicEditorId(db,topicId);if(!editorId)throw Error('No topic.');
    const items=json(args.itemsJson,'itemsJson');if(!Array.isArray(items)||!items.length||items.length>50)throw Error('itemsJson: a list of 1–50 items.');

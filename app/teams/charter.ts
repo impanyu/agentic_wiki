@@ -169,7 +169,11 @@ const unavailableOf=(c:Ctx)=>unavailable(c.r),replacementsOf=(c:Ctx)=>replacemen
 // Measured metrics loaded with one or two periods although no one declared that history does not exist.
 const historyGaps=async(c:Ctx)=>{const out:string[]=[];for(const t of await listEntityTypes(c.db,c.topic.id))out.push(...(await coverage(t.type,'',0)).historyGaps);return out;};
 // The collector's report is accepted once every metric refreshes by itself and carries its history.
+// Everything the collector's gates check, as a list (recipes, history, data problems of every type of the topic).
+const dataProblems=async(c:Ctx)=>{const out:string[]=[];for(const t of await listEntityTypes(c.db,c.topic.id)){const v=await coverage(t.type,'',0);out.push(...v.recipeProblems,...v.historyGaps,...(v.dataProblems||[]));}return out;};
 const dataGate=async(c:Ctx,prefix:string)=>{const p=await recipeProblems(c);if(p.length)return prefix+'fix these first (save_recipe with complete steps, then run_recipe until it succeeds): '+p.slice(0,8).join(' ');
+ const d:string[]=[];for(const t of await listEntityTypes(c.db,c.topic.id))d.push(...((await coverage(t.type,'',0)).dataProblems||[]));
+ if(d.length)return prefix+'fix these data problems (correct the recipe, fix or remove wrong rows): '+d.slice(0,8).join(' ');
  const h=await historyGaps(c);return h.length?prefix+'load the history of these metrics (every earlier year the source or another source offers, in the recipe), or declare_no_history with the sources you checked: '+h.slice(0,8).join(' '):undefined;};
 const recipeProblems=async(c:Ctx)=>{const out:string[]=[];for(const t of await listEntityTypes(c.db,c.topic.id))out.push(...(await coverage(t.type,'',0)).recipeProblems);return out;};
 const S={
@@ -254,6 +258,9 @@ const earlyReview:Node={id:'early-review',role:'reviewer',title:'review the firs
 // fails it is never listed as ready, and the work is not approved while any remain.
 async function withQa(c:Ctx,v:Verdict):Promise<Verdict>{
  const qa=await checkTopicQa(c.db,c.topic.id);
+ // The collector's stage gates (recipes that refresh, history, data problems) bind the review too: a stage that
+ // gave up on its gate does not slip through to publication.
+ const gate=await dataProblems(c);for(const g of gate)qa.issues.push({severity:'major',owner:'collector',target:'data',problem:g,fix:'Fix it (recipe, history, wrong rows) and run_recipe until coverage is clean.'});
  if(qa.issues.length)c.log({event:'qa_failed',rankings:qa.failing,issues:qa.issues.length});
  const fail=new Set(qa.failing);
  return {...v,approved:v.approved&&!qa.issues.length,ready:(v.ready||[]).filter(r=>!fail.has(r)),issues:[...v.issues,...qa.issues.map(x=>({...x,problem:'[quality gate] '+x.problem}))]};
@@ -274,14 +281,14 @@ const review:Node={id:'review',role:'reviewer',title:'independent review',onFail
 // Issues go to their owner: the collector fixes the data first, then the editor fixes the pages over it.
 const fix:Node={id:'fix',role:'collector, editor',title:'owners fix the issues',onFail:'skip',run:async(s,c)=>{
  const v=s.verdict as Verdict;const forCollector=v.issues.filter(x=>x.owner==='collector'),forEditor=v.issues.filter(x=>x.owner==='editor');const out:Record<string,unknown>={};
- if(forCollector.length)out.collector=await teamAsk('collector',c.agents.collector,c.topic.id,COLLECTOR+'\nThe reviewer sent these issues back to you: fix every one, then report.',{...c.info,step:'fix',issues:forCollector},REPORT_SCHEMA,c.log,{rounds:45,calls:105}).catch(e=>({failed:(e as Error).message}));
+ if(forCollector.length)out.collector=await teamAsk('collector',c.agents.collector,c.topic.id,COLLECTOR+'\nThe reviewer sent these issues back to you: fix every one, then report.',{...c.info,step:'fix',issues:forCollector},REPORT_SCHEMA,c.log,{rounds:45,calls:105},()=>dataGate(c,'Not fixed yet — ')).catch(e=>({failed:(e as Error).message}));
  if(forEditor.length||forCollector.length)out.editor=await teamAsk('editor',c.agents.editor,c.topic.id,EDITOR_BUILD+'\nThe reviewer sent these issues back (the collector has fixed its own): fix every one of yours, recheck the pages, then report.',{...c.info,step:'fix',issues:forEditor},REPORT_SCHEMA,c.log,{rounds:36,calls:75}).catch(e=>({failed:(e as Error).message}));
  return {rounds:[...((s.rounds as unknown[])||[]),out]};
 }};
 // Still disputed after the fix rounds: the manager rules (binding); the owners apply what the rulings require.
 const arbitrate:Node={id:'arbitrate',role:'manager',title:'binding ruling on disputes',onFail:'skip',run:async(s,c)=>{
  const manager=await spawnAgent('team-manager',OWNER);const v=s.verdict as Verdict;
- const ruling=await teamAsk('manager',manager,c.topic.id,MANAGER,{...c.info,step:'arbitrate',issues:teamIssues(v),reviewerSummary:v.summary},RULING_SCHEMA,c.log,{rounds:36,calls:60});
+ const ruling=await teamAsk('manager',manager,c.topic.id,MANAGER,{...c.info,step:'arbitrate',issues:teamIssues(v).filter(x=>!String(x.problem).startsWith('[quality gate]')),programChecks:'The program\'s quality-gate findings are not disputable and are not yours to rule on.',reviewerSummary:v.summary},RULING_SCHEMA,c.log,{rounds:36,calls:60});
  if((ruling as {rulings:{ruling:string}[]}).rulings.some(r=>r.ruling==='reviewer_right')){
   await teamAsk('collector',c.agents.collector,c.topic.id,COLLECTOR+'\nThe manager ruled on the open issues (binding). Do what the rulings require of you, then report.',{...c.info,step:'apply-ruling',ruling},REPORT_SCHEMA,c.log,{rounds:45,calls:105}).catch(()=>null);
   await teamAsk('editor',c.agents.editor,c.topic.id,EDITOR_BUILD+'\nThe manager ruled on the open issues (binding). Do what the rulings require of you, recheck the pages, then report.',{...c.info,step:'apply-ruling',ruling},REPORT_SCHEMA,c.log,{rounds:36,calls:75}).catch(()=>null);
@@ -299,8 +306,9 @@ const publish:Node={id:'publish',role:'system',title:'publish approved work, rep
  if(!v.approved&&teamIssues(v).length)await raiseIssue(db,{source:'team',topic:slug,severity:'major',title:'Team not approved after the manager ruled',
   detail:'Open issues:\n'+teamIssues(v).map(x=>'- '+JSON.stringify(x).slice(0,600)).join('\n')+'\nReviewer: '+v.summary.slice(0,1500),fingerprint:'team-stuck:'+slug}).catch(()=>{});
  if(v.approved||!teamIssues(v).length){
-  const failing=new Set((await checkTopicQa(db,topic.id)).failing);
-  for(const r of await listRankingDefs(db,{topicId:topic.id}))if(!failing.has(r.slug))await setStatus(db,'ranking',r.slug,'published');
+  // Only what the reviewer looked at and listed as ready, and what passes the program's gate.
+  const failing=new Set((await checkTopicQa(db,topic.id)).failing),ready=new Set(v.ready||[]);
+  for(const r of await listRankingDefs(db,{topicId:topic.id}))if(ready.has(r.slug)&&!failing.has(r.slug))await setStatus(db,'ranking',r.slug,'published');
   for(const t of await listEntityTypes(db,topic.id))await setStatus(db,'type',t.type,'published');
   await placeTopic(slug,log).catch(e=>log({event:'topic_place_failed',error:(e as Error).message}));
  }
