@@ -47,6 +47,9 @@ export const BASE_CATALOG:Catalog={
   // context) are limited to 1 at a time. We stay a little under the published limits.
   m('nrp:qwen3','nrp','qwen3','qwen',chat({vision:true,context:262144,maxOutput:32768,thinkTags:true}),{concurrency:12},{timeoutMs:120000}),
   m('pool:local','pool','local','local',chat({vision:true,context:131072,maxOutput:16384}),{concurrency:64},{timeoutMs:300000}),
+  // The same Qwen3.5-122B on HCC guest H200s (fastest; borrowed, so it may be taken back at any time): its own seat,
+  // first in line where pool:local is, offered only while its worker checks in.
+  m('pool:h200','pool','h200','local',chat({vision:true,context:131072,maxOutput:16384}),{concurrency:64},{timeoutMs:300000}),
   // Our smaller GPUs (the RTX 6000 machine, the V100s; ~30B models): extraction, translation, short tasks — never the
   // builders' work.
   m('pool:small','pool','small','local',chat({context:32768,maxOutput:8192}),{concurrency:16},{timeoutMs:300000,
@@ -86,11 +89,11 @@ export const BASE_CATALOG:Catalog={
   // Escalation: a task the agent chain failed (or a caller asking for the best model).
   premium:['openai:terra'],
   // Builders (team editors and collectors): Qwen3.5-122B on our L40S, GPT-5.6 Luna, DeepSeek V4 Flash.
-  agent:['pool:local','openai:luna','deepseek:v4-flash'],
+  agent:['pool:h200','pool:local','openai:luna','deepseek:v4-flash'],
   // The team's reviewer: a model family other than the builder's where possible (an independent check).
   // The reviewer is the quality gate's judgement: the strongest affordable model first (within OpenAI's daily cap),
   // then our own.
-  review:['openai:terra','pool:local','openai:luna'],
+  review:['openai:terra','pool:h200','pool:local','openai:luna'],
   // Short background tasks.
   fast:['pool:small','gemini:gemini-3.8-flash-lite','openai:luna'],
   // A reader is waiting (a page's first view in a language): only models that answer in seconds. Our RTX 6000 answers

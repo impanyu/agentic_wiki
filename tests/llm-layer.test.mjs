@@ -249,7 +249,7 @@ test('scheduler: a request takes the first model of its chain with a free slot, 
   const llm=L.createLLM({env:n=>({LLM_CHAINS:JSON.stringify({chains}),...keys})[n],now:()=>Date.UTC(2026,10,20,12),sleep:async()=>{},log:()=>{},
    fetch:async(url,init)=>{const b=JSON.parse(init.body);log.push('deepseek:'+b.messages.at(-1).content);return reply(200,textReply('ds'));},
    usage:{record:async()=>{},monthSpend:async()=>0,daySpend:async()=>0},
-   pool:{available:()=>true,slots:()=>1,run:async(m,b)=>{const tag=b.messages.at(-1).content;log.push('pool:'+tag);await new Promise(r=>gate.push(r));return chatReply({role:'assistant',content:'p-'+tag});}}});
+   pool:{available:m=>m==='local',slots:()=>1,run:async(m,b)=>{const tag=b.messages.at(-1).content;log.push('pool:'+tag);await new Promise(r=>gate.push(r));return chatReply({role:'assistant',content:'p-'+tag});}}});
   return {llm,log,open:()=>{const g=gate;gate=[];g.forEach(r=>r());}};};
  // One GPU slot, nothing else: the second and third wait, then run in arrival order.
  {const {llm,log,open}=make({agent:['pool:local']});
