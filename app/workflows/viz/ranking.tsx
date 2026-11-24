@@ -109,7 +109,7 @@ export default function Ranking({props,setValue,fire,ctx}:VizProps){
  const [query,setQuery]=useState('');
  const [group,setGroup]=useState<string|null>(null);
  // Soft paging: every listed row is in the page (and its HTML); the reader reveals them PAGE at a time.
- const [shown,setShown]=useState(PAGE);
+ const [page,setPage]=useState(0);
  const [geoError,setGeoError]=useState('');
  const charts=useRef<Record<string,Chart|null>>({});
  const tableWrap=useRef<HTMLDivElement>(null);
@@ -188,15 +188,18 @@ export default function Ranking({props,setValue,fire,ctx}:VizProps){
  // Table: every entity; search and group filters keep the overall ranks.
  const q=query.trim().toLowerCase();
  // A new criterion or filter starts the list from the top.
- useEffect(()=>{if(tableWrap.current)tableWrap.current.scrollTop=0;setShown(PAGE);},[critKey,group,q]);
+ useEffect(()=>{setPage(0);},[critKey,group,q,period]);
  const match=(e:Entry)=>inGroup(e)&&(!q||e.name.toLowerCase().includes(q));
  const tRanked=ranked.filter(match),tMissing=missing.filter(match);
- // A ranking stops at ROW_CAP: the top 1,000 on the criterion in view. The first `shown`
- // are visible, the rest are in the HTML but hidden until the reader asks for more.
- const limit=shown,cap=ROW_CAP;
+ // A ranking stops at ROW_CAP: the top 1,000 on the criterion in view, in pages of PAGE (50). Every row is in the
+ // HTML (search engines read the whole ranking); only the current page is visible.
+ const cap=ROW_CAP;
  const showRanked=tRanked.filter(e=>e.rank!=null&&e.rank<=cap).slice(0,cap),showMissing:typeof tMissing=[];// entities without data on this criterion are not ranked and not listed
  const listed=showRanked.length+showMissing.length,total=tRanked.length;
- const hidden=Math.max(0,listed-limit);
+ const pages=Math.max(1,Math.ceil(listed/PAGE)),pg=Math.min(page,pages-1),from=pg*PAGE,to=Math.min(listed,from+PAGE);
+ const goPage=(n:number)=>{setPage(Math.max(0,Math.min(pages-1,n)));tableWrap.current?.scrollIntoView({block:'start',behavior:'smooth'});};
+ // Page numbers: the first, the last, and two on each side of the current one.
+ const pageList=(()=>{const out:(number|'…')[]=[];for(let i=0;i<pages;i++){if(i===0||i===pages-1||Math.abs(i-pg)<=2)out.push(i);else if(out[out.length-1]!=='…')out.push('…');}return out;})();
 
  if(!c)return <figure className="wf-viz wf-rank"><div className="wf-rank-empty">{t('No criteria to rank by.')}</div></figure>;
  const title=typeof props.title==='string'?props.title:'',subtitle=typeof props.subtitle==='string'?props.subtitle:'',source=typeof props.source==='string'?props.source:'';
@@ -207,7 +210,7 @@ export default function Ranking({props,setValue,fire,ctx}:VizProps){
 
  const row=(e:Entry,i:number)=>{
   const share=shareOf(e,summary,locale);const medal=e.rank!=null&&e.rank<=3?e.rank:0;
-  return <tr key={e.index} hidden={i>=limit} className={(e.rank==null?'wf-rank-nodata ':'')+(medal?'wf-rank-top':'')} style={{['--d' as any]:Math.min(i,24)*18+'ms'}}
+  return <tr key={e.index} hidden={i<from||i>=to} className={(e.rank==null?'wf-rank-nodata ':'')+(medal?'wf-rank-top':'')} style={{['--d' as any]:Math.min(i,24)*18+'ms'}}
    onClick={()=>pick(e)} onMouseEnter={()=>hover(e,true)} onMouseLeave={()=>hover(e,false)}>
    <td className="wf-rank-pos">{e.rank==null?<span className="wf-rank-dash">—</span>:<span className={'wf-rank-badge'+(medal?' m'+medal:'')}>{e.rank}</span>}</td>
    <td className="wf-rank-name">
@@ -275,12 +278,15 @@ export default function Ranking({props,setValue,fire,ctx}:VizProps){
     </tbody>
    </table>
   </div>
-  {(hidden>0||shown>PAGE||total>listed)&&<div className="wf-rank-more">
-   {hidden>0&&<button type="button" onClick={()=>setShown(n=>n+PAGE)}>{t('Show {count} more',{count:Math.min(PAGE,hidden).toLocaleString(locale)})}</button>}
-   {hidden>PAGE&&<button type="button" onClick={()=>setShown(ROW_CAP)}>{t('Show all {count}',{count:listed.toLocaleString(locale)})}</button>}
-   {hidden===0&&shown>PAGE&&<button type="button" onClick={()=>{setShown(PAGE);tableWrap.current?.scrollIntoView({block:'nearest'});}}>{t('Show fewer')}</button>}
+  {(pages>1||total>listed)&&<nav className="wf-rank-pager" aria-label={t('Pages')}>
+   {pages>1&&<>
+    <span className="wf-rank-range">{t('{from}–{to} of {count}',{from:(from+1).toLocaleString(locale),to:to.toLocaleString(locale),count:listed.toLocaleString(locale)})}</span>
+    <button type="button" disabled={pg===0} onClick={()=>goPage(pg-1)} aria-label={t('Previous page')}>‹</button>
+    {pageList.map((n,k)=>n==='…'?<span key={'e'+k} className="wf-rank-gap">…</span>:<button key={n} type="button" className={n===pg?'on':''} aria-current={n===pg?'page':undefined} onClick={()=>goPage(n)}>{(n+1).toLocaleString(locale)}</button>)}
+    <button type="button" disabled={pg>=pages-1} onClick={()=>goPage(pg+1)} aria-label={t('Next page')}>›</button>
+   </>}
    {total>listed&&<span className="wf-rank-capnote">{t('Rankings list the top {n}.',{n:cap.toLocaleString(locale)})}</span>}
-  </div>}
+  </nav>}
   {views.length>0&&<div className={'wf-rank-chart '+active}>
    <div className="wf-rank-charttools">
     {views.length>1?<div className="wf-rank-viewbar"><span className="wf-rank-viewlabel">{t('Charts')}</span><div className="wf-rank-views" role="tablist" aria-label={t('Charts')}>{views.map(v=>{const Icon=VIEW_ICONS[v];return <button key={v} type="button" role="tab" aria-selected={v===active} className={v===active?'on':''} onClick={()=>setViewKind(v)}><Icon size={15} aria-hidden="true"/>{t(VIEW_LABELS[v])}</button>;})}</div></div>
