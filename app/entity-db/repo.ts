@@ -42,7 +42,7 @@ export type RelationColumn={predicate:string;type?:string;by?:string;create?:boo
 export type Provenance={source:string;retrievedAt?:string|Date};
 export type UpsertResult={rows:number;inserted:number;merged:number;skipped:number;observations:number;relations:number;unresolved:number;idConflicts:number;errors:string[];entityIds:string[];units:{column:string;from:string;to:string;factor:number}[]};
 
-type Match={id:string;ids:Record<string,string>;tsv:string};
+type Match={id:string;ids:Record<string,string>;tsv:string;t?:string};
 // Identity rule:
 // 1. any shared standard id (ids keys) → same entity; wikidata matches across types, other keys within the type;
 //    when ids point at different entities the first (wikidata first) wins and the conflicting keys are not written;
@@ -53,6 +53,16 @@ export const keyLabel=(key:string)=>{const s=String(key||'').replace(/_+/g,' ').
 const labelOf=(label:string|undefined,key:string)=>{const l=String(label||'').trim();return !l||l===key||/^[a-z0-9]+(_[a-z0-9]+)+$/.test(l)?keyLabel(key):l;};
 // Footnote marks a source table puts after a name ("Lewis Hamilton~", "Ayrton Senna^", "Name†") are not part of it.
 export const cleanName=(name:string)=>String(name||'').trim().replace(/(?<=[\p{L}\p{N}).])\s*[~^*†‡§¶]+$/u,'').trim();
+async function isAncestor(q:Queryable,maybeAncestor:string,type:string){const {typeChain}=await import('./inherit');return (await typeChain(q,type)).slice(1).some(t=>t.type===maybeAncestor);}
+async function recordCandidates(q:Queryable,id:string,name:string,ids:Record<string,string>,family:string[],country:string){
+ const others=new Set<string>();
+ for(const [k,v] of Object.entries(ids)){for(const r of (await q.query<{id:string}>(`select id from entities where ids @> $1::jsonb and not (type = any($2::text[])) and id<>$3::uuid limit 5`,[JSON.stringify({[k]:v}),family,id])).rows)others.add(r.id+'|id '+k);}
+ const n=(await q.query<{id:string;c:string|null}>(`select id, attributes->>'country' c from entities where id<>$1::uuid and not (type = any($2::text[]))
+  and (ent_norm(name) = ent_norm($3::text) or (length(ent_norm(name)) >= 4 and ent_norm($3::text) like '% ' || ent_norm(name)))
+  limit 8`,[id,family,name])).rows;
+ for(const r of n)if(!country||!r.c||r.c===country)others.add(r.id+'|name');
+ for(const o of others){const [b,reason]=o.split('|');await q.query(`insert into entity_candidates(a,b,reason) values ($1::uuid,$2::uuid,$3::text) on conflict do nothing`,[id,b,reason]);}
+}
 export async function upsertEntity(q:Queryable,input:EntityInput):Promise<{id:string;action:'inserted'|'merged';idConflicts:number}>{
  const type=normalizeType(input.type),name=cleanName(String(input.name||'')).slice(0,300);
  if(!name)throw Error('An entity needs a name.');
@@ -65,7 +75,7 @@ export async function upsertEntity(q:Queryable,input:EntityInput):Promise<{id:st
  const family=await typeFamily(q,type).catch(()=>[type]);
  for(const k of order){
   const global=GLOBAL_ID_KEYS.includes(k as never);
-  const r=await q.query<Match>('select id, ids, tsv::text as tsv from entities where ids @> $1::jsonb and ($3::boolean or type = any($2::text[])) limit 1',[JSON.stringify({[k]:ids[k]}),family,global]);
+  const r=await q.query<Match>('select id, ids, tsv::text as tsv, type t from entities where ids @> $1::jsonb and ($3::boolean or type = any($2::text[])) limit 1',[JSON.stringify({[k]:ids[k]}),family,global]);
   const row=r.rows[0];if(!row)continue;
   if(!target)target=row;else if(row.id!==target.id){drop.add(k);conflicts++;}
  }
@@ -86,6 +96,10 @@ export async function upsertEntity(q:Queryable,input:EntityInput):Promise<{id:st
   const r=await q.query<{id:string}>(`insert into entities(type,name,aliases,description,ids,attributes,image,page_id,topic_id)
    values ($1::text,$2::text,ent_merge_aliases($2::text,$3::text[]),$4::text,$5::jsonb,$6::jsonb,nullif($7::text,''),nullif($8::text,''),$9::uuid) returning id`,
    [type,name,aliases,description,JSON.stringify(writeIds),JSON.stringify(attributes),image,pageId,topicId]);
+  // System-wide: anything outside the family that may be the same thing (the same standard id under another type,
+  // the same name, or a name that is another entity's name with a prefix: "Expat destination India") is recorded
+  // as a candidate; the resolver (app/entity-db/dedup.ts) judges each pair and merges the same ones.
+  await recordCandidates(q,r.rows[0].id,name,ids,family,String((input.attributes as Record<string,unknown>|undefined)?.country??'')).catch(()=>{});
   return {id:r.rows[0].id,action:'inserted',idConflicts:conflicts};
  }
  const r=await q.query<{tsv:string}>(`update entities set aliases = ent_merge_aliases(name, aliases || $2::text[]), ids = $3::jsonb || ids,
@@ -94,6 +108,9 @@ export async function upsertEntity(q:Queryable,input:EntityInput):Promise<{id:st
    where id = $1::uuid returning tsv::text as tsv`,[target.id,[name,...aliases],JSON.stringify(writeIds),JSON.stringify(attributes),description,image,pageId,topicId]);
  // Text that feeds the embedding changed → re-embed later.
  if(r.rows[0]?.tsv!==target.tsv)await q.query('update entities set embedding = null where id = $1::uuid',[target.id]);
+ // The entity found under another type is also one of this type (a research university that is also an Asian
+ // university): it joins this type's rankings without a second record.
+ if(target.t&&target.t!==type&&!(await isAncestor(q,type,target.t)))await q.query(`update entities set also_types=array(select distinct unnest(also_types||$2::text[])) where id=$1::uuid`,[target.id,[type]]).catch(()=>{});
  return {id:target.id,action:'merged',idConflicts:conflicts};
 }
 
@@ -313,7 +330,7 @@ export async function inScope(db:Queryable,scope:Scope,entityId:string):Promise<
 async function scopeSql(q:Queryable,p:Params,scope:Scope,a='e'):Promise<string>{
  const parts:string[]=['true'];
  // A type includes its subtypes (types that extend it): a ranking of a type ranks every entity that is one.
- if(scope.type){const {withSubtypes}=await import('./inherit');parts.push(`${a}.type = any(${p.add(await withSubtypes(q,normalizeType(scope.type)))}::text[])`);}
+ if(scope.type){const {withSubtypes}=await import('./inherit');const tp=p.add(await withSubtypes(q,normalizeType(scope.type)));parts.push(`(${a}.type = any(${tp}::text[]) or ${a}.also_types && ${tp}::text[])`);}
  if(scope.topicId){if(!UUID.test(scope.topicId))throw Error('Invalid topicId.');parts.push(`${a}.topic_id = ${p.add(scope.topicId)}::uuid`);}
  const entries=Object.entries(scope.filters||{});
  if(!entries.length)return parts.join(' and ');

@@ -37,6 +37,24 @@ test('migrations are versioned and idempotent',async()=>{
  for(const name of ['topics','editors','roadmap_items','inbox','entities','metrics','observations','rankings','sources','relations','schema_version'])assert.ok(t.rows.some(r=>r.table_name===name),name);
 });
 
+test('identity across the system: one record per thing in a type family, overlap joins also_types, other types become candidates',async()=>{
+ await db.query("insert into entity_types(type,label,schema) values ('institution','Institution','{}'::jsonb),('univ','University','{\"extends\":\"institution\"}'::jsonb),('research_univ','Research university','{\"extends\":\"univ\"}'::jsonb),('asian_univ','Asian university','{\"extends\":\"univ\"}'::jsonb),('expat_dest','Expat destination','{}'::jsonb) on conflict do nothing");
+ const {clearFamilyCache}=await import(new URL('dedup.mjs',out));clearFamilyCache();
+ const u=await db.tx(q=>repo.upsertEntity(q,{type:'research_univ',name:'Peking University',attributes:{country:'China'}}));
+ // A sibling type (both extend univ) finds the same record; it joins asian_univ through also_types.
+ const v=await db.tx(q=>repo.upsertEntity(q,{type:'asian_univ',name:'Peking University',attributes:{country:'China'}}));
+ assert.equal(v.id,u.id);assert.equal(v.action,'merged');
+ assert.deepEqual((await db.query("select also_types from entities where id=$1::uuid",[u.id])).rows[0].also_types,['asian_univ']);
+ assert.ok(await repo.inScope(db,{type:'asian_univ'},u.id),'an also-type entity is in that type\'s scope');
+ // Same name in another country: a different university.
+ const w=await db.tx(q=>repo.upsertEntity(q,{type:'asian_univ',name:'Peking University',attributes:{country:'Taiwan'}}));
+ assert.notEqual(w.id,u.id);
+ // An unrelated type with a prefixed name: a candidate pair for the resolver, not a silent duplicate.
+ const c=await db.tx(q=>repo.upsertEntity(q,{type:'country',name:'Japan'}));
+ const e=await db.tx(q=>repo.upsertEntity(q,{type:'expat_dest',name:'Expat destination Japan'}));
+ assert.notEqual(e.id,c.id);
+ assert.equal((await db.query("select count(*)::int n from entity_candidates where a=$1::uuid and b=$2::uuid",[e.id,c.id])).rows[0].n,1);
+});
 test('identity resolution: QID merge, alias match, types kept apart, conflicting ids',async()=>{
  const a=await db.tx(q=>repo.upsertEntity(q,{type:'country',name:'United States',ids:{wikidata:'http://www.wikidata.org/entity/Q30'},attributes:{region:'Americas'}}));
  assert.equal(a.action,'inserted');
