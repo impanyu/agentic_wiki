@@ -68,7 +68,12 @@ export async function checkRanking(db:Queryable,def:RankingDef):Promise<QaIssue[
   for(const g of gaps)out.push({severity:'major',owner:'collector',target:t,problem:g,fix:'Load the earlier years in the metric\'s recipe, or declare_no_history naming the sources checked.'});}
  // A ranking not limited to a country must not be one country's data under a worldwide title. The country is read
  // from any of the usual attributes, so leaving out "country" does not skip the check.
- if(!def.scope.filters||!Object.keys(def.scope.filters).some(k=>/country|iso|market/i.test(k))){
+ // Only for types whose schema (its own, inherited along the topic tree, or from an interface) declares a country:
+ // a protein or a chemical element has none and is never asked for one.
+ const {effectiveType}=await import('@/app/entity-db/inherit');
+ const attrs=((await effectiveType(db,def.scope.type!)).schema.attributes as unknown[]||[]).map(a=>typeof a==='string'?a:String((a as {key?:string})?.key??''));
+ const placeBound=attrs.some(k=>/^(country|country_code|iso2|iso3)$/i.test(k));
+ if(placeBound&&(!def.scope.filters||!Object.keys(def.scope.filters).some(k=>/country|iso|market/i.test(k)))){
   const C="coalesce(nullif(e.attributes->>'country',''),nullif(e.attributes->>'country_code',''),nullif(e.attributes->>'iso2',''),nullif(e.attributes->>'iso3',''))";
   const rows=(await db.query<{c:string;n:number}>(`select ${C} c, count(*)::int n from entities e where ${m.where} and ${C} is not null group by 1 order by 2 desc limit 3`,m.args)).rows;
   const total=Number((await db.query<{n:number}>(`select count(*)::int n from entities e where ${m.where} and ${C} is not null`,m.args)).rows[0]?.n||0);
@@ -79,7 +84,7 @@ export async function checkRanking(db:Queryable,def:RankingDef):Promise<QaIssue[
    out.push({severity:'blocker',owner:'editor',target:t,problem:`The ranking's title presents ${share}% ${top.c} data as a general ranking.`,fix:`Until the collector covers the other markets, limit the ranking to ${top.c} (scope.filters country, and the title names it), and keep the general ranking unpublished.`});
   }
   // Entities of a place-bound type with no country: the geography of the ranking cannot be checked or shown.
-  if(total>0&&total<0.8*n)out.push({severity:'major',owner:'collector',target:t+' → country',problem:`The country is known for ${total} of ${n} entities.`,fix:'Fill the country attribute for every entity (from the universe source or Wikidata P17).'});
+  if(total<0.8*n)out.push({severity:'major',owner:'collector',target:t+' → country',problem:`The country is known for ${total} of ${n} entities.`,fix:'Fill the country attribute for every entity (from the universe source or Wikidata P17).'});
  }
  return out;
 }
