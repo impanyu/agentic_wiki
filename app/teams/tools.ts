@@ -113,7 +113,8 @@ async function observationChecks(db:Awaited<ReturnType<typeof entityDb>>,type:st
    from (select distinct on (o.entity_id, o.metric) o.entity_id, o.metric, o.value from observations o join entities t on t.id=o.entity_id where t.type=$1::text order by o.entity_id, o.metric, o.period desc) o join entities e on e.id=o.entity_id where o.value>0),
   m as (select metric, percentile_cont(0.5) within group (order by value) med from v where rn<=20 group by metric having count(*)>=10)
   select v.metric, v.name, v.value, m.med from v join m using (metric) where v.rn<=5 and v.value > 20*m.med order by v.metric, v.value desc limit 15`,[type])).rows;
-  const rows=(await db.query(`select o.metric, count(distinct o.entity_id)::int entities, min(o.period) first, max(o.period) last, count(*)::int observations
+  const rows=(await db.query(`select o.metric, count(distinct o.entity_id)::int entities, min(o.period) first, max(o.period) last, count(distinct o.period)::int periods, count(*)::int observations,
+   bool_and(o.source like 'derived:%') derived
    from observations o join entities e on e.id=o.entity_id where e.type=$1::text and (cardinality($2::text[])=0 or o.metric=any($2::text[])) group by o.metric order by o.metric`,[type,keys])).rows;
   const ms=rows.map(r=>String(r.metric)),partial=rows.filter(r=>Number(r.entities)<total).map(r=>String(r.metric));
   const latest=ms.length?(await db.query<{metric:string;period:string;n:number}>(`select metric, period, count(*)::int n from (select distinct on (o.entity_id, o.metric) o.metric, o.period
@@ -156,9 +157,13 @@ export async function coverage(typeRaw:string,metricsCsv:string,expected:number)
  // Values far above the rest of the top (more than 20× the median of the top 20) are often a source's typo or wrong
  // unit: each must be checked against a second source before the ranking is published.
  const toVerify=extremes.map(x=>`${x.name}: ${x.metric} = ${x.value} (the top 20's median is ${Math.round(x.med)}) — confirm with a second source, or correct it.`);
+ // Measured data with one or two periods: most statistical sources publish years of history (ACS since 2005, BEA
+ // since 1997, World Bank since 1960) that pages show as trends and rankings over time. Each one is either loaded
+ // with its history or recorded as having none (record_sources, why) — derived indices follow their inputs.
+ const historyGaps=rows.filter(r=>!r.derived&&Number(r.periods)<=2).map(r=>`Metric ${r.metric}: only ${r.periods===1?'one period ('+r.last+')':'2 periods ('+r.first+', '+r.last+')'} — load every earlier year the source (or another source) offers, in its recipe; if no source has history, record that with record_sources.`);
  return {type,entities:total,expected:expected||null,universeCoverage:expected?Math.round(total/expected*1000)/10+'%':null,entitiesWithoutStandardId:noIds,possibleDuplicates:dupes,metrics:perMetric,
   // Data must stay fresh by itself: every metric needs a recipe that loads it, and every recipe must have run successfully.
-  metricsWithoutRecipe:notInRecipes,recipes:recipeHealth,dataProblems,toVerify,
+  metricsWithoutRecipe:notInRecipes,recipes:recipeHealth,dataProblems,historyGaps,toVerify,
   recipeProblems:[...notInRecipes.map(m=>'No recipe loads metric '+m+': it will never be refreshed.'),...recipeHealth.filter(r=>r.lastOk!==true).map(r=>'Recipe '+r.name+(r.lastRunAt?' failed its last run.':' has never been run (run_recipe).')),...recipeHealth.flatMap(r=>r.problems.map(p=>r.name+': '+p))]};
 }
 // Entities per type (a full count of the entities table): shared by the teams' calls for a few minutes.

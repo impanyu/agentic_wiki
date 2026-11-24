@@ -29,17 +29,27 @@ async function answer(job){
   await post('/api/llm/pool/result',{worker:WORKER,id:job.id,ok:false,error:e.message}).catch(()=>{});}
  finally{busy--;}
 }
+let lastWaitAt=0,lastWait=0;
+async function localWaiting(){
+ if(Date.now()-lastWaitAt<1500)return lastWait;lastWaitAt=Date.now();
+ try{const r=await fetch(LOCAL.replace(/\/v1\/?$/,'')+'/metrics',{signal:AbortSignal.timeout(3000)});if(!r.ok)return lastWait=0;
+  const m=/^vllm:num_requests_waiting\{[^}]*\}\s+([0-9.e+]+)/m.exec(await r.text());return lastWait=m?Number(m[1]):0;}
+ catch{return lastWait=0;}
+}
 async function loop(){
  console.log(`worker ${WORKER}: ${SLOTS} slots, serving "${POOL_MODEL}" with ${LOCAL_MODEL} at ${LOCAL}, pulling from ${URL_}`);
  while(!stopping){
-  const free=SLOTS-busy;
+  // A local server that already queues requests (vLLM's num_requests_waiting) takes no more: waiting here would only
+  // add latency, while an unclaimed request goes on to the next model within seconds.
+  const queued=await localWaiting();
+  const free=queued>0?0:SLOTS-busy;
   try{
    const r=await post('/api/llm/pool/claim',{worker:WORKER,models:[POOL_MODEL],max:free,info:{local:LOCAL_MODEL,slots:SLOTS,busy,done,failed}},AbortSignal.timeout(40_000));
    if(!r.ok){console.warn('claim: HTTP',r.status,(await r.text()).slice(0,200));await new Promise(s=>setTimeout(s,10_000));continue;}
    const {jobs=[]}=await r.json();
    for(const j of jobs)void answer(j);
    // All slots busy: only a heartbeat every 30 s; otherwise ask again at once (the claim itself waits for work).
-   if(free<=0)await new Promise(s=>setTimeout(s,30_000));
+   if(free<=0)await new Promise(s=>setTimeout(s,queued>0?2_000:30_000));
    else if(!jobs.length)await new Promise(s=>setTimeout(s,200));
   }catch(e){console.warn('claim failed:',e.message);await new Promise(s=>setTimeout(s,10_000));}
  }
