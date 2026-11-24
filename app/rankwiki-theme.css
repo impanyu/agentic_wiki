@@ -529,3 +529,6 @@ html,body{background:var(--rw-bg)}
  .wf-rank-podium .wf-rank-avatar{width:34px;height:34px}.wf-rank-podium li.p1 .wf-rank-avatar{width:42px;height:42px}
  .wf-rank-podium li{padding:14px 6px 12px}.wf-rank-podium li.p1{padding-top:18px;padding-bottom:16px}
 }
+.wf-rank-podium-val{white-space:nowrap}
+.wf-rank-podium-val .short{display:none}
+@media (max-width:640px){.wf-rank-podium-val .full{display:none}.wf-rank-podium-val .short{display:inline}}

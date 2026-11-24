@@ -133,6 +133,8 @@ export default function Ranking({props,setValue,fire,ctx}:VizProps){
  const values=useMemo(()=>ranked.map(e=>e.value!),[ranked]);
  const fmt=useMemo(()=>c?makeFormatter(c,values,locale):(n:number|null)=>String(n??'—'),[c,values,locale]);
  const axisFmt=useMemo(()=>c?makeFormatter(c,values,locale,{unit:false,compact:true}):fmt,[c,values,locale,fmt]);
+ // The podium on a phone: the short form (17.8M people), so the number stays on one line.
+ const shortFmt=useMemo(()=>c?makeFormatter(c,values,locale,{compact:true}):fmt,[c,values,locale,fmt]);
  const groups=useMemo(()=>groupsOf(entries),[entries]);
  const colorOf=useMemo(()=>{const m=new Map(groups.map((g,i)=>[g,PALETTE[i%PALETTE.length]]));return (e:Entry)=>e.group&&m.get(e.group)||PALETTE[0];},[groups]);
  const maxAbs=useMemo(()=>values.reduce((m,v)=>Math.max(m,Math.abs(v)),0)||1,[values]);
@@ -264,7 +266,7 @@ export default function Ranking({props,setValue,fire,ctx}:VizProps){
    <Medal place={e.rank as 1|2|3}/>
    <Avatar e={e} color={colorOf(e)}/>
    <span className="wf-rank-podium-name">{l.href?<a href={l.href} rel={l.rel} onClick={ev=>ev.stopPropagation()}>{e.name}</a>:e.name}</span>
-   <span className="wf-rank-podium-val">{fmt(e.value!)}</span>
+   <span className="wf-rank-podium-val"><span className="full">{fmt(e.value!)}</span><span className="short">{shortFmt(e.value!)}</span></span>
    {share&&<span className="wf-rank-podium-share">{share.kind==='share'?share.text:t('Top {pct}',{pct:share.text})}</span>}
   </li>;})}</ol>}
 
