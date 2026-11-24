@@ -299,6 +299,12 @@ export const MIGRATIONS:Migration[]=[
   'create table if not exists entity_candidates(a uuid not null references entities(id) on delete cascade, b uuid not null references entities(id) on delete cascade, reason text not null default \'\', verdict text, judged_at timestamptz, created_at timestamptz not null default now(), primary key(a,b))',
   'create index if not exists entity_candidates_pending on entity_candidates(created_at) where verdict is null',
  ]},
+ // Team runs are leased: several team worker processes take queued teams (competing consumers); a lease whose holder
+ // stopped renewing it (a crash, a restart) goes back to the queue.
+ {version:23,name:'team queue leases',statements:()=>[
+  'alter table team_queue add column if not exists worker text',
+  'alter table team_queue add column if not exists heartbeat_at timestamptz',
+ ]},
 ];
 export const SCHEMA_VERSION=MIGRATIONS[MIGRATIONS.length-1].version;
 

@@ -194,12 +194,16 @@ export async function runManagerDaily(log:Log=()=>{}):Promise<{decisions:number;
 // TEAM_MONTHLY_BUDGET_USD (default 200). A run interrupted by a restart goes back to the queue.
 const running=new Set<string>();
 let recovered=false;
+// This process's name in the team queue: stable across its restarts (systemd instance), so it reclaims its own
+// interrupted teams at once; other processes' teams are reclaimed only when their lease expires.
+const INSTANCE=process.env.RANKWIKI_INSTANCE||(process.env.RANKWIKI_ROLE||'app')+':'+(process.env.PORT||'');
 export async function runTeamQueue(spentUsd:()=>Promise<number>,log:(slug:string,e:Record<string,unknown>)=>void=()=>{}):Promise<string[]>{
  const db=await entityDb();
  const max=Math.max(0,Number(process.env.TEAM_CONCURRENCY||2)),cap=Number(process.env.TEAM_MONTHLY_BUDGET_USD||200);
- // Teams marked running that this process did not start were cut off by a restart (a deploy): back to the queue at
- // once on the first tick, else after 4 hours.
- await db.query(`update team_queue set status='queued' where status='running' and ($2::boolean or started_at < now() - interval '4 hours') and not (slug = any($1::text[]))`,[[...running],!recovered]);
+  // Leases: renew ours; teams whose holder stopped renewing (3 minutes), or ours from before a restart, go back to the queue.
+ if(running.size)await db.query(`update team_queue set heartbeat_at=now() where worker=$1::text and slug = any($2::text[]) and status='running'`,[INSTANCE,[...running]]);
+ await db.query(`update team_queue set status='queued', worker=null where status='running' and not (slug = any($1::text[]) and worker=$2::text)
+  and ((worker=$2::text and not $3::boolean) or coalesce(heartbeat_at, started_at) < now() - interval '3 minutes')`,[[...running],INSTANCE,recovered]);
  recovered=true;
  const started:string[]=[];
  while(running.size<max){
@@ -207,7 +211,7 @@ export async function runTeamQueue(spentUsd:()=>Promise<number>,log:(slug:string
    const {raiseIssue}=await import('@/app/ops/issues');
    await raiseIssue(db,{source:'scheduler',severity:'major',title:'Team queue paused: monthly model budget reached',detail:`This month's model spending reached TEAM_MONTHLY_BUDGET_USD (${cap}). Queued teams wait until next month unless the budget is raised.`,fingerprint:'budget:'+new Date().toISOString().slice(0,7)}).catch(()=>{});
    break;}
-  const next=(await db.query<{slug:string;name:string;brief:string;note:string}>(`update team_queue set status='running', started_at=now() where slug = (select slug from team_queue where status='queued' order by priority desc, created_at limit 1 for update skip locked) returning slug, name, brief, note`)).rows[0];
+  const next=(await db.query<{slug:string;name:string;brief:string;note:string}>(`update team_queue set status='running', started_at=now(), worker=$1::text, heartbeat_at=now() where slug = (select slug from team_queue where status='queued' order by priority desc, created_at limit 1 for update skip locked) returning slug, name, brief, note`,[INSTANCE])).rows[0];
   if(!next)break;
   running.add(next.slug);started.push(next.slug);
   const {runTopicTeam,workflowOf}=await import('./run');
@@ -216,12 +220,12 @@ export async function runTeamQueue(spentUsd:()=>Promise<number>,log:(slug:string
   const kind=workflowOf(String(next.note||''),hasPages);
   void runTopicTeam({slug:next.slug,name:next.name,brief:next.brief,kind,note:String(next.note||''),log:e=>log(next.slug,e)})
    // A team with subtopics still to cover goes back to the queue for its next focus.
-   .then(res=>res.more?db.query(`update team_queue set status='queued', started_at=null, finished_at=now(), note='build: next subtopic' where slug=$1::text`,[next.slug])
+   .then(res=>res.more?db.query(`update team_queue set status='queued', started_at=null, worker=null, finished_at=now(), note='build: next subtopic' where slug=$1::text`,[next.slug])
     :db.query(`update team_queue set status='done', finished_at=now(), note=$2::text where slug=$1::text`,[next.slug,res.verdict.approved?'approved':'not approved']))
    .catch(async e=>{
     const {transientModelError}=await import('./run');
     // No model available for now: back to the queue, behind the others (it resumes from its checkpoint).
-    if(transientModelError(e)){await db.query(`update team_queue set status='queued', started_at=null, created_at=now() where slug=$1::text`,[next.slug]);log(next.slug,{event:'requeued',reason:String((e as Error).message).slice(0,200)});return;}
+    if(transientModelError(e)){await db.query(`update team_queue set status='queued', started_at=null, worker=null, created_at=now() where slug=$1::text`,[next.slug]);log(next.slug,{event:'requeued',reason:String((e as Error).message).slice(0,200)});return;}
     await db.query(`update team_queue set status='failed', finished_at=now(), note=$2::text where slug=$1::text`,[next.slug,String((e as Error).message).slice(0,500)]);
     const {raiseIssue}=await import('@/app/ops/issues');
     await raiseIssue(db,{source:'scheduler',topic:next.slug,severity:'major',title:'Team run crashed',detail:String((e as Error).stack||e).slice(0,4000),fingerprint:'team-crash:'+next.slug}).catch(()=>{});})

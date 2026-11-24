@@ -22,7 +22,10 @@ case "${1:-status}" in
  deploy)
   sha=${2:?usage: rankwiki.sh deploy <sha>}
   cd "$DIR" && git fetch -q origin rankwiki && git checkout -q "$sha"
-  SERVICE=rankwiki APP_PORT=3002 DATA_DIR=$DIR/data sh scripts/deploy/install-release.sh "$sha";;
+  SERVICE=rankwiki APP_PORT=3002 DATA_DIR=$DIR/data sh scripts/deploy/install-release.sh "$sha"
+  # The background processes: the worker (model scheduler, maintenance) and the team workers.
+  sudo systemctl restart rankwiki-worker || true
+  for u in $(systemctl list-units --plain --no-legend 'rankwiki-teams@*' | awk '{print $1}'); do sudo systemctl restart "$u" || true; done;;
  status)
   echo "service: $(systemctl is-active rankwiki)"; curl -s localhost:3002/api/health; echo
   sudo docker ps --filter name=rankwiki-pg --format '{{.Names}} {{.Status}}' || true

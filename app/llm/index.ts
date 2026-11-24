@@ -46,7 +46,7 @@ export function respondStream(request:LLMRequest,handlers:StreamHandlers,signal?
 export function embedderLocal():Embedder{return llm().embedder();}
 export function embedder():Embedder{
  const local=embedderLocal();
- if(process.env.RANKWIKI_ROLE!=='web')return local;
+ if(process.env.RANKWIKI_ROLE!=='web'&&process.env.RANKWIKI_ROLE!=='teams')return local;
  return Object.assign(async(texts:string[],signal?:AbortSignal)=>{const r=await import('./remote');return r.delegated()?r.viaScheduler('embed',{texts},()=>local(texts,signal),signal):local(texts,signal);},{model:local.model,dims:local.dims});
 }
 // The site's question/page-profile vectors (text-embedding-3-small, 512 dims). Never changes.

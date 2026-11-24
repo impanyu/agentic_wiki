@@ -8,7 +8,8 @@ export function schedulerAuthorized(request:Request){
  const want=token(),got=request.headers.get('x-llm-scheduler')||'';
  return !!want&&got.length===want.length&&timingSafeEqual(Buffer.from(got),Buffer.from(want));
 }
-export const delegated=()=>process.env.RANKWIKI_ROLE==='web'&&!!token();
+// Processes other than the scheduler's own (the worker): the web process and the team worker processes.
+export const delegated=()=>(process.env.RANKWIKI_ROLE==='web'||process.env.RANKWIKI_ROLE==='teams')&&!!token();
 const url=()=>process.env.LLM_SCHEDULER_URL||'http://127.0.0.1:'+(process.env.WORKER_PORT||'3003')+'/api/llm/schedule';
 let downUntil=0;
 // Runs op on the worker's scheduler; `local` when the worker cannot be reached. Model errors (AI_LIMIT…) pass through.

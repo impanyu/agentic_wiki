@@ -90,6 +90,12 @@ export async function manageTeams(){
  const now=Date.now();if(now-lastMaintenance>3600_000){lastMaintenance=now;const {scheduleMaintenance}=await import('./manager');const {dedupSweep,findCandidates,resolveCandidates}=await import('@/app/entity-db/dedup');await dedupSweep(db,300).then(r=>r.merged&&console.log('[dedup] merged',r.merged)).catch(e=>console.error('[dedup] failed',(e as Error).message));
   await findCandidates(db,2000).then(n=>n&&console.log('[dedup] candidates',n)).catch(e=>console.error('[dedup] candidates failed',(e as Error).message));
   void resolveCandidates(db,400).then(r=>r.judged&&console.log('[dedup] judged',r.judged,'merged',r.merged)).catch(e=>console.error('[dedup] resolve failed',(e as Error).message));const {qaSweep}=await import('./qa');await qaSweep(db,e=>console.log('[qa]',JSON.stringify(e))).catch(e=>console.error('[qa] sweep failed',(e as Error).message));const q=await scheduleMaintenance(db).catch(e=>{console.error('[queue] maintenance failed',(e as Error).message);return [];});if(q.length)console.log('[queue] queued',q.join(', '));}
+ if(Number(process.env.TEAM_CONCURRENCY||0)>0){const started=await runTeamQueue(async()=>(await llmSpend()).spentUsd,(slug,e)=>console.log('[team:'+slug+']',JSON.stringify(e)));
+  if(started.length)console.log('[queue] started',started.join(', '));}
+}
+// A team worker process (RANKWIKI_ROLE=teams): only runs teams from the shared queue; maintenance stays in the worker.
+export async function runTeams(){
+ const {runTeamQueue}=await import('./manager');const {llmSpend}=await import('@/app/llm');
  const started=await runTeamQueue(async()=>(await llmSpend()).spentUsd,(slug,e)=>console.log('[team:'+slug+']',JSON.stringify(e)));
  if(started.length)console.log('[queue] started',started.join(', '));
 }
