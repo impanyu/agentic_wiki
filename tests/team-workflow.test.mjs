@@ -37,10 +37,10 @@ test('every workflow of the charter is a valid graph; the editor leads and prese
  assert.deepEqual(Object.keys(d).sort(),['build','expand','repair','review','sources']);
  const role=(w,id)=>d[w].nodes.find(n=>n.id===id).role;
  assert.equal(role('build','plan'),'editor');assert.equal(role('build','collect'),'collector');assert.equal(role('build','design'),'editor');assert.equal(role('build','review'),'reviewer');assert.equal(role('build','arbitrate'),'manager');
- assert.match(d.build.nodes.find(n=>n.id==='collect').title,/indices/);
+ assert.match(d.build.nodes.find(n=>n.id==='design').role,/editor/);
  const src=readFileSync('app/teams/charter.ts','utf8');
- assert.match(src,/the collector designs each as a derived metric/);assert.doesNotMatch(src,/Editors invent indices/);
- assert.match(readFileSync('app/teams/tools.ts','utf8'),/role==='editor'\?ENTITY_READ\.includes\(t\.name\)/);
+ assert.match(src,/Composite indices are composed by the editor/);
+ assert.match(readFileSync('app/teams/tools.ts','utf8'),/EDITOR_INDEX=\['define_metric','compute_metric'\]/);
  // Collector stages carry the index tools.
  assert.equal((src.match(/'define_metric','compute_metric','metric_sensitivity'/g)||[]).length,6);
 });

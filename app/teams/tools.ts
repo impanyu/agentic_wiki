@@ -61,9 +61,11 @@ const ROLE_TOOLS:Record<Role,string[]>={
 // Data tools without save_data (that writes Page files); the reviewer reads, never writes.
 const EXPLORE=[...publicSourceTools,...dataTools.filter(t=>t.name!=='save_data')];
 const ENTITY_READ=['entity_search','entity_get','metric_table','metric_sensitivity'];
+// The editor composes composite indices: derived metrics only (measured metrics are the collector's).
+const EDITOR_INDEX=['define_metric','compute_metric'];
 // Metrics and indices are the collector's (the data); the editor reads them and presents them.
 export function teamToolDefs(role:Role){
- const entity=entityTools.filter(t=>role==='reviewer'||role==='manager'?ENTITY_READ.includes(t.name):role==='editor'?ENTITY_READ.includes(t.name):true);
+ const entity=entityTools.filter(t=>role==='reviewer'||role==='manager'?ENTITY_READ.includes(t.name):role==='editor'?ENTITY_READ.includes(t.name)||EDITOR_INDEX.includes(t.name):true);
  return [...EXPLORE,...entity,...ROLE_TOOLS[role].map(n=>teamTools[n as keyof typeof teamTools])];
 }
 
@@ -209,6 +211,7 @@ async function previewPage(path:string){
 
 export async function runTeamTool(role:Role,name:string,args:Record<string,unknown>,ctx:AgentContext,topicId:string|null,signal?:AbortSignal):Promise<{data:unknown}>{
  if(!teamToolDefs(role).some(t=>t.name===name))throw Error(name+' is not one of the '+role+'\'s tools.');
+ if(role==='editor'&&name==='define_metric'&&!String(args.definition||'').trim())throw Error('Measured metrics are the collector\'s: ask for the data (data check or save_plan). You define composite indices only (a derived definition).');
  const db=await entityDb(),who=role+':'+(ctx.agent?.id||'');
  switch(name){
   case 'list_public_sources':return {data:await listPublicSources(signal,String(args.source??''))};

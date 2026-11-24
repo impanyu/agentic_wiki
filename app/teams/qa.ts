@@ -49,11 +49,11 @@ export async function checkRanking(db:Queryable,def:RankingDef):Promise<QaIssue[
   const idx=(await db.query<{key:string;methodology:string;definition:Record<string,unknown>|null}>(`select distinct on (key) key, methodology, definition from metrics where kind='derived' and key=any($1::text[]) order by key, version desc`,[keys])).rows;
   for(const x of idx){
    const inputs=[...new Set((JSON.stringify(x.definition||{}).match(/"(?:metric|key|input)"\s*:\s*"([a-z0-9_]+)"/g)||[]).map(v=>v.replace(/.*"([a-z0-9_]+)"$/,'$1')).filter(k=>k!==x.key))];
-   if(String(x.methodology||'').trim().length<120)out.push({severity:'major',owner:'collector',target:t+' → '+x.key,problem:`Index ${x.key} has no stated method (methodology under 120 characters).`,fix:'Define the method: what it measures, each input, weights, normalization, how missing inputs are handled.'});
+   if(String(x.methodology||'').trim().length<120)out.push({severity:'major',owner:'editor',target:t+' → '+x.key,problem:`Index ${x.key} has no stated method (methodology under 120 characters).`,fix:'Define the method: what it measures, each input, weights, normalization, how missing inputs are handled.'});
    if(inputs.length){
     const cov=(await db.query<{metric:string;n:number}>(`select o.metric, count(distinct o.entity_id)::int n from observations o join entities e on e.id=o.entity_id where ${m.where} and o.metric = any($${m.args.length+1}::text[]) group by o.metric`,[...m.args,inputs])).rows;
     for(const k of inputs){const have=cov.find(c=>c.metric===k)?.n||0;
-     if(have<QA.minCriterionCoverage*n)out.push({severity:'major',owner:'collector',target:t+' → '+x.key+' ← '+k,problem:`Input ${k} of index ${x.key} is measured for ${have} of ${n} entities.`,fix:'Collect the input for the missing entities, or the editor redefines the index with inputs that exist for most entities.'});}
+     if(have<QA.minCriterionCoverage*n)out.push({severity:'major',owner:'collector',target:t+' → '+x.key+' ← '+k,problem:`Input ${k} of index ${x.key} is measured for ${have} of ${n} entities.`,fix:'The collector collects the input for the missing entities, or the editor redefines the index with inputs that exist for most entities.'});}
    }
   }
  }
