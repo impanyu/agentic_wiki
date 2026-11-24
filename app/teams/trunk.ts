@@ -123,8 +123,8 @@ export async function divisionSweep(edb:EntityDb,limit=60,log:(e:Row)=>void=()=>
  if(!nodes.length)return {judged:0,converted:[],skipped:[]};
  const {respond}=await import('@/app/llm');
  let judged=0;const converted:string[]=[],skipped:string[]=[];
- for(let i=0;i<nodes.length;i+=8){
-  const batch=nodes.slice(i,i+8);
+ for(let i=0;i<nodes.length;i+=3){
+  const batch=nodes.slice(i,i+3);
   const input=[];
   for(const n of batch){
    const kids=(await edb.query<{slug:string;name:string;leaf:boolean;cls:string|null}>(`select c.slug, c.name, not exists (select 1 from topics g where g.parent_id=c.id and g.status<>'archived') leaf,
@@ -135,7 +135,7 @@ export async function divisionSweep(edb:EntityDb,limit=60,log:(e:Row)=>void=()=>
   // Our GPUs are shared with the teams: a busy pool is retried a few times before the batch waits for the next run.
   let failure='';
   for(let attempt=0;attempt<4;attempt++)try{failure='';
-   const r=await respond({class:'review',store:false,instructions:SWEEP,input:JSON.stringify({nodes:input}),text:{format:{type:'json_schema',name:'divisions',schema:SWEEP_SCHEMA,strict:true}},max_output_tokens:6000} as never);
+   const r=await respond({class:'review',store:false,instructions:SWEEP,input:JSON.stringify({nodes:input}),text:{format:{type:'json_schema',name:'divisions',schema:SWEEP_SCHEMA,strict:true}},max_output_tokens:3000} as never);
    const text=((r as {output?:{content?:{type?:string;text?:string}[]}[]}).output||[]).flatMap(o=>o.content||[]).map(c=>c.type==='output_text'?c.text||'':'').join('');
    out=(JSON.parse(text) as {nodes:typeof out}).nodes||[];break;
   }catch(e){failure=(e as Error).message;await new Promise(r=>setTimeout(r,30_000*(attempt+1)));}
