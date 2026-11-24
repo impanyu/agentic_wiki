@@ -19,11 +19,15 @@ export async function POST(request:Request){
  const reported=Number((b.info as {ctxPerSlot?:unknown}|undefined)?.ctxPerSlot)||0;
  const configured=Number(limits.find(([p])=>worker.startsWith(p.trim()))?.[1])||0;
  const ctx=reported||configured||2_000_000;
+ // Slower workers wait a few seconds before taking a request, so a faster one (the RTX 6000 answers in ~20 s where a
+ // V100 takes ~90 s) gets it first; they still take whatever the fast ones leave (POOL_WORKER_DELAY "swan-v100=4").
+ const delays=String(process.env.POOL_WORKER_DELAY||'swan-v100=4').split(',').map(x=>x.split('=')).filter(x=>x.length===2);
+ const delay=Math.max(0,Math.min(120,Number(delays.find(([p])=>worker.startsWith(p.trim()))?.[1])||0));
  const until=Date.now()+20_000;
  for(;;){
   const jobs=(await db.query<{id:string;model:string;body:unknown}>(`update llm_jobs set status='claimed', claimed_by=$1::text, claimed_at=now()
-    where id in (select id from llm_jobs where status='queued' and model = any($2::text[]) and est_tokens <= $4::int order by created_at limit $3::int for update skip locked)
-    returning id, model, body`,[worker,models,max,ctx])).rows;
+    where id in (select id from llm_jobs where status='queued' and model = any($2::text[]) and est_tokens <= $4::int and created_at <= now() - make_interval(secs => $5::int) order by created_at limit $3::int for update skip locked)
+    returning id, model, body`,[worker,models,max,ctx,delay])).rows;
   if(jobs.length||Date.now()>until||request.signal.aborted)return Response.json({jobs});
   await new Promise(r=>setTimeout(r,500));
  }
