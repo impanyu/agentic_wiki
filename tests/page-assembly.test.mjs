@@ -172,7 +172,11 @@ test('entity lookup by type and slug (exact, alias, unknown)',async()=>{
 });
 
 test('ranking page data: long rows, columns, groups, codes, related',async()=>{
- const input=await pages.loadRankingPage(db,'country-rankings');
+ // Readers see published rankings only: the draft sub-ranking is not a page; an agent previewing its work sees it.
+ assert.equal(await pages.loadRankingPage(db,'countries-in-europe-and-central-asia-rankings'),null);
+ assert.equal((await pages.loadRankingPage(db,'countries-in-europe-and-central-asia-rankings',{fresh:true})).def.status,'draft');
+ await db.query("update rankings set status='published' where slug='countries-in-europe-and-central-asia-rankings'");
+ const input=await pages.loadRankingPage(db,'country-rankings',{fresh:true});
  assert.equal(input.def.title,'Country Rankings');assert.equal(input.type.plural,'countries');assert.equal(input.type.expected,217);
  assert.deepEqual(input.columns.map(c=>c.column),['population','gdp_usd','gdp_per_capita_usd','area_km2','life_expectancy']);
  assert.equal(input.rows.length,COUNTRIES.length*5);
@@ -183,7 +187,7 @@ test('ranking page data: long rows, columns, groups, codes, related',async()=>{
  const m=(await import(new URL('pure.mjs',out))).assembleRankingPage(input);
  assert.equal(m.lead,'All 12 countries, ranked by population, GDP, GDP per capita, area, and life expectancy (World Bank WDI SP.POP.TOTL; World Bank WDI NY.GDP.MKTP.CD; derived from World Bank WDI (GDP ÷ population); World Bank WDI AG.SRF.TOTL.K2; World Bank WDI SP.DYN.LE00.IN).');
  const sub=await pages.loadRankingPage(db,'countries-in-europe-and-central-asia-rankings');
- assert.equal(sub.def.status,'draft');assert.deepEqual([...new Set(sub.rows.map(r=>r.name))].sort(),['France','Germany','Iceland','Italy','United Kingdom']);
+ assert.ok(sub,'published: now a page');assert.deepEqual([...new Set(sub.rows.map(r=>r.name))].sort(),['France','Germany','Iceland','Italy','United Kingdom']);
  assert.equal(await pages.loadRankingPage(db,'nope'),null);
 });
 

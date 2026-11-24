@@ -9,14 +9,16 @@ import {formatMetric,entityImage,entityPath,rankingPath,defaultTemplate,mentionK
 // Reads for the database-driven pages (/rankings/<slug>, /e/<type>/<slug>), the sitemap and link
 // resolution. Read-only; everything a page shows comes from here, assembled by app/seo/assemble.ts.
 const iso=(d:unknown)=>d instanceof Date?d.toISOString():d==null?null:String(d);
-const PAGE_STATUSES=['published','draft'];// drafts are shown too for now
+// Readers see published rankings only: a draft or a held ranking (one the quality gate stopped) is not public. An
+// agent previewing its own work (the fresh header) sees its drafts too.
+const PAGE_STATUSES=['published'],PREVIEW_STATUSES=['published','draft','held'];
 const obj=(v:unknown):Record<string,unknown>=>v&&typeof v==='object'&&!Array.isArray(v)?v as Record<string,unknown>:{};
 
 // ───────────── definitions ─────────────
 const rankingRow=(r:Row):RankingDef=>({slug:String(r.slug),title:String(r.title||''),scope:obj(r.scope) as RankingDef['scope'],criteria:(r.criteria as string[])||[],
  config:obj(r.config),status:String(r.status||'draft'),updatedAt:iso(r.updated_at)});
-export async function getRankingDefinition(db:Queryable,slug:string):Promise<RankingDef|null>{
- const r=await db.query('select slug, title, scope, criteria, config, status, updated_at from rankings where slug = $1::text and status = any($2::text[])',[slug,PAGE_STATUSES]);
+export async function getRankingDefinition(db:Queryable,slug:string,preview=false):Promise<RankingDef|null>{
+ const r=await db.query('select slug, title, scope, criteria, config, status, updated_at from rankings where slug = $1::text and status = any($2::text[])',[slug,preview?PREVIEW_STATUSES:PAGE_STATUSES]);
  return r.rows[0]?rankingRow(r.rows[0]):null;
 }
 export async function listRankingDefinitions(db:Queryable,{type}:{type?:string}={}):Promise<RankingDef[]>{
@@ -61,7 +63,9 @@ export async function findEntityBySlug(db:Queryable,type:string,slug:string):Pro
 // A ranking page's data: precomputed (page_data, kept current by the worker), built and stored on a first view.
 // fresh rebuilds it now (an agent checking its own change).
 export async function loadRankingPage(db:Queryable,slug:string,{fresh=false}:{fresh?:boolean}={}):Promise<RankingPageInput|null>{
- const v=await snapshot<StoredRanking>(db,'ranking',slug,async()=>storedRanking(await buildRankingPage(db,slug)),v=>String(v.def.scope.type||''),fresh);
+ // A stored copy outlives a change of status: readers get the page only while the ranking is published.
+ if(!fresh&&!(await db.query(`select 1 from rankings where slug=$1::text and status = any($2::text[])`,[slug,PAGE_STATUSES])).rows.length)return null;
+ const v=await snapshot<StoredRanking>(db,'ranking',slug,async()=>storedRanking(await buildRankingPage(db,slug,fresh)),v=>String(v.def.scope.type||''),fresh);
  return v?{...v,rows:isPacked(v.rows)?unpackRows(v.rows):v.rows}:null;
 }
 // Stored with its rows packed (an entity's unchanging fields once, not once per period): a country ranking's
@@ -70,8 +74,8 @@ type StoredRanking=Omit<RankingPageInput,'rows'>&{rows:RankingPageInput['rows']|
 export function storedRanking(v:RankingPageInput|null):StoredRanking|null{
  return v?{...v,rows:packRows(v.rows as Record<string,unknown>[],'entity_id',{exact:true})}:null;
 }
-export async function buildRankingPage(db:Queryable,slug:string):Promise<RankingPageInput|null>{
- const def=await getRankingDefinition(db,slug);if(!def)return null;
+export async function buildRankingPage(db:Queryable,slug:string,preview=false):Promise<RankingPageInput|null>{
+ const def=await getRankingDefinition(db,slug,preview);if(!def)return null;
  const criteria=def.criteria.slice(0,12);
  const type=def.scope.type?await getEntityType(db,def.scope.type):{type:'',label:'entity',plural:'entities',description:'',template:null,schema:{}};
  const defs=await metricInfos(db,criteria.map(c=>c.split('@')[0]));
