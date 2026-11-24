@@ -85,7 +85,9 @@ export async function upsertEntity(q:Queryable,input:EntityInput):Promise<{id:st
   const country=String((input.attributes as Record<string,unknown>|undefined)?.country??'').trim();
   const r=await q.query<Match&{c:string|null;t:string}>(`select id, ids, tsv::text as tsv, attributes->>'country' c, type t from entities where type = any($1::text[]) and name_keys && ent_keys($2::text, $3::text[])
    order by (type = $4::text) desc, (ent_norm(name) = ent_norm($2::text)) desc, created_at limit 10`,[family,name,aliases,type]);
-  target=r.rows.find(row=>!Object.keys(ids).some(k=>row.ids[k]!=null&&row.ids[k]!==ids[k])&&(row.t===type||!country||!row.c||row.c===country))||null;
+  // Another type of the family is the same thing on the name only when both name the same country; otherwise (two
+  // films called "Adam") the pair goes to the resolver as a candidate.
+  target=r.rows.find(row=>!Object.keys(ids).some(k=>row.ids[k]!=null&&row.ids[k]!==ids[k])&&(row.t===type||(!!country&&row.c===country)))||null;
  }
  if(target)for(const k of Object.keys(ids))if(target.ids[k]!=null&&target.ids[k]!==ids[k]&&!drop.has(k)){drop.add(k);conflicts++;}
  const writeIds=Object.fromEntries(Object.entries(ids).filter(([k])=>!drop.has(k)));
@@ -99,7 +101,7 @@ export async function upsertEntity(q:Queryable,input:EntityInput):Promise<{id:st
   // System-wide: anything outside the family that may be the same thing (the same standard id under another type,
   // or the same name) is recorded
   // as a candidate; the resolver (app/entity-db/dedup.ts) judges each pair and merges the same ones.
-  await recordCandidates(q,r.rows[0].id,name,ids,family,String((input.attributes as Record<string,unknown>|undefined)?.country??'')).catch(()=>{});
+  await recordCandidates(q,r.rows[0].id,name,ids,[type],String((input.attributes as Record<string,unknown>|undefined)?.country??'')).catch(()=>{});
   return {id:r.rows[0].id,action:'inserted',idConflicts:conflicts};
  }
  const r=await q.query<{tsv:string}>(`update entities set aliases = ent_merge_aliases(name, aliases || $2::text[]), ids = $3::jsonb || ids,

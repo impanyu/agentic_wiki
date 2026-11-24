@@ -51,12 +51,13 @@ export async function mergeEntities(edb:EntityDb,keepId:string,dropId:string):Pr
  });
 }
 
-// Duplicates already in the database: same normalised name, same country (or neither has one), types in one family.
+// Duplicates already in the database: same normalised name and the same country (both have one), types in one family;
+// same-name pairs without a country go to the resolver (findCandidates).
 // The entity of the more general type is kept (the ancestor), else the one with more facts. At most `limit` merges.
 export async function dedupSweep(db:EntityDb,limit=300):Promise<{merged:number}>{
  const pairs=(await db.query<{a:string;b:string;ta:string;tb:string;na:number;nb:number}>(`with e as (select e.id, e.type, ent_norm(e.name) k, coalesce(e.attributes->>'country','') c from entities e)
   select a.id a, b.id b, a.type ta, b.type tb, (select count(*)::int from observations o where o.entity_id=a.id) na, (select count(*)::int from observations o where o.entity_id=b.id) nb
-  from e a join e b on a.k=b.k and a.c=b.c and a.id<b.id and a.type<>b.type and a.k<>'' limit $1::int`,[limit*20])).rows;
+  from e a join e b on a.k=b.k and a.c=b.c and a.c<>'' and a.id<b.id and a.type<>b.type and a.k<>'' limit $1::int`,[limit*20])).rows;
  const h=await hierarchy(db);const ancestors=(t:string)=>{const s=new Set<string>();for(let x=h.parent.get(t)??null,n=0;x&&n<8;x=h.parent.get(x)??null,n++)s.add(x);return s;};
  const gone=new Set<string>();let merged=0;
  for(const p of pairs){
