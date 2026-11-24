@@ -18,7 +18,7 @@ import {assembleRankingPage,entityPath,rankingPath} from '@/app/seo/assemble';
 import {propsRankingBlock,rankCriterion,blockPeriods,rankedView,rankingChartSvgs} from '@/app/seo/ranking-views';
 import {jsonLd} from '@/app/seo/structured-data';
 import {questionKey} from '@/app/seo/urls';
-import {linkParts,latestRows} from '@/app/workflows/viz/ranking-data';
+import {linkParts,latestRows,defaultYear} from '@/app/workflows/viz/ranking-data';
 import {DbShell,RankingBody} from './view';
 import {pathMaps,nodeTrail,nodeChildren,popularRankings} from '@/app/entity-db/pages';
 import {Breadcrumbs,RankingGrid} from '@/app/explore';
@@ -45,7 +45,8 @@ async function loadUncached(slug:string,fresh=false){
  // The page carries only the rows of the latest view; a long history (every year of every entity) is fetched by
  // the browser afterwards from /rankings/<slug>/history.json, so the page itself stays small.
  const keys=model.criteria.map(c=>c.key);
- const slim=latestRows(model.rows,{nameKey:'name',periodKey:'period',keys});
+ const firstYear=defaultYear(model.rows,{nameKey:'name',periodKey:'period',key:model.defaultKey||keys[0]||''});
+ const slim=latestRows(model.rows,{nameKey:'name',periodKey:'period',keys,...(firstYear?{period:firstYear}:{})});
  const history=slim.length<model.rows.length*0.7;
  const props=history?{...full,rows:slim,history:true}:full;
  // Members link to their pages; one without a page (too little data yet) is plain text.

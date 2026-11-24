@@ -2,7 +2,7 @@
 import {useEffect,useMemo,useRef,useState} from 'react';
 import {Search,ArrowDownWideNarrow,ArrowUpNarrowWide,ChartColumn,LayoutGrid,ChartPie,Sun,Map as MapIcon,Box,ChartScatter,TrendingUp,ChartNoAxesColumn,SquareSplitVertical,Grid3x3,ChartSpline,ArrowDownUp,Radar,ChartLine,ListOrdered,Play,type LucideIcon} from 'lucide-react';
 import type {VizProps} from './types';
-import {type Entry,type Summary,normalizeCriteria,toEntries,rankEntries,summarize,makeFormatter,shareOf,groupsOf,linkParts,parseNumber,periodKeyOf,rowPeriods,rankablePeriods,rowsAt,seriesOf,LATEST} from './ranking-data';
+import {type Entry,type Summary,normalizeCriteria,toEntries,rankEntries,summarize,makeFormatter,shareOf,groupsOf,linkParts,parseNumber,periodKeyOf,rowPeriods,rankablePeriods,yearsOf,defaultYear,rowsAt,seriesOf,LATEST} from './ranking-data';
 import {useAskLink,useRankingView} from '@/app/seo/link-context';
 import {geoKind,geoKeyOf,registerGeo,baseRegion,pointOf,geoAspect,type GeoData} from './ranking-geo';
 import {useTheme} from '@/app/theme';
@@ -86,17 +86,21 @@ export default function Ranking({props,setValue,fire,ctx}:VizProps){
  // value of each entity; the time views plot every period.
  const periodKey=useMemo(()=>periodKeyOf(props.rows,nameKey,props.periodKey),[props.rows,nameKey,props.periodKey]);
  const allPeriods=useMemo(()=>periodKey?rowPeriods(props.rows,periodKey):[],[props.rows,periodKey]);
- // The year picker offers only years most entities were measured in; the time views still plot every year.
- const periods=useMemo(()=>periodKey?rankablePeriods(props.rows,{nameKey,periodKey,keys:criteria.map(x=>x.key)},allPeriods):[],[props.rows,periodKey,nameKey,criteria,allPeriods]);
- const initialPeriod=view.period&&periods.includes(view.period)?view.period:typeof props.period==='string'&&periods.includes(props.period)?props.period:LATEST;
- const [period,setPeriod]=useState(initialPeriod);
- useEffect(()=>{const y=new URLSearchParams(location.search).get('year');if(y&&periods.includes(y))setPeriod(y);},[periods]);
- const flatRows=useMemo(()=>periodKey?rowsAt(props.rows,{nameKey,periodKey,period,keys:criteria.map(x=>x.key)}):props.rows,[props.rows,periodKey,nameKey,period,criteria]);
- const entries=useMemo(()=>toEntries(flatRows,nameKey,groupKey),[flatRows,nameKey,groupKey]);
  const initial=criteria.find(c=>c.key===view.rank)?.key??criteria.find(c=>c.key===props.default)?.key??criteria[0]?.key??'';
  const [critKey,setCritKey]=useState(initial);
  useEffect(()=>{const fromUrl=new URLSearchParams(location.search).get('rank');if(fromUrl&&criteria.some(c=>c.key===fromUrl))setCritKey(fromUrl);},[criteria]);
  const c=criteria.find(x=>x.key===critKey)??criteria.find(x=>x.key===initial)??criteria[0];
+ // One year at a time, judged per criterion: the years this criterion has data for; entities without a value that
+ // year are not ranked. The time views still plot every year.
+ const periods=useMemo(()=>periodKey&&c?yearsOf(props.rows,{nameKey,periodKey,key:c.key}).years:[],[props.rows,periodKey,nameKey,c]);
+ const fallbackYear=useMemo(()=>periodKey&&c?defaultYear(props.rows,{nameKey,periodKey,key:c.key}):null,[props.rows,periodKey,nameKey,c]);
+ const initialPeriod=view.period&&periods.includes(view.period)?view.period:typeof props.period==='string'&&periods.includes(props.period)?props.period:fallbackYear??LATEST;
+ const [chosen,setPeriod]=useState(initialPeriod);
+ useEffect(()=>{const y=new URLSearchParams(location.search).get('year');if(y&&periods.includes(y))setPeriod(y);},[periods]);
+ // A year the current criterion has no data for falls back to its default year.
+ const period=periodKey?(periods.includes(chosen)?chosen:fallbackYear??LATEST):LATEST;
+ const flatRows=useMemo(()=>periodKey?rowsAt(props.rows,{nameKey,periodKey,period,keys:criteria.map(x=>x.key)}):props.rows,[props.rows,periodKey,nameKey,period,criteria]);
+ const entries=useMemo(()=>toEntries(flatRows,nameKey,groupKey),[flatRows,nameKey,groupKey]);
  const timeSeries=useMemo(()=>periodKey&&c&&allPeriods.length>1?{periods:[...allPeriods].reverse(),series:seriesOf(props.rows,{nameKey,periodKey,key:c.key})}:null,[periodKey,c,allPeriods,props.rows,nameKey]);
  const choosePeriod=(p:string)=>{setPeriod(p);view.onPeriod?.(p);try{const u=new URL(location.href);if(p===LATEST)u.searchParams.delete('year');else u.searchParams.set('year',p);replaceUrl(u);}catch{}};
  const height=typeof props.height==='number'&&props.height>=200?Math.min(props.height,1200):420;
@@ -228,7 +232,7 @@ export default function Ranking({props,setValue,fire,ctx}:VizProps){
    </div>
    <div className="wf-rank-picker">
     {periods.length>1&&<label className="wf-rank-select wf-rank-period"><span>{t('Year')}</span><select value={period} onChange={ev=>choosePeriod(ev.target.value)}>
-     <option value={LATEST}>{t('Latest available')}</option>{periods.map(p=><option key={p} value={p}>{p}</option>)}</select></label>}
+     {periods.map(p=><option key={p} value={p}>{p}</option>)}</select></label>}
     {criteria.length>1&&(pills
      ?<div className="wf-rank-pills" role="radiogroup" aria-label={t('Rank by')}>{criteria.map(x=><button key={x.key} type="button" role="radio" aria-checked={x.key===c.key} className={x.key===c.key?'on':''} onClick={()=>choose(x.key)}>{x.label}</button>)}</div>
      :<label className="wf-rank-select"><span>{t('Rank by')}</span><select value={c.key} onChange={ev=>choose(ev.target.value)}>{criteria.map(x=><option key={x.key} value={x.key}>{x.label}</option>)}</select></label>)}

@@ -1,5 +1,5 @@
 import {blockWorkflow} from '@/app/workflows/component-block';
-import {normalizeCriteria,toEntries,rankEntries,makeFormatter,summarize,groupsOf,periodKeyOf,rowPeriods,rowsAt,seriesOf,LATEST,type Criterion} from '@/app/workflows/viz/ranking-data';
+import {normalizeCriteria,toEntries,rankEntries,makeFormatter,summarize,groupsOf,periodKeyOf,rowPeriods,rowsAt,seriesOf,LATEST,defaultYear,type Criterion} from '@/app/workflows/viz/ranking-data';
 import {viewOption,autoViews,pickViews,chartKey,VIEW_HEIGHT,barChartHeight,type RankingViewKind} from '@/app/workflows/viz/ranking-chart';
 import {geoKind,geoKeyOf,registerGeo,pointOf,geoAspect,setGeoFetcher} from '@/app/workflows/viz/ranking-geo';
 import {readFile} from 'node:fs/promises';
@@ -45,14 +45,16 @@ export function blockPeriods(b:RankingBlock,state:Record<string,unknown>|undefin
  const rows=rawRows(b,state),pk=periodKeyOf(rows,nameKeyOf(b),b.props.periodKey);return pk?rowPeriods(rows,pk):[];
 }
 // One row per entity for the period in view (latest when none or unknown), as the component shows it.
-export function blockRows(b:RankingBlock,state:Record<string,unknown>|undefined,period?:string){
+export function blockRows(b:RankingBlock,state:Record<string,unknown>|undefined,period?:string,key?:string){
  const rows=rawRows(b,state),pk=periodKeyOf(rows,nameKeyOf(b),b.props.periodKey);if(!pk)return rows;
- const p=period&&rowPeriods(rows,pk).includes(period)?period:typeof b.props.period==='string'&&rowPeriods(rows,pk).includes(b.props.period)?b.props.period:LATEST;
+ // One year, as the component shows it: the asked year, else the criterion's default year.
+ const k=key??b.defaultKey??b.criteria[0]?.key??'';
+ const p=period&&rowPeriods(rows,pk).includes(period)?period:typeof b.props.period==='string'&&rowPeriods(rows,pk).includes(b.props.period)?b.props.period:defaultYear(rows,{nameKey:nameKeyOf(b),periodKey:pk,key:k})??LATEST;
  return rowsAt(rows,{nameKey:nameKeyOf(b),periodKey:pk,period:p,keys:b.criteria.map(c=>c.key)});
 }
 export function rankedView(b:RankingBlock,state:Record<string,unknown>|undefined,rank?:string,period?:string){
  const c=b.criteria.find(x=>x.key===rank)??b.criteria.find(x=>x.key===b.defaultKey)!;
- return {criterion:c,...rankEntries(toEntries(blockRows(b,state,period),nameKeyOf(b),groupKeyOf(b)),c.key,c.order)};
+ return {criterion:c,...rankEntries(toEntries(blockRows(b,state,period,c.key),nameKeyOf(b),groupKeyOf(b)),c.key,c.order)};
 }
 function blockHistory(b:RankingBlock,state:Record<string,unknown>|undefined,key:string){
  const rows=rawRows(b,state),pk=periodKeyOf(rows,nameKeyOf(b),b.props.periodKey);if(!pk)return null;

@@ -205,6 +205,21 @@ export function rowPeriods(rows:unknown,key:string):string[]{
 }
 // The periods a reader may rank by: those where most entities have a value. A year with a handful of values is not a
 // ranking of that year (the rest would be listed without data), so it is not offered; "latest" stays.
+// A ranking always ranks one year (never a mix of each entity's latest years): the years offered for a criterion are
+// those with data for it (at least 3 entities); the default is the newest year whose coverage is at least half of the
+// best-covered year's (a year just begun, with a handful of values, is not the default).
+export function yearsOf(rows:unknown,o:{nameKey:string;periodKey:string;key:string}):{years:string[];counts:Map<string,number>;fallback:string|null}{
+ const by=new Map<string,Set<string>>();
+ for(const r of Array.isArray(rows)?rows:[]){if(!isObj(r))continue;const n=text(r[o.nameKey]),p=periodText(r[o.periodKey]);if(!n||!p||parseNumber(r[o.key])==null)continue;let s=by.get(p);if(!s){s=new Set();by.set(p,s);}s.add(n);}
+ const counts=new Map([...by].map(([p,s])=>[p,s.size]));
+ const years=[...counts.keys()].filter(p=>counts.get(p)!>=3).sort((a,b)=>comparePeriods(b,a));
+ return {years,counts,fallback:years.length?null:[...counts.keys()].sort((a,b)=>comparePeriods(b,a))[0]??null};
+}
+export function defaultYear(rows:unknown,o:{nameKey:string;periodKey:string;key:string}):string|null{
+ const {years,counts,fallback}=yearsOf(rows,o);if(!years.length)return fallback;
+ const best=Math.max(...years.map(y=>counts.get(y)!));
+ return years.find(y=>counts.get(y)!>=best*0.5)??years[0];
+}
 export function rankablePeriods(rows:unknown,o:{nameKey:string;periodKey:string;keys:string[]},periods:string[]):string[]{
  const by=new Map<string,Set<string>>();const any=new Set<string>();
  for(const r of Array.isArray(rows)?rows:[]){if(!isObj(r))continue;const n=text(r[o.nameKey]),p=periodText(r[o.periodKey]);if(!n||!p)continue;
