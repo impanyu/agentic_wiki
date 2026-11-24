@@ -85,9 +85,10 @@ export const BASE_CATALOG:Catalog={
   // The team's reviewer: a model family other than the builder's where possible (an independent check).
   review:['pool:local','openai:luna','deepseek:v4-flash'],
   // Short background tasks.
-  fast:['gemini:gemini-3.8-flash-lite','pool:small','openai:luna'],
-  // A reader is waiting (a page's first view in a language): only models that answer in seconds.
-  instant:['gemini:gemini-3.8-flash-lite','pool:small','openai:luna'],
+  fast:['pool:small','gemini:gemini-3.8-flash-lite','openai:luna'],
+  // A reader is waiting (a page's first view in a language): only models that answer in seconds. Our RTX 6000 answers
+  // in 1.5-3 s at 100% success; Gemini's free tier failed 36% of these calls on 2026-11-23.
+  instant:['pool:small','gemini:gemini-3.8-flash-lite','openai:luna'],
   // Page translation (background): our smaller GPUs first (Qwen3.6 35B/27B translated as well as GPT-5.6 in our tests,
   // 2026-11-23), never the L40S first, so translation does not slow the teams.
   translate:['pool:small','gemini:gemini-3.8-flash-lite','openai:luna','pool:local'],
