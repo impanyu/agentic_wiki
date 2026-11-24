@@ -314,6 +314,11 @@ export const MIGRATIONS:Migration[]=[
  {version:25,name:'pool request size',statements:()=>[
   'alter table llm_jobs add column if not exists est_tokens integer not null default 0',
  ]},
+ // A pool request's priority (its task class: interactive first, translation last): GPUs take the highest first.
+ {version:26,name:'pool request priority',statements:()=>[
+  'alter table llm_jobs add column if not exists priority integer not null default 3',
+  'create index if not exists llm_jobs_next on llm_jobs(model, priority desc, created_at) where status = \'queued\'',
+ ]},
 ];
 export const SCHEMA_VERSION=MIGRATIONS[MIGRATIONS.length-1].version;
 

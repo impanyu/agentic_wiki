@@ -26,7 +26,7 @@ export async function POST(request:Request){
  const until=Date.now()+20_000;
  for(;;){
   const jobs=(await db.query<{id:string;model:string;body:unknown}>(`update llm_jobs set status='claimed', claimed_by=$1::text, claimed_at=now()
-    where id in (select id from llm_jobs where status='queued' and model = any($2::text[]) and est_tokens <= $4::int and created_at <= now() - make_interval(secs => $5::int) order by created_at limit $3::int for update skip locked)
+    where id in (select id from llm_jobs where status='queued' and model = any($2::text[]) and est_tokens <= $4::int and created_at <= now() - make_interval(secs => $5::int) order by priority desc, created_at limit $3::int for update skip locked)
     returning id, model, body`,[worker,models,max,ctx,delay])).rows;
   if(jobs.length||Date.now()>until||request.signal.aborted)return Response.json({jobs});
   await new Promise(r=>setTimeout(r,500));

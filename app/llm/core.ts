@@ -20,7 +20,7 @@ import type {LLMRequest,LLMResponse,OutputItem,StreamHandlers,TaskClass,InputIte
 export type UsageRow={createdAt:string;month:string;class:TaskClass;provider:string;model:string;status:string;latencyMs:number;inputTokens:number;cachedTokens:number;outputTokens:number;costUsd:number;webSearches:number;fallbackReason:string|null};
 export type UsageStore={record(row:UsageRow):Promise<void>;monthSpend(month:string):Promise<number>;daySpend?(day:string,provider:string):Promise<number>};
 export type Deps={
- pool?:{available(model:string):boolean;slots?(model:string):number|undefined;run(model:string,body:Record<string,unknown>,timeoutMs:number,signal?:AbortSignal,queueWaitMs?:number):Promise<any>};
+ pool?:{available(model:string):boolean;slots?(model:string):number|undefined;run(model:string,body:Record<string,unknown>,timeoutMs:number,signal?:AbortSignal,queueWaitMs?:number,priority?:number):Promise<any>};
  env:(name:string)=>string|undefined;fetch:typeof fetch;usage:UsageStore;now?:()=>number;
  openaiDefaults?:(body:Record<string,any>)=>Record<string,unknown>;
  readEvents?:(stream:ReadableStream<Uint8Array>)=>AsyncIterable<Record<string,unknown>>;
@@ -112,7 +112,7 @@ export function createLLM(deps:Deps){
   const provider=catalog().providers[entry.provider];
   let data:any;
   if(entry.provider==='pool'){
-   try{data=await deps.pool!.run(entry.model,{...toChat(body,entry,{webSearch:webSearchEnabled}) as Record<string,unknown>,chat_template_kwargs:{enable_thinking:THINKING_CLASSES.has(String(body.class||''))},...(entry.chatExtra||{})},Math.max(entry.timeoutMs||300000,Number((body as {timeoutMs?:number}).timeoutMs)||0),signal,undefined);}
+   try{data=await deps.pool!.run(entry.model,{...toChat(body,entry,{webSearch:webSearchEnabled}) as Record<string,unknown>,chat_template_kwargs:{enable_thinking:THINKING_CLASSES.has(String(body.class||''))},...(entry.chatExtra||{})},Math.max(entry.timeoutMs||300000,Number((body as {timeoutMs?:number}).timeoutMs)||0),signal,undefined,PRIORITY[String(body.class||'')]??3);}
    // A busy pool is not an error of the model: no cooldown for everyone else (route waits in the queue as a last resort).
    catch(e){const m=(e as Error).message;throw new ProviderError(/timeout/.test(m)?'timeout':'server',m);}
   }else{

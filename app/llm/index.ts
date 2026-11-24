@@ -30,7 +30,7 @@ function llm(){
   env:name=>(env as unknown as Record<string,string|undefined>)[name]||process.env[name],
   fetch:(...args)=>fetch(...args),usage,readEvents,
   // Our own GPUs (lab machine, HCC jobs) through the pull queue.
-  pool:{available:m=>poolAvailableSync(m),slots:m=>poolMod?.poolSlots(m),run:(m,b,t,s,w)=>import('./pool').then(p=>p.poolRun(m,b,t,s,w))},
+  pool:{available:m=>poolAvailableSync(m),slots:m=>poolMod?.poolSlots(m),run:(m,b,t,s,w,pr)=>import('./pool').then(p=>p.poolRun(m,b,t,s,w,pr))},
   // Same defaults the direct OpenAI helper applied: explicit effort for known model families.
   // Reasoning effort by task class: judgment gets more, mechanical work none (THINKING_CLASSES in ./core).
   openaiDefaults:body=>{const cls=String(body.class||''),m=String(body.model||'');
