@@ -65,6 +65,10 @@ const REPORT_SCHEMA={type:'object',additionalProperties:false,required:['done','
 const COLLECT_SCHEMA={type:'object',additionalProperties:false,required:['done','open','notes','unavailable'],properties:{
  done:{type:'array',items:{type:'string'}},open:{type:'array',items:{type:'string'}},notes:{type:'string'},
  unavailable:{type:'array',items:{type:'object',additionalProperties:false,required:['metric','why','tried'],properties:{metric:{type:'string'},why:{type:'string'},tried:{type:'string'}}}}}};
+// The editor's acceptance of the data: complete rows (the universe), complete columns (attributes and measures the
+// pages need, with history), and the indices readers need. Not satisfied → concrete requests for the collector.
+const DATA_CHECK_SCHEMA={type:'object',additionalProperties:false,required:['satisfied','rows','columns','indices','notes'],properties:{
+ satisfied:{type:'boolean'},rows:{type:'array',items:{type:'string'}},columns:{type:'array',items:{type:'string'}},indices:{type:'array',items:{type:'string'}},notes:{type:'string'}}};
 const RESOLVE_SCHEMA={type:'object',additionalProperties:false,required:['decisions'],properties:{
  decisions:{type:'array',items:{type:'object',additionalProperties:false,required:['metric','action','replacement','why'],properties:{
   metric:{type:'string'},action:{type:'string',enum:['replace','drop','request_access']},replacement:{type:'string'},why:{type:'string'}}}}}};
@@ -194,6 +198,13 @@ const S={
  metrics:{id:'collect',role:'collector',title:'load the metrics, build the indices (recipes)',base:'collector',tools:['team_state','coverage','list_public_sources','call_public_source','fetch_data','extract_tables','query_data','describe_data','crawl_pages','extract_fields','llm_extract','entity_upsert','bulk_import','entity_get','entity_search','metric_table','define_metric','compute_metric','metric_sensitivity','set_entity_schema','save_recipe','run_recipe','retract_observations','record_sources','request_access','report_issue'],text:'Stage: metrics. The universe is loaded; now load every planned metric (with history), each by a recipe that runs by itself, and fill coverage gaps. List every planned metric no reliable public source gives in unavailable (why, and the sources you tried); the editor decides what to do with each.',
   input:c=>({plan:c.r.plan,survey:c.r.survey,universe:c.r.universe}),schema:COLLECT_SCHEMA,budget:{rounds:60,calls:135},passes:2,onFail:'skip',
   accept:c=>dataGate(c,'Your report cannot be accepted yet — '),},
+ dataCheck:{id:'data-check',role:'editor',title:'accept the data or ask for more',base:'editor',tools:['team_state','coverage','quality_check','preview_page','record_decision'],
+  text:'Stage: data check. The collector has loaded data for this topic. As the composer of its pages, check it against what the pages need before you design them: (1) rows — is the universe complete: every entity readers expect, every major market and country, nothing important missing (coverage: expected vs loaded; look for well-known names)? (2) columns — does every entity have the attributes and measures the rankings and interfaces need (each criterion filled for most entities, the years readers compare, the grouping attributes, images, links)? (3) indices — which composite indices readers need (the question each answers, the aspects that matter, which measures feed it); the collector designs and builds them. Return satisfied=true only when the pages can be composed well from this data. Otherwise list concrete requests in readers\' words in rows, columns and indices (what is missing and why readers need it). Requests the collector already reported as unobtainable (input previous) are not repeated.',
+  input:c=>({plan:c.r.plan,collected:c.r.collect,previous:c.r['data-more'],earlier:c.r['data-check']}),schema:DATA_CHECK_SCHEMA,budget:{rounds:18,calls:30},onFail:'skip'},
+ dataMore:{id:'data-more',role:'collector',title:'collect what the editor asked for',base:'collector',tools:['team_state','coverage','list_public_sources','call_public_source','fetch_data','extract_tables','query_data','describe_data','crawl_pages','extract_fields','llm_extract','entity_upsert','bulk_import','entity_get','entity_search','metric_table','define_metric','compute_metric','metric_sensitivity','set_entity_schema','save_recipe','run_recipe','retract_observations','record_sources','request_access','report_issue'],
+  text:'Stage: more data. The editor checked the data and asked for more (input requests: rows, columns, indices). Do every request: load the missing entities (rows); add the missing attributes and measures — design their format, find sources, save and run recipes, with history (columns); design each requested index as a derived metric (inputs, weights, normalization, missing-data rule, a clear formula in its methodology), compute it and check its robustness with metric_sensitivity (indices). Report under unavailable what cannot be had from public data and why, so the editor does not ask again.',
+  input:c=>({plan:c.r.plan,requests:c.r['data-check']}),schema:COLLECT_SCHEMA,budget:{rounds:45,calls:90},onFail:'skip',
+  accept:c=>dataGate(c,'Your report cannot be accepted yet — ')},
  resolve:{id:'resolve',role:'editor',title:'decide metrics that cannot be had',base:'editor',text:'Stage: metrics the collector could not get. Decide each one — "replace" with a measure public data does support (name it in replacement), "drop" it, or "request_access" when a better source exists that needs a key or account (call request_access too). Record each decision with record_decision and update the plan.',
   input:c=>({plan:c.r.plan,unavailable:unavailableOf(c)}),schema:RESOLVE_SCHEMA,budget:{rounds:18,calls:30},onFail:'skip'},
  replace:{id:'replace',role:'collector',title:'load replacement metrics',base:'collector',tools:['team_state','coverage','list_public_sources','call_public_source','fetch_data','extract_tables','query_data','describe_data','crawl_pages','extract_fields','llm_extract','entity_upsert','bulk_import','entity_get','entity_search','metric_table','define_metric','compute_metric','metric_sensitivity','set_entity_schema','save_recipe','run_recipe','retract_observations','record_sources','request_access','report_issue'],text:'Stage: replacement metrics. The editor replaced metrics you could not get with these: load each one by a recipe that runs by itself.',
@@ -327,18 +338,30 @@ function withReview(w:Workflow<TeamState,Ctx>,from:string){
 // ═══════════════════════════════════ THE WORKFLOWS ═══════════════════════════════════
 const unavailable=(s:TeamState)=>{const x=s.collect;return (Array.isArray(x)?x:[x]).flatMap(r=>(r as Report|undefined)?.unavailable||[]);};
 const replacements=(s:TeamState)=>((s.resolve as {decisions?:{action:string;replacement:string}[]}|undefined)?.decisions||[]).filter(d=>d.action==='replace'&&d.replacement.trim());
+// The editor accepts the data or sends the collector back for more, up to 3 rounds, before composing the pages.
+const MAX_DATA_ROUNDS=3;
+const dataSatisfied=(s:TeamState)=>(s['data-check'] as {satisfied?:boolean}|undefined)?.satisfied!==false||visits(s,'data-more')>=MAX_DATA_ROUNDS;
 const build=withReview(new Workflow<TeamState,Ctx>('build','Build a new topic')
  .node(stage(S.plan)).node(stage(S.survey)).node(stage(S.universe)).node(stage(S.starter)).node(stage(S.metrics))
+ .node(stage(S.dataCheck)).node(stage(S.dataMore))
  .node(earlyReview).node(stage(S.resolve)).node(stage(S.replace)).node(stage(S.design))
- .then('plan','survey','universe','starter','collect','early-review')
+ .then('plan','survey','universe','starter','collect','data-check')
+ .branch('data-check',['early-review','data-more'],s=>dataSatisfied(s)?'early-review':'data-more','editor satisfied with the data? (≤3 rounds)')
+ .then('data-more','data-check')
  .branch('early-review',['resolve','design'],s=>unavailable(s).length?'resolve':'design','metrics the collector could not get?')
  .branch('resolve',['replace','design'],s=>replacements(s).length?'replace':'design','replacements chosen?')
  .then('replace','design'),'design');
 const repair=new Workflow<TeamState,Ctx>('repair','Repair a failed collection rule').node(stage(S.repair)).then('repair',END);
 const expand=withReview(new Workflow<TeamState,Ctx>('expand','Serve what readers asked for')
- .node(stage(S.triage)).node(stage(S.expandData)).node(stage(S.expandDesign)).then('triage','expand-data','expand-design'),'expand-design');
+ .node(stage(S.triage)).node(stage(S.expandData)).node(stage(S.dataCheck)).node(stage(S.dataMore)).node(stage(S.expandDesign))
+ .then('triage','expand-data','data-check')
+ .branch('data-check',['expand-design','data-more'],s=>dataSatisfied(s)?'expand-design':'data-more','editor satisfied with the data? (≤3 rounds)')
+ .then('data-more','data-check'),'expand-design');
 const grow=withReview(new Workflow<TeamState,Ctx>('review','Deepen a live topic (routine pass)')
- .node(stage(S.grow)).node(stage(S.growData)).node(stage(S.growDesign)).then('grow','grow-data','grow-design'),'grow-design');
+ .node(stage(S.grow)).node(stage(S.growData)).node(stage(S.dataCheck)).node(stage(S.dataMore)).node(stage(S.growDesign))
+ .then('grow','grow-data','data-check')
+ .branch('data-check',['grow-design','data-more'],s=>dataSatisfied(s)?'grow-design':'data-more','editor satisfied with the data? (≤3 rounds)')
+ .then('data-more','data-check'),'grow-design');
 const sources=new Workflow<TeamState,Ctx>('sources','Recheck the source register (every 90 days)').node(stage(S.sources)).then('sources',END);
 export const WORKFLOWS:Record<WorkflowKind,Workflow<TeamState,Ctx>>={build,repair,expand,review:grow,sources};
 // The charter as data: every workflow's nodes (role, deliverable) and edges, with a Mermaid diagram.

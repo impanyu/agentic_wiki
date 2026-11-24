@@ -42,7 +42,7 @@ test('every workflow of the charter is a valid graph; the editor leads and prese
  assert.match(src,/the collector designs each as a derived metric/);assert.doesNotMatch(src,/Editors invent indices/);
  assert.match(readFileSync('app/teams/tools.ts','utf8'),/role==='editor'\?ENTITY_READ\.includes\(t\.name\)/);
  // Collector stages carry the index tools.
- assert.equal((src.match(/'define_metric','compute_metric','metric_sensitivity'/g)||[]).length,5);
+ assert.equal((src.match(/'define_metric','compute_metric','metric_sensitivity'/g)||[]).length,6);
 });
 
 // A scripted team: each call answers by role and step.
@@ -55,22 +55,22 @@ const issues=(owner)=>({approved:false,issues:[{owner,severity:'major',problem:'
 test('build: plan → survey → universe → starter → collect → design → review → publish when nothing is missing',async()=>{
  const calls=team({'reviewer:review':approved,'editor:plan':{types:[],rankings:[]}});
  const c=ctx();c.r._maxFixRounds=2;await ch.WORKFLOWS.build.run(c.r,c);
- assert.deepEqual(calls,['editor:plan','collector:survey','collector:universe','editor:starter','collector:collect','reviewer:early-review','editor:design','reviewer:review']);
+ assert.deepEqual(calls,['editor:plan','collector:survey','collector:universe','editor:starter','collector:collect','editor:data-check','reviewer:early-review','editor:design','reviewer:review']);
 });
 test('build: unavailable metrics go to the editor to decide, replacements back to the collector',async()=>{
  const calls=team({'collector:collect':{done:[],open:[],notes:'',unavailable:[{metric:'x',why:'none',tried:'a'}]},'editor:resolve':{decisions:[{metric:'x',action:'replace',replacement:'y',why:''}]},'reviewer:review':approved});
  const c=ctx();c.r._maxFixRounds=2;await ch.WORKFLOWS.build.run(c.r,c);
- assert.deepEqual(calls.slice(4),['collector:collect','reviewer:early-review','editor:resolve','collector:replace','editor:design','reviewer:review']);
+ assert.deepEqual(calls.slice(4),['collector:collect','editor:data-check','reviewer:early-review','editor:resolve','collector:replace','editor:design','reviewer:review']);
 });
 test('review loop: issues go to their owners for at most the fix rounds, then the manager rules and the reviewer reviews once more',async()=>{
  const calls=team({'reviewer:review':issues('collector'),'reviewer:re-review':issues('collector'),'manager':{rulings:[{ruling:'reviewer_right'}],brief:''},'reviewer:review-after-ruling':issues('collector')});
  const c=ctx();c.r._maxFixRounds=2;const s=await ch.WORKFLOWS.review.run(c.r,c);
- assert.deepEqual(calls,['editor:grow','collector:grow-data','editor:grow-design','reviewer:review','collector:fix','editor:fix','reviewer:re-review','collector:fix','editor:fix','reviewer:re-review','manager:arbitrate','collector:apply-ruling','editor:apply-ruling','reviewer:review-after-ruling']);
+ assert.deepEqual(calls,['editor:grow','collector:grow-data','editor:data-check','editor:grow-design','reviewer:review','collector:fix','editor:fix','reviewer:re-review','collector:fix','editor:fix','reviewer:re-review','manager:arbitrate','collector:apply-ruling','editor:apply-ruling','reviewer:review-after-ruling']);
  assert.equal(s.rounds.length,2);assert.equal(s.verdict.approved,false);
  // Editor issues only: the editor fixes alone.
  const calls2=team({'reviewer:review':issues('editor'),'reviewer:re-review':approved});
  const c2=ctx();c2.r._maxFixRounds=2;await ch.WORKFLOWS.expand.run(c2.r,c2);
- assert.deepEqual(calls2.slice(3),['reviewer:review','editor:fix','reviewer:re-review']);
+ assert.deepEqual(calls2.slice(4),['reviewer:review','editor:fix','reviewer:re-review']);
  // Minor and platform issues do not hold publication.
  const calls3=team({'reviewer:review':{approved:false,issues:[{owner:'platform',severity:'major'},{owner:'editor',severity:'minor'}],summary:''}});
  const c3=ctx();c3.r._maxFixRounds=2;await ch.WORKFLOWS.expand.run(c3.r,c3);assert.equal(calls3.at(-1),'reviewer:review');
@@ -84,5 +84,16 @@ test('a ranking the reviewer passes is published at once, before the rest of the
  const published=[];globalThis.__published=published;
  team({'reviewer:early-review':{approved:false,ready:['phone-rankings'],issues:[{owner:'editor',severity:'major',problem:'x'}],summary:''},'reviewer:review':approved});
  const src=readFileSync('app/teams/charter.ts','utf8');assert.match(src,/await publishReady\(c,checked\)/);
- const d=ch.charter().find(w=>w.id==='build');assert.deepEqual(d.edges.find(e=>e.from==='collect').to,['early-review']);
+ const d=ch.charter().find(w=>w.id==='build');assert.deepEqual(d.edges.find(e=>e.from==='collect').to,['data-check']);
+});
+
+test('the editor accepts the data or sends the collector back for more rows, columns and indices (at most 3 rounds)',async()=>{
+ let n=0;const calls=team({'editor:data-check':()=>({satisfied:++n>2,rows:['missing Asian makers'],columns:['battery life'],indices:['value for money'],notes:''}),'reviewer:review':approved});
+ const c=ctx();c.r._maxFixRounds=2;await ch.WORKFLOWS.build.run(c.r,c);
+ assert.deepEqual(calls.slice(4,10),['collector:collect','editor:data-check','collector:data-more','editor:data-check','collector:data-more','editor:data-check']);
+ assert.equal(calls[10],'reviewer:early-review');
+ // Never satisfied: three rounds of more data, then the pages are composed anyway (the review loop judges them).
+ const calls2=team({'editor:data-check':{satisfied:false,rows:['x'],columns:[],indices:[],notes:''},'reviewer:review':approved});
+ const c2=ctx();c2.r._maxFixRounds=2;await ch.WORKFLOWS.build.run(c2.r,c2);
+ assert.equal(calls2.filter(x=>x==='collector:data-more').length,3);
 });
