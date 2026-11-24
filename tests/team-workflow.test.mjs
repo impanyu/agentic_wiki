@@ -4,7 +4,7 @@ const load=async(file,prelude='')=>import('data:text/javascript;base64,'+Buffer.
 const wf=await load('app/teams/workflow.ts');
 globalThis.__wf=wf;
 const ch=await load('app/teams/charter.ts',`const {Workflow,END,visits}=globalThis.__wf;const OWNER='t';const spawnAgent=async()=>({id:'m'});const entityDb=async()=>null;const createTopic=null,getTopic=null,setTopicParent=null;
-const coverage=async()=>({recipeProblems:[]});const listRankingDefs=async()=>[];const listEntityTypes=async()=>[];const setStatus=async()=>{};const ask=(...a)=>globalThis.__ask(...a);\n`);
+const coverage=async()=>({recipeProblems:[]});const listRankingDefs=async()=>[];const listEntityTypes=async()=>[];const setStatus=async()=>{};const checkTopicQa=async()=>globalThis.__qa?globalThis.__qa():({issues:[],failing:[]});const ask=(...a)=>globalThis.__ask(...a);\n`);
 
 test('the engine follows edges and decisions, bounds loops, skips or stops on failure, and checkpoints every step',async()=>{
  const {Workflow,END,visits,WorkflowStopped}=wf;const seen=[];const node=(id,patch,onFail)=>({id,role:'x',title:id,onFail,run:async s=>{seen.push(id);return typeof patch==='function'?patch(s):patch;}});
@@ -83,6 +83,6 @@ test('repair and source review have no review loop',async()=>{
 test('a ranking the reviewer passes is published at once, before the rest of the topic',async()=>{
  const published=[];globalThis.__published=published;
  team({'reviewer:early-review':{approved:false,ready:['phone-rankings'],issues:[{owner:'editor',severity:'major',problem:'x'}],summary:''},'reviewer:review':approved});
- const src=readFileSync('app/teams/charter.ts','utf8');assert.match(src,/await publishReady\(c,verdict as Verdict\)/);
+ const src=readFileSync('app/teams/charter.ts','utf8');assert.match(src,/await publishReady\(c,checked\)/);
  const d=ch.charter().find(w=>w.id==='build');assert.deepEqual(d.edges.find(e=>e.from==='collect').to,['early-review']);
 });

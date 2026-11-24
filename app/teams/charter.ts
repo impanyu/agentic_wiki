@@ -4,6 +4,7 @@ import {entityDb} from '@/app/entity-db/client';
 import {createTopic,getTopic,setTopicParent} from '@/app/entity-db/repo';
 import {coverage,type Role} from './tools';
 import {listRankingDefs,listEntityTypes,setStatus} from './config';
+import {checkTopic as checkTopicQa} from './qa';
 import {ask,OWNER,type Log,type Accept} from './agent-call';
 import {Workflow,END,visits,type NodeDef} from './workflow';
 // ═══════════════════════════════════ THE TEAM CHARTER ═══════════════════════════════════
@@ -23,6 +24,7 @@ import {Workflow,END,visits,type NodeDef} from './workflow';
 // ════════════════════════════════════════════════════════════════════════════════════════
 
 const RULES=`Rules of RankWiki (a public ranking and entity site, built from public data only):
+- Do the work completely and thoroughly; never save effort at the cost of quality. Model calls are not the constraint: check every source, cover every market, load every year, verify before reporting. A shortcut that leaves data incomplete or unchecked is a defect.
 - Pages are rendered by the platform from the entity database and templates; no agent writes pages. Your work is data, schemas, recipes, templates and ranking definitions.
 - Facts are stored in base units (USD not million USD, people, km2) with their period and source; collect the full history a source offers (e.g. World Bank 1960 onward), not only the latest year.
 - Every entity has standard ids when they exist (iso3 / iso2 for countries, wikidata QIDs); rows merge on shared ids.
@@ -107,6 +109,8 @@ const REVIEWER=`You are the independent reviewer of this topic team. Check the w
 - Sources: the source register (team_state → sources) shows a real worldwide survey — international and local sources for the major markets, each with a decision and reason; an English-only or US-only survey, or a market whose local brands are missing, is a major issue for the collector.
 - Presentation (judge what a reader sees; preview_page gives each chart's text in chartTexts): every chart readable — axis ticks distinct (not "1.4B, 1.4B, 1.4B"), one unit per chart (two measures of different units belong in two sections, not one chart on two axes), no empty or one-point charts, sections in a sensible order (rankings and key figures first), sentences that each add something, no thin pages. A template choice (what goes in which section, wording, order) is an issue for the editor; a defect the template cannot control (the renderer's own formatting) is reported with owner "platform".
 - Rules: titles, base units, history collected (coverage.historyGaps: a metric with one or two periods whose source offers earlier years is a major issue for the collector); data refreshes by itself — coverage.recipeProblems is empty (every metric and the universe loaded by a recipe that has run successfully); any entry there is a major issue for the collector.
+- The collector's work, not only the pages: the universe is complete for what each title promises (every country and market the title covers, not one country's list under a worldwide title), each metric comes from an authoritative source per market, values match the sources, and data that belongs to an existing entity (an airport's accessibility score) is a metric of that entity, not a separate entity type. Any gap is an issue for the collector.
+- Program checks (programChecks in your input, and quality_check): findings of the program's quality gate. They are binding — a ranking with one is not ready — so include each in your judgement; you may add more, never dismiss them.
 Judge against the platform rules, the brief and the team's recorded decisions (team_state → topic.decisions): a recorded decision is not an issue unless it serves readers badly — then say why and what decision would be better.
 Every review gathers fresh evidence with your tools (team_state, coverage, preview_page, entity_get, the sources) — never repeat an earlier verdict without rechecking. Do not raise issues that contradict the platform rules above (e.g. more than 12 criteria in a ranking).
 Judge first as a reader: does each page and ranking answer what a reader comparing these entities wants? Route every issue to the member who can fix it, directly: data, metric and index defects (wrong or missing values, an index computed or weighted against its stated method, top places that swing on small weight changes, an unclear methodology) → collector; an index or measure that does not answer what readers need (the wrong concept, a missing aspect, the wrong question) → editor, who restates the requirement for the collector; templates, rankings and presentation → editor.
@@ -120,7 +124,7 @@ const teamAsk=(role:Role,agent:Agent,topicId:string,instructions:string,task:unk
 
 // One manager decision outside a team pass (the daily review of readers' searches, app/teams/manager.ts).
 export function askManager(agent:Agent,topicId:string,instructions:string,task:unknown,schema:Record<string,unknown>,log:Log){
- return teamAsk('manager',agent,topicId,instructions,task,schema,log,{rounds:12,calls:20});
+ return teamAsk('manager',agent,topicId,instructions,task,schema,log,{rounds:18,calls:30});
 }
 // The manager places a topic in the navigation tree (once: a topic that already has a parent stays where it is).
 export async function placeTopic(slug:string,log:Log=()=>{}):Promise<{placed:boolean;path?:string[];summary?:string}>{
@@ -128,7 +132,7 @@ export async function placeTopic(slug:string,log:Log=()=>{}):Promise<{placed:boo
  if(topic.parentId||topic.slug==='general')return {placed:false};
  const tree=(await db.query<{slug:string;name:string;parent:string|null}>(`select t.slug,t.name,p.slug as parent from topics t left join topics p on p.id=t.parent_id where t.status<>'archived' and t.slug<>'general' order by t.slug`)).rows;
  const manager=await spawnAgent('team-manager',OWNER);
- const r=await teamAsk('manager',manager,topic.id,PLACE,{topic:{slug:topic.slug,name:topic.name,description:topic.description.slice(0,1500)},tree,step:'place'},PLACE_SCHEMA,log,{rounds:6,calls:8}) as {path:{slug:string;name:string;description:string}[];summary:string};
+ const r=await teamAsk('manager',manager,topic.id,PLACE,{topic:{slug:topic.slug,name:topic.name,description:topic.description.slice(0,1500)},tree,step:'place'},PLACE_SCHEMA,log,{rounds:9,calls:12}) as {path:{slug:string;name:string;description:string}[];summary:string};
  let parent:string|null=null;const names:string[]=[];
  for(const p of r.path.slice(0,3)){
   if(!p.slug||!p.name)continue;
@@ -168,45 +172,45 @@ const dataGate=async(c:Ctx,prefix:string)=>{const p=await recipeProblems(c);if(p
 const recipeProblems=async(c:Ctx)=>{const out:string[]=[];for(const t of await listEntityTypes(c.db,c.topic.id))out.push(...(await coverage(t.type,'',0)).recipeProblems);return out;};
 const S={
  plan:{id:'plan',role:'editor',title:'what readers need: rankings, criteria, indices, data',base:'plan',text:'Stage: plan. The topic\'s entity type and its schema are usually predefined (team_state → topic.entityType and topic.schema: inherited and own attributes, metrics, relations, planned indices and ranking criteria; for a subset such as a country\'s cities, topic.filter narrows a global type). Plan from it: keep its type, metrics, indices and criteria, add only what is missing, and say what you add. Decide the universe and its expected size and the sources to try. Be concise; do not collect data yourself.',
-  input:c=>({}),schema:PLAN_SCHEMA,budget:{rounds:14,calls:24},onFail:'stop'},
+  input:c=>({}),schema:PLAN_SCHEMA,budget:{rounds:21,calls:36},onFail:'stop'},
  survey:{id:'survey',role:'collector',title:'survey the sources',base:'collector',tools:['team_state','list_public_sources','call_public_source','find_sources','web_search','browse_page','fetch_data','extract_tables','describe_data','record_sources','request_access','report_issue'],text:'Stage: source survey. Start from the sources the tree\'s schema already names for this topic and every topic above it (team_state → topic.schema.sources; the deeper the topic, the more specific): check each, then look for what they miss. Do ONLY step 0 — survey sources (every source you open is entered in the register automatically as a candidate), then call record_sources once to mark the ones you choose (and reject the ones you rule out, with why): the source of the universe (the full list of entities) and the best source per planned metric. Do not load entities yet. Report the chosen sources.',
-  input:c=>({plan:c.r.plan}),budget:{rounds:18,calls:30},onFail:'skip',
+  input:c=>({plan:c.r.plan}),budget:{rounds:27,calls:45},onFail:'skip',
   accept:async c=>{const n=await count(c,'select count(*)::int n from sources where topic_id=$1::uuid',[c.topic.id]);return n>=3?undefined:'Record at least 3 candidate sources with record_sources (chosen or rejected, with why) before reporting; '+n+' recorded so far.';}},
  universe:{id:'universe',role:'collector',title:'load the entity universe + recipe',base:'collector',tools:['team_state','coverage','list_public_sources','call_public_source','fetch_data','extract_tables','query_data','describe_data','crawl_pages','extract_fields','llm_extract','entity_upsert','bulk_import','entity_get','entity_search','metric_table','define_metric','compute_metric','metric_sensitivity','set_entity_schema','save_recipe','run_recipe','retract_observations','record_sources','request_access','report_issue'],text:'Stage: load the universe. Use the sources chosen in the survey (task → survey, team_state → sources); do not search for new ones. Your first calls fetch the list and your next call loads it (entity_upsert on the fetched dataset, or bulk_import for a large dump). Load the full list of entities now — names, standard ids, the main attributes, picture, official website, Wikipedia and introduction — with entity_upsert or bulk_import (with the admission standard), save it as a recipe (save_recipe) and run it once (run_recipe). Set the entity schema. Metrics come in the next stage; load the ones the universe source already gives.',
-  input:c=>({plan:c.r.plan,survey:c.r.survey}),budget:{rounds:24,calls:40},onFail:'stop',
+  input:c=>({plan:c.r.plan,survey:c.r.survey}),budget:{rounds:36,calls:60},onFail:'stop',
   accept:async c=>{const list=await typesOf(c);const n=list.length?await count(c,'select count(*)::int n from entities where type = any($1::text[])',[list]):0;
    const r=list.length?await count(c,'select count(*)::int n from recipes where type = any($1::text[])',[list]):0;
    return n<1?'No entities are loaded yet for '+(list.join(', ')||'the planned types')+'. Load the universe (entity_upsert or bulk_import) before reporting.':r<1?'Save the loading steps as a recipe (save_recipe) and run it (run_recipe) so the list refreshes by itself.':undefined;}},
  starter:{id:'starter',role:'editor',title:'first pages',base:'editor',text:'Stage: first pages. With the data loaded so far, save the main ranking (save_ranking, the criteria that have data now) and a basic entity template (set_entity_template: lead sentence, card, rankings and the sections the data supports). Preview one ranking and one entity page. Deeper design comes later.',
-  input:c=>({plan:c.r.plan,universe:c.r.universe}),budget:{rounds:18,calls:30},onFail:'stop',
+  input:c=>({plan:c.r.plan,universe:c.r.universe}),budget:{rounds:27,calls:45},onFail:'stop',
   accept:async c=>(await listRankingDefs(c.db,{topicId:c.topic.id})).length?undefined:'Save the main ranking (save_ranking) before reporting.'},
  metrics:{id:'collect',role:'collector',title:'load the metrics, build the indices (recipes)',base:'collector',tools:['team_state','coverage','list_public_sources','call_public_source','fetch_data','extract_tables','query_data','describe_data','crawl_pages','extract_fields','llm_extract','entity_upsert','bulk_import','entity_get','entity_search','metric_table','define_metric','compute_metric','metric_sensitivity','set_entity_schema','save_recipe','run_recipe','retract_observations','record_sources','request_access','report_issue'],text:'Stage: metrics. The universe is loaded; now load every planned metric (with history), each by a recipe that runs by itself, and fill coverage gaps. List every planned metric no reliable public source gives in unavailable (why, and the sources you tried); the editor decides what to do with each.',
-  input:c=>({plan:c.r.plan,survey:c.r.survey,universe:c.r.universe}),schema:COLLECT_SCHEMA,budget:{rounds:40,calls:90},passes:2,onFail:'skip',
+  input:c=>({plan:c.r.plan,survey:c.r.survey,universe:c.r.universe}),schema:COLLECT_SCHEMA,budget:{rounds:60,calls:135},passes:2,onFail:'skip',
   accept:c=>dataGate(c,'Your report cannot be accepted yet — '),},
  resolve:{id:'resolve',role:'editor',title:'decide metrics that cannot be had',base:'editor',text:'Stage: metrics the collector could not get. Decide each one — "replace" with a measure public data does support (name it in replacement), "drop" it, or "request_access" when a better source exists that needs a key or account (call request_access too). Record each decision with record_decision and update the plan.',
-  input:c=>({plan:c.r.plan,unavailable:unavailableOf(c)}),schema:RESOLVE_SCHEMA,budget:{rounds:12,calls:20},onFail:'skip'},
+  input:c=>({plan:c.r.plan,unavailable:unavailableOf(c)}),schema:RESOLVE_SCHEMA,budget:{rounds:18,calls:30},onFail:'skip'},
  replace:{id:'replace',role:'collector',title:'load replacement metrics',base:'collector',tools:['team_state','coverage','list_public_sources','call_public_source','fetch_data','extract_tables','query_data','describe_data','crawl_pages','extract_fields','llm_extract','entity_upsert','bulk_import','entity_get','entity_search','metric_table','define_metric','compute_metric','metric_sensitivity','set_entity_schema','save_recipe','run_recipe','retract_observations','record_sources','request_access','report_issue'],text:'Stage: replacement metrics. The editor replaced metrics you could not get with these: load each one by a recipe that runs by itself.',
-  input:c=>({plan:c.r.plan,replacements:replacementsOf(c)}),schema:COLLECT_SCHEMA,budget:{rounds:30,calls:60},onFail:'skip'},
+  input:c=>({plan:c.r.plan,replacements:replacementsOf(c)}),schema:COLLECT_SCHEMA,budget:{rounds:45,calls:90},onFail:'skip'},
  design:{id:'design',role:'editor',title:'rankings, sub-rankings, templates',base:'editor',text:'Stage: full design. Complete the template, the sub-rankings (established classifications only: by kind — discipline, field, industry, category, sport, genre — wherever the entities fall into classes; by country, region and city wherever place matters; by market for products), the composite indices the collector built as criteria, and related rankings; preview every ranking and several entity pages and fix what is wrong.',
-  input:c=>({plan:c.r.plan,starter:c.r.starter,collector:lastReport(c.r.collect),earlyReview:c.r['early-review']}),budget:{rounds:32,calls:70},passes:2,onFail:'skip'},
+  input:c=>({plan:c.r.plan,starter:c.r.starter,collector:lastReport(c.r.collect),earlyReview:c.r['early-review']}),budget:{rounds:48,calls:105},passes:2,onFail:'skip'},
  repair:{id:'repair',role:'collector',title:'repair a failed recipe',base:'collector',text:'Stage: repair. A collection rule of this topic failed or drifted (team_state → plan shows the repair items with the error). Start from the source register: inspect the source again, fix the recipe or move it to the best recorded alternative (record_sources), run_recipe until it succeeds, retract data from a source you abandon, and close the repair items.',
-  input:c=>({}),budget:{rounds:30,calls:60},onFail:'stop',accept:async c=>{const p=await recipeProblems(c);return p.length?'Not repaired yet: '+p.slice(0,8).join(' '):undefined;}},
+  input:c=>({}),budget:{rounds:45,calls:90},onFail:'stop',accept:async c=>{const p=await recipeProblems(c);return p.length?'Not repaired yet: '+p.slice(0,8).join(' '):undefined;}},
  triage:{id:'triage',role:'editor',title:'read the readers requests',base:'editor',text:'Stage: readers\' requests. Read the inbox (read_inbox) and treat the queries as signals of demand, not tickets: for each group of related queries, (1) find the need behind it ("best tractor for a small vineyard" means a narrow/vineyard tractor segment), (2) generalise to the neighbouring needs the same readers will have (orchard, compact and hill-farm tractors) and plan those too, (3) plan the entities and metrics the data lacks (save_plan: ingest items for the collector, ranking items for yourself — sub-rankings by established segments), (4) propose subtopics where the queries point to a distinct sub-field (propose_subtopics, with the classification basis), and (5) mark every query read with your decision (triage_queries: planned, generalised into …, or out of scope and why).',
-  input:c=>({}),budget:{rounds:14,calls:24},onFail:'stop'},
+  input:c=>({}),budget:{rounds:21,calls:36},onFail:'stop'},
  expandData:{id:'expand-data',role:'collector',title:'load what readers asked for',base:'collector',tools:['team_state','coverage','list_public_sources','call_public_source','fetch_data','extract_tables','query_data','describe_data','crawl_pages','extract_fields','llm_extract','entity_upsert','bulk_import','entity_get','entity_search','metric_table','define_metric','compute_metric','metric_sensitivity','set_entity_schema','save_recipe','run_recipe','retract_observations','record_sources','request_access','report_issue'],text:'Stage: load what the plan asks for. Work the open ingest items of the plan (entities and metrics readers asked for), each by a recipe that runs by itself, and close them.',
-  input:c=>({triage:c.r.triage}),schema:COLLECT_SCHEMA,budget:{rounds:30,calls:70},onFail:'skip',accept:c=>dataGate(c,'Your report cannot be accepted yet — ')},
+  input:c=>({triage:c.r.triage}),schema:COLLECT_SCHEMA,budget:{rounds:45,calls:105},onFail:'skip',accept:c=>dataGate(c,'Your report cannot be accepted yet — ')},
  expandDesign:{id:'expand-design',role:'editor',title:'pages for what readers asked',base:'editor',text:'Stage: pages for what readers asked. Add the rankings and template sections the new data supports; preview them and fix what is wrong.',
-  input:c=>({triage:c.r.triage,collector:c.r['expand-data']}),budget:{rounds:24,calls:50},onFail:'skip'},
+  input:c=>({triage:c.r.triage,collector:c.r['expand-data']}),budget:{rounds:36,calls:75},onFail:'skip'},
  // Growing (the routine pass): a topic is never finished. Each pass the editor deepens it — more measures and
  // attributes, new indices, finer sub-rankings — and the collector loads what the editor adds, from more sources.
  grow:{id:'grow',role:'editor',title:'choose the next additions',base:'editor',text:'Stage: grow. This topic is live; deepen it. From team_state and coverage, compare what it has with what a reader comparing these entities wants and with what public data offers (the type\'s inherited and interface measures, the source register, new sources). Choose the next additions: at least 10 new measures or attributes (a key, label, unit, order and the source that has them — two independent sources where possible), at least 1 new composite index readers need (what it should measure and which aspects matter; the collector builds it), and new sub-rankings by kind (discipline, category, industry, genre…) and by place (country, region, city) wherever the entities fall into classes; propose_subtopics for parts that deserve their own topic. Record each choice with record_decision; list what the collector must load and the indices it must build in your report (open) — the collector updates the type schema.',
-  input:c=>({}),budget:{rounds:20,calls:36},onFail:'stop'},
+  input:c=>({}),budget:{rounds:30,calls:54},onFail:'stop'},
  growData:{id:'grow-data',role:'collector',title:'load the additions, build the new indices',base:'collector',tools:['team_state','coverage','list_public_sources','call_public_source','fetch_data','extract_tables','query_data','describe_data','crawl_pages','extract_fields','llm_extract','entity_upsert','bulk_import','entity_get','entity_search','metric_table','define_metric','compute_metric','metric_sensitivity','set_entity_schema','save_recipe','run_recipe','retract_observations','record_sources','request_access','report_issue'],text:'Stage: load the additions. Load every measure and attribute the editor added (the editor\'s report lists them): survey a second independent source where one exists, cross-check values, save each as a recipe and run it; report what you could not get (unavailable) with the reason.',
-  input:c=>({grow:c.r.grow}),schema:COLLECT_SCHEMA,budget:{rounds:30,calls:70},onFail:'skip',accept:c=>dataGate(c,'Your report cannot be accepted yet — ')},
+  input:c=>({grow:c.r.grow}),schema:COLLECT_SCHEMA,budget:{rounds:45,calls:105},onFail:'skip',accept:c=>dataGate(c,'Your report cannot be accepted yet — ')},
  growDesign:{id:'grow-design',role:'editor',title:'put the additions on the pages',base:'editor',text:'Stage: put the additions on the pages. Add the new measures and the new indices the collector built to the ranking criteria and template sections, save the new sub-rankings (save_ranking with filters), preview the changed rankings and entity pages and fix what is wrong.',
-  input:c=>({grow:c.r.grow,collector:c.r['grow-data']}),budget:{rounds:24,calls:50},onFail:'skip'},
+  input:c=>({grow:c.r.grow,collector:c.r['grow-data']}),budget:{rounds:36,calls:75},onFail:'skip'},
  sources:{id:'sources',role:'collector',title:'recheck the source register',base:'collector',text:'Stage: source review (every 90 days). Go through the source register (team_state → sources): open every chosen source again (still reachable, still current, same format), mark dead or superseded ones rejected and move their recipes to the best remaining source, look for new sources and markets not yet covered, and record every check with record_sources.',
-  input:c=>({}),budget:{rounds:24,calls:50},onFail:'stop',
+  input:c=>({}),budget:{rounds:36,calls:75},onFail:'stop',
   accept:async c=>{const n=await count(c,"select count(*)::int n from sources where topic_id=$1::uuid and last_ok_at > now() - interval '1 day'",[c.topic.id]);return n>=1?undefined:'Record your checks with record_sources (every source you rechecked, chosen or rejected) before reporting.';}},
 } satisfies Record<string,Stage>;
 
@@ -240,35 +244,45 @@ async function publishReady(c:Ctx,v:Verdict){
 // Early in a build: the reviewer checks what is already on pages (the first rankings) so a ranking that passes is
 // published without waiting for the rest of the topic.
 const earlyReview:Node={id:'early-review',role:'reviewer',title:'review the first rankings, publish those that pass',onFail:'skip',run:async(s,c)=>{
- const verdict=await teamAsk('reviewer',c.agents.reviewer,c.topic.id,REVIEWER+'\nThis is an early review: the topic is still being built. Judge only the rankings already saved and the entity pages of their types; list in ready those that can go to readers now. Your issues go to the team as notes for the rest of the build.',{...c.info,step:'early-review',plan:s.plan},VERDICT_SCHEMA,c.log,{rounds:24,calls:50}) as Verdict;
- const published=await publishReady(c,verdict);
- return {'early-review':{published,issues:verdict.issues,summary:verdict.summary}};
+ const verdict=await teamAsk('reviewer',c.agents.reviewer,c.topic.id,REVIEWER+'\nThis is an early review: the topic is still being built. Judge only the rankings already saved and the entity pages of their types; list in ready those that can go to readers now. Your issues go to the team as notes for the rest of the build.',{...c.info,step:'early-review',plan:s.plan},VERDICT_SCHEMA,c.log,{rounds:36,calls:75}) as Verdict;
+ const checked=await withQa(c,verdict as Verdict);const published=await publishReady(c,checked);
+ return {'early-review':{published,issues:checked.issues,summary:verdict.summary}};
 }};
+// The program's quality gate (app/teams/qa.ts) is binding: its findings join the reviewer's issues, a ranking that
+// fails it is never listed as ready, and the work is not approved while any remain.
+async function withQa(c:Ctx,v:Verdict):Promise<Verdict>{
+ const qa=await checkTopicQa(c.db,c.topic.id);
+ if(qa.issues.length)c.log({event:'qa_failed',rankings:qa.failing,issues:qa.issues.length});
+ const fail=new Set(qa.failing);
+ return {...v,approved:v.approved&&!qa.issues.length,ready:(v.ready||[]).filter(r=>!fail.has(r)),issues:[...v.issues,...qa.issues.map(x=>({...x,problem:'[quality gate] '+x.problem}))]};
+}
 const teamIssues=(v:Verdict|undefined)=>(v?.issues||[]).filter(x=>x.owner!=='platform'&&x.severity!=='minor');
 const review:Node={id:'review',role:'reviewer',title:'independent review',onFail:'stop',run:async(s,c)=>{
- const base={...c.info};const reviewer=c.agents.reviewer;
+ const programChecks=(await checkTopicQa(c.db,c.topic.id)).issues;
+ const base={...c.info,programChecks};const reviewer=c.agents.reviewer;
  const verdict=s.ruling
-  ?await teamAsk('reviewer',reviewer,c.topic.id,REVIEWER+'\nThe manager has ruled on the disputed issues; the rulings are recorded decisions and bind you. Re-review everything against them.',{...base,step:'review-after-ruling',ruling:s.ruling},VERDICT_SCHEMA,c.log,{rounds:32,calls:70})
+  ?await teamAsk('reviewer',reviewer,c.topic.id,REVIEWER+'\nThe manager has ruled on the disputed issues; the rulings are recorded decisions and bind you. Re-review everything against them.',{...base,step:'review-after-ruling',ruling:s.ruling},VERDICT_SCHEMA,c.log,{rounds:48,calls:105})
   :visits(s,'fix')>0
-  ?await teamAsk('reviewer',reviewer,c.topic.id,REVIEWER+'\nThis is a re-review after fixes: check the earlier issues first, then everything again.',{...base,step:'re-review',previous:s.verdict},VERDICT_SCHEMA,c.log,{rounds:32,calls:70})
-  :await teamAsk('reviewer',reviewer,c.topic.id,REVIEWER,{...base,step:'review',plan:s.plan},VERDICT_SCHEMA,c.log,{rounds:32,calls:70});
- await publishReady(c,verdict as Verdict);
- return {verdict};
+  ?await teamAsk('reviewer',reviewer,c.topic.id,REVIEWER+'\nThis is a re-review after fixes: check the earlier issues first, then everything again.',{...base,step:'re-review',previous:s.verdict},VERDICT_SCHEMA,c.log,{rounds:48,calls:105})
+  :await teamAsk('reviewer',reviewer,c.topic.id,REVIEWER,{...base,step:'review',plan:s.plan},VERDICT_SCHEMA,c.log,{rounds:48,calls:105});
+ const checked=await withQa(c,verdict as Verdict);
+ await publishReady(c,checked);
+ return {verdict:checked};
 }};
 // Issues go to their owner: the collector fixes the data first, then the editor fixes the pages over it.
 const fix:Node={id:'fix',role:'collector, editor',title:'owners fix the issues',onFail:'skip',run:async(s,c)=>{
  const v=s.verdict as Verdict;const forCollector=v.issues.filter(x=>x.owner==='collector'),forEditor=v.issues.filter(x=>x.owner==='editor');const out:Record<string,unknown>={};
- if(forCollector.length)out.collector=await teamAsk('collector',c.agents.collector,c.topic.id,COLLECTOR+'\nThe reviewer sent these issues back to you: fix every one, then report.',{...c.info,step:'fix',issues:forCollector},REPORT_SCHEMA,c.log,{rounds:30,calls:70}).catch(e=>({failed:(e as Error).message}));
- if(forEditor.length||forCollector.length)out.editor=await teamAsk('editor',c.agents.editor,c.topic.id,EDITOR_BUILD+'\nThe reviewer sent these issues back (the collector has fixed its own): fix every one of yours, recheck the pages, then report.',{...c.info,step:'fix',issues:forEditor},REPORT_SCHEMA,c.log,{rounds:24,calls:50}).catch(e=>({failed:(e as Error).message}));
+ if(forCollector.length)out.collector=await teamAsk('collector',c.agents.collector,c.topic.id,COLLECTOR+'\nThe reviewer sent these issues back to you: fix every one, then report.',{...c.info,step:'fix',issues:forCollector},REPORT_SCHEMA,c.log,{rounds:45,calls:105}).catch(e=>({failed:(e as Error).message}));
+ if(forEditor.length||forCollector.length)out.editor=await teamAsk('editor',c.agents.editor,c.topic.id,EDITOR_BUILD+'\nThe reviewer sent these issues back (the collector has fixed its own): fix every one of yours, recheck the pages, then report.',{...c.info,step:'fix',issues:forEditor},REPORT_SCHEMA,c.log,{rounds:36,calls:75}).catch(e=>({failed:(e as Error).message}));
  return {rounds:[...((s.rounds as unknown[])||[]),out]};
 }};
 // Still disputed after the fix rounds: the manager rules (binding); the owners apply what the rulings require.
 const arbitrate:Node={id:'arbitrate',role:'manager',title:'binding ruling on disputes',onFail:'skip',run:async(s,c)=>{
  const manager=await spawnAgent('team-manager',OWNER);const v=s.verdict as Verdict;
- const ruling=await teamAsk('manager',manager,c.topic.id,MANAGER,{...c.info,step:'arbitrate',issues:teamIssues(v),reviewerSummary:v.summary},RULING_SCHEMA,c.log,{rounds:24,calls:40});
+ const ruling=await teamAsk('manager',manager,c.topic.id,MANAGER,{...c.info,step:'arbitrate',issues:teamIssues(v),reviewerSummary:v.summary},RULING_SCHEMA,c.log,{rounds:36,calls:60});
  if((ruling as {rulings:{ruling:string}[]}).rulings.some(r=>r.ruling==='reviewer_right')){
-  await teamAsk('collector',c.agents.collector,c.topic.id,COLLECTOR+'\nThe manager ruled on the open issues (binding). Do what the rulings require of you, then report.',{...c.info,step:'apply-ruling',ruling},REPORT_SCHEMA,c.log,{rounds:30,calls:70}).catch(()=>null);
-  await teamAsk('editor',c.agents.editor,c.topic.id,EDITOR_BUILD+'\nThe manager ruled on the open issues (binding). Do what the rulings require of you, recheck the pages, then report.',{...c.info,step:'apply-ruling',ruling},REPORT_SCHEMA,c.log,{rounds:24,calls:50}).catch(()=>null);
+  await teamAsk('collector',c.agents.collector,c.topic.id,COLLECTOR+'\nThe manager ruled on the open issues (binding). Do what the rulings require of you, then report.',{...c.info,step:'apply-ruling',ruling},REPORT_SCHEMA,c.log,{rounds:45,calls:105}).catch(()=>null);
+  await teamAsk('editor',c.agents.editor,c.topic.id,EDITOR_BUILD+'\nThe manager ruled on the open issues (binding). Do what the rulings require of you, recheck the pages, then report.',{...c.info,step:'apply-ruling',ruling},REPORT_SCHEMA,c.log,{rounds:36,calls:75}).catch(()=>null);
  }
  return {ruling};
 }};
@@ -283,7 +297,8 @@ const publish:Node={id:'publish',role:'system',title:'publish approved work, rep
  if(!v.approved&&teamIssues(v).length)await raiseIssue(db,{source:'team',topic:slug,severity:'major',title:'Team not approved after the manager ruled',
   detail:'Open issues:\n'+teamIssues(v).map(x=>'- '+JSON.stringify(x).slice(0,600)).join('\n')+'\nReviewer: '+v.summary.slice(0,1500),fingerprint:'team-stuck:'+slug}).catch(()=>{});
  if(v.approved||!teamIssues(v).length){
-  for(const r of await listRankingDefs(db,{topicId:topic.id}))await setStatus(db,'ranking',r.slug,'published');
+  const failing=new Set((await checkTopicQa(db,topic.id)).failing);
+  for(const r of await listRankingDefs(db,{topicId:topic.id}))if(!failing.has(r.slug))await setStatus(db,'ranking',r.slug,'published');
   for(const t of await listEntityTypes(db,topic.id))await setStatus(db,'type',t.type,'published');
   await placeTopic(slug,log).catch(e=>log({event:'topic_place_failed',error:(e as Error).message}));
  }

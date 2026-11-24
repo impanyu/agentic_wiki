@@ -85,7 +85,7 @@ export async function manageTeams(){
  // Every few hours the manager tends one branch of the tree (missing subtopics, duplicates).
  if(!reviewing){const {tendTree}=await import('./manager');reviewing=true;void tendTree(e=>console.log('[manager]',JSON.stringify(e))).catch(e=>console.error('[manager] tend failed',(e as Error).message)).finally(()=>{reviewing=false;});}
  // At most hourly: teams return to topics that need them.
- const now=Date.now();if(now-lastMaintenance>3600_000){lastMaintenance=now;const {scheduleMaintenance}=await import('./manager');const q=await scheduleMaintenance(db).catch(e=>{console.error('[queue] maintenance failed',(e as Error).message);return [];});if(q.length)console.log('[queue] queued',q.join(', '));}
+ const now=Date.now();if(now-lastMaintenance>3600_000){lastMaintenance=now;const {scheduleMaintenance}=await import('./manager');const {qaSweep}=await import('./qa');await qaSweep(db,e=>console.log('[qa]',JSON.stringify(e))).catch(e=>console.error('[qa] sweep failed',(e as Error).message));const q=await scheduleMaintenance(db).catch(e=>{console.error('[queue] maintenance failed',(e as Error).message);return [];});if(q.length)console.log('[queue] queued',q.join(', '));}
  const started=await runTeamQueue(async()=>(await llmSpend()).spentUsd,(slug,e)=>console.log('[team:'+slug+']',JSON.stringify(e)));
  if(started.length)console.log('[queue] started',started.join(', '));
 }
