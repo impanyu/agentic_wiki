@@ -3,6 +3,8 @@ import {entityDb} from '@/app/entity-db/client';
 import {createTopic,getTopic} from '@/app/entity-db/repo';
 import {OWNER,type Log} from './agent-call';
 import {WorkflowStopped} from './workflow';
+// No model could answer for now (all busy, over their caps, or timing out): the run is retried later, not failed.
+export const transientModelError=(e:unknown)=>/AI_UNAVAILABLE|AI_LIMIT|AI_SETUP|timeout|aborted due to timeout|pool busy|ECONNRESET|fetch failed/i.test(String((e as Error)?.message||e));
 // Runs one cycle of a topic team: picks the focus subtopic, starts (or resumes) the workflow the charter defines for
 // why the team was queued (app/teams/charter.ts), checkpoints after every step and reports the result.
 export {askManager,placeTopic,workflowOf,type WorkflowKind} from './charter';
@@ -43,7 +45,8 @@ export async function runTopicTeam({slug,name,brief,kind='build',note='',maxFixR
    const {raiseIssue}=await import('@/app/ops/issues');
    await raiseIssue(db,{source:'team',topic:slug,severity:'major',title:'Team stopped at stage '+e.node+' ('+kind+')',detail:e.message,fingerprint:'team-stage:'+slug+':'+e.node}).catch(()=>{});
   }
-  await db.query('delete from platform_state where key=$1::text',[key]).catch(()=>{});
+  // A model outage is not the team's failure: the checkpoint stays, so the retry resumes at the stopped step.
+  if(!transientModelError(e))await db.query('delete from platform_state where key=$1::text',[key]).catch(()=>{});
   throw e;
  }
  const verdict=(state.verdict as {approved:boolean;issues:unknown[];summary:string}|undefined)??{approved:true,issues:[],summary:kind+' finished'};

@@ -208,7 +208,11 @@ export async function runTeamQueue(spentUsd:()=>Promise<number>,log:(slug:string
    // A team with subtopics still to cover goes back to the queue for its next focus.
    .then(res=>res.more?db.query(`update team_queue set status='queued', started_at=null, finished_at=now(), note='build: next subtopic' where slug=$1::text`,[next.slug])
     :db.query(`update team_queue set status='done', finished_at=now(), note=$2::text where slug=$1::text`,[next.slug,res.verdict.approved?'approved':'not approved']))
-   .catch(async e=>{await db.query(`update team_queue set status='failed', finished_at=now(), note=$2::text where slug=$1::text`,[next.slug,String((e as Error).message).slice(0,500)]);
+   .catch(async e=>{
+    const {transientModelError}=await import('./run');
+    // No model available for now: back to the queue, behind the others (it resumes from its checkpoint).
+    if(transientModelError(e)){await db.query(`update team_queue set status='queued', started_at=null, created_at=now() where slug=$1::text`,[next.slug]);log(next.slug,{event:'requeued',reason:String((e as Error).message).slice(0,200)});return;}
+    await db.query(`update team_queue set status='failed', finished_at=now(), note=$2::text where slug=$1::text`,[next.slug,String((e as Error).message).slice(0,500)]);
     const {raiseIssue}=await import('@/app/ops/issues');
     await raiseIssue(db,{source:'scheduler',topic:next.slug,severity:'major',title:'Team run crashed',detail:String((e as Error).stack||e).slice(0,4000),fingerprint:'team-crash:'+next.slug}).catch(()=>{});})
    .finally(()=>running.delete(next.slug));
