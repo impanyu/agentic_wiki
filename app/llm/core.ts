@@ -5,7 +5,7 @@ import {costUsd,chatCostUsd} from './prices';
 // Only a paid provider's calls cost money: the same model served free (NRP, our own GPUs) costs nothing.
 const PAID=new Set(['deepseek']);
 // Providers billed per call, each with a daily cap (<PROVIDER>_DAILY_USD) and together under the monthly budget.
-const DAILY_CAPPED:Record<string,number>={deepseek:8,openai:8};
+export const DAILY_CAPPED:Record<string,number>={deepseek:8,openai:8};
 const paidCost=(entry:{provider:string;model:string},usage:Parameters<typeof chatCostUsd>[1])=>PAID.has(entry.provider)?chatCostUsd(entry.model,usage):0;
 import {RateTracker,monthKey,nextMonth,retryAfterMs,type Block} from './limits';
 import {toChat,fromChat,forOpenAI,requirements,inputItems,syntheticId} from './translate';

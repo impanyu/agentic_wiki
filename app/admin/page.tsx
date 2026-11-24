@@ -80,7 +80,10 @@ export default async function AdminPage({searchParams}:Props){
  }else if(tab==='costs'){
   const c=await costs(30);
   body=<>
-   <div className="adm-stats"><Stat label="This month (paid models)" value={usd(c.spend?.spentUsd)} note={c.spend?`budget ${usd(c.spend.budgetUsd)} · resets ${String(c.spend.resetsAt||'').slice(0,10)}`:''} tone={c.spend?.overBudget?'bad':undefined}/></div>
+   <div className="adm-stats"><Stat label="This month (paid models)" value={usd(c.spend?.spentUsd)} note={c.spend?`budget ${usd(c.spend.budgetUsd)} · resets ${String(c.spend.resetsAt||'').slice(0,10)}`:''} tone={c.spend?.overBudget?'bad':undefined}/>
+    <Stat label="Month projected" value={c.projected==null?'—':usd(c.projected)} note="at this month's average daily spend" tone={c.spend&&c.projected!=null&&c.projected>Number(c.spend.budgetUsd)?'warn':undefined}/>
+    {c.today.map(t=><Stat key={t.provider} label={`Today · ${t.provider}`} value={usd(t.spent)} note={`cap ${usd(t.cap)} · ${t.reached?'reached: free models only until 00:00 UTC':usd(t.left)+' left'} · ${fmt(t.calls)} calls`} tone={t.reached?'warn':undefined}/>)}</div>
+   <h2>Spend by day</h2><Table rows={c.byDay} cols={[['day','Day (UTC)'],['openai','OpenAI',(v)=>usd(v)],['deepseek','DeepSeek',(v)=>usd(v)],['paid','Total paid',(v)=>usd(v)],['paid_calls','Paid calls'],['free_calls','Free calls (our GPUs, free tiers)'],['failed','Failed calls']]}/>
    <h2>Cost by day (30 days)</h2><Bars points={c.daily.map(r=>({day:r.day,v:Number(r.cost)}))} label="USD per day"/>
    <h2>By model and task class (30 days)</h2><Table rows={c.byModel} cols={[['provider','Provider'],['model','Model'],['class','Class'],['calls','Calls'],['failed','Failed'],['input','Input tokens'],['output','Output tokens'],['cost','Cost',(v)=>usd(v)]]}/>
   </>;
