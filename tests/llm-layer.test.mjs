@@ -243,3 +243,14 @@ test('streaming: OpenAI streams natively; a Chat provider delivers the whole tur
  const o=L.createLLM({env:n=>n==='OPENAI_API_KEY'?'o':undefined,log:()=>{},usage:{record:async()=>{},monthSpend:async()=>0},fetch:async()=>reply(200,{}),readEvents:async function*(){yield {type:'response.output_text.delta',delta:'Hel'};yield {type:'response.output_text.delta',delta:'lo'};yield {type:'error',message:'boom'};}});
  const seen=[];await assert.rejects(o.respondStream({class:'premium',input:'x'},{onTextDelta:d=>seen.push(d)}),/AI_UNAVAILABLE/);assert.deepEqual(seen,['Hel','lo']);
 });
+
+test('a busy pool does not cool down for everyone: with nothing else available the request waits in the pool queue',async()=>{
+ let t=Date.UTC(2026,10,20,12);const waits=[];
+ const llm=L.createLLM({env:n=>({LLM_CHAINS:JSON.stringify({chains:{agent:['pool:local']}})})[n],now:()=>t,sleep:async ms=>{t+=ms;},log:()=>{},fetch:async()=>{throw Error('no http');},
+  usage:{record:async()=>{},monthSpend:async()=>0},
+  pool:{available:()=>true,run:async(m,b,timeout,s,wait)=>{waits.push(wait);if(!wait)throw Error('pool busy: no worker took the request within 20 s');return chatReply({role:'assistant',content:'ok'});}}});
+ const r=await llm.respond({class:'agent',input:'hi'});
+ assert.equal(r.output.find(o=>o.type==='message').content[0].text,'ok');
+ assert.deepEqual(waits,[undefined,600000],'first the short wait, then the long queue');
+ await assert.rejects(llm.respond({class:'instant',input:'hi'}).catch(e=>{throw e;}),/AI_/,'interactive requests never wait long');
+});

@@ -16,7 +16,7 @@ import type {LLMRequest,LLMResponse,OutputItem,StreamHandlers,TaskClass,InputIte
 export type UsageRow={createdAt:string;month:string;class:TaskClass;provider:string;model:string;status:string;latencyMs:number;inputTokens:number;cachedTokens:number;outputTokens:number;costUsd:number;webSearches:number;fallbackReason:string|null};
 export type UsageStore={record(row:UsageRow):Promise<void>;monthSpend(month:string):Promise<number>;daySpend?(day:string,provider:string):Promise<number>};
 export type Deps={
- pool?:{available(model:string):boolean;run(model:string,body:Record<string,unknown>,timeoutMs:number,signal?:AbortSignal):Promise<any>};
+ pool?:{available(model:string):boolean;run(model:string,body:Record<string,unknown>,timeoutMs:number,signal?:AbortSignal,queueWaitMs?:number):Promise<any>};
  env:(name:string)=>string|undefined;fetch:typeof fetch;usage:UsageStore;now?:()=>number;
  openaiDefaults?:(body:Record<string,any>)=>Record<string,unknown>;
  readEvents?:(stream:ReadableStream<Uint8Array>)=>AsyncIterable<Record<string,unknown>>;
@@ -108,8 +108,9 @@ export function createLLM(deps:Deps){
   const provider=catalog().providers[entry.provider];
   let data:any;
   if(entry.provider==='pool'){
-   try{data=await deps.pool!.run(entry.model,{...toChat(body,entry,{webSearch:webSearchEnabled}) as Record<string,unknown>,...(entry.chatExtra||{})},entry.timeoutMs||300000,signal);}
-   catch(e){const m=(e as Error).message;throw new ProviderError(/timeout/.test(m)?'timeout':/busy/.test(m)?'rate':'server',m,/busy/.test(m)?15000:null);}
+   try{data=await deps.pool!.run(entry.model,{...toChat(body,entry,{webSearch:webSearchEnabled}) as Record<string,unknown>,...(entry.chatExtra||{})},entry.timeoutMs||300000,signal,(body as {__poolQueueMs?:number}).__poolQueueMs);}
+   // A busy pool is not an error of the model: no cooldown for everyone else (route waits in the queue as a last resort).
+   catch(e){const m=(e as Error).message;throw new ProviderError(/timeout/.test(m)?'timeout':'server',m);}
   }else{
   const response=await post(provider.base+'/chat/completions',{Authorization:'Bearer '+key(entry),...(provider.headers||{})},toChat(body,entry,{webSearch:webSearchEnabled}),entry.timeoutMs||120000,signal);
   try{data=await response.json();}catch{throw new ProviderError('server','invalid JSON body');}
@@ -176,7 +177,7 @@ export function createLLM(deps:Deps){
    const any=Object.values(catalog().models).some(configured);
    throw Error(any?'AI_UNAVAILABLE':'AI_SETUP');
   }
-  const failed=new Set<string>();let lastKind='';const started=now();
+  const failed=new Set<string>();let lastKind='';const started=now();const poolBusy=new Set<string>();let queued=false;
   while(true){
    let waitUntil=Infinity;
    for(const entry of entries){
@@ -214,6 +215,7 @@ export function createLLM(deps:Deps){
       log('LLM call failed',{model:entry.id,kind:e.kind,message:e.message.slice(0,300)});
       await record({class:cls,provider:entry.provider,model:entry.provider==='openai'&&entry.model==='(caller)'?openaiModel(cls,request):entry.model,status:'error:'+e.kind+(e.status?':'+e.status:''),latencyMs:now()-t0,inputTokens:0,cachedTokens:0,outputTokens:0,costUsd:0,webSearches:0,fallbackReason:null});
       if(!canFallBack())throw Error(e.kind==='rate'?'AI_LIMIT':'AI_UNAVAILABLE');
+      if(entry.provider==='pool'&&/pool busy/.test(e.message)){poolBusy.add(entry.id);fallbacks.push({model:entry.id,reason:'busy'});failed.add(entry.id);break;}
       const provider=catalog().providers[entry.provider];
       if(e.kind==='daily')tracker.exhaustDay(entry);
       else if(e.kind==='rate'){const ms=e.retryAfter??provider.cooldownMs;if(ms>0)tracker.cooldown(entry,ms,'429');}
@@ -226,6 +228,9 @@ export function createLLM(deps:Deps){
    // Everything usable is only briefly rate-limited: wait for the earliest slot.
    const waiting=entries.some(e=>!failed.has(e.id));
    if(waiting&&Number.isFinite(waitUntil)&&waitUntil-now()<=MAX_WAIT_MS&&now()-started<MAX_WAIT_MS){await sleep(Math.max(50,waitUntil-now()));signal?.throwIfAborted();continue;}
+   // Nothing else could serve it but our own GPUs were only busy: wait in their queue (up to POOL_QUEUE_WAIT_S, default
+   // 600 s) instead of failing — the request is answered when a GPU frees up.
+   if(poolBusy.size&&!queued&&!signal?.aborted&&cls!=='instant'){queued=true;for(const id of poolBusy)failed.delete(id);(request as {__poolQueueMs?:number}).__poolQueueMs=Number(deps.env('POOL_QUEUE_WAIT_S')||600)*1000;continue;}
    if(lastKind==='budget')log('LLM monthly budget exhausted and no free model could serve the request',{class:cls});
    throw Error(waiting||lastKind==='rate'||lastKind==='daily'||lastKind==='budget'?'AI_LIMIT':'AI_UNAVAILABLE');
   }

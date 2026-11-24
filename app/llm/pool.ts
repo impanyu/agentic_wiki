@@ -16,7 +16,7 @@ export async function poolOnline(model:string){
  const db=await entityDb();
  return (await db.query("select 1 from llm_workers where last_seen > now() - interval '90 seconds' and $1::text = any(models) limit 1",[model])).rows.length>0;
 }
-export async function poolRun(model:string,body:Record<string,unknown>,timeoutMs:number,signal?:AbortSignal):Promise<any>{
+export async function poolRun(model:string,body:Record<string,unknown>,timeoutMs:number,signal?:AbortSignal,queueWaitMs=20_000):Promise<any>{
  const db=await entityDb();
  const id=(await db.query<{id:string}>('insert into llm_jobs(model, body) values ($1::text, $2::jsonb) returning id',[model,JSON.stringify(body)])).rows[0].id;
  const t0=Date.now();
@@ -28,11 +28,11 @@ export async function poolRun(model:string,body:Record<string,unknown>,timeoutMs
    if(!j)throw Error('pool job vanished');
    if(j.status==='done')return j.result;
    if(j.status==='failed')throw Error('pool worker: '+String(j.error||'failed').slice(0,300));
-   if(j.status==='queued'&&Date.now()-t0>20_000){
+   if(j.status==='queued'&&Date.now()-t0>queueWaitMs){
     const gone=(await db.query("delete from llm_jobs where id=$1::uuid and status='queued' returning 1",[id])).rows.length;
-    if(gone)throw Error('pool busy: no worker took the request within 20 s');
+    if(gone)throw Error(`pool busy: no worker took the request within ${Math.round(queueWaitMs/1000)} s`);
    }
-   if(Date.now()-t0>timeoutMs)throw Error('pool timeout');
+   if(Date.now()-t0>timeoutMs+(j.status==='queued'?queueWaitMs:0))throw Error('pool timeout');
   }
  }finally{
   // Answered or abandoned jobs are kept an hour for inspection, then removed.
