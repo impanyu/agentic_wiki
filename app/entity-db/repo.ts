@@ -224,6 +224,10 @@ async function saveMetric(db:EntityDb,input:MetricInput,kind:'observed'|'derived
   if(prev&&prev.kind!==kind)throw Error(`Metric "${key}" is ${prev.kind}; choose another key for a ${kind} metric.`);
   const next={label:labelOf(input.label?.trim()||prev?.label,key),unit:input.unit??prev?.unit??'',description:input.description??prev?.description??'',methodology:input.methodology??prev?.methodology??'',
    order:input.order||prev?.order||'desc',format:input.format??prev?.format??'',createdBy:input.createdBy||prev?.createdBy||'system'};
+  // A measured metric is shared by every type that has it (population of countries, of cities, of US states): once it
+  // has data, its wording is not rewritten for one kind of entity. Notes about one type's data belong in that
+  // ranking's about text and its sources.
+  if(kind==='observed'&&prev?.used){if(prev.description)next.description=prev.description;if(prev.label)next.label=prev.label;if(prev.methodology)next.methodology=prev.methodology;}
   const status=kind==='derived'?'draft':'published';
   const insert=async(version:number)=>{await q.query(`insert into metrics(key,version,label,unit,description,methodology,sort_order,format,kind,definition,created_by,status)
    values ($1::text,$2::int,$3::text,$4::text,$5::text,$6::text,$7::text,$8::text,$9::text,$10::jsonb,$11::text,$12::text)`,

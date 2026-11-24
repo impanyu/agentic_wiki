@@ -83,7 +83,9 @@ export async function findCandidates(db:Queryable,limit=2000):Promise<number>{
 type Rec={id:string;name:string;type:string;label:string;country:string|null;description:string;ids:Record<string,string>;facts:number};
 const SAME_SCHEMA={type:'object',additionalProperties:false,required:['items'],properties:{items:{type:'array',items:{type:'object',additionalProperties:false,required:['pair','same'],properties:{pair:{type:'integer'},same:{type:'boolean'}}}}}};
 export async function resolveCandidates(db:EntityDb,limit=200):Promise<{judged:number;merged:number}>{
- const pend=(await db.query<{a:string;b:string}>(`select a, b from entity_candidates where verdict is null order by created_at limit $1::int`,[limit])).rows;
+ // Pairs where one side carries a standard id (a country's ISO code, a Wikidata id) first: those duplicates show on pages.
+ const pend=(await db.query<{a:string;b:string}>(`select c.a, c.b from entity_candidates c join entities x on x.id=c.a join entities y on y.id=c.b where c.verdict is null
+  order by (x.ids<>'{}'::jsonb or y.ids<>'{}'::jsonb) desc, c.created_at limit $1::int`,[limit])).rows;
  if(!pend.length)return {judged:0,merged:0};
  const ids=[...new Set(pend.flatMap(p=>[p.a,p.b]))];
  const recs=new Map((await db.query<Rec>(`select e.id, e.name, e.type, coalesce(et.label,e.type) label, e.attributes->>'country' country, left(e.description,300) description, e.ids,
