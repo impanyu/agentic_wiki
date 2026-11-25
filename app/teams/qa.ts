@@ -7,7 +7,7 @@ import {listRankingDefs,type RankingDef} from './config';
 export type QaIssue={severity:'blocker'|'major';owner:'collector'|'editor';target:string;problem:string;fix:string};
 
 // The minimum a published ranking needs: enough entities to be a ranking, and each criterion measured for most of them.
-export const QA={minEntities:3,minCriterionCoverage:0.6,maxCountryShare:0.6};
+export const QA={minEntities:1,minCriterionCoverage:0.6,maxCountryShare:0.6};
 
 // Names a title may use for a country (a ranking limited to one country must say so in its title).
 const ALIASES:Record<string,string[]>={'United States':['US','U.S.','USA','American','America'],'United Kingdom':['UK','U.K.','British','Britain','England','Scotland','Wales'],
@@ -38,12 +38,14 @@ export async function checkRanking(db:Queryable,def:RankingDef):Promise<QaIssue[
  const keys=[...new Set(def.criteria.map(k=>String(k).split('@')[0]).filter(Boolean))];
  if(keys.length){
   const cov=(await db.query<{metric:string;n:number}>(`select o.metric, count(distinct o.entity_id)::int n from observations o join entities e on e.id=o.entity_id where ${m.where} and o.metric = any($${m.args.length+1}::text[]) group by o.metric`,[...m.args,keys])).rows;
+  // Rank what there is: a ranking leaves readers only when none of its entities has any of its criteria.
+  if(!cov.some(c=>c.n>0))out.push({severity:'blocker',owner:'collector',target:t,problem:'None of this ranking\'s entities has a value for any of its criteria.',fix:'Collect its criteria.'});
   for(const k of keys){const have=cov.find(c=>c.metric===k)?.n||0;const share=have/n;
    // The criterion the ranking opens on, or one barely measured, leaves readers a list of "no data": a blocker.
    const main=k===String(def.config?.default||keys[0]).split('@')[0];
    // Only the criterion the ranking opens on can take the ranking away from readers (fewer than minEntities
    // ranked on it); any other criterion just ranks the members that have it, and gaps go to the collector.
-   if(main&&have<QA.minEntities)out.push({severity:'blocker',owner:'collector',target:t+' → '+k,problem:`The ranking opens on ${k}, which only ${have} of its ${n} entities have.`,fix:'Collect it, or the editor opens the ranking on a criterion most entities have (config.default).'});
+   if(main&&have<3)out.push({severity:'major',owner:'collector',target:t+' → '+k,problem:`The ranking opens on ${k}, which only ${have} of its ${n} entities have.`,fix:'Collect it, or the editor opens the ranking on a criterion most entities have (config.default).'});
    else if(share<QA.minCriterionCoverage)out.push({severity:'major',owner:'collector',target:t+' → '+k,problem:`Criterion ${k} is measured for ${have} of ${n} entities (${Math.round(share*100)}%; at least ${Math.round(QA.minCriterionCoverage*100)}% needed).`,fix:'Collect it for the missing entities (other sources and markets), or the editor drops it from this ranking.'});}
  }
  // Indices among the criteria: a stated method naming every input, and every input measured for most entities (an
@@ -83,8 +85,8 @@ export async function checkRanking(db:Queryable,def:RankingDef):Promise<QaIssue[
   const top=rows[0];
   if(top&&total>=0.8*n&&top.n/total>QA.maxCountryShare&&!named(def.title,top.c)){
    const share=Math.round(top.n/total*100);
-   out.push({severity:'blocker',owner:'collector',target:t,problem:`${share}% of this ranking's entities are in ${top.c}, but its title ("${def.title}") presents it as covering everywhere.`,fix:`Collect the other countries' entities and data (each major market's own sources), so the ranking covers what its title says.`});
-   out.push({severity:'blocker',owner:'editor',target:t,problem:`The ranking's title presents ${share}% ${top.c} data as a general ranking.`,fix:`Until the collector covers the other markets, limit the ranking to ${top.c} (scope.filters country, and the title names it), and keep the general ranking unpublished.`});
+   out.push({severity:'major',owner:'collector',target:t,problem:`${share}% of this ranking's entities are in ${top.c}, but its title ("${def.title}") presents it as covering everywhere.`,fix:`Collect the other countries' entities and data (each major market's own sources), so the ranking covers what its title says.`});
+   out.push({severity:'major',owner:'editor',target:t,problem:`The ranking's title presents ${share}% ${top.c} data as a general ranking.`,fix:`Until the collector covers the other markets, limit the ranking to ${top.c} (scope.filters country, and the title names it), and keep the general ranking unpublished.`});
   }
   // Entities of a place-bound type with no country: the geography of the ranking cannot be checked or shown.
   if(total<0.8*n)out.push({severity:'major',owner:'collector',target:t+' → country',problem:`The country is known for ${total} of ${n} entities.`,fix:'Fill the country attribute for every entity (from the universe source or Wikidata P17).'});
@@ -104,10 +106,10 @@ export async function checkTopic(db:Queryable,topicId:string):Promise<{issues:Qa
   if(n<1)continue;
   const main=defs.filter(d=>d.scope?.type===type&&!Object.values(d.scope.filters||{}).some(v=>v!==null&&v!==''&&!(Array.isArray(v)&&!v.length)));
   if(defs.some(d=>d.scope?.type===type)&&!main.some(d=>!failing.has(d.slug)))
-   issues.push({severity:'blocker',owner:'editor',target:type,problem:main.length?`The main ranking of ${type} (${main.map(d=>d.slug).join(', ')}) does not pass the quality gate, so the topic page has nothing to show.`:`${type} has sub-rankings but no main ranking over the whole type, so the topic page has nothing to show.`,fix:'Save (and get passing) a main ranking over the whole type before its sub-rankings.'});
+   issues.push({severity:'major',owner:'editor',target:type,problem:main.length?`The main ranking of ${type} (${main.map(d=>d.slug).join(', ')}) does not pass the quality gate, so the topic page has nothing to show.`:`${type} has sub-rankings but no main ranking over the whole type, so the topic page has nothing to show.`,fix:'Save (and get passing) a main ranking over the whole type before its sub-rankings.'});
   const dup=(await db.query<{other:string;k:number}>(`select o.type other, count(distinct e.id)::int k from entities e join entities o on o.type<>e.type and ent_norm(o.name)=ent_norm(e.name)
    where e.type=$1::text group by o.type order by 2 desc limit 1`,[type])).rows[0];
-  if(dup&&dup.k>=Math.max(5,0.5*n))issues.push({severity:'blocker',owner:'collector',target:type,problem:`${dup.k} of the ${n} ${type} entities are also ${dup.other} entities (same names): this type duplicates ${dup.other}.`,fix:`Load its data as metrics and attributes of the ${dup.other} entities, retire the duplicate type, and point its rankings at ${dup.other}.`});
+  if(dup&&dup.k>=Math.max(5,0.5*n))issues.push({severity:'major',owner:'collector',target:type,problem:`${dup.k} of the ${n} ${type} entities are also ${dup.other} entities (same names): this type duplicates ${dup.other}.`,fix:`Load its data as metrics and attributes of the ${dup.other} entities, retire the duplicate type, and point its rankings at ${dup.other}.`});
  }
  return {issues,failing:[...failing]};
 }

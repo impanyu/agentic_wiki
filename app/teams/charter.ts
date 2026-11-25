@@ -106,7 +106,7 @@ const EDITOR_BUILD=`You are the editor of this topic team. The collector has loa
 6. Close the plan items you completed (close_plan_items) and add plan items (save_plan) for what is missing — e.g. "ingest" items for data the collector still has to collect.
 You never write text for individual pages: every word on a page comes from the template's sentence patterns filled with data.
 Report what is done and what remains open.`;
-const REVIEWER=`You are the independent reviewer of this topic team. You judge the pages as a demanding reader would, and you talk only to the editor (it settles data questions with the collector). Approve only what is ready for readers. For every ranking you may list as ready, open it with view_page at /rankings/<slug> (screenshots on a desktop and a phone) — the default view, another criterion (?rank=), an older year (?year=) — and 3–5 entity pages (the largest, a small one, one with gaps); preview_page gives a page's full text when you need it. Judge what a reader sees:
+const REVIEWER=`You are the independent reviewer of this topic team. You judge the pages as a demanding reader would, and you talk only to the editor (it settles data questions with the collector). Rankings rank what there is: a ranking with data goes to readers (the page says data may be incomplete or inaccurate); missing members and values are work for the team, never a reason to keep a ranking from readers — list it as ready unless it is wrong (wrong values, wrong members, broken or empty page). For every ranking you may list as ready, open it with view_page at /rankings/<slug> (screenshots on a desktop and a phone) — the default view, another criterion (?rank=), an older year (?year=) — and 3–5 entity pages (the largest, a small one, one with gaps); preview_page gives a page's full text when you need it. Judge what a reader sees:
 - Does the page answer what its title promises? The ranking covers what the title says (worldwide means every major country and market, not one country's list); the big, well-known entities a reader expects are there; no duplicates, no aggregates (World, regions) ranked as entities.
 - Are the numbers believable? Spot-check a few against their source or common knowledge (the largest, a small one); units right; no implausible jumps; no column mostly empty; the years offered make sense.
 - Is it clear? Title and lead say what is ranked and by what; criteria labels plain; each index explained (what it measures, its inputs and weights) under About this ranking and measuring what its name says to a reader; the disclaimer present.
@@ -197,8 +197,8 @@ const S={
  dataCheck:{id:'data-check',role:'editor',title:'accept the data or ask for more',base:'editor',tools:['team_state','coverage','quality_check','preview_page','record_decision'],
   text:'Stage: data check. The collector has loaded data for this topic. As the composer of its pages, check it against what the pages need before you design them: (1) rows — is the universe complete: every entity readers expect, every major market and country, nothing important missing (coverage: expected vs loaded; look for well-known names)? (2) columns — does every entity have the attributes and measures the rankings and interfaces need (each criterion filled for most entities, the years readers compare, the grouping attributes, images, links)? (3) indices — which composite indices readers need: you compose them yourself when designing the pages; here list only the input measures they need that the data lacks (under columns). Return satisfied=true only when the pages can be composed well from this data. Otherwise list concrete requests in readers\' words in rows, columns and indices (what is missing and why readers need it). Requests the collector already reported as unobtainable (input previous) are not repeated.',
   input:c=>({plan:c.r.plan,collected:c.r.collect,previous:c.r['data-more'],earlier:c.r['data-check']}),schema:DATA_CHECK_SCHEMA,budget:{rounds:18,calls:30},onFail:'skip'},
- dataMore:{id:'data-more',role:'collector',title:'collect what the editor asked for',base:'collector',tools:['team_state','coverage','list_public_sources','call_public_source','fetch_data','extract_tables','query_data','describe_data','crawl_pages','extract_fields','llm_extract','entity_upsert','bulk_import','entity_get','entity_search','metric_table','define_metric','compute_metric','metric_sensitivity','set_entity_schema','save_recipe','run_recipe','retract_observations','record_sources','request_access','report_issue'],
-  text:'Stage: more data. The editor checked the data and asked for more (input requests: rows, columns, indices). Do every request: load the missing entities (rows); add the missing attributes and measures — design their format, find sources, save and run recipes, with history (columns); load every input measure the editor named for its indices (indices). Report under unavailable what cannot be had from public data and why, so the editor does not ask again.',
+ dataMore:{id:'data-more',role:'collector',title:'collect what the editor asked for',base:'collector',tools:['team_state','coverage','find_sources','web_search','browse_page','list_public_sources','call_public_source','fetch_data','extract_tables','query_data','describe_data','crawl_pages','extract_fields','llm_extract','entity_upsert','bulk_import','entity_get','entity_search','metric_table','define_metric','compute_metric','metric_sensitivity','set_entity_schema','save_recipe','run_recipe','retract_observations','record_sources','request_access','report_issue'],
+  text:'Stage: more data. The editor checked the data and asked for more (input requests: rows, columns, indices). Do every request: load the missing entities (rows); add the missing attributes and measures — design their format, find sources, save and run recipes, with history (columns); load every input measure the editor named for its indices (indices). Do everything you can to get it: when the sources you have lack something, find more sources (find_sources and web_search for each market, in the local languages too: national agencies, statistics offices, official registers, local sites), open them, record them (record_sources) and load from them — adding sources is your job. Report under unavailable only what no public source has, after trying, and why, so the editor does not ask again.',
   input:c=>({plan:c.r.plan,requests:c.r['data-check']}),schema:COLLECT_SCHEMA,budget:{rounds:45,calls:90},onFail:'skip',
   accept:c=>dataGate(c,'Your report cannot be accepted yet — ')},
  resolve:{id:'resolve',role:'editor',title:'decide metrics that cannot be had',base:'editor',text:'Stage: metrics the collector could not get. Decide each one — "replace" with a measure public data does support (name it in replacement), "drop" it, or "request_access" when a better source exists that needs a key or account (call request_access too). Record each decision with record_decision and update the plan.',
@@ -349,14 +349,14 @@ function withReview(w:Workflow<TeamState,Ctx>,from:string){
 const unavailable=(s:TeamState)=>{const x=s.collect;return (Array.isArray(x)?x:[x]).flatMap(r=>(r as Report|undefined)?.unavailable||[]);};
 const replacements=(s:TeamState)=>((s.resolve as {decisions?:{action:string;replacement:string}[]}|undefined)?.decisions||[]).filter(d=>d.action==='replace'&&d.replacement.trim());
 // The editor accepts the data or sends the collector back for more, up to 3 rounds, before composing the pages.
-const MAX_DATA_ROUNDS=3;
+const MAX_DATA_ROUNDS=6;
 const dataSatisfied=(s:TeamState)=>(s['data-check'] as {satisfied?:boolean}|undefined)?.satisfied!==false||visits(s,'data-more')>=MAX_DATA_ROUNDS;
 const build=withReview(new Workflow<TeamState,Ctx>('build','Build a new topic')
  .node(stage(S.plan)).node(stage(S.survey)).node(stage(S.universe)).node(stage(S.starter)).node(stage(S.metrics))
  .node(stage(S.dataCheck)).node(stage(S.dataMore))
  .node(earlyReview).node(stage(S.resolve)).node(stage(S.replace)).node(stage(S.design))
  .then('plan','survey','universe','starter','collect','data-check')
- .branch('data-check',['early-review','data-more'],s=>dataSatisfied(s)?'early-review':'data-more','editor satisfied with the data? (≤3 rounds)')
+ .branch('data-check',['early-review','data-more'],s=>dataSatisfied(s)?'early-review':'data-more','editor satisfied with the data? (≤6 rounds)')
  .then('data-more','data-check')
  .branch('early-review',['resolve','design'],s=>unavailable(s).length?'resolve':'design','metrics the collector could not get?')
  .branch('resolve',['replace','design'],s=>replacements(s).length?'replace':'design','replacements chosen?')
@@ -365,12 +365,12 @@ const repair=new Workflow<TeamState,Ctx>('repair','Repair a failed collection ru
 const expand=withReview(new Workflow<TeamState,Ctx>('expand','Serve what readers asked for')
  .node(stage(S.triage)).node(stage(S.expandData)).node(stage(S.dataCheck)).node(stage(S.dataMore)).node(stage(S.expandDesign))
  .then('triage','expand-data','data-check')
- .branch('data-check',['expand-design','data-more'],s=>dataSatisfied(s)?'expand-design':'data-more','editor satisfied with the data? (≤3 rounds)')
+ .branch('data-check',['expand-design','data-more'],s=>dataSatisfied(s)?'expand-design':'data-more','editor satisfied with the data? (≤6 rounds)')
  .then('data-more','data-check'),'expand-design');
 const grow=withReview(new Workflow<TeamState,Ctx>('review','Deepen a live topic (routine pass)')
  .node(stage(S.grow)).node(stage(S.growData)).node(stage(S.dataCheck)).node(stage(S.dataMore)).node(stage(S.growDesign))
  .then('grow','grow-data','data-check')
- .branch('data-check',['grow-design','data-more'],s=>dataSatisfied(s)?'grow-design':'data-more','editor satisfied with the data? (≤3 rounds)')
+ .branch('data-check',['grow-design','data-more'],s=>dataSatisfied(s)?'grow-design':'data-more','editor satisfied with the data? (≤6 rounds)')
  .then('data-more','data-check'),'grow-design');
 const sources=new Workflow<TeamState,Ctx>('sources','Recheck the source register (every 90 days)').node(stage(S.sources)).then('sources',END);
 export const WORKFLOWS:Record<WorkflowKind,Workflow<TeamState,Ctx>>={build,repair,expand,review:grow,sources};

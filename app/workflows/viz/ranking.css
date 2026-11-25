@@ -246,3 +246,12 @@
  .wf-rank-pager .wf-rank-range{flex-basis:100%;text-align:center;margin:0 0 4px}
  .wf-rank-pager button{min-width:32px;height:32px}
 }
+/* The table always fits its card: fixed columns, the name takes what is left and a long name wraps, so the value,
+   bar and share columns are never pushed out of view by one long name or a wide number. */
+.wf-rank-table{table-layout:fixed}
+.wf-rank-entity a{white-space:normal;overflow-wrap:anywhere}
+@container (min-width:681px){
+ .wf-rank-table th.wf-rank-val,.wf-rank-table td.wf-rank-val{width:190px}
+ .wf-rank-table th.wf-rank-barcell,.wf-rank-table td.wf-rank-barcell{width:18%}
+ .wf-rank-table th.wf-rank-share,.wf-rank-table td.wf-rank-share{width:84px}
+}

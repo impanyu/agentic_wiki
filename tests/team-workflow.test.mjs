@@ -87,15 +87,15 @@ test('a ranking the reviewer passes is published at once, before the rest of the
  const d=ch.charter().find(w=>w.id==='build');assert.deepEqual(d.edges.find(e=>e.from==='collect').to,['data-check']);
 });
 
-test('the editor accepts the data or sends the collector back for more rows, columns and indices (at most 3 rounds)',async()=>{
+test('the editor accepts the data or sends the collector back for more rows, columns and indices (at most 6 rounds)',async()=>{
  let n=0;const calls=team({'editor:data-check':()=>({satisfied:++n>2,rows:['missing Asian makers'],columns:['battery life'],indices:['value for money'],notes:''}),'reviewer:review':approved});
  const c=ctx();c.r._maxFixRounds=2;await ch.WORKFLOWS.build.run(c.r,c);
  assert.deepEqual(calls.slice(4,10),['collector:collect','editor:data-check','collector:data-more','editor:data-check','collector:data-more','editor:data-check']);
  assert.equal(calls[10],'reviewer:early-review');
- // Never satisfied: three rounds of more data, then the pages are composed anyway (the review loop judges them).
+ // Never satisfied: six rounds of more data, then the pages are composed anyway (the review loop judges them).
  const calls2=team({'editor:data-check':{satisfied:false,rows:['x'],columns:[],indices:[],notes:''},'reviewer:review':approved});
  const c2=ctx();c2.r._maxFixRounds=2;await ch.WORKFLOWS.build.run(c2.r,c2);
- assert.equal(calls2.filter(x=>x==='collector:data-more').length,3);
+ assert.equal(calls2.filter(x=>x==='collector:data-more').length,6);
 });
 
 test('the reviewer talks to the editor only; data the editor needs goes to the collector through it, then back to the editor',async()=>{
