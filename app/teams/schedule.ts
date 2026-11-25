@@ -76,7 +76,7 @@ export async function fillVectors(){
 }
 
 // The manager's daily review and the team queue, on the same heartbeat (one review at a time).
-let reviewing=false,lastMaintenance=0,sweeping=false,lastSweep=0,lastSiteReview=0;
+let reviewing=false,lastMaintenance=0,sweeping=false,lastSweep=0,lastSiteReview=0,lastLinkCheck=0,linkChecking=false;
 export async function manageTeams(){
  const {entityDb}=await import('@/app/entity-db/client');const {managerDue,runManagerDaily,runTeamQueue}=await import('./manager');
  const {llmSpend}=await import('@/app/llm');
@@ -84,6 +84,9 @@ export async function manageTeams(){
  if(!reviewing&&await managerDue(db)){reviewing=true;void runManagerDaily(e=>console.log('[manager]',JSON.stringify(e))).catch(e=>console.error('[manager] failed',(e as Error).message)).finally(()=>{reviewing=false;});}
  // Every 15 minutes, one sweep at a time: the next nodes of the tree get their division judged (proposals only).
  if(!sweeping&&Date.now()-lastSweep>15*60_000){sweeping=true;lastSweep=Date.now();const {divisionSweep}=await import('./trunk');void divisionSweep(db,Number(process.env.DIVISION_SWEEP_NODES||24),e=>console.log('[trunk]',JSON.stringify(e))).catch(e=>console.error('[trunk] sweep failed',(e as Error).message)).finally(()=>{sweeping=false;});}
+ // Every link readers can click must open: a sample of pages and all their links, every hour.
+ {const every=Number(process.env.LINK_CHECK_MINUTES??60);if(every>0&&!linkChecking&&Date.now()-lastLinkCheck>every*60_000){lastLinkCheck=Date.now();linkChecking=true;const {linkCheck}=await import('@/app/ops/link-check');
+  void linkCheck(db).then(r=>console.log('[links]',JSON.stringify(r))).catch(e=>console.error('[links] failed',(e as Error).message)).finally(()=>{linkChecking=false;});}}
  // The site reviewer reads one topic as a reader every SITE_REVIEW_MINUTES (default 20; 0 turns it off).
  {const every=Number(process.env.SITE_REVIEW_MINUTES??20);if(every>0&&Date.now()-lastSiteReview>every*60_000){lastSiteReview=Date.now();const {siteReviewOnce}=await import('./site-review');
   void siteReviewOnce(e=>console.log('[site-review]',JSON.stringify(e))).catch(e=>console.error('[site-review] failed',(e as Error).message));}}

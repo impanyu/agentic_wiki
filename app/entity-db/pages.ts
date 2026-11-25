@@ -140,7 +140,12 @@ export async function loadEntityPage(db:Queryable,type:string,slug:string,{fresh
 // An entity page's data: precomputed (page_data, kept current by the worker), built and stored on a first view.
 async function loadEntityData(db:Queryable,id:string,type:string,canonical:boolean,fresh=false):Promise<EntityPageLoad|null>{
  const v=await snapshot<EntityPageBuilt>(db,'entity',id,()=>buildEntityPage(db,id,type),x=>x.data.entity.type,fresh);
- return v?{...v,canonical}:null;
+ if(!v)return null;
+ // A stored page outlives a ranking retired or merged since it was built: only rankings readers can open are listed.
+ const slugs=v.data.rankings.map(r=>r.slug);
+ if(slugs.length){const live=new Set((await db.query<{slug:string}>(`select slug from rankings where slug = any($1::text[]) and status = any($2::text[])`,[slugs,PAGE_STATUSES])).rows.map(x=>x.slug));
+  if(live.size<slugs.length)return {...v,canonical,data:{...v.data,rankings:v.data.rankings.filter(r=>live.has(r.slug))}};}
+ return {...v,canonical};
 }
 export async function buildEntityPage(db:Queryable,id:string,type:string):Promise<EntityPageBuilt|null>{
  const found={id};
@@ -454,7 +459,26 @@ export async function resolvePath(db:Queryable,segments:string[]):Promise<Resolv
  // A subtopic that became a tag of its parent's class: its address leads to the parent.
  const conv=(await db.query<{p:string}>(`select scope->>'convertedTo' p from topics where slug=$1::text and status='archived' and scope ? 'convertedTo'`,[last]).catch(()=>({rows:[]}))).rows[0]?.p;
  const up=conv?maps.topics.get(conv)??null:null;
- return up&&up!==here?{kind:'redirect',to:up}:null;
+ if(up&&up!==here)return {kind:'redirect',to:up};
+ const gone=await retiredRankingTarget(db,last).catch(()=>null);
+ return gone&&gone!==here?{kind:'redirect',to:gone}:null;
+}
+// Where a retired ranking's address leads (a ranking merged into another, a theme folded into its class's main
+// ranking, a subset archived): the ranking it was merged into, else the published ranking of the same set, else its
+// class's main ranking, else its topic. Old links (entity pages built earlier, other sites, search engines) keep working.
+export async function retiredRankingTarget(db:Queryable,slug:string):Promise<string|null>{
+ const r=(await db.query<{scope:Row;config:Row;topic:string|null}>(`select r.scope, r.config, t.slug topic from rankings r left join topics t on t.id = r.topic_id
+  where r.slug = $1::text and r.status <> 'published' limit 1`,[slug])).rows[0];if(!r)return null;
+ const scope=obj(r.scope),cfg=obj(r.config),type=String(scope.type||''),filters=JSON.stringify(obj(scope.filters));
+ const maps=await pathMaps(db);
+ const into=String(cfg.mergedInto||'');if(into&&maps.rankings.has(into))return maps.rankings.get(into)!;
+ const same=(await db.query<{slug:string}>(`select slug from rankings where status = 'published' and slug is not null and scope->>'type' = $1::text
+   and coalesce(scope->'filters','{}'::jsonb) = $2::jsonb order by (config ? 'main') desc, updated_at desc limit 1`,[type,filters])).rows[0]?.slug;
+ if(same&&maps.rankings.has(same))return maps.rankings.get(same)!;
+ const main=(await db.query<{slug:string}>(`select slug from rankings where status = 'published' and slug is not null and scope->>'type' = $1::text
+   and coalesce(scope->'filters','{}'::jsonb) = '{}'::jsonb order by updated_at desc limit 1`,[type])).rows[0]?.slug;
+ if(main&&maps.rankings.has(main))return maps.rankings.get(main)!;
+ return r.topic?maps.topics.get(r.topic)??null:null;
 }
 // The way to a node (its ancestors, top first) and its children, for breadcrumbs and browsing.
 export function nodeTrail(maps:AddressTree,path:string):{name:string;href:string}[]{

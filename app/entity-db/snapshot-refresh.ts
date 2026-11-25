@@ -8,6 +8,7 @@ import {saveSnapshot,dropSnapshot,type SnapshotKind} from './snapshots';
 //  2. entities that changed themselves (introduction, picture, links, attributes) — at most every 30 minutes;
 //  3. entities with a relation added or removed (dirty_entities), and entities of a type whose page template changed
 //     — at most every 30 minutes;
+//  3b. entities of a type whose rankings changed (one added, retired or merged) — at most every 30 minutes;
 //  4. entities of a type whose observations or metric definitions changed (their ranks and peers) — at most every 6 hours;
 //  5. pages never built (every ranking and entity page is precomputed before a reader or crawler asks);
 //  6. when the server is idle, pages older than a week (what no tracked change covers: a related entity renamed).
@@ -38,6 +39,10 @@ async function due(db:Queryable):Promise<Job[]>{
    where p.built_at < d.at and p.built_at < now() - interval '30 minutes' limit 300`,[],'entity');
  await q(`select p.key, p.type from entity_types t join page_data p on p.kind = 'entity' and p.type = t.type and p.built_at < t.updated_at
    where t.updated_at > now() - interval '7 days' and p.built_at < now() - interval '30 minutes' order by p.built_at limit 300`,[],'entity');
+ // A ranking of the type added, retired, merged or renamed: its members' pages list their rankings.
+ await q(`with rc as (select scope->>'type' type, max(updated_at) at from rankings where updated_at > now() - interval '3 days' group by 1)
+   select p.key, p.type from rc join page_data p on p.kind = 'entity' and p.type = rc.type and p.built_at < rc.at
+   where p.built_at < now() - interval '30 minutes' order by p.built_at limit 300`,[],'entity');
  await q(`with ch as (select type, max(at) at from data_changes where at > now() - interval '3 days' group by type)
    select p.key, p.type from ch join page_data p on p.kind = 'entity' and p.type = ch.type and p.built_at < ch.at
    where p.built_at < now() - interval '6 hours' order by p.built_at limit 300`,[],'entity');

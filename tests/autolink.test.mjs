@@ -12,3 +12,9 @@ test('mentions of entities with pages link once, longest name first',()=>{
  const self=linkParts([{text:'Beijing is the capital of China.'}],names,3,'/e/300/beijing',new Set());
  assert.deepEqual(self.filter(p=>p.href).map(p=>p.text),['China'],'the page never links to itself');
 });
+test('only proper names link: case as written, never part of a longer name',()=>{
+ const names=new Map([['connected','/e/1/connected'],['street','/e/2/street'],['montreal','/e/3/montreal'],['the underground','/e/4/the-underground'],['canada','/e/5/canada']]);
+ const forms=new Map([['connected',new Set(['Connected'])],['street',new Set(['Street'])],['montreal',new Set(['Montreal'])],['the underground',new Set(['The Underground'])],['canada',new Set(['Canada'])]]);
+ const r=linkParts([{text:'Montreal lies at Saint Jacques Street in Canada. It is connected by the underground city. Street art.'}],names,3,'',new Set(),forms);
+ assert.deepEqual(r.filter(p=>p.href).map(p=>p.text),['Montreal','Canada','Street']);
+});

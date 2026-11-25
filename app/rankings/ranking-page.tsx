@@ -20,7 +20,7 @@ import {jsonLd} from '@/app/seo/structured-data';
 import {questionKey} from '@/app/seo/urls';
 import {linkParts,latestRows,defaultYear} from '@/app/workflows/viz/ranking-data';
 import {DbShell,RankingBody} from './view';
-import {pathMaps,nodeTrail,nodeChildren,popularRankings} from '@/app/entity-db/pages';
+import {pathMaps,nodeTrail,nodeChildren,popularRankings,retiredRankingTarget} from '@/app/entity-db/pages';
 import {Breadcrumbs,RankingGrid} from '@/app/explore';
 import {canonicalPath,canonicalLinks} from '@/app/seo/paths';
 // A ranking page, at its place in the address tree (/<topic>/…/<slug>; /rankings/<slug> redirects there, and
@@ -87,7 +87,11 @@ export async function generateMetadata(props:Props):Promise<Metadata>{
   twitter:{card:'summary',title:name,description:description.slice(0,300)}};
 }
 export async function RankingPage(props:Props){
- const v=await view(props);if(!v)notFound();
+ const v=await view(props);
+ if(!v){// A retired ranking: its address leads to where its content went.
+  const {slug}=await props.params;const to=await retiredRankingTarget(await entityDb(),decode(slug)).catch(()=>null);
+  if(to){const q=await props.searchParams;const rank=one(q.rank);permanentRedirect(localizeLinks(to,await requestLocale())+(rank?'?rank='+encodeURIComponent(rank):''));}
+  notFound();}
  const {input,model,block,state,askTargets,rank,criterion,year,period,base,internal,maps,path,slug}=v;
  // A page opened on ?year= also carries that year's rows (its HTML is that year's table).
  const rawProps=v.history&&period?{...v.props,rows:latestRows(model.rows,{nameKey:'name',periodKey:'period',keys:v.keys,period})}:v.props;
