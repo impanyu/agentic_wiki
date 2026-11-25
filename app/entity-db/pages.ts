@@ -411,8 +411,8 @@ async function buildPathMaps(db:Queryable):Promise<AddressTree>{
  const add=(n:NodeInfo)=>{nodes.set(n.path,n);if(n.parent){const c=children.get(n.parent)??[];c.push(n.path);children.set(n.parent,c);}};
  for(const t of topics){const path=paths.get(t.slug)!;const parent=t.parentId&&topicById.has(t.parentId)?paths.get(topicById.get(t.parentId)!.slug)!:null;add({path,kind:'topic',slug:t.slug,name:t.name,description:t.description,parent});}
  const rows=(await db.query<{slug:string;title:string;topic_id:string|null;scope:Row;config:Row}>('select slug, title, topic_id, scope, config from rankings where slug is not null and topic_id is not null and status = any($1::text[]) order by updated_at desc',[PAGE_STATUSES])).rows;
- const byTopic=new Map<string,{slug:string;title:string;type:string;filters:[string,string][];main:boolean}[]>();
- for(const r of rows){const sc=obj(r.scope);const list=byTopic.get(String(r.topic_id))??[];list.push({slug:String(r.slug),title:String(r.title||r.slug),type:String(sc.type||''),filters:filterEntries(sc.filters),main:obj(r.config).main===true});byTopic.set(String(r.topic_id),list);}
+ const byTopic=new Map<string,{slug:string;title:string;type:string;filters:[string,string][];main:boolean;segment:string}[]>();
+ for(const r of rows){const sc=obj(r.scope);const list=byTopic.get(String(r.topic_id))??[];list.push({slug:String(r.slug),title:String(r.title||r.slug),type:String(sc.type||''),filters:filterEntries(sc.filters),main:obj(r.config).main===true,segment:typeof obj(r.config).segment==='string'?slugify(String(obj(r.config).segment)):''});byTopic.set(String(r.topic_id),list);}
  for(const [topicId,list] of byTopic){
   const t=topicById.get(topicId);if(!t)continue;const tp=paths.get(t.slug)!;
   // The topic's main ranking: unfiltered, of the topic's one kind of entity (the newest when there are several).
@@ -428,7 +428,8 @@ async function buildPathMaps(db:Queryable):Promise<AddressTree>{
    const parent=parents.sort((a,b)=>b.filters.length-a.filters.length)[0];
    const base=parent?placed.get(parent.slug)!:tp;
    const extra=r.filters.filter(x=>!parent||!has(parent.filters,x));
-   let seg=extra.length?segmentOf(extra):slugify(r.slug);if(!seg||seg==='page')seg=slugify(r.slug);
+   // A ranking may name its own address segment (config.segment: a country's name rather than its code).
+   let seg=r.segment||(extra.length?segmentOf(extra):slugify(r.slug));if(!seg||seg==='page')seg=slugify(r.slug);
    let path=base+'/'+encodeURIComponent(seg);for(let i=2;nodes.has(path);i++)path=base+'/'+encodeURIComponent(seg+'-'+i);
    placed.set(r.slug,path);rankings.set(r.slug,path);add({path,kind:'ranking',slug:r.slug,name:r.title,description:'',parent:base});
   }
