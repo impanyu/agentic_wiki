@@ -5,7 +5,11 @@ import {poolAuthorized} from '../auth';
 export async function POST(request:Request){
  if(!poolAuthorized(request))return Response.json({error:'Forbidden.'},{status:403});
  const b=await request.json().catch(()=>({})) as {worker?:string;models?:string[];max?:number;info?:Record<string,unknown>};
- const worker=String(b.worker||'').slice(0,80),models=(Array.isArray(b.models)?b.models:[]).map(String).filter(m=>/^[\w.:-]{1,60}$/.test(m)).slice(0,8);
+ const worker=String(b.worker||'').slice(0,80);
+ // Each kind of GPU is its own seat in the model layer: a worker whose job predates its own pool name is mapped by its
+ // name (POOL_WORKER_MODEL "swan-v100=v100": the V100 jobs announced themselves as "small", shared with the RTX 6000).
+ const rename=String(process.env.POOL_WORKER_MODEL||'swan-v100=v100').split(',').map(x=>x.split('=')).filter(x=>x.length===2).find(([p])=>worker.startsWith(p.trim()))?.[1]?.trim();
+ const models=(rename?[rename]:(Array.isArray(b.models)?b.models:[]).map(String)).filter(m=>/^[\w.:-]{1,60}$/.test(m)).slice(0,8);
  // max 0: a heartbeat from a worker whose slots are all busy.
  const max=Math.max(0,Math.min(32,Math.floor(Number(b.max)||0)));
  if(!worker||!models.length)return Response.json({error:'worker and models are required.'},{status:400});
@@ -19,15 +23,11 @@ export async function POST(request:Request){
  const reported=Number((b.info as {ctxPerSlot?:unknown}|undefined)?.ctxPerSlot)||0;
  const configured=Number(limits.find(([p])=>worker.startsWith(p.trim()))?.[1])||0;
  const ctx=reported||configured||2_000_000;
- // Slower workers wait a few seconds before taking a request, so a faster one (the RTX 6000 answers in ~20 s where a
- // V100 takes ~90 s) gets it first; they still take whatever the fast ones leave (POOL_WORKER_DELAY "swan-v100=4").
- const delays=String(process.env.POOL_WORKER_DELAY||'swan-v100=4').split(',').map(x=>x.split('=')).filter(x=>x.length===2);
- const delay=Math.max(0,Math.min(120,Number(delays.find(([p])=>worker.startsWith(p.trim()))?.[1])||0));
  const until=Date.now()+20_000;
  for(;;){
   const jobs=(await db.query<{id:string;model:string;body:unknown}>(`update llm_jobs set status='claimed', claimed_by=$1::text, claimed_at=now()
-    where id in (select id from llm_jobs where status='queued' and model = any($2::text[]) and est_tokens <= $4::int and created_at <= now() - make_interval(secs => $5::int) order by priority desc, created_at limit $3::int for update skip locked)
-    returning id, model, body`,[worker,models,max,ctx,delay])).rows;
+    where id in (select id from llm_jobs where status='queued' and model = any($2::text[]) and est_tokens <= $4::int order by priority desc, created_at limit $3::int for update skip locked)
+    returning id, model, body`,[worker,models,max,ctx])).rows;
   if(jobs.length||Date.now()>until||request.signal.aborted)return Response.json({jobs});
   await new Promise(r=>setTimeout(r,500));
  }

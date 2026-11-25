@@ -46,16 +46,20 @@ export const BASE_CATALOG:Catalog={
   // also caps 48k output tokens/minute per token and model (HTTP 429, handled by the cooldown). Long requests (>35% of
   // context) are limited to 1 at a time. We stay a little under the published limits.
   m('nrp:qwen3','nrp','qwen3','qwen',chat({vision:true,context:262144,maxOutput:32768,thinkTags:true}),{concurrency:12},{timeoutMs:120000}),
-  m('pool:local','pool','local','local',chat({vision:true,context:131072,maxOutput:16384}),{concurrency:64},{timeoutMs:300000}),
+  // Our GPUs, one seat per kind of GPU (and model), so the scheduler can prefer the faster and pick what fits:
+  // L40S (HCC ltarunl, ours, plus public-partition L40S jobs): Qwen3.5-122B FP8.
+  m('pool:l40s','pool','local','local',chat({vision:true,context:131072,maxOutput:16384}),{concurrency:64},{timeoutMs:300000}),
   // The same Qwen3.5-122B on HCC guest H200s (fastest; borrowed, so it may be taken back at any time): its own seat,
-  // first in line where pool:local is, offered only while its worker checks in.
+  // first in line where pool:l40s is, offered only while its worker checks in.
   m('pool:h200','pool','h200','local',chat({vision:true,context:131072,maxOutput:16384}),{concurrency:64},{timeoutMs:300000}),
-  // Our smaller GPUs (the RTX 6000 machine, the V100s; ~30B models): extraction, translation, short tasks — never the
-  // builders' work.
-  m('pool:small','pool','small','local',chat({context:32768,maxOutput:8192}),{concurrency:16},{timeoutMs:300000,
-   // Qwen3.6 thinks by default: thousands of reasoning tokens for a short extraction or translation (2-4 min on a V100).
-   // These tasks need none; our tests (16/16 extraction, good translations) ran with thinking off.
-   chatExtra:{chat_template_kwargs:{enable_thinking:false}}}),
+  // Our smaller GPUs (~30B models): extraction, translation, short tasks — never the builders' work. Qwen3.6 thinks by
+  // default (thousands of tokens for a short extraction); these tasks need none (16/16 extraction, good translations
+  // with thinking off).
+  // RTX 6000 (our lab machine): Qwen3.6-35B-A3B FP8 on vLLM — fast (~20-30 s for a translation).
+  m('pool:rtx6000','pool','small','local',chat({context:32768,maxOutput:8192}),{concurrency:16},{timeoutMs:300000,chatExtra:{chat_template_kwargs:{enable_thinking:false}}}),
+  // V100 ×2 per job (HCC ltarunl, ours): Qwen3.6-27B Q8 on llama.cpp — slower (~90 s); 16k per request until the
+  // jobs restart with 32k (v100.slurm CTX=131072, PAR=4).
+  m('pool:v100','pool','v100','local',chat({context:16384,maxOutput:8192}),{concurrency:8},{timeoutMs:300000,chatExtra:{chat_template_kwargs:{enable_thinking:false}}}),
   m('deepseek:v4-flash','deepseek','deepseek-v4-flash','deepseek',chat({context:131072,maxOutput:32768}),{concurrency:64},{timeoutMs:120000}),
   m('nrp:deepseek-v4-flash','nrp','deepseek-v4-flash','deepseek',chat({context:131072,maxOutput:32768}),{concurrency:12},{timeoutMs:120000}),
   m('nrp:glm-5','nrp','glm-5','glm',chat({context:131072,maxOutput:32768,thinkTags:true}),{concurrency:2},{timeoutMs:120000}),
@@ -89,24 +93,24 @@ export const BASE_CATALOG:Catalog={
   // Escalation: a task the agent chain failed (or a caller asking for the best model).
   premium:['openai:terra'],
   // Builders (team editors and collectors): Qwen3.5-122B on our L40S, GPT-5.6 Luna, DeepSeek V4 Flash.
-  agent:['pool:h200','pool:local','openai:luna','deepseek:v4-flash'],
+  agent:['pool:h200','pool:l40s','openai:luna','deepseek:v4-flash'],
   // The team's reviewer: a model family other than the builder's where possible (an independent check).
   // The reviewer is the quality gate's judgement: the strongest affordable model first (within OpenAI's daily cap),
   // then our own.
-  review:['openai:terra','pool:h200','pool:local','openai:luna'],
+  review:['openai:terra','pool:h200','pool:l40s','openai:luna'],
   // Short background tasks.
-  fast:['pool:small','gemini:gemini-3.8-flash-lite','openai:luna'],
+  fast:['pool:rtx6000','pool:v100','gemini:gemini-3.8-flash-lite','openai:luna'],
   // A reader is waiting (a page's first view in a language): only models that answer in seconds. Our RTX 6000 answers
   // in 1.5-3 s at 100% success; Gemini's free tier failed 36% of these calls on 2026-11-23.
-  instant:['pool:small','gemini:gemini-3.8-flash-lite','openai:luna'],
+  instant:['pool:rtx6000','gemini:gemini-3.8-flash-lite','openai:luna'],
   // Page translation (background): our smaller GPUs first (Qwen3.6 35B/27B translated as well as GPT-5.6 in our tests,
   // 2026-11-23), never the L40S first, so translation does not slow the teams.
-  translate:['pool:small','gemini:gemini-3.8-flash-lite','openai:luna','pool:local'],
+  translate:['pool:rtx6000','pool:v100','gemini:gemini-3.8-flash-lite','openai:luna','pool:l40s'],
   // Reading facts out of web pages at scale (recipes' llm_extract steps): only our own GPUs, never a paid model; the
   // smaller GPUs first so the L40S stays with the builders.
-  extract:['pool:small','pool:local'],
+  extract:['pool:rtx6000','pool:v100','pool:l40s'],
   // An agent testing extraction on a few pages before saving the recipe: our own models, else free models.
-  'extract-test':['pool:small','pool:local','gemini:gemini-3.8-flash-lite'],
+  'extract-test':['pool:rtx6000','pool:v100','pool:l40s','gemini:gemini-3.8-flash-lite'],
   vision:['gemini:gemini-3.8-flash','openai:luna','openrouter:nemotron-3.5-super-vl'],
  },
  // premium -> (over budget or failing) -> the free part of this chain.

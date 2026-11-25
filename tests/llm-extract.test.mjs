@@ -37,8 +37,8 @@ test('a document is read chunk by chunk until every field is found; rejected rea
  const spec={founded:{type:'year',description:'founding year'},students:{type:'integer',description:'students'}};
  const asked=[];
  const reader=async(text,subject,fields)=>{asked.push(Object.keys(fields));
-  if(text.includes('1911'))return {model:'pool:local',cached:false,fields:{founded:{value:1911,scale:'',unit:'',quote:'established in 1911'},students:{value:99999,scale:'',unit:'',quote:'established in 1911'}}};
-  return {model:'pool:local',cached:true,fields:{students:{value:53302,scale:'',unit:'',quote:'about 53,302 students'}}};};
+  if(text.includes('1911'))return {model:'pool:l40s',cached:false,fields:{founded:{value:1911,scale:'',unit:'',quote:'established in 1911'},students:{value:99999,scale:'',unit:'',quote:'established in 1911'}}};
+  return {model:'pool:l40s',cached:true,fields:{students:{value:53302,scale:'',unit:'',quote:'about 53,302 students'}}};};
  const text='Tsinghua was established in 1911.\n'+'filler '.repeat(2000)+'\nIt has about 53,302 students.';
  const r=await m.extractDocument(text,'the university',spec,reader,AbortSignal.timeout(5000));
  assert.equal(r.found.founded.value,1911);assert.equal(r.found.students.value,53302);

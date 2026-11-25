@@ -83,7 +83,7 @@ test('with only OPENAI_API_KEY every class resolves to OpenAI, the body passes t
  assert.equal(L.costUsd('gpt-5.4-mini',{input_tokens:0,output_tokens:0},2),0.02);
 });
 
-const OLD_CHAINS=JSON.stringify({chains:{agent:['pool:local','deepseek:v4-flash','nrp:deepseek-v4-flash','nrp:glm-5','nrp:minimax','nrp:qwen3','nrp:kimi','gemini:gemini-4-hydrogen','openrouter:nemotron-3-ultra','groq:gpt-oss-120b','openai'],review:['pool:local','deepseek:v4-flash','nrp:deepseek-v4-flash','nrp:glm-5','nrp:minimax','nrp:qwen3','nrp:kimi','gemini:gemini-4-hydrogen','openrouter:nemotron-3-ultra','groq:gpt-oss-120b','openai'],fast:['gemini:gemini-3.8-flash-lite','nrp:gpt-oss','openai'],vision:['nrp:gemma','gemini:gemini-3.8-flash','openai:luna','openrouter:nemotron-3.5-super-vl']}});
+const OLD_CHAINS=JSON.stringify({chains:{agent:['pool:l40s','deepseek:v4-flash','nrp:deepseek-v4-flash','nrp:glm-5','nrp:minimax','nrp:qwen3','nrp:kimi','gemini:gemini-4-hydrogen','openrouter:nemotron-3-ultra','groq:gpt-oss-120b','openai'],review:['pool:l40s','deepseek:v4-flash','nrp:deepseek-v4-flash','nrp:glm-5','nrp:minimax','nrp:qwen3','nrp:kimi','gemini:gemini-4-hydrogen','openrouter:nemotron-3-ultra','groq:gpt-oss-120b','openai'],fast:['gemini:gemini-3.8-flash-lite','nrp:gpt-oss','openai'],vision:['nrp:gemma','gemini:gemini-3.8-flash','openai:luna','openrouter:nemotron-3.5-super-vl']}});
 // The mechanics below are tested over a fixed chain (the production chains change with measurements).
 test('chain falls back on 429 (honoring Retry-After), retries a 5xx once, and skips a model over its daily quota',async()=>{
  const keys={NRP_LLM_TOKEN:'n',GEMINI_API_KEY:'g',GROQ_API_KEY:'q',OPENAI_API_KEY:'o'};
@@ -252,13 +252,13 @@ test('scheduler: a request takes the first model of its chain with a free slot, 
    pool:{available:m=>m==='local',slots:()=>1,run:async(m,b)=>{const tag=b.messages.at(-1).content;log.push('pool:'+tag);await new Promise(r=>gate.push(r));return chatReply({role:'assistant',content:'p-'+tag});}}});
   return {llm,log,open:()=>{const g=gate;gate=[];g.forEach(r=>r());}};};
  // One GPU slot, nothing else: the second and third wait, then run in arrival order.
- {const {llm,log,open}=make({agent:['pool:local']});
+ {const {llm,log,open}=make({agent:['pool:l40s']});
   const a=llm.respond({class:'agent',input:'a'}),b=llm.respond({class:'agent',input:'b'}),c=llm.respond({class:'agent',input:'c'});
   await new Promise(r=>setTimeout(r,50));assert.deepEqual(log,['pool:a'],'one slot: only the first runs');
   open();await a;await new Promise(r=>setTimeout(r,50));assert.deepEqual(log,['pool:a','pool:b']);
   open();await b;await new Promise(r=>setTimeout(r,50));open();await c;assert.deepEqual(log,['pool:a','pool:b','pool:c'],'first come, first served');}
  // GPU full → the next model of the chain takes the overflow at once.
- {const {llm,log,open}=make({agent:['pool:local','deepseek:v4-flash']},{DEEPSEEK_API_KEY:'k'});
+ {const {llm,log,open}=make({agent:['pool:l40s','deepseek:v4-flash']},{DEEPSEEK_API_KEY:'k'});
   const a=llm.respond({class:'agent',input:'a'}),b=llm.respond({class:'agent',input:'b'});
   const rb=await b;assert.equal(rb.output.find(o=>o.type==='message').content[0].text,'ds');open();await a;
   assert.deepEqual(log,['pool:a','deepseek:b']);}
