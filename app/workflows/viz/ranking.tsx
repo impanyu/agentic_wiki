@@ -2,7 +2,7 @@
 import {useEffect,useMemo,useRef,useState} from 'react';
 import {Search,ArrowDownWideNarrow,ArrowUpNarrowWide,ChartColumn,LayoutGrid,ChartPie,Sun,Map as MapIcon,Box,ChartScatter,TrendingUp,ChartNoAxesColumn,SquareSplitVertical,Grid3x3,ChartSpline,ArrowDownUp,Radar,ChartLine,ListOrdered,Play,type LucideIcon} from 'lucide-react';
 import type {VizProps} from './types';
-import {type Entry,type Summary,normalizeCriteria,toEntries,rankEntries,summarize,makeFormatter,shareOf,groupsOf,linkParts,parseNumber,periodKeyOf,rowPeriods,rankablePeriods,yearsOf,defaultYear,rowsAt,seriesOf,LATEST} from './ranking-data';
+import {type Entry,type Criterion,type Summary,normalizeCriteria,toEntries,rankEntries,summarize,makeFormatter,shareOf,groupsOf,linkParts,parseNumber,periodKeyOf,rowPeriods,rankablePeriods,yearsOf,defaultYear,rowsAt,seriesOf,LATEST} from './ranking-data';
 import {useAskLink,useRankingView} from '@/app/seo/link-context';
 import {geoKind,geoKeyOf,registerGeo,baseRegion,pointOf,geoAspect,type GeoData} from './ranking-geo';
 import {useTheme} from '@/app/theme';
@@ -252,7 +252,13 @@ export default function Ranking({props,setValue,fire,ctx}:VizProps){
      {periods.map(p=><option key={p} value={p}>{p}</option>)}</select></label>}
     {criteria.length>1&&(pills
      ?<div className="wf-rank-pills" role="radiogroup" aria-label={t('Rank by')}>{criteria.map(x=><button key={x.key} type="button" role="radio" aria-checked={x.key===c.key} className={x.key===c.key?'on':''} onClick={()=>choose(x.key)}>{x.label}</button>)}</div>
-     :<label className="wf-rank-select"><span>{t('Rank by')}</span><select value={c.key} onChange={ev=>choose(ev.target.value)}>{criteria.map(x=><option key={x.key} value={x.key}>{x.label}</option>)}</select></label>)}
+     :<label className="wf-rank-select"><span>{t('Rank by')}</span><select value={c.key} onChange={ev=>choose(ev.target.value)}>{(()=>{
+      // Grouped by theme when the ranking has themes (the main criteria first, ungrouped).
+      const opt=(x:Criterion)=><option key={x.key} value={x.key}>{x.label}</option>;
+      if(!criteria.some(x=>x.theme))return criteria.map(opt);
+      const themes=[...new Set(criteria.map(x=>x.theme||''))];
+      return themes.map(th=>th?<optgroup key={th} label={th}>{criteria.filter(x=>x.theme===th).map(opt)}</optgroup>:criteria.filter(x=>!x.theme).map(opt));
+     })()}</select></label>)}
    </div>
   </header>
   <div className="wf-rank-meta">

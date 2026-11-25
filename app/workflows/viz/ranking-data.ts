@@ -5,7 +5,7 @@ import {safeImageUrl} from './rich-helpers';
 
 type Obj=Record<string,unknown>;
 export type Format='number'|'compact'|'percent'|'currency'|'decimal';
-export type Criterion={key:string;label:string;unit?:string;order:'desc'|'asc';format:Format;decimals?:number;currency?:string;description?:string;year?:string};
+export type Criterion={key:string;label:string;unit?:string;order:'desc'|'asc';format:Format;decimals?:number;currency?:string;description?:string;year?:string;theme?:string};
 export type Entry={index:number;row:Obj;name:string;question:string;value:number|null;rank:number|null;group:string|null;image:string|null;code:string|null};
 export type Summary={top:Entry|null;median:number|null;aggregate:'sum'|'average';aggregateValue:number|null;ranked:number;total:number;max:number;min:number};
 
@@ -31,7 +31,7 @@ export function normalizeCriteria(raw:unknown):Criterion[]{
   out.push({key:c.key,label:text(c.label)||c.key,order:c.order==='asc'?'asc':'desc',format:FORMATS.includes(c.format as Format)?c.format as Format:'number',
    ...(text(c.unit)?{unit:text(c.unit)}:{}),...(d!=null&&d>=0?{decimals:Math.min(6,Math.round(d))}:{}),
    ...(typeof c.currency==='string'&&/^[A-Za-z]{3}$/.test(c.currency)?{currency:c.currency.toUpperCase()}:{}),
-   ...(text(c.description)?{description:text(c.description)}:{}),...(text(c.year)?{year:text(c.year)}:{})});
+   ...(text(c.description)?{description:text(c.description)}:{}),...(text(c.year)?{year:text(c.year)}:{}),...(text(c.theme)?{theme:text(c.theme)}:{})});
  }
  return out;
 }

@@ -338,7 +338,9 @@ export function assembleRankingPage(x:RankingPageInput,locale='en'):RankingPageM
  const periodsOf=(col:string)=>[...new Set(x.rows.filter(r=>typeof r[col]==='number').map(r=>String(r.period??'')).filter(Boolean))].sort(comparePeriodText);
  const sourcesOf=(col:string)=>[...new Set(x.rows.map(r=>str(r[col+'_source'])).filter(Boolean))];
  const def=(k:string):MetricInfo=>x.defs[k]||{key:k,label:humanize(k),unit:'',order:'desc',format:''};
- const criteria=x.columns.map(c=>{const p=periodsOf(c.column);return criterionOf(def(c.key),{key:c.column,year:p[p.length-1]});});
+ // Criteria may be grouped by theme (config.themes: metric key → theme, e.g. "Economy"), shown as groups in the picker.
+ const themes=cfg.themes&&typeof cfg.themes==='object'?cfg.themes as Record<string,unknown>:{};
+ const criteria=x.columns.map(c=>{const p=periodsOf(c.column);const th=str(themes[c.key])||str(themes[c.column]);return {...criterionOf(def(c.key),{key:c.column,year:p[p.length-1]}),...(th?{theme:th}:{})};});
  const rows=x.rows.map(r=>{const meta=x.entities[String(r.entity_id)]||{};const out:Record<string,unknown>={...r,question:r.name};
   if(groupKey&&meta.group)out[groupKey]=meta.group;if(meta.code&&!out.code)out.code=meta.code;if(meta.image&&!out.image)out.image=meta.image;
   for(const k of Object.keys(out))if(k.endsWith('_source')||k.endsWith('_rank')||k.endsWith('_period'))delete out[k];return out;});

@@ -57,10 +57,16 @@ export async function saveRankingDef(db:Queryable,input:{slug:string;title:strin
  const slug=String(input.slug||'').trim().toLowerCase();if(!SLUG.test(slug))throw Error('A ranking slug is lower-case words joined by hyphens, e.g. "country-rankings".');
  const title=String(input.title||'').trim().slice(0,200);if(!/\bRankings\b|排行榜/.test(title))throw Error('Title a ranking "<scope as a singular noun> Rankings", e.g. "Country Rankings".');
  const scope=obj(input.scope);if(typeof scope.type!=='string')throw Error('scope needs a type, e.g. {"type":"country","filters":{}}.');scope.type=normalizeType(scope.type);
- const criteria=[...new Set((input.criteria||[]).map(c=>String(c).trim()).filter(Boolean))];if(!criteria.length||criteria.length>12)throw Error('Give 1–12 criteria (metric keys).');
+ const criteria=[...new Set((input.criteria||[]).map(c=>String(c).trim()).filter(Boolean))];if(!criteria.length||criteria.length>200)throw Error('Give 1–200 criteria (metric keys); group many by theme with config.themes.');
  const missing=(await db.query<{k:string}>('select k from unnest($1::text[]) k where not exists (select 1 from metrics m where m.key=split_part(k,\'@\',1))',[criteria])).rows.map(r=>r.k);
  if(missing.length)throw Error('Unknown metrics: '+missing.join(', ')+'. Collect them first (the collector defines metrics when loading data).');
  const config=obj(input.config);if(config.default&&!criteria.includes(String(config.default)))throw Error('config.default must be one of the criteria.');
+ // One unfiltered ranking per class: more measures are more criteria of it (grouped by theme), not a second ranking.
+ const filters=obj(scope.filters);
+ if(!Object.keys(filters).length){
+  const other=(await db.query<{slug:string}>(`select slug from rankings where slug <> $1::text and scope->>'type' = $2::text and coalesce(scope->'filters','{}'::jsonb) = '{}'::jsonb and status <> 'archived' and ($3::uuid is null or topic_id = $3::uuid) limit 1`,[slug,scope.type,input.topicId||null])).rows[0];
+  if(other)throw Error(`"${other.slug}" is already the ranking of every ${scope.type}. Add these criteria to it (group them with config.themes, e.g. {"gdp":"Economy"}) instead of a second unfiltered ranking; a subset needs filters on one attribute of the entities.`);
+ }
  const r=await db.query(`insert into rankings(slug,title,topic_id,scope,criteria,config,status) values ($1::text,$2::text,$3::uuid,$4::jsonb,$5::text[],$6::jsonb,coalesce($7::text,'draft'))
   on conflict (slug) where slug is not null do update set title=excluded.title, topic_id=coalesce(excluded.topic_id,rankings.topic_id), scope=excluded.scope, criteria=excluded.criteria,
    config=excluded.config, status=coalesce($7::text,rankings.status), updated_at=now() returning *`,
