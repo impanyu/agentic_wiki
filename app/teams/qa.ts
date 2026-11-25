@@ -91,7 +91,24 @@ export async function checkRanking(db:Queryable,def:RankingDef):Promise<QaIssue[
   // Entities of a place-bound type with no country: the geography of the ranking cannot be checked or shown.
   if(total<0.8*n)out.push({severity:'major',owner:'collector',target:t+' → country',problem:`The country is known for ${total} of ${n} entities.`,fix:'Fill the country attribute for every entity (from the universe source or Wikidata P17).'});
  }
+ // Things sold on a market (products, vehicles, industrial goods, software, services): each entity links to its
+ // official page (the maker's page for that product, model or service, or the maker's website), not only Wikipedia.
+ if(!Object.keys(def.scope.filters||{}).length&&await soldGoods(db,String(def.scope.type||''))){
+  const have=Number((await db.query<{n:number}>(`select count(*)::int n from entities e where ${m.where} and exists (select 1 from jsonb_each_text(e.attributes) a
+   where a.key ~* '^(product_?(url|page)|official_?(website|site|url|page)|website|homepage|url|manufacturer_url)$' and a.value ~* '^https?://')`,m.args)).rows[0]?.n||0);
+  if(have<0.8*n)out.push({severity:'major',owner:'collector',target:t+' → product_url',problem:`Only ${have} of ${n} entities link to their official page. These are things readers can buy: each page should lead to the maker's page for it.`,
+   fix:'Record product_url (the manufacturer\'s or provider\'s official page for that exact product, model or service) and official_website (the maker\'s site) for every entity: from the maker\'s site, Wikidata P856, or a web search; a store link (store_url) when there is one.'});
+ }
  return out;
+}
+// Whether a type's entities are sold on a market: its schema says so (sold), or its topic lies under a trunk of goods.
+const SOLD_TRUNKS=['electronics','vehicles','health-products','home-garden','style-beauty','hobbies','fitness-outdoors','food-drink','shooting-hunting','family-pets','telecommunications','internet','construction','industry','energy','agriculture'];
+async function soldGoods(db:Queryable,type:string):Promise<boolean>{
+ const r=(await db.query<{sold:string|null;root:string|null}>(`with recursive up as (select t.id, t.parent_id, t.slug, 0 d from entity_types et join topics t on t.id = et.topic_id where et.type = $1::text
+   union all select p.id, p.parent_id, p.slug, up.d + 1 from topics p join up on p.id = up.parent_id where up.d < 20)
+  select (select schema->>'sold' from entity_types where type = $1::text) sold, (select slug from up where parent_id is null limit 1) root`,[type])).rows[0];
+ if(r?.sold==='true')return true;if(r?.sold==='false')return false;
+ return !!r?.root&&SOLD_TRUNKS.includes(r.root);
 }
 
 // Every ranking of the topic, plus the topic itself: each entity type of the topic has a main ranking (its whole

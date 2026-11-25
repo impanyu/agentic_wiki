@@ -152,8 +152,8 @@ test('derived metric: weighted_sum + minmax with missing=reweight, versioning, s
  await repo.defineMetric(db,{key:'income',label:'Income'});
  await repo.defineMetric(db,{key:'crime',label:'Crime rate',order:'asc'});
  const o=(n,metric,value)=>({entityId:ids[n],metric,value,period:'2024',source:'stats'});
- // income: P 100, Q 50, R 0, S 75 ; crime: P 10, Q 0, R 5, S missing
- await repo.recordObservations(db,[o('P','income',100),o('Q','income',50),o('R','income',0),o('S','income',75),o('P','crime',10),o('Q','crime',0),o('R','crime',5)]);
+ // income: P 100, Q 50, R 0, S 80 ; crime: P 10, Q 0, R 5, S missing
+ await repo.recordObservations(db,[o('P','income',100),o('Q','income',50),o('R','income',0),o('S','income',80),o('P','crime',10),o('Q','crime',0),o('R','crime',5)]);
  const definition={inputs:[{metric:'income'},{metric:'crime'}],normalize:'minmax',combine:'weighted_sum',weights:[3,-1],missing:'reweight',min_inputs:1,scope:{type:T}};
  // invalid definitions are rejected with a readable message
  await assert.rejects(()=>repo.defineDerivedMetric(db,{key:'liveability',definition:{...definition,weights:[1]}}),/weights has 1 numbers for 2 inputs/);
@@ -168,7 +168,7 @@ test('derived metric: weighted_sum + minmax with missing=reweight, versioning, s
  // minmax: income P1 Q.5 R0 S.75 ; crime P1 Q0 R.5 ; score=(3x-1y)/4, S reweighted → 3*.75/3=.75
  // P (3-1)/4=.5, Q 1.5/4=.375, R -.5/4=-.125, S .75
  assert.equal(c.computed,4);assert.equal(c.source,'derived:liveability@v1');
- assert.deepEqual(c.top.map(x=>[x.name,x.rank,x.value]),[['City S',1,0.75],['City P',2,0.5],['City Q',3,0.375],['City R',4,-0.125]]);
+ assert.deepEqual(c.top.map(x=>[x.name,x.rank,x.value]),[['City S',1,80],['City P',2,75],['City Q',3,62.5],['City R',4,12.5]],'0–100, crime (negative weight) reversed');
  // used → a changed definition creates v2; v1 and its values stay
  const d2=await repo.defineDerivedMetric(db,{key:'liveability',definition:{...definition,missing:'skip_entity'}});
  assert.deepEqual([d2.version,d2.action,d2.status],[2,'new_version','draft']);
@@ -202,11 +202,15 @@ test('evaluateDefinition: geomean, ratio, zscore, rank_pct, zero',()=>{
  const def=x=>metrics.parseDefinition({scope:{type:'t'},...x});
  let r=metrics.evaluateDefinition(def({inputs:[{metric:'x'},{metric:'y'}],combine:'ratio'}),data);assert.deepEqual([...r].map(([k,v])=>[k,v.value]),[['a',4],['b',0.25],['c',9]]);
  r=metrics.evaluateDefinition(def({inputs:[{metric:'x',transform:'per_capita'},{metric:'y'}],combine:'difference'}),data);assert.equal(r.get('c').value,2);
- r=metrics.evaluateDefinition(def({inputs:[{metric:'x'},{metric:'y'}],combine:'weighted_geomean',weights:[1,1]}),data);assert.equal(r.get('a').value,2);assert.equal(r.get('c').value,3);
- r=metrics.evaluateDefinition(def({inputs:[{metric:'x'}],normalize:'zscore',combine:'weighted_sum',weights:[1]}),data);assert.ok(Math.abs([...r.values()].reduce((s,v)=>s+v.value,0))<1e-9);
- r=metrics.evaluateDefinition(def({inputs:[{metric:'x',transform:'rank_pct'}],combine:'weighted_sum',weights:[1]}),data);assert.deepEqual([r.get('b').value,r.get('a').value,r.get('c').value],[0,0.5,1]);
+ r=metrics.evaluateDefinition(def({inputs:[{metric:'x'},{metric:'y'}],combine:'weighted_geomean',weights:[1,1]}),data);assert.equal(r.get('a').value,0,'composites are rescaled to 0–100');assert.equal(r.get('c').value,100);
+ r=metrics.evaluateDefinition(def({inputs:[{metric:'x'}],normalize:'zscore',combine:'weighted_sum',weights:[1]}),data);assert.deepEqual([r.get('b').value,r.get('c').value],[0,100]);
+ r=metrics.evaluateDefinition(def({inputs:[{metric:'x',transform:'rank_pct'}],combine:'weighted_sum',weights:[1]}),data);assert.deepEqual([r.get('b').value,r.get('a').value,r.get('c').value],[0,50,100]);
  const partial={...data,inputs:[pts({a:1,b:1}),pts({a:1})]};
- r=metrics.evaluateDefinition(def({inputs:[{metric:'x'},{metric:'y'}],combine:'weighted_sum',weights:[1,1],missing:'zero'}),partial);assert.equal(r.get('b').value,0.5);
+ r=metrics.evaluateDefinition(def({inputs:[{metric:'x'},{metric:'y'}],combine:'weighted_sum',weights:[1,1],missing:'zero'}),partial);assert.equal(r.get('b').value,0);assert.equal(r.get('a').value,100);
+ // On a 0–1 scale: 100 × the weighted mean; a negative weight is a measure where lower is better.
+ r=metrics.evaluateDefinition(def({inputs:[{metric:'x'},{metric:'y'}],normalize:'minmax',combine:'weighted_sum',weights:[3,-1]}),data);
+ assert.equal(r.get('c').value,100);assert.equal(r.get('b').value,0);assert.ok(Math.abs(r.get('a').value-(3*0.375+1)/4*100)<1e-6);
+ assert.match(metrics.formulaText(def({inputs:[{metric:'x'},{metric:'y',transform:'log'}],normalize:'minmax',combine:'weighted_sum',weights:[3,-1]}),k=>k.toUpperCase()),/^Score from 0 to 100, higher is better: the weighted average of 75% × X, 25% × log\(Y\) \(lower is better\)/);
  r=metrics.evaluateDefinition(def({inputs:[{metric:'x'},{metric:'y'}],combine:'weighted_sum',weights:[1,1],missing:'skip_entity'}),partial);assert.equal(r.has('b'),false);
  assert.throws(()=>def({inputs:[{metric:'x'}],combine:'ratio'}),/exactly 2 inputs/);
  assert.throws(()=>def({inputs:[{metric:'x'}],combine:'weighted_sum',weights:[1],code:'1'}),/Invalid derived metric/);

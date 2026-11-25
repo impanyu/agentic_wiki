@@ -38,10 +38,17 @@ export async function getEntityType(db:Queryable,type:string):Promise<EntityType
 // Metric definitions by key: the published version, else the latest.
 export async function metricInfos(db:Queryable,keys:string[]):Promise<Record<string,MetricInfo>>{
  if(!keys.length)return {};
- const r=await db.query(`select distinct on (key) key, label, unit, sort_order, format, description, methodology from metrics where key = any($1::text[])
+ const r=await db.query(`select distinct on (key) key, label, unit, sort_order, format, description, methodology, kind, definition from metrics where key = any($1::text[])
   order by key, (status = 'published') desc, version desc`,[[...new Set(keys)]]);
- return Object.fromEntries(r.rows.map(x=>[String(x.key),{key:String(x.key),label:String(x.label||x.key),unit:String(x.unit||''),order:x.sort_order==='asc'?'asc':'desc',format:String(x.format||''),
-  description:String(x.description||''),methodology:String(x.methodology||'')} satisfies MetricInfo]));
+ // A derived metric carries its formula in readers' words (its inputs by their labels).
+ const {formulaText,isComposite,parseDefinition}=await import('./metrics');
+ const defs=new Map<string,ReturnType<typeof parseDefinition>>();
+ for(const x of r.rows)if(x.kind==='derived'&&x.definition){try{defs.set(String(x.key),parseDefinition(x.definition));}catch{}}
+ const inputKeys=[...new Set([...defs.values()].flatMap(d=>d.inputs.map(i=>i.metric.split('@')[0])))];
+ const labels=new Map((inputKeys.length?(await db.query<{key:string;label:string}>(`select distinct on (key) key, label from metrics where key = any($1::text[]) order by key, version desc`,[inputKeys])).rows:[]).map(x=>[String(x.key),String(x.label||x.key)]));
+ return Object.fromEntries(r.rows.map(x=>{const d=defs.get(String(x.key));const composite=!!d&&isComposite(d);
+  return [String(x.key),{key:String(x.key),label:String(x.label||x.key),unit:composite?'':String(x.unit||''),order:composite?'desc':x.sort_order==='asc'?'asc':'desc',format:composite?'decimal:1':String(x.format||''),
+  description:String(x.description||''),methodology:String(x.methodology||''),...(d?{formula:formulaText(d,k=>labels.get(k)||k.replace(/_/g,' '))}:{})} satisfies MetricInfo];}));
 }
 
 // ───────────── entity lookup by address ─────────────

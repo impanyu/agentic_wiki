@@ -84,10 +84,43 @@ const maxPeriod=(ps:string[])=>ps.reduce((a,b)=>b>a?b:a,'');
 // Evaluates a definition over prepared inputs (one map entity → latest point per input, already
 // restricted to the scope). options.weights overrides the weights, options.drop removes one input
 // (both for sensitivity analysis). Returns entity → {value, period, inputsUsed}.
+// A composite index (weighted_sum, weighted_geomean) is a score from 0 to 100, higher is better: inputs on a 0–1 scale
+// (minmax, rank_pct) give 100 × their weighted mean, a negative weight marking a measure where lower is better (its
+// scale reversed, 1 − x); other inputs (z-scores, raw values) are combined as defined and the result is rescaled so
+// the lowest scores 0 and the highest 100. Ratios and differences stay real quantities.
+export const isComposite=(def:Pick<DerivedDefinition,'combine'>)=>def.combine==='weighted_sum'||def.combine==='weighted_geomean';
 export function evaluateDefinition(def:DerivedDefinition,data:EvalData,options:EvalOptions={}):Map<string,Point&{inputsUsed:number}>{
+ const raw=evaluateRaw(def,data,options);
+ if(!isComposite(def))return raw;
+ if(unitScale(def)){for(const p of raw.values())p.value=Math.round(p.value*100*1e6)/1e6;return raw;}
+ const xs=[...raw.values()].map(p=>p.value);if(!xs.length)return raw;
+ const lo=Math.min(...xs),hi=Math.max(...xs);
+ for(const p of raw.values())p.value=hi===lo?100:Math.round((p.value-lo)/(hi-lo)*100*1e6)/1e6;
+ return raw;
+}
+const unitScale=(def:DerivedDefinition)=>def.normalize==='minmax'||def.normalize==='rank_pct';
+// The formula in readers' words, shown with the index ("Score 0–100 = 100 × (40% × rating + …)").
+export function formulaText(def:DerivedDefinition,label:(key:string)=>string):string{
+ if(!isComposite(def)){const [a,b]=def.inputs.map(i=>inputText(i,label));return def.combine==='ratio'?`${a} ÷ ${b}.`:`${a} − ${b}.`;}
+ const ws=def.weights||def.inputs.map(()=>1),tot=ws.reduce((x,w)=>x+Math.abs(w),0)||1;
+ const terms=def.inputs.map((i,k)=>`${Math.round(Math.abs(ws[k])/tot*100)}% × ${inputText(i,label)}${ws[k]<0?' (lower is better)':''}`);
+ const mean=def.combine==='weighted_geomean'?'weighted geometric mean':'weighted average';
+ const scale=def.normalize==='minmax'?'each measure first rescaled from 0 (lowest member) to 1 (highest)':def.normalize==='rank_pct'?'each measure first turned into a percentile (0 lowest, 1 highest)':def.normalize==='zscore'?'each measure first standardized (z-score)':'';
+ const missing=def.missing==='skip_entity'?' Members missing any of these measures are not scored.':def.missing==='reweight'?' A missing measure is left out and the other weights are scaled up.':' A missing measure counts as 0.';
+ return `Score from 0 to 100, higher is better: the ${mean} of ${terms.join(', ')}`+(scale?`, ${scale}`:'')+(unitScale(def)?', times 100.':'; the result is rescaled so the lowest member scores 0 and the highest 100.')+missing;
+}
+function inputText(i:DerivedInput,label:(key:string)=>string):string{
+ const l=i.label||label(i.metric.split('@')[0]);
+ return i.transform==='log'?`log(${l})`:i.transform==='per_capita'?`${l} per person`:i.transform==='per_km2'?`${l} per km²`:i.transform==='rank_pct'?`percentile of ${l}`:l;
+}
+function evaluateRaw(def:DerivedDefinition,data:EvalData,options:EvalOptions={}):Map<string,Point&{inputsUsed:number}>{
  const idx=def.inputs.map((_,i)=>i).filter(i=>i!==options.drop);
- const weights=options.weights||def.weights||def.inputs.map(()=>1);
- const series=idx.map(i=>normalize(def.normalize,transform(def.inputs[i].transform,data.inputs[i]||new Map(),data.denominators)));
+ const weights0=options.weights||def.weights||def.inputs.map(()=>1);
+ // On a 0–1 scale a negative weight is a measure where lower is better: its scale reversed, its weight positive.
+ const flip=unitScale(def)&&isComposite(def);
+ const weights=flip?weights0.map(w=>Math.abs(w)):weights0;
+ const series=idx.map(i=>{const n=normalize(def.normalize,transform(def.inputs[i].transform,data.inputs[i]||new Map(),data.denominators));
+  if(!flip||(weights0[i]??0)>=0)return n;const out=new Map<string,Point>();for(const [id,p] of n)out.set(id,{value:1-p.value,period:p.period});return out;});
  const ids=new Set<string>();for(const s of series)for(const id of s.keys())ids.add(id);
  const geo=def.combine==='weighted_geomean',floor=def.normalize==='minmax'||def.normalize==='rank_pct'?0.01:0;
  const needed=def.missing==='skip_entity'?idx.length:Math.min(idx.length,def.min_inputs??1);

@@ -879,3 +879,15 @@ export async function retractObservations(db:EntityDb,{type,metric,source,keepSo
  const left=await db.query<{source:string;n:number}>(`select o.source, count(*)::int n from observations o join entities e on e.id=o.entity_id where o.metric=$1::text and e.type=$2::text group by o.source order by n desc limit 20`,[m,t]);
  return {removed:ids.length,entities:uniq.length,remaining:left.rows.reduce((a,r)=>a+r.n,0),sourcesLeft:left.rows};
 }
+// Composite indices are scores from 0 to 100 (higher is better). One computed on another scale (before this rule, or
+// by an older definition) is recomputed: a few each maintenance pass, until every one is on the scale.
+export async function rescaleComposites(db:EntityDb,limit=40):Promise<{recomputed:string[]}>{
+ const r=await db.query<{key:string;version:number}>(`select m.key, m.version from metrics m
+  where m.kind = 'derived' and m.status <> 'retired' and m.definition->>'combine' in ('weighted_sum','weighted_geomean')
+   and exists (select 1 from observations o where o.source = 'derived:'||m.key||'@v'||m.version and o.metric = m.key)
+   and (select min(o.value) < -0.000001 or max(o.value) > 100.000001 or max(o.value) <= 1.5 from observations o where o.source = 'derived:'||m.key||'@v'||m.version and o.metric = m.key)
+  limit $1::int`,[limit]);
+ const done:string[]=[];
+ for(const m of r.rows){try{await computeDerivedMetric(db,m.key,m.version);done.push(m.key+'@'+m.version);}catch(e){console.warn('[composites] recompute failed',m.key,(e as Error).message);}}
+ return {recomputed:done};
+}

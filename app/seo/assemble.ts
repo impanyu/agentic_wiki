@@ -15,7 +15,7 @@ export const rankingPath=(slug:string)=>'/rankings/'+encodeURIComponent(slug);
 // ───────────── values ─────────────
 // Ranks are shown up to the top 1,000 (rankings stop there); beyond it an entity is "outside the top 1,000".
 export const SHOWN_RANKS=1000;
-export type MetricInfo={key:string;label:string;unit:string;order:'desc'|'asc';format:string;description?:string;methodology?:string};
+export type MetricInfo={key:string;label:string;unit:string;order:'desc'|'asc';format:string;description?:string;methodology?:string;formula?:string};
 export type Point={period:string;value:number};
 export type MetricFact={value:number;period:string;source?:string;retrievedAt?:string|null;rank?:number|null;of?:number|null;history?:Point[]};
 
@@ -31,11 +31,12 @@ const prettyUnit=(u:string)=>u.replace(/\bkm2\b/g,'km²').replace(/\bm2\b/g,'m²
 // A metric definition as a ranking criterion (and the formatting of every value of it on the pages).
 export function criterionOf(d:MetricInfo,extra:{key?:string;year?:string}={}):Criterion{
  const unit=prettyUnit(String(d.unit||'').trim());const currency=isCurrencyCode(unit)?unit.toUpperCase():'';
- const asked=FORMAT_NAMES.includes(d.format as Format)?d.format as Format:null;
+ const dm=/^decimal:(\d)$/.exec(String(d.format||''));const asked=dm?'decimal':FORMAT_NAMES.includes(d.format as Format)?d.format as Format:null;
  const format:Format=asked==='currency'||(!asked&&currency)?'currency':asked||(unit==='%'?'percent':'number');
  return {key:extra.key||d.key,label:d.label||d.key,order:d.order==='asc'?'asc':'desc',format,
-  ...(format==='currency'?{currency:currency||'USD'}:format==='percent'||!unit?{}:{unit}),
-  ...(d.description?{description:d.description}:{}),...(extra.year?{year:extra.year}:{})};
+  ...(format==='currency'?{currency:currency||'USD'}:format==='percent'||!unit?{}:{unit}),...(dm?{decimals:Number(dm[1])}:{}),
+  // A derived measure says how it is computed, shown with it ("Score from 0 to 100, higher is better: …").
+  ...(d.formula||d.description?{description:[d.formula,d.description].filter(Boolean).join(' ')}:{}),...(extra.year?{year:extra.year}:{})};
 }
 export function formatMetric(d:MetricInfo,value:number,locale='en'):string{
  return makeFormatter(criterionOf(d),[value],locale)(value);
@@ -361,6 +362,7 @@ export function assembleRankingPage(x:RankingPageInput,locale='en'):RankingPageM
   const d=def(c.key),p=periodsOf(c.column),src=sourcesOf(c.column),cr=criterionOf(d);
   const unit=cr.format==='currency'?cr.currency:cr.format==='percent'?'%':cr.unit;
   about.push(`${d.label}${unit?' ('+unit+')':''}${d.description?': '+d.description.replace(/\.$/,''):''}. `
+   +(d.formula?'Formula: '+d.formula.replace(/\.$/,'')+'. ':'')
    +(d.methodology?'Method: '+d.methodology.replace(/\.$/,'')+'. ':'')
    +(src.length?'Source: '+src.join('; ')+'. ':'')
    +(p.length?(p.length>1?'Years '+p[0]+'–'+p[p.length-1]:'Year '+p[0])+'. ':'')
