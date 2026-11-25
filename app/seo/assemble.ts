@@ -328,7 +328,8 @@ export function assembleEntityPage(d:EntityPageData,locale='en'):EntityPageModel
 export type RankingDef={slug:string;title:string;scope:{type?:string;filters?:Record<string,unknown>};criteria:string[];config:Record<string,unknown>;status?:string;updatedAt?:string|null};
 export type RankingColumn={column:string;key:string;count:number};
 export type RankingPageInput={def:RankingDef;defs:Record<string,MetricInfo>;columns:RankingColumn[];rows:Record<string,unknown>[];
- type:{label:string;plural:string;expected?:number|null};entities:Record<string,{group?:string|null;code?:string|null;image?:string|null}>;related:{slug:string;title:string}[]};
+ type:{label:string;plural:string;expected?:number|null};entities:Record<string,{group?:string|null;code?:string|null;image?:string|null}>;related:{slug:string;title:string}[];
+ more?:{key:string;label:string;theme:string}[]};
 export type RankingPageModel={title:string;lead:string|null;criteria:Criterion[];rows:Record<string,unknown>[];defaultKey:string;groupKey?:string;
  about:string[];related:{href:string;title:string}[];sources:string[];periods:string[];count:number;description:string};
 const str=(v:unknown)=>typeof v==='string'?v.trim():'';
@@ -340,7 +341,9 @@ export function assembleRankingPage(x:RankingPageInput,locale='en'):RankingPageM
  const def=(k:string):MetricInfo=>x.defs[k]||{key:k,label:humanize(k),unit:'',order:'desc',format:''};
  // Criteria may be grouped by theme (config.themes: metric key → theme, e.g. "Economy"), shown as groups in the picker.
  const themes=cfg.themes&&typeof cfg.themes==='object'?cfg.themes as Record<string,unknown>:{};
- const criteria=x.columns.map(c=>{const p=periodsOf(c.column);const th=str(themes[c.key])||str(themes[c.column]);return {...criterionOf(def(c.key),{key:c.column,year:p[p.length-1]}),...(th?{theme:th}:{})};});
+ const loaded=x.columns.map(c=>{const p=periodsOf(c.column);const th=str(themes[c.key])||str(themes[c.column]);return {...criterionOf(def(c.key),{key:c.column,year:p[p.length-1]}),...(th?{theme:th}:{})};});
+ // The ranking's other criteria (other themes): listed in the picker, loaded on their own address when picked.
+ const criteria:Criterion[]=[...loaded,...(x.more||[]).filter(m=>!loaded.some(c=>c.key===m.key)).map(m=>({key:m.key,label:m.label,order:'desc' as const,format:'number' as const,remote:true,...(m.theme?{theme:m.theme}:{})}))];
  const rows=x.rows.map(r=>{const meta=x.entities[String(r.entity_id)]||{};const out:Record<string,unknown>={...r,question:r.name};
   if(groupKey&&meta.group)out[groupKey]=meta.group;if(meta.code&&!out.code)out.code=meta.code;if(meta.image&&!out.image)out.image=meta.image;
   for(const k of Object.keys(out))if(k.endsWith('_source')||k.endsWith('_rank')||k.endsWith('_period'))delete out[k];return out;});

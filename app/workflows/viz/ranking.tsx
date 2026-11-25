@@ -87,7 +87,9 @@ const VIEW_ICONS:Record<RankingViewKind,LucideIcon>={bar:ChartColumn,trend:Chart
 export default function Ranking({props,setValue,fire,ctx}:VizProps){
  const t=ctx.t,locale=ctx.locale||'en';
  const askLink=useAskLink();
- const criteria=useMemo(()=>normalizeCriteria(props.criteria),[props.criteria]);
+ // Every criterion is offered in the picker; those of another theme (remote) are not on this page, so the views use the loaded ones.
+ const allCriteria=useMemo(()=>normalizeCriteria(props.criteria),[props.criteria]);
+ const criteria=useMemo(()=>allCriteria.filter(x=>!x.remote),[allCriteria]);
  const nameKey=typeof props.nameKey==='string'&&props.nameKey?props.nameKey:'name';
  const groupKey=typeof props.groupKey==='string'&&props.groupKey?props.groupKey:undefined;
  // ?rank=<criterion key> opens the ranking on that criterion (one ranking page per scope;
@@ -178,7 +180,9 @@ export default function Ranking({props,setValue,fire,ctx}:VizProps){
  const yC=others.find(x=>x.key===yKey)??others[0];
 
  const pick=(e:Entry|undefined)=>{if(e)fire('select',e.row);};
- const choose=(key:string)=>{if(key===critKey)return;setCritKey(key);setValue(key);fire('change',key);view.onRank?.(key);try{const u=new URL(location.href);u.searchParams.set('rank',key);history.replaceState(history.state,'',u);}catch{}};
+ const choose=(key:string)=>{if(key===critKey)return;
+  // A criterion of another theme is not on this page: open its own address (the server loads that theme).
+  if(allCriteria.find(x=>x.key===key)?.remote){try{location.assign(view.rankHref?view.rankHref(key):'?rank='+encodeURIComponent(key));}catch{}return;}setCritKey(key);setValue(key);fire('change',key);view.onRank?.(key);try{const u=new URL(location.href);u.searchParams.set('rank',key);history.replaceState(history.state,'',u);}catch{}};
 
  // Bar chart: the top N, or every entity with a scroll window.
  const barShown=allBars||picked.length?chartRanked:chartRanked.slice(0,top);
@@ -218,7 +222,7 @@ export default function Ranking({props,setValue,fire,ctx}:VizProps){
 
  if(!c)return <figure className="wf-viz wf-rank"><div className="wf-rank-empty">{t('No criteria to rank by.')}</div></figure>;
  const title=typeof props.title==='string'?props.title:'',subtitle=typeof props.subtitle==='string'?props.subtitle:'',source=typeof props.source==='string'?props.source:'';
- const pills=criteria.length<=4;
+ const pills=allCriteria.length<=4;
  const groupColor=(g:string)=>PALETTE[groups.indexOf(g)%PALETTE.length];
  // The podium: the first three on the criterion in view (distinct ranks; ties leave it out).
  const podium=(()=>{const p=ranked.filter(e=>e.value!=null&&e.rank!=null&&e.rank<=3).slice(0,3);return p.length===3&&new Set(p.map(e=>e.rank)).size===3?p:[];})();
@@ -250,14 +254,14 @@ export default function Ranking({props,setValue,fire,ctx}:VizProps){
    <div className="wf-rank-picker">
     {periods.length>1&&<label className="wf-rank-select wf-rank-period"><span>{t('Year')}</span><select value={period} onChange={ev=>choosePeriod(ev.target.value)}>
      {periods.map(p=><option key={p} value={p}>{p}</option>)}</select></label>}
-    {criteria.length>1&&(pills
-     ?<div className="wf-rank-pills" role="radiogroup" aria-label={t('Rank by')}>{criteria.map(x=><button key={x.key} type="button" role="radio" aria-checked={x.key===c.key} className={x.key===c.key?'on':''} onClick={()=>choose(x.key)}>{x.label}</button>)}</div>
+    {allCriteria.length>1&&(pills
+     ?<div className="wf-rank-pills" role="radiogroup" aria-label={t('Rank by')}>{allCriteria.map(x=><button key={x.key} type="button" role="radio" aria-checked={x.key===c.key} className={x.key===c.key?'on':''} onClick={()=>choose(x.key)}>{x.label}</button>)}</div>
      :<label className="wf-rank-select"><span>{t('Rank by')}</span><select value={c.key} onChange={ev=>choose(ev.target.value)}>{(()=>{
       // Grouped by theme when the ranking has themes (the main criteria first, ungrouped).
       const opt=(x:Criterion)=><option key={x.key} value={x.key}>{x.label}</option>;
-      if(!criteria.some(x=>x.theme))return criteria.map(opt);
-      const themes=[...new Set(criteria.map(x=>x.theme||''))];
-      return themes.map(th=>th?<optgroup key={th} label={th}>{criteria.filter(x=>x.theme===th).map(opt)}</optgroup>:criteria.filter(x=>!x.theme).map(opt));
+      if(!allCriteria.some(x=>x.theme))return allCriteria.map(opt);
+      const themes=[...new Set(allCriteria.map(x=>x.theme||''))];
+      return themes.map(th=>th?<optgroup key={th} label={th}>{allCriteria.filter(x=>x.theme===th).map(opt)}</optgroup>:allCriteria.filter(x=>!x.theme).map(opt));
      })()}</select></label>)}
    </div>
   </header>

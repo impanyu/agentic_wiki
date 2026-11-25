@@ -642,14 +642,13 @@ export async function refreshLatestRanks(q:Queryable,type:string,metric:{key:str
  return 1;
 }
 // Keeps the snapshot current after a write: values/relations of the touched entities, ranks of the touched metrics in their types.
-// Recomputes has_page for some entities (ids) or a whole type: the type has a page template and the entity has at
-// least template.page.minMetrics metrics with data (default 1). Entities of types without a template have no page.
+// Recomputes has_page for some entities (ids) or a whole type: the entity has data. Every entity a ranking lists has a page (a type without its own template uses the
+// default one), so every name in a ranking links to it.
 export async function refreshPages(db:Queryable,{type,ids}:{type?:string;ids?:string[]}={}):Promise<void>{
  const list=ids?[...new Set(ids.filter(id=>UUID.test(id)))]:null;if(list&&!list.length)return;
  const t=type?normalizeType(type):null;
  await db.query(`update entities e set has_page = coalesce((
-   select t.template <> '{}'::jsonb and (select count(distinct o.metric) from observations o where o.entity_id=e.id) >= greatest(1, coalesce((t.template->'page'->>'minMetrics')::int,1))
-   from entity_types t where t.type=e.type), false)
+   select exists (select 1 from observations o where o.entity_id=e.id) from entity_types t where t.type=e.type), false)
   where ($1::text is null or e.type=$1::text) and ($2::uuid[] is null or e.id = any($2::uuid[]))`,[t,list]);
 }
 export async function syncLatest(db:Queryable,entityIds:string[],metrics:{key:string;version:number}[]):Promise<void>{

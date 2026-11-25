@@ -34,13 +34,14 @@ const one=(v:string|string[]|undefined)=>typeof v==='string'?v:undefined;
 // Ranking data and server-drawn charts are kept for ten minutes (data changes on the collectors' schedules).
 const rankingData=ttlCache<Awaited<ReturnType<typeof loadUncached>>>(10*60_000,200,24*3600_000),chartSvgs=ttlCache<Record<string,string>>(10*60_000,600,24*3600_000);
 // An agent checking its own change (wantsFresh) gets the page rebuilt from the database, not a stored copy.
-const load=cache(async(slug:string)=>await wantsFresh()?loadUncached(slug,true):rankingData.get(slug,()=>loadUncached(slug)));
-async function loadUncached(slug:string,fresh=false){
- const db=await entityDb();const input=await loadRankingPage(db,slug,{fresh});if(!input)return null;
+// theme: the theme of criteria the page shows (the main criteria when empty; another theme loads when picked).
+const load=cache(async(slug:string,theme='')=>await wantsFresh()?loadUncached(slug,true,theme):rankingData.get(slug+'|'+theme,()=>loadUncached(slug,false,theme)));
+async function loadUncached(slug:string,fresh=false,theme=''){
+ const db=await entityDb();const input=await loadRankingPage(db,slug,{fresh,theme});if(!input)return null;
  const model=assembleRankingPage(input,'en');
  const full:Record<string,unknown>={criteria:model.criteria,rows:model.rows,default:model.defaultKey,periodKey:'period',
   ...(model.groupKey?{groupKey:model.groupKey}:{}),...(Array.isArray(input.def.config.views)?{views:input.def.config.views}:{}),
-  ...(model.sources.length?{source:model.sources.join('; ')}:{})};
+  ...(model.sources.length?{source:model.sources.join('; ')}:{}),...(theme?{theme}:{})};
  const block=propsRankingBlock(full)!;
  // The page carries only the rows of the latest view; a long history (every year of every entity) is fetched by
  // the browser afterwards from /rankings/<slug>/history.json, so the page itself stays small.
@@ -57,7 +58,9 @@ async function loadUncached(slug:string,fresh=false){
 }
 async function view(props:Props){
  const [{slug},q]=await Promise.all([props.params,props.searchParams]);
- const data=await load(decode(slug));if(!data)return null;
+ let data=await load(decode(slug));if(!data)return null;
+ // A criterion of another theme: the page of that theme's criteria.
+ {const r=one(q.rank);const m=r?(data.input.more||[]).find(x=>x.key===r):null;if(m){const d=await load(decode(slug),m.theme||'\u0000');if(d)data=d;}}
  const {model,block,state}=data;
  const rank=one(q.rank),c=model.criteria.length?rankCriterion([block],rank):null;
  const year=one(q.year),period=year&&blockPeriods(block,state).includes(year)?year:undefined;
@@ -124,9 +127,11 @@ export async function RankingPage(props:Props){
 
 // The full history of a ranking (every entity and period), in the reader's language, packed: fetched by the page.
 const histories=ttlCache<unknown>(10*60_000,100,24*3600_000);
-export async function rankingHistory(slug:string,locale:string){
- const data=await load(slug);if(!data)return null;
- return histories.get(slug+'|'+locale,async()=>{
+export async function rankingHistory(slug:string,locale:string,theme=''){
+ // Only a theme the ranking has (or the rest of its unthemed criteria).
+ if(theme&&theme!=='\u0000'){const main=await load(slug);const th=main?.input.def.config.themes;if(!th||typeof th!=='object'||!Object.values(th as Record<string,unknown>).includes(theme))theme='';}
+ const data=await load(slug,theme);if(!data)return null;
+ return histories.get(slug+'|'+theme+'|'+locale,async()=>{
   const rows=locale==='en'?data.model.rows:((await localizeContent(await entityDb(),{props:{rows:data.model.rows}},locale)).model.props.rows as Record<string,unknown>[]);
   return packRows(rows);
  });

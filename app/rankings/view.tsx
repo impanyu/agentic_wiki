@@ -64,9 +64,9 @@ export function RankingBody({slug,kicker,subsets=[],title:initialTitle,baseTitle
  // A long history arrives after the page (props.history): fetched once, then the time views and every year work.
  const [hist,setHist]=useState<Record<string,unknown>[]|null>(null);
  useEffect(()=>{if(!props.history||!slug)return;let off=false;
-  fetch('/rankings/'+encodeURIComponent(slug)+'/history.json?lang='+encodeURIComponent(ctx.locale||'en')).then(r=>r.ok?r.json() as Promise<{rows?:unknown}>:null)
+  fetch('/rankings/'+encodeURIComponent(slug)+'/history.json?lang='+encodeURIComponent(ctx.locale||'en')+(typeof props.theme==='string'&&props.theme?'&theme='+encodeURIComponent(props.theme):'')).then(r=>r.ok?r.json() as Promise<{rows?:unknown}>:null)
    .then(j=>{const rows=j?.rows;if(!off&&rows)setHist(isPacked(rows)?unpackRows(rows):Array.isArray(rows)?rows as Record<string,unknown>[]:null);}).catch(()=>{});
-  return ()=>{off=true;};},[props.history,slug,ctx.locale]);
+  return ()=>{off=true;};},[props.history,props.theme,slug,ctx.locale]);
  const full=useMemo(()=>{const base=isPacked(props.rows)?{...props,rows:unpackRows(props.rows)}:props;return hist?{...base,rows:hist}:base;},[props,hist]);
  const [title,setTitle]=useState(initialTitle);
  // One view per ranking per session, from the browser (what makes a ranking "popular").

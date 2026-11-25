@@ -293,7 +293,7 @@ test('related entities link by id, so a shared name never links to the wrong pag
  assert.equal(noPage.cards[0].href,undefined,'the state has no page: no link, never the country of the same name');
 });
 
-test('only entities that pass their type\'s page threshold get a page; stubs and untemplated types do not',async()=>{
+test('every entity with data gets a page (so every ranked name links); a stub with only a name does not',async()=>{
  const repo=await import(new URL('repo.mjs',out));
  const {id}=await db.tx(q=>repo.upsertEntity(q,{type:'country',name:'Stubland'}));
  await repo.refreshPages(db,{ids:[id]});
@@ -303,8 +303,7 @@ test('only entities that pass their type\'s page threshold get a page; stubs and
  try{
   await db.query("update entity_types set template=$1::jsonb where type='country'",[JSON.stringify({...tpl,page:{minMetrics:50}})]);
   await repo.refreshPages(db,{type:'country'});
-  assert.equal(await pages.findEntityBySlug(db,'country','germany'),null,'below the template\'s minMetrics');
-  assert.equal(await pages.countSitemapEntities(db),0);
+  assert.ok(await pages.findEntityBySlug(db,'country','germany'),'an entity with data has a page');
  }finally{
   await db.query("update entity_types set template=$1::jsonb where type='country'",[JSON.stringify(tpl)]);
   await repo.refreshPages(db,{type:'country'});

@@ -25,7 +25,7 @@ export function rankingBlocks(body:string):RankingBlock[]{
  for(const m of String(body||'').matchAll(/```component\n([\s\S]*?)\n```/g)){
   try{
    const node=findRanking(blockWorkflow(JSON.parse(m[1])).ui);if(!node?.props)continue;
-   const p=node.props,criteria=normalizeCriteria(p.criteria);if(!criteria.length)continue;
+   const p=node.props,criteria=normalizeCriteria(p.criteria).filter(c=>!c.remote);if(!criteria.length)continue;
    const src=p.rows,rowsKey=src&&typeof src==='object'&&'$' in src?String((src as {$:string}).$).replace(/^state\./,''):'rows';
    out.push({code:m[1],props:p,criteria,defaultKey:(typeof p.default==='string'&&criteria.some(c=>c.key===p.default)?p.default:criteria[0].key),rowsKey});
   }catch{}
@@ -108,7 +108,7 @@ const MAP_EXTRA=50;
 // A ranking given directly as component props (the database-driven /rankings/<slug> pages) as a block, so
 // the helpers above (criteria, periods, ranked view, chart SVG) work on it: its state is {rows}.
 export function propsRankingBlock(props:Record<string,unknown>,code='db-ranking'):RankingBlock|null{
- const criteria=normalizeCriteria(props.criteria);if(!criteria.length)return null;
+ const criteria=normalizeCriteria(props.criteria).filter(c=>!c.remote);if(!criteria.length)return null;
  const def=typeof props.default==='string'&&criteria.some(c=>c.key===props.default)?props.default:criteria[0].key;
  return {code,props:{...props,rows:{$:'state.rows'}},criteria,defaultKey:def,rowsKey:'rows'};
 }
