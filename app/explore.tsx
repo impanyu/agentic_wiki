@@ -74,6 +74,11 @@ export function Breadcrumbs({trail,current}:{trail:{name:string;href:string}[];c
 export function NodeGrid({nodes,compact=false}:{nodes:NodeCard[];compact?:boolean}){
  const {t,locale}=useUi();
  if(!nodes.length)return null;
+ // Many subsets that name a group (countries by continent): one heading per group, the others first.
+ if(nodes.length>12&&nodes.some(n=>n.group)){
+  const groups=[...new Set(nodes.map(n=>n.group||''))].sort((a,b)=>Number(!!a)-Number(!!b)||a.localeCompare(b));
+  return <>{groups.map(g=><div key={g||'-'} className="rw-node-group">{g&&<h3 className="rw-node-group-title">{t(g)}</h3>}<NodeGrid nodes={nodes.filter(n=>(n.group||'')===g).map(n=>({...n,group:undefined}))} compact={compact}/></div>)}</>;
+ }
  return <section className={'rw-explore rw-nodes'+(compact?' compact':'')} aria-label={t('Browse')}>
   <div className="rw-topics">{nodes.map((x,i)=><article key={x.href} className={'rw-topic'+(x.live===false?' building':'')} style={{['--h' as string]:hue(x.href),['--d' as string]:Math.min(i,12)*35+'ms'}}>
    <a className="rw-card-link" href={x.href} aria-label={x.name}/>

@@ -31,17 +31,17 @@ export async function countrySubsets(db:Queryable):Promise<{created:number}>{
  let created=0;
  for(const m of mains){
   const label=String(m.title).replace(/\s*Rankings?\s*$/i,'').trim()||m.type;
-  const per=(await db.query<{iso3:string;name:string;n:number}>(`select e.attributes->>'country_iso3' iso3, c.name, count(*)::int n from entities e
+  const per=(await db.query<{iso3:string;iso2:string;name:string;continent:string;n:number}>(`select e.attributes->>'country_iso3' iso3, coalesce(upper(c.ids->>'iso2'),'') iso2, c.name, coalesce(c.attributes->>'continent','') continent, count(*)::int n from entities e
     join entities c on c.type = 'country' and upper(c.ids->>'iso3') = e.attributes->>'country_iso3'
-    where e.type = $1::text and e.attributes ? 'country_iso3' group by 1, 2 having count(*) >= $2::int order by 3 desc limit 120`,[m.type,MIN])).rows;
+    where e.type = $1::text and e.attributes ? 'country_iso3' group by 1, 2, 3, 4 having count(*) >= $2::int order by 5 desc limit 120`,[m.type,MIN])).rows;
   if(per.length<2)continue;// one country: the main ranking is that country's
   for(const c of per){
    const slug=(m.slug+'-in-'+c.iso3.toLowerCase()).slice(0,120);
-   const cfg={...m.config,main:undefined,auto:'country',segment:c.name,about:[`${label} in ${c.name}.`]};delete (cfg as Record<string,unknown>).main;
+   const cfg={...m.config,main:undefined,auto:'country',segment:c.name,...(c.continent?{navGroup:c.continent}:{}),about:[`${label} in ${c.name}.`]};delete (cfg as Record<string,unknown>).main;
    const r=await db.query(`insert into rankings(slug,title,topic_id,scope,criteria,config,status) values ($1::text,$2::text,$3::uuid,$4::jsonb,$5::text[],$6::jsonb,'published')
      on conflict (slug) where slug is not null do update set criteria=excluded.criteria, config=excluded.config, topic_id=excluded.topic_id,
       status=case when rankings.status='archived' then 'published' else rankings.status end, updated_at=now()
-      where rankings.criteria is distinct from excluded.criteria or rankings.status='archived' returning (xmax = 0) inserted`,
+      where rankings.criteria is distinct from excluded.criteria or rankings.config is distinct from excluded.config or rankings.status='archived' returning (xmax = 0) inserted`,
     [slug,`${label} Rankings in ${c.name}`,m.topic_id,JSON.stringify({type:m.type,filters:{country_iso3:c.iso3}}),m.criteria,JSON.stringify(cfg)]);
    if(r.rows[0]?.inserted)created++;
   }
@@ -49,7 +49,7 @@ export async function countrySubsets(db:Queryable):Promise<{created:number}>{
   await db.query(`update rankings set status='archived', config=config||'{"mergedInto":"country subset"}'::jsonb, updated_at=now()
    where scope->>'type' = $1::text and status <> 'archived' and coalesce(config->>'auto','') = '' and (select count(*) from jsonb_object_keys(coalesce(scope->'filters','{}'::jsonb))) = 1
     and exists (select 1 from jsonb_each_text(scope->'filters') f where f.key in ('iso3','iso2','country','country_code','country_iso3')
-     and (upper(f.value) = any($2::text[]) or lower(f.value) = any($3::text[])))`,[m.type,per.map(c=>c.iso3),per.map(c=>c.name.toLowerCase())]);
+     and (upper(f.value) = any($2::text[]) or lower(f.value) = any($3::text[])))`,[m.type,[...per.map(c=>c.iso3),...per.map(c=>c.iso2).filter(Boolean)],per.map(c=>c.name.toLowerCase())]);
  }
  return {created};
 }

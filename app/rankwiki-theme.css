@@ -556,3 +556,5 @@ html,body{background:var(--rw-bg)}
  .wf-rank-table .wf-rank-chip{font-size:10.5px;padding:1px 6px}
  .wf-rank-tablewrap{overflow-x:hidden}
 }
+.answer .rw-node-group-title{font-family:var(--rw-font);font-size:13px;font-weight:650;color:var(--rw-ink,#1e293b);border:0;padding:0;margin:14px 0 8px}
+.answer .rw-node-group .rw-nodes{margin-bottom:6px}
