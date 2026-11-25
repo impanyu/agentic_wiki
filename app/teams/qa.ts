@@ -7,7 +7,7 @@ import {listRankingDefs,type RankingDef} from './config';
 export type QaIssue={severity:'blocker'|'major';owner:'collector'|'editor';target:string;problem:string;fix:string};
 
 // The minimum a published ranking needs: enough entities to be a ranking, and each criterion measured for most of them.
-export const QA={minEntities:10,minCriterionCoverage:0.6,maxCountryShare:0.6};
+export const QA={minEntities:3,minCriterionCoverage:0.6,maxCountryShare:0.6};
 
 // Names a title may use for a country (a ranking limited to one country must say so in its title).
 const ALIASES:Record<string,string[]>={'United States':['US','U.S.','USA','American','America'],'United Kingdom':['UK','U.K.','British','Britain','England','Scotland','Wales'],
@@ -41,7 +41,10 @@ export async function checkRanking(db:Queryable,def:RankingDef):Promise<QaIssue[
   for(const k of keys){const have=cov.find(c=>c.metric===k)?.n||0;const share=have/n;
    // The criterion the ranking opens on, or one barely measured, leaves readers a list of "no data": a blocker.
    const main=k===String(def.config?.default||keys[0]).split('@')[0];
-   if(share<QA.minCriterionCoverage)out.push({severity:(main&&share<0.3)||share<0.2?'blocker':'major',owner:'collector',target:t+' → '+k,problem:`Criterion ${k} is measured for ${have} of ${n} entities (${Math.round(share*100)}%; at least ${Math.round(QA.minCriterionCoverage*100)}% needed).`,fix:'Collect it for the missing entities (other sources and markets), or the editor drops it from this ranking.'});}
+   // Only the criterion the ranking opens on can take the ranking away from readers (fewer than minEntities
+   // ranked on it); any other criterion just ranks the members that have it, and gaps go to the collector.
+   if(main&&have<QA.minEntities)out.push({severity:'blocker',owner:'collector',target:t+' → '+k,problem:`The ranking opens on ${k}, which only ${have} of its ${n} entities have.`,fix:'Collect it, or the editor opens the ranking on a criterion most entities have (config.default).'});
+   else if(share<QA.minCriterionCoverage)out.push({severity:'major',owner:'collector',target:t+' → '+k,problem:`Criterion ${k} is measured for ${have} of ${n} entities (${Math.round(share*100)}%; at least ${Math.round(QA.minCriterionCoverage*100)}% needed).`,fix:'Collect it for the missing entities (other sources and markets), or the editor drops it from this ranking.'});}
  }
  // Indices among the criteria: a stated method naming every input, and every input measured for most entities (an
  // index computed from a few inputs, or from inputs most entities lack, is not what its name says).

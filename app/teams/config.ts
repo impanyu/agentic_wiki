@@ -61,8 +61,11 @@ export async function saveRankingDef(db:Queryable,input:{slug:string;title:strin
  const missing=(await db.query<{k:string}>('select k from unnest($1::text[]) k where not exists (select 1 from metrics m where m.key=split_part(k,\'@\',1))',[criteria])).rows.map(r=>r.k);
  if(missing.length)throw Error('Unknown metrics: '+missing.join(', ')+'. Collect them first (the collector defines metrics when loading data).');
  const config=obj(input.config);if(config.default&&!criteria.includes(String(config.default)))throw Error('config.default must be one of the criteria.');
- // One unfiltered ranking per class: more measures are more criteria of it (grouped by theme), not a second ranking.
+ // One ranking per set: the same type and filters as another ranking is the same set (add criteria to that one).
  const filters=obj(scope.filters);
+ {const same=(await db.query<{slug:string}>(`select slug from rankings where slug <> $1::text and scope->>'type' = $2::text and coalesce(scope->'filters','{}'::jsonb) = $3::jsonb and status <> 'archived' limit 1`,[slug,scope.type,JSON.stringify(filters)])).rows[0];
+  if(same)throw Error(`"${same.slug}" already ranks this set (same type and filters). Update it (add criteria) instead of a second ranking.`);}
+ // One unfiltered ranking per class: more measures are more criteria of it (grouped by theme), not a second ranking.
  if(!Object.keys(filters).length){
   const other=(await db.query<{slug:string}>(`select slug from rankings where slug <> $1::text and scope->>'type' = $2::text and coalesce(scope->'filters','{}'::jsonb) = '{}'::jsonb and status <> 'archived' and ($3::uuid is null or topic_id = $3::uuid) limit 1`,[slug,scope.type,input.topicId||null])).rows[0];
   if(other)throw Error(`"${other.slug}" is already the ranking of every ${scope.type}. Add these criteria to it (group them with config.themes, e.g. {"gdp":"Economy"}) instead of a second unfiltered ranking; a subset needs filters on one attribute of the entities.`);

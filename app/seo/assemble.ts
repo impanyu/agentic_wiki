@@ -341,7 +341,9 @@ export function assembleRankingPage(x:RankingPageInput,locale='en'):RankingPageM
  const def=(k:string):MetricInfo=>x.defs[k]||{key:k,label:humanize(k),unit:'',order:'desc',format:''};
  // Criteria may be grouped by theme (config.themes: metric key → theme, e.g. "Economy"), shown as groups in the picker.
  const themes=cfg.themes&&typeof cfg.themes==='object'?cfg.themes as Record<string,unknown>:{};
- const loaded=x.columns.map(c=>{const p=periodsOf(c.column);const th=str(themes[c.key])||str(themes[c.column]);return {...criterionOf(def(c.key),{key:c.column,year:p[p.length-1]}),...(th?{theme:th}:{})};});
+ // A criterion no member of this set has a value for is not offered (readers never open on an empty list).
+ const withData=x.columns.filter(c=>x.rows.some(r=>typeof r[c.column]==='number'));
+ const loaded=withData.map(c=>{const p=periodsOf(c.column);const th=str(themes[c.key])||str(themes[c.column]);return {...criterionOf(def(c.key),{key:c.column,year:p[p.length-1]}),...(th?{theme:th}:{})};});
  // The ranking's other criteria (other themes): listed in the picker, loaded on their own address when picked.
  const criteria:Criterion[]=[...loaded,...(x.more||[]).filter(m=>!loaded.some(c=>c.key===m.key)).map(m=>({key:m.key,label:m.label,order:'desc' as const,format:'number' as const,remote:true,...(m.theme?{theme:m.theme}:{})}))];
  const rows=x.rows.map(r=>{const meta=x.entities[String(r.entity_id)]||{};const out:Record<string,unknown>={...r,question:r.name};
@@ -349,10 +351,10 @@ export function assembleRankingPage(x:RankingPageInput,locale='en'):RankingPageM
   for(const k of Object.keys(out))if(k.endsWith('_source')||k.endsWith('_rank')||k.endsWith('_period'))delete out[k];return out;});
  const names=new Set(x.rows.map(r=>String(r.entity_id??r.name)));const count=names.size;
  const periods=[...new Set(x.rows.map(r=>String(r.period??'')).filter(Boolean))].sort((a,b)=>comparePeriodText(b,a));
- const sources=[...new Set(x.columns.flatMap(c=>sourcesOf(c.column)))];
- const defaultKey=x.columns.find(k=>k.key===cfg.default||k.column===cfg.default)?.column||criteria[0]?.key||'';
+ const sources=[...new Set(withData.flatMap(c=>sourcesOf(c.column)))];
+ const defaultKey=withData.find(k=>k.key===cfg.default||k.column===cfg.default)?.column||loaded[0]?.key||'';
  const values:Record<string,string>={count:countText(count,locale),'type.label':x.type.label,'type.plural':x.type.plural||x.type.label,title:x.def.title,
-  criteria:listText(criteria.map(c=>lowerLabel(c.label)),locale),...(sources.length?{source:sources.join('; ')}:{}),...(x.type.expected?{expected:countText(x.type.expected,locale)}:{})};
+  criteria:listText(loaded.map(c=>lowerLabel(c.label)),locale),...(sources.length?{source:sources.join('; ')}:{}),...(x.type.expected?{expected:countText(x.type.expected,locale)}:{})};
  const lead=(str(cfg.lead)&&fill(str(cfg.lead),values))||fill('{count} {type.plural}, ranked by {criteria}.',values);
  const about:string[]=[];
  for(const c of x.columns){
