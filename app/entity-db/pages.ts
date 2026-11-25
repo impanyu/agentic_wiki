@@ -473,9 +473,13 @@ export async function resolvePath(db:Queryable,segments:string[]):Promise<Resolv
 // Where a retired ranking's address leads (a ranking merged into another, a theme folded into its class's main
 // ranking, a subset archived): the ranking it was merged into, else the published ranking of the same set, else its
 // class's main ranking, else its topic. Old links (entity pages built earlier, other sites, search engines) keep working.
-export async function retiredRankingTarget(db:Queryable,slug:string):Promise<string|null>{
- const r=(await db.query<{scope:Row;config:Row;topic:string|null}>(`select r.scope, r.config, t.slug topic from rankings r left join topics t on t.id = r.topic_id
-  where r.slug = $1::text and r.status <> 'published' limit 1`,[slug])).rows[0];if(!r)return null;
+// empty: the ranking is published but has nothing to show (no data yet): its address leads to its topic meanwhile.
+export async function retiredRankingTarget(db:Queryable,slug:string,empty=false):Promise<string|null>{
+ const r=(await db.query<{scope:Row;config:Row;topic:string|null;status:string}>(`select r.scope, r.config, t.slug topic, r.status from rankings r left join topics t on t.id = r.topic_id
+  where r.slug = $1::text and (r.status <> 'published' or $2::boolean) limit 1`,[slug,empty])).rows[0];if(!r)return null;
+ if(r.status==='published'){const maps=await pathMaps(db),own=maps.rankings.get(slug);const t=r.topic?maps.topics.get(r.topic)??null:null;
+  // A main ranking sits at its topic's own address: then the level above.
+  return t&&t!==own?t:own?maps.nodes.get(own)?.parent||'/':null;}
  const scope=obj(r.scope),cfg=obj(r.config),type=String(scope.type||''),filters=JSON.stringify(obj(scope.filters));
  const maps=await pathMaps(db);
  const into=String(cfg.mergedInto||'');if(into&&maps.rankings.has(into))return maps.rankings.get(into)!;

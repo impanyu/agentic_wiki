@@ -42,7 +42,8 @@ async function loadUncached(slug:string,fresh=false,theme=''){
  const full:Record<string,unknown>={criteria:model.criteria,rows:model.rows,default:model.defaultKey,periodKey:'period',
   ...(model.groupKey?{groupKey:model.groupKey}:{}),...(Array.isArray(input.def.config.views)?{views:input.def.config.views}:{}),
   ...(model.sources.length?{source:model.sources.join('; ')}:{}),...(theme?{theme}:{})};
- const block=propsRankingBlock(full)!;
+ // No criterion with data (the quality gate takes such a ranking offline): the page is unavailable.
+ const block=propsRankingBlock(full);if(!block)return null;
  // The page carries only the rows of the latest view; a long history (every year of every entity) is fetched by
  // the browser afterwards from /rankings/<slug>/history.json, so the page itself stays small.
  const keys=model.criteria.map(c=>c.key);
@@ -89,7 +90,7 @@ export async function generateMetadata(props:Props):Promise<Metadata>{
 export async function RankingPage(props:Props){
  const v=await view(props);
  if(!v){// A retired ranking: its address leads to where its content went.
-  const {slug}=await props.params;const to=await retiredRankingTarget(await entityDb(),decode(slug)).catch(()=>null);
+  const {slug}=await props.params;const to=await retiredRankingTarget(await entityDb(),decode(slug),true).catch(()=>null);
   if(to){const q=await props.searchParams;const rank=one(q.rank);permanentRedirect(localizeLinks(to,await requestLocale())+(rank?'?rank='+encodeURIComponent(rank):''));}
   notFound();}
  const {input,model,block,state,askTargets,rank,criterion,year,period,base,internal,maps,path,slug}=v;
