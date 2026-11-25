@@ -4,23 +4,20 @@ import type {Queryable} from './client';
 // country entities (their ISO codes, names and aliases) into one attribute, country_iso3 (ISO 3166-1 alpha-3), so a
 // country subset finds every member however its team wrote the country.
 export async function normalizeCountries(db:Queryable):Promise<number>{
+ // One hash join: each entity's candidate keys (in order of trust) against the country keys; the first that resolves wins.
  const r=await db.query(`with keys as (
    select upper(ids->>'iso3') iso3, upper(ids->>'iso3') k from entities where type='country' and ids ? 'iso3'
    union select upper(ids->>'iso3'), upper(ids->>'iso2') from entities where type='country' and ids ? 'iso3' and ids ? 'iso2'
-   union select upper(ids->>'iso3'), ent_norm(name) from entities where type='country' and ids ? 'iso3'
-   union select upper(ids->>'iso3'), ent_norm(a) from entities, unnest(aliases) a where type='country' and ids ? 'iso3'),
-  amb as (select k from keys group by k having count(distinct iso3) > 1),
-  map as (select k, min(iso3) iso3 from keys where k not in (select k from amb) group by k),
-  src as (select e.id, coalesce(
-    (select m.iso3 from map m where m.k = upper(nullif(e.attributes->>'country_iso3',''))),
-    (select m.iso3 from map m where m.k = upper(nullif(e.attributes->>'iso3',''))),
-    (select m.iso3 from map m where m.k = upper(nullif(e.attributes->>'country_code',''))),
-    (select m.iso3 from map m where m.k = upper(nullif(e.attributes->>'iso2',''))),
-    (select m.iso3 from map m where m.k = upper(nullif(e.attributes->>'country',''))),
-    (select m.iso3 from map m where m.k = ent_norm(nullif(e.attributes->>'country','')))) iso3
-   from entities e where e.type <> 'country' and (e.attributes ?| array['country','iso3','iso2','country_code','country_iso3']))
+   union select upper(ids->>'iso3'), upper(ent_norm(name)) from entities where type='country' and ids ? 'iso3'
+   union select upper(ids->>'iso3'), upper(ent_norm(a)) from entities, unnest(aliases) a where type='country' and ids ? 'iso3'),
+  map as (select k, min(iso3) iso3 from keys where k <> '' group by k having count(distinct iso3) = 1),
+  cand as (select e.id, c.ord, upper(c.v) k from entities e,
+    lateral (values (1, e.attributes->>'country_iso3'), (2, e.attributes->>'iso3'), (3, e.attributes->>'country_code'), (4, e.attributes->>'iso2'),
+     (5, e.attributes->>'country'), (6, ent_norm(e.attributes->>'country'))) c(ord, v)
+    where e.type <> 'country' and (e.attributes ?| array['country','iso3','iso2','country_code','country_iso3']) and coalesce(c.v,'') <> ''),
+  src as (select distinct on (cand.id) cand.id, map.iso3 from cand join map on map.k = cand.k order by cand.id, cand.ord)
   update entities e set attributes = e.attributes || jsonb_build_object('country_iso3', src.iso3)
-  from src where src.id = e.id and src.iso3 is not null and (e.attributes->>'country_iso3') is distinct from src.iso3 returning e.id`);
+  from src where src.id = e.id and (e.attributes->>'country_iso3') is distinct from src.iso3 returning e.id`);
  return r.rows.length;
 }
 // Every class present in several countries gets a ranking per country (each country with at least MIN members),

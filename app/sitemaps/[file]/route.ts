@@ -20,9 +20,10 @@ export async function GET(request:Request,{params}:{params:Promise<{file:string}
  const db=/^(rankings|entities)-(\d{1,6})\.xml$/.exec(file);
  if(db){
   try{
-   const rows=db[1]==='rankings'?(db[2]==='0'?[...await sitemapRankings(await entityDb()),...(await topicTree(await entityDb())).map(t=>({path:t.href,updatedAt:null as string|null}))]:[]):await sitemapEntities(await entityDb(),Number(db[2]),ENTITY_SITEMAP_SIZE);
-   if(!rows.length&&db[2]!=='0')return new Response('Not found',{status:404});
    const maps=await pathMaps(await entityDb());
+   // Topic pages only once something is published under them (a topic still being built is not listed).
+   const rows=db[1]==='rankings'?(db[2]==='0'?[...await sitemapRankings(await entityDb()),...(await topicTree(await entityDb())).filter(t=>maps.nodes.get(canonicalPath(t.href,maps))?.live).map(t=>({path:t.href,updatedAt:null as string|null}))]:[]):await sitemapEntities(await entityDb(),Number(db[2]),ENTITY_SITEMAP_SIZE);
+   if(!rows.length&&db[2]!=='0')return new Response('Not found',{status:404});
    return urlset(rows.map(r=>({loc:origin+canonicalPath(r.path,maps),mod:r.updatedAt?lastmod(r.updatedAt):''})));
   }catch(e){console.warn('sitemap: entity database unavailable',(e as Error).message);return new Response('Not found',{status:404});}
  }
