@@ -467,7 +467,7 @@ test('trunk and tags: an off-division subtopic becomes a tag of its class; tagge
  await repo.upsertEntity(db,{type:'t_gaming_laptop',name:'Legion 7'});
  await assert.rejects(trunk.checkTrunkSplit(db,'t-laptops',''),/division/);
  await trunk.setDivision(db,'t-laptops','form factor');
- await assert.rejects(trunk.checkTrunkSplit(db,'t-laptops','use case'),/tag/);await trunk.checkTrunkSplit(db,'t-laptops','By form-factor');
+ await assert.rejects(trunk.checkTrunkSplit(db,'t-laptops','use case'),/view/);await trunk.checkTrunkSplit(db,'t-laptops','By form-factor');
  const r=await trunk.convertToInterface(db,'t-gaming-laptops','use case, not form factor');assert.equal(r.ok,true);
  const et=(await db.query("select topic_id, schema from entity_types where type='t_gaming_laptop'")).rows[0];
  assert.equal(et.schema.kind,'interface');assert.equal(et.schema.appliesTo,'t_laptop');assert.equal(et.schema.extends,undefined);assert.equal(et.topic_id,P.id);
