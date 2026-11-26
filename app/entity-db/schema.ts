@@ -319,6 +319,12 @@ export const MIGRATIONS:Migration[]=[
   'alter table llm_jobs add column if not exists priority integer not null default 3',
   'create index if not exists llm_jobs_next on llm_jobs(model, priority desc, created_at) where status = \'queued\'',
  ]},
+ // The topic tree is the index of all entities: each entity sits at one node (the deepest its attributes lead to);
+ // the nodes above it are its classes (app/entity-db/tree-index.ts).
+ {version:27,name:'entity tree node',statements:()=>[
+  'alter table entities add column if not exists node_id uuid references topics(id) on delete set null',
+  'create index if not exists entities_node on entities(node_id)',
+ ]},
 ];
 export const SCHEMA_VERSION=MIGRATIONS[MIGRATIONS.length-1].version;
 

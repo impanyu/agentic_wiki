@@ -9,7 +9,7 @@ export const datasetScope=ctx=>ctx.agent?.id||ctx.userId||'anonymous';
 export async function loadDataset(scope,id){const d=store.get(scope+'/'+id);if(!d)throw Error('Unknown dataset '+id);return d;}
 export async function saveDataset(scope,input){const id='ds_test'+String(++n).padStart(8,'0');const rows=input.rows;const columns=input.columns||[...new Set(rows.flatMap(r=>Object.keys(r)))];store.set(scope+'/'+id,{id,title:input.title,source:input.source,columns,rows,notes:input.notes});return {datasetId:id,title:input.title,source:input.source,rowCount:rows.length,columns:columns.map(name=>({name})),preview:rows.slice(0,8),notes:input.notes};}
 `);
-for(const f of ['client','schema','metrics','embeddings','units','reserved','repo','inherit','dedup','tools']){
+for(const f of ['client','schema','metrics','embeddings','units','reserved','repo','inherit','dedup','tools','tree-index']){
  let js=ts.transpileModule(readFileSync(new URL(`../app/entity-db/${f}.ts`,import.meta.url),'utf8'),{compilerOptions:{module:ts.ModuleKind.ESNext,target:ts.ScriptTarget.ES2022}}).outputText;
  js=js.replace(/(from\s*|import\()\s*(['"])([^'"]+)\2/g,(m,pre,q,spec)=>stubs[spec]?`${pre}'${stubs[spec]}'`:spec.startsWith('./')?`${pre}'${spec}.mjs'`:m);
  writeFileSync(new URL(f+'.mjs',out),js);
@@ -489,4 +489,41 @@ test('trunk and tags: an off-division subtopic becomes a tag of its class; tagge
  assert.equal((await db.query("select schema->>'extends' e from entity_types where type='t_gaming_laptop'")).rows[0].e,'t_laptop');
  assert.equal((await db.query("select count(*)::int n from entities where type='t_gaming_laptop'")).rows[0].n,3,'members retyped back');
  void a;void b;
+});
+
+test('the tree is the index: entities sit at the deepest node their attributes lead to; a view subtopic becomes a query of its parent',async()=>{
+ const trunk=await import(new URL('trunk.mjs',out));const idx=await import(new URL('tree-index.mjs',out));const inh=await import(new URL('inherit.mjs',out));
+ const P=await repo.createTopic(db,{slug:'x-players',name:'Football players'});
+ const PL=await repo.createTopic(db,{slug:'x-pl-players',name:'Premier League players',parentId:P.id});
+ const LL=await repo.createTopic(db,{slug:'x-laliga-players',name:'La Liga players',parentId:P.id});
+ const V=await repo.createTopic(db,{slug:'x-young-players',name:'Young stars',parentId:P.id});
+ await db.query(`insert into entity_types(type,topic_id,schema) values ('x_player',$1,'{"metrics":[{"key":"goals"}]}'),('x_pl_player',$2,'{"extends":"x_player"}'),('x_young_player',$3,'{"extends":"x_player","metrics":[{"key":"potential"}]}')`,[P.id,PL.id,V.id]);inh.clearTypeCache();
+ await repo.upsertEntity(db,{type:'x_pl_player',name:'Bukayo Saka'});
+ await repo.upsertEntity(db,{type:'x_player',name:'Pedri',attributes:{league:'La Liga'}});
+ await repo.upsertEntity(db,{type:'x_player',name:'Nobody Known'});
+ await repo.upsertEntity(db,{type:'x_player',name:'Lamine Yamal',attributes:{league:'la liga'}});
+ await repo.upsertEntity(db,{type:'x_young_player',name:'Lamine Yamal'});
+ await repo.upsertEntity(db,{type:'x_young_player',name:'Endrick'});
+ await db.query(`insert into rankings(slug,title,topic_id,scope,criteria,config,status) values ('x-young','Young stars',$1,'{"type":"x_young_player"}','{}','{}','published')`,[V.id]);
+ await trunk.applySplit(db,P.id,{key:'league',label:'league',why:'',children:[
+  {slug:'x-pl-players',role:'value',values:['Premier League','EPL'],filter:{key:'',value:''}},
+  {slug:'x-laliga-players',role:'value',values:['La Liga'],filter:{key:'',value:''}},
+  {slug:'x-young-players',role:'view',values:[],filter:{key:'young_star',value:'yes'}}]},['x-pl-players','x-laliga-players','x-young-players']);
+ // A member collected for a value carries it.
+ assert.equal((await db.query("select attributes->>'league' l from entities where name='Bukayo Saka'")).rows[0].l,'Premier League');
+ const v=await trunk.convertView(db,'x-young-players');assert.equal(v.ok,true);assert.equal(v.merged,1,'the twin under the class absorbs the view\'s copy');
+ const yamal=(await db.query("select type, attributes from entities where ent_norm(name)='lamine yamal'")).rows;
+ assert.equal(yamal.length,1);assert.equal(yamal[0].type,'x_player');assert.equal(yamal[0].attributes.young_star,'yes');
+ assert.deepEqual((await db.query("select scope from rankings where slug='x-young'")).rows[0].scope,{type:'x_player',filters:{young_star:'yes'}});
+ assert.equal((await repo.entitySearchIds(db,{type:'x_player',filters:{young_star:'yes'}})).length,2);
+ assert.ok((await db.query("select schema from entity_types where type='x_player'")).rows[0].schema.metrics.some(m=>m.key==='potential'),'the view\'s fields join the class');
+ await idx.placeEntities(db);
+ const at=async n=>(await db.query("select t.slug from entities e join topics t on t.id=e.node_id where e.name=$1",[n])).rows[0]?.slug;
+ assert.equal(await at('Bukayo Saka'),'x-pl-players');assert.equal(await at('Pedri'),'x-laliga-players');assert.equal(await at('Lamine Yamal'),'x-laliga-players');
+ assert.equal(await at('Nobody Known'),'x-players','no value for the split: stays at the node (a gap)');assert.equal(await at('Endrick'),'x-players');
+ // A transfer: the value changes, the entity moves.
+ await db.query("update entities set attributes=attributes||'{\"league\":\"EPL\"}' where name='Pedri'");await idx.placeEntities(db);
+ assert.equal(await at('Pedri'),'x-pl-players');
+ const ix=await idx.nodeIndex(db,P.id);assert.equal(ix.unplaced,2);assert.deepEqual(ix.views,['x-young-players']);
+ void LL;
 });
