@@ -199,10 +199,12 @@ const SPLIT_SCHEMA={type:'object',additionalProperties:false,required:['nodes'],
   filter:{type:'object',additionalProperties:false,required:['key','value'],properties:{key:{type:'string'},value:{type:'string'}}}}}}}}}}};
 const KEY=/^[a-z][a-z0-9_]{1,40}$/;
 type Split={node:string;key:string;label:string;why:string;children:{slug:string;role:'value'|'view'|'misplaced';values:string[];filter:{key:string;value:string}}[]};
-export async function splitSweep(edb:EntityDb,limit=24,log:(e:Row)=>void=()=>{}):Promise<{judged:number}>{
+export async function splitSweep(edb:EntityDb,limit=24,log:(e:Row)=>void=()=>{},only?:string[]):Promise<{judged:number}>{
+ // Nodes whose subtopics hold entities first: that is where the index matters now.
  const nodes=(await edb.query<{id:string;slug:string;name:string;division:string|null}>(`select p.id, p.slug, p.name, p.scope->>'division' division from topics p
-  where p.status<>'archived' and not (p.scope ? 'split') and p.slug not in ('general','countries-guide')
-   and exists (select 1 from topics c where c.parent_id=p.id and c.status<>'archived') order by p.created_at limit $1::int`,[limit])).rows;
+  where p.status<>'archived' and not (p.scope ? 'split') and p.slug not in ('general','countries-guide') and ($2::text[] is null or p.slug = any($2::text[]))
+   and exists (select 1 from topics c where c.parent_id=p.id and c.status<>'archived')
+  order by exists (select 1 from topics c join entity_types et on et.topic_id=c.id join entities e on e.type=et.type where c.parent_id=p.id) desc, p.created_at limit $1::int`,[limit,only??null])).rows;
  if(!nodes.length)return {judged:0};
  const {respond}=await import('@/app/llm');
  let judged=0;
