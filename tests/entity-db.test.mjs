@@ -527,3 +527,12 @@ test('the tree is the index: entities sit at the deepest node their attributes l
  const ix=await idx.nodeIndex(db,P.id);assert.equal(ix.unplaced,2);assert.deepEqual(ix.views,['x-young-players']);
  void LL;
 });
+
+test('a split judgement is used only when the key is an attribute of the entities and every subtopic has its value',async()=>{
+ const trunk=await import(new URL('trunk.mjs',out));const node={slug:'musicians',name:'Musicians and singers'};
+ const ch=(slug,role,values)=>({slug,role,values,filter:{key:'',value:''}});
+ assert.match(trunk.splitProblem({key:'musicians',label:'',why:'',children:[ch('rappers','value',['hip hop'])]},node,['rappers']),/names the node/);
+ assert.match(trunk.splitProblem({key:'genre',label:'',why:'',children:[ch('rappers','value',[])]},node,['rappers']),/values missing/);
+ assert.match(trunk.splitProblem({key:'genre',label:'',why:'',children:[]},node,['rappers']),/not judged/);
+ assert.equal(trunk.splitProblem({key:'genre',label:'',why:'',children:[ch('rappers','value',['hip hop']),ch('spotify-artists','view',[])]},node,['rappers','spotify-artists']),'');
+});
