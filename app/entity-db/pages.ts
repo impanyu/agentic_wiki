@@ -222,6 +222,7 @@ async function entityRankings(db:Queryable,d:EntityPageData,metrics:Record<strin
  const defs=[...own,...inherited].slice(0,24);const ancestor=new Set(chain.slice(1));
  const labels=await metricInfos(db,defs.flatMap(r=>r.criteria.map(c=>c.split('@')[0])));
  const out:EntityPageData['rankings']=[];
+ const {memberOf}=await import('./members');const members=await memberOf(db,d.entity.id,defs.map(r=>r.slug)).catch(()=>new Map<string,boolean|null>());
  for(const r of defs){
   const crit=r.criteria.slice(0,12);if(!crit.length)continue;
   const label=(c:string)=>labels[c.split('@')[0]]?.label||c;
@@ -232,7 +233,7 @@ async function entityRankings(db:Queryable,d:EntityPageData,metrics:Record<strin
   }
   try{
    // Only the sub-rankings the entity is in (a membership query, not a table per scope).
-   if(!await inScope(db,{type:r.scope.type,filters:r.scope.filters},d.entity.id))continue;
+   const m=members.get(r.slug);if(m===false||(m==null&&!await inScope(db,{type:r.scope.type,node:r.scope.node,filters:r.scope.filters},d.entity.id)))continue;
    const t=await sharedTable(db,{type:r.scope.type,filters:r.scope.filters,metrics:crit,period:'latest'});
    const row=t.rows.find(x=>x.entity_id===d.entity.id);
    out.push({slug:r.slug,title:r.title,filters:r.scope.filters||{},ranks:t.metrics.map(m=>({key:m.column,label:m.label,rank:row&&typeof row[m.column+'_rank']==='number'?Number(row[m.column+'_rank']):!row&&metrics[m.key]?RANK_LIMIT+1:null,of:m.count||null}))});

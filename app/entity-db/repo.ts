@@ -320,7 +320,8 @@ export async function recordRelations(db:EntityDb,list:RelationInput[]):Promise<
 }
 
 // ───────────── scope filters ─────────────
-export type Scope={type?:string;topicId?:string;filters?:Record<string,unknown>};
+// node: a tree node (slug or id, or several) — its whole subtree, through the closure table.
+export type Scope={type?:string;topicId?:string;node?:string|string[];filters?:Record<string,unknown>};
 const OPS:Record<string,string>={'>':'>','>=':'>=','<':'<','<=':'<=','=':'=','==':'=','!=':'<>','<>':'<>'};
 const latestSql=(p:Params,key:string,obsVersion:number,period?:string)=>`select distinct on (o.entity_id) o.entity_id, o.value, o.period, o.source from observations o
  where o.metric = ${p.add(key)}::text and o.metric_version = ${p.add(obsVersion)}::int${period?` and o.period = ${p.add(period)}::text`:''} order by o.entity_id, o.period desc, o.retrieved_at desc`;
@@ -346,6 +347,8 @@ async function scopeSql(q:Queryable,p:Params,scope:Scope,a='e'):Promise<string>{
  // A type includes its subtypes (types that extend it): a ranking of a type ranks every entity that is one.
  if(scope.type){const {withSubtypes}=await import('./inherit');const tp=p.add(await withSubtypes(q,normalizeType(scope.type)));parts.push(`(${a}.type = any(${tp}::text[]) or ${a}.also_types && ${tp}::text[])`);}
  if(scope.topicId){if(!UUID.test(scope.topicId))throw Error('Invalid topicId.');parts.push(`${a}.topic_id = ${p.add(scope.topicId)}::uuid`);}
+ if(scope.node){const ns=(Array.isArray(scope.node)?scope.node:[scope.node]).map(String).filter(Boolean).slice(0,50);
+  parts.push(`${a}.node_id in (select c.descendant from topic_closure c join topics t on t.id = c.ancestor where t.slug = any(${p.add(ns)}::text[]) or t.id::text = any(${p.add(ns)}::text[]))`);}
  const entries=Object.entries(scope.filters||{});
  if(!entries.length)return parts.join(' and ');
  const keys=entries.map(([k])=>k).filter(k=>/^[a-z][a-z0-9_]{0,63}(@\d+)?$/.test(k));

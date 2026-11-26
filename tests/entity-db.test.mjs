@@ -9,7 +9,7 @@ export const datasetScope=ctx=>ctx.agent?.id||ctx.userId||'anonymous';
 export async function loadDataset(scope,id){const d=store.get(scope+'/'+id);if(!d)throw Error('Unknown dataset '+id);return d;}
 export async function saveDataset(scope,input){const id='ds_test'+String(++n).padStart(8,'0');const rows=input.rows;const columns=input.columns||[...new Set(rows.flatMap(r=>Object.keys(r)))];store.set(scope+'/'+id,{id,title:input.title,source:input.source,columns,rows,notes:input.notes});return {datasetId:id,title:input.title,source:input.source,rowCount:rows.length,columns:columns.map(name=>({name})),preview:rows.slice(0,8),notes:input.notes};}
 `);
-for(const f of ['client','schema','metrics','embeddings','units','reserved','repo','inherit','dedup','tools','tree-index']){
+for(const f of ['client','schema','metrics','embeddings','units','reserved','repo','inherit','dedup','tools','tree-index','members']){
  let js=ts.transpileModule(readFileSync(new URL(`../app/entity-db/${f}.ts`,import.meta.url),'utf8'),{compilerOptions:{module:ts.ModuleKind.ESNext,target:ts.ScriptTarget.ES2022}}).outputText;
  js=js.replace(/(from\s*|import\()\s*(['"])([^'"]+)\2/g,(m,pre,q,spec)=>stubs[spec]?`${pre}'${stubs[spec]}'`:spec.startsWith('./')?`${pre}'${spec}.mjs'`:m);
  writeFileSync(new URL(f+'.mjs',out),js);
@@ -535,4 +535,24 @@ test('a split judgement is used only when the key is an attribute of the entitie
  assert.match(trunk.splitProblem({key:'genre',label:'',why:'',children:[ch('rappers','value',[])]},node,['rappers']),/values missing/);
  assert.match(trunk.splitProblem({key:'genre',label:'',why:'',children:[]},node,['rappers']),/not judged/);
  assert.equal(trunk.splitProblem({key:'genre',label:'',why:'',children:[ch('rappers','value',['hip hop']),ch('spotify-artists','view',[])]},node,['rappers','spotify-artists']),'');
+});
+
+test('the database keeps the tree (closure table) and each ranking\'s members (its stored query, materialized)',async()=>{
+ const mem=await import(new URL('members.mjs',out));
+ const A=await repo.createTopic(db,{slug:'y-parks',name:'Parks'});const B=await repo.createTopic(db,{slug:'y-np',name:'National parks',parentId:A.id});const C=await repo.createTopic(db,{slug:'y-np-ca',name:'Canadian national parks',parentId:B.id});
+ const sub=(await db.query("select t.slug from topic_closure c join topics t on t.id=c.descendant where c.ancestor=$1 order by c.depth",[A.id])).rows.map(r=>r.slug);
+ assert.deepEqual(sub,['y-parks','y-np','y-np-ca']);
+ const D=await repo.createTopic(db,{slug:'y-other',name:'Other'});await db.query('update topics set parent_id=$1 where id=$2',[D.id,C.id]);
+ assert.equal((await db.query('select count(*)::int n from topic_closure where ancestor=$1',[A.id])).rows[0].n,2,'moving a node rebuilds the closure');
+ await db.query('update topics set parent_id=$1 where id=$2',[B.id,C.id]);
+ await db.query(`insert into entity_types(type,topic_id) values ('y_park',$1)`,[B.id]);
+ const a=await repo.upsertEntity(db,{type:'y_park',name:'Banff',attributes:{country:'Canada'}});const b=await repo.upsertEntity(db,{type:'y_park',name:'Yosemite',attributes:{country:'USA'}});
+ await db.query('update entities set node_id=$1 where id=$2',[C.id,a.id]);await db.query('update entities set node_id=$1 where id=$2',[B.id,b.id]);
+ assert.equal((await repo.entitySearchIds(db,{node:'y-parks'})).length,2);assert.equal((await repo.entitySearchIds(db,{node:'y-np-ca'})).length,1);
+ const r=(await db.query(`insert into rankings(slug,title,topic_id,scope,criteria,config,status) values ('y-ca','Parks in Canada',$1,'{"type":"y_park","filters":{"country":"canada"}}','{}','{}','published') returning id`,[B.id])).rows[0];
+ await mem.refreshMembers(db);
+ const m=await mem.memberOf(db,a.id,['y-ca']);assert.equal(m.get('y-ca'),true);assert.equal((await mem.memberOf(db,b.id,['y-ca'])).get('y-ca'),false);
+ // A change to the class refreshes the members.
+ await db.query("update entities set attributes=attributes||'{\"country\":\"Canada\"}', updated_at=now()+interval '1 second' where id=$1",[b.id]);
+ await mem.refreshMembers(db);assert.equal((await mem.memberOf(db,b.id,['y-ca'])).get('y-ca'),true);void r;
 });

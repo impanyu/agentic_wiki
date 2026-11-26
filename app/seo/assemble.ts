@@ -326,7 +326,7 @@ export function assembleEntityPage(d:EntityPageData,locale='en'):EntityPageModel
 }
 
 // ───────────── ranking pages ─────────────
-export type RankingDef={slug:string;title:string;scope:{type?:string;filters?:Record<string,unknown>};criteria:string[];config:Record<string,unknown>;status?:string;updatedAt?:string|null};
+export type RankingDef={slug:string;title:string;scope:{type?:string;node?:string|string[];filters?:Record<string,unknown>};criteria:string[];config:Record<string,unknown>;status?:string;updatedAt?:string|null};
 export type RankingColumn={column:string;key:string;count:number};
 export type RankingPageInput={def:RankingDef;defs:Record<string,MetricInfo>;columns:RankingColumn[];rows:Record<string,unknown>[];
  type:{label:string;plural:string;expected?:number|null};entities:Record<string,{group?:string|null;code?:string|null;image?:string|null}>;related:{slug:string;title:string}[];

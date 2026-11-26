@@ -325,6 +325,31 @@ export const MIGRATIONS:Migration[]=[
   'alter table entities add column if not exists node_id uuid references topics(id) on delete set null',
   'create index if not exists entities_node on entities(node_id)',
  ]},
+ // The tree as the database keeps hierarchies: a closure table (every ancestor–descendant pair with its distance),
+ // rebuilt by the database whenever a node is added, moved or removed, so a node's whole subtree is one indexed join.
+ // A ranking's members (its stored query's result) are kept in ranking_members, like a materialized view: refreshed
+ // when entities of its class change (app/entity-db/members.ts), read by pages in one lookup.
+ {version:28,name:'tree closure and ranking members',statements:()=>[
+  'create table if not exists topic_closure(ancestor uuid not null references topics(id) on delete cascade, descendant uuid not null references topics(id) on delete cascade, depth integer not null, primary key(ancestor, descendant))',
+  'create index if not exists topic_closure_descendant on topic_closure(descendant)',
+  `create or replace function rebuild_topic_closure() returns void language sql as $f$
+    delete from topic_closure;
+    insert into topic_closure(ancestor, descendant, depth)
+     with recursive c(ancestor, descendant, depth) as (select id, id, 0 from topics union all select c.ancestor, t.id, c.depth + 1 from c join topics t on t.parent_id = c.descendant where c.depth < 40)
+     select ancestor, descendant, min(depth) from c group by ancestor, descendant;
+   $f$`,
+  `create or replace function topic_tree_changed() returns trigger language plpgsql as $f$ begin perform rebuild_topic_closure(); return null; end $f$`,
+  'drop trigger if exists topics_tree_ins on topics',
+  'create trigger topics_tree_ins after insert on topics for each statement execute function topic_tree_changed()',
+  'drop trigger if exists topics_tree_upd on topics',
+  'create trigger topics_tree_upd after update of parent_id on topics for each statement execute function topic_tree_changed()',
+  'drop trigger if exists topics_tree_del on topics',
+  'create trigger topics_tree_del after delete on topics for each statement execute function topic_tree_changed()',
+  'select rebuild_topic_closure()',
+  'create table if not exists ranking_members(ranking_id uuid not null references rankings(id) on delete cascade, entity_id uuid not null references entities(id) on delete cascade, primary key(ranking_id, entity_id))',
+  'create index if not exists ranking_members_entity on ranking_members(entity_id)',
+  'alter table rankings add column if not exists members_at timestamptz',
+ ]},
 ];
 export const SCHEMA_VERSION=MIGRATIONS[MIGRATIONS.length-1].version;
 
