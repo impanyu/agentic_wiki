@@ -14,26 +14,24 @@ what is project-specific (class tree, templates, site map, look) is configuratio
 
 | Part | Kind | Does |
 |---|---|---|
-| **Planner** | module | From a request to a plan: (1) scope and member lists, (2) field template per class, (3) 2–3+ sources per class and field, (4) presentation (site map, rankings, levels, composite indices), plus cost. Methods: `planner/`. |
 | **Sources** | layer | Pre-wired channels: public APIs (keys managed centrally), search, own site index, web extraction, open data dumps. |
 | **Data** | layer | Collect, store, index. Owns the data standards (templates, member admission, units, identity, sources per class). Zones: raw → curated → derived; every value has source, period and retrieval time. |
 | **Refinery** | layer | Curation and analysis with native and third-party tools: entity merging, unit and definition normalisation, enrichment, relations, derived measures and composite indices (formula, inputs, version), recomputed when inputs change. Writes back to Data. |
 | **Presentation** | layer | Editors design what readers see: rankings as stored queries, levels of narrowing down, entity pages, comparisons, new views. Owns the presentation standards. |
 | **Auditor** | module across layers | One engine with data, refinery and presentation checkers. Only enforces the layers' standards: continuous checks, publication gates, patrols, reviewer agents. Hands problems to the Orchestrator. |
-| **Orchestrator** | module | Work queue and priorities (reader impact first), which agent pool does what, model capacity and budget, hand-offs between layers, arbitration, escalation to humans. |
+| **Orchestrator** (the manager) | module | Talks to the user: turns a request into a plan by having collectors research scope, templates and sources and editors design the presentation (methods in `planner/`), confirms it (with cost) with the user. Then runs everything: work queue and priorities (reader impact first), which agent pool does what, model capacity and budget, hand-offs between layers, arbitration, escalation to humans. |
 
-Loop: Planner sets the standards → layers do the work → Auditor checks → Orchestrator routes fixes → Auditor re-checks.
+Loop: the manager plans with the user; collectors and editors set the standards → layers do the work → Auditor checks → Orchestrator routes fixes → Auditor re-checks.
 
 ## In RankWiki's code
 
 | Part | Where |
 |---|---|
-| Planner | `app/entity-db/site-map.ts`, `class-specs.ts`, work kind `class_spec`; methods in `docs/framework/planner/` |
 | Sources | `app/public-data/`, `app/data-tools/`, `app/search/site-index.ts`, recipes (`app/teams/recipes`) |
 | Data | `app/entity-db/` (entities, observations, class tree, dedup, units) |
 | Refinery | derived metrics and composites (`repo.ts`), `dedup.ts`, `units.ts`, `country-subsets.ts` |
 | Presentation | rankings, `pages.ts`, `app/rankings/`, `app/e/`, `app/seo/` |
 | Auditor | `app/work/checks.ts`, `completeness.ts`, gates in `app/work/kinds.ts`, reviewer pool |
-| Orchestrator | `app/work/queue.ts`, `runner.ts`, `triggers.ts`, manager pool |
+| Orchestrator | manager pool; `app/work/queue.ts`, `runner.ts`, `triggers.ts`; planning imports `site-map.ts`, `class-specs.ts`; methods in `docs/framework/planner/` |
 
 See `playbook.md` for the lessons each project turns into rules.
