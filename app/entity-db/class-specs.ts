@@ -29,6 +29,19 @@ const unite=(cur:unknown,next:Row[]):Row[]=>{
 export async function importClassSpecs(db:Queryable,specs:Record<string,ClassSpec>,{dryRun=true}:{dryRun?:boolean}={}){
  const classes=new Map((await db.query<{type:string;schema:Row}>(`select type, schema from entity_types where schema->>'kind'='class'`)).rows.map(r=>[r.type,r.schema||{}]));
  const known=new Set((await db.query<{key:string}>('select distinct key from metrics')).rows.map(r=>r.key));
+ // One measure, one key: a researched key that only adds a unit suffix to a key the site already uses for the same
+ // measure (median_household_income_usd → median_household_income, poverty_rate_pct → poverty_rate) takes that key,
+ // so templates name the data that is there instead of an empty twin.
+ const units=new Map((await db.query<{key:string;unit:string}>(`select key, unit from metrics where status <> 'retired'`)).rows.map(r=>[r.key,r.unit]));
+ const fam=(u:string)=>/usd|\$|dollar/i.test(u)?'usd':/^%|percent|share/i.test(u.trim())?'pct':u.trim().toLowerCase();
+ const alias=(k:string,unit?:unknown):string=>{const m=/^(.+)_(usd|pct)$/.exec(k);if(!m||!units.has(m[1]))return k;
+  const u=units.get(m[1])||'';return !u||fam(u)===m[2]||fam(String(unit||''))===fam(u)?m[1]:k;};
+ for(const s of Object.values(specs)){
+  const fix=(list?:Row[])=>{for(const f of list||[])if(typeof f?.key==='string')f.key=alias(f.key,f.unit);};
+  fix(s.metrics);for(const n of s.national||[])fix(n.metrics);
+  if(s.rankingCriteria)s.rankingCriteria=[...new Set(s.rankingCriteria.map(k=>alias(String(k))))];
+  for(const c of s.composites||[])for(const i of (Array.isArray(c.inputs)?c.inputs:[]) as Row[])if(typeof i?.metric==='string')i.metric=alias(i.metric);
+ }
  const out={classes:0,unknown:[] as string[],metricsDeclared:0,attributesDeclared:0,newMetricKeys:0,deprecated:0};
  const newMetrics=new Map<string,Row>();
  for(const [key,s] of Object.entries(specs)){
