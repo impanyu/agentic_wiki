@@ -108,14 +108,16 @@ async function runFn(db:Queryable,name:string,limit:number):Promise<{target:stri
   return out;
  }
  if(name==='unitJumps'){
-  // The same measure of a class whose typical value jumps 20-fold from one year to the next: a unit or scale changed
-  // between sources (a share as 0–1 against a percentage, thousands against units) — rankings mix them.
-  const rows=(await db.query<{type:string;metric:string;pp:string;prev:number;period:string;med:number}>(`with m as (select e.type, o.metric, o.period, percentile_cont(0.5) within group (order by o.value) med
-    from observations o join entities e on e.id=o.entity_id where o.value<>0 and o.period ~ '^\\d{4}$' and o.source not like 'derived:%' and o.metric !~ '(growth|change|_yoy|inflation|return)' group by 1,2,3 having count(*)>=20),
-   r as (select type, metric, period, med, lag(med) over (partition by type, metric order by period) prev, lag(period) over (partition by type, metric order by period) pp from m)
-   select type, metric, pp, prev, period, med from r where prev>0 and med>0 and (med/prev>20 or med/prev<0.05) limit $1::int`,[limit])).rows;
-  const by=new Map<string,string[]>();for(const r of rows){const l=by.get(r.type)||[];l.push(`${r.metric}: typical value ${Number(r.prev).toPrecision(3)} in ${r.pp} but ${Number(r.med).toPrecision(3)} in ${r.period}`);by.set(r.type,l);}
-  return [...by].map(([target,l])=>({target,detail:'A unit or scale changed between sources, so values cannot be compared: '+l.join('; ')+'. Put every value of each measure in one unit (convert or retract the wrong ones) and fix the recipe that loaded them.'}));
+  // The same entity's measure from one year (or one source) to the next jumping 20-fold for most entities of a class:
+  // a unit or scale differs between sources or loads (a share as 0–1 against a percentage, billions against units,
+  // a table column read wrong) — rankings mix them. Compared entity by entity, so a list that grew is not a jump.
+  const rows=(await db.query<{type:string;metric:string;pp:string;period:string;med:number;n:number;ps:string;source:string}>(`with o as (select e.type, o.metric, o.entity_id, o.period, o.source, o.value
+     from observations o join entities e on e.id=o.entity_id where o.value>0 and o.period ~ '^\\d{4}$' and o.source not like 'derived:%' and o.metric !~ '(growth|change|_yoy|inflation|return|rank)'),
+   p as (select type, metric, period, source, value, lag(value) over w prev, lag(period) over w pp, lag(source) over w ps from o window w as (partition by entity_id, metric order by period, source)),
+   r as (select type, metric, pp, period, ps, source, percentile_cont(0.5) within group (order by value/prev) med, count(*)::int n from p where prev>0 group by 1,2,3,4,5,6 having count(*)>=10)
+   select * from r where med>20 or med<0.05 order by n desc limit $1::int`,[limit])).rows;
+  const by=new Map<string,string[]>();for(const r of rows){const l=by.get(r.type)||[];l.push(`${r.metric}: for ${r.n} entities the value from "${r.source}" (${r.period}) is ${Number(r.med).toPrecision(3)} times the value from "${r.ps}" (${r.pp})`);by.set(r.type,l);}
+  return [...by].map(([target,l])=>({target,detail:'Values cannot be compared — a unit, scale or column differs between sources: '+l.join('; ')+'. Put every value of each measure in one unit (convert or retract the wrong ones), fix the recipe that loaded them, and keep different definitions under different measures.'}));
  }
  throw Error('Unknown built-in check '+name);
 }
@@ -155,9 +157,9 @@ const poolSizes=():Record<string,number>=>{const out:Record<string,number>={coll
 export async function runChecks(db:Queryable,log:(e:Row)=>void=e=>console.log('[work:checks]',JSON.stringify(e))):Promise<Row>{
  const {KINDS}=await import('./kinds');
  await syncBuiltins(db);
- // Heavy checks (fn:unitJumps scans every observation) run once a day.
+ // Heavy checks (fn:unitJumps compares every observation with the entity's previous one) run once a week.
  const checks=(await db.query<Check>(`select id, object, kind, title, severity, cooldown_days, sql, status, created_by from checks where status in ('active','trial')
-  and not (sql in ('fn:unitJumps') and last_run > now() - interval '23 hours') order by id`)).rows;
+  and not (sql in ('fn:unitJumps') and last_run > now() - interval '7 days') order by id`)).rows;
  const objects={class:Number((await db.query<{n:number}>(`select count(*)::int n from entity_types where schema->>'kind'='class'`)).rows[0]?.n||0),
   page:Number((await db.query<{n:number}>(`select count(*)::int n from topics where status<>'archived'`)).rows[0]?.n||0)};
  type Cand={check:Check;target:string;detail:string;payload?:Row;priority:number};
