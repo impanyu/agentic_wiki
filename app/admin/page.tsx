@@ -11,7 +11,7 @@ import {IssueActions} from './issue-actions';
 export const dynamic='force-dynamic';
 export const metadata:Metadata={title:'Admin · RankWiki',robots:{index:false,follow:false}};
 type Props={searchParams:Promise<Record<string,string|string[]|undefined>>};
-const TABS=[['overview','Overview'],['issues','Issues'],['traffic','Traffic'],['models','Models now'],['costs','Model costs'],['services','Services'],['teams','Teams and data'],['config','Configuration']] as const;
+const TABS=[['overview','Overview'],['progress','Progress'],['issues','Issues'],['traffic','Traffic'],['models','Models now'],['costs','Model costs'],['services','Services'],['teams','Teams and data'],['config','Configuration']] as const;
 const fmt=(v:unknown)=>typeof v==='number'?v.toLocaleString('en'):String(v??'');
 const usd=(v:unknown)=>'$'+(Number(v)||0).toLocaleString('en',{minimumFractionDigits:2,maximumFractionDigits:2});
 
@@ -54,6 +54,28 @@ export default async function AdminPage({searchParams}:Props){
     <Stat label="Teams" value={`${fmt(o.running)} running`} note={`${fmt(o.queued)} queued`}/>
    </div>
    {open>0&&<p className="adm-note"><a href="/admin?tab=issues">{fmt(open)} open issues need attention →</a></p>}
+  </>;
+ }else if(tab==='progress'){
+  // How complete the data is, class by class: rows, columns, sources, open problems (the Auditor's checks).
+  const {classProgress}=await import('@/app/work/progress');const {rows,tot}=await classProgress(await entityDb());
+  const pct=(a:number,b:number)=>b?Math.round(a/b*100)+'%':'–';
+  body=<>
+   <div className="adm-stats">
+    <Stat label="Classes with a ranking" value={fmt(tot?.classes)}/>
+    <Stat label="Members (rows)" value={fmt(tot?.members)} note={tot?.expected?`expected ${fmt(tot.expected)} where known`:''}/>
+    <Stat label="Classes with complete rows" value={fmt(tot?.complete_rows)} note="at least 90% of the expected members" tone={(tot?.complete_rows||0)<(tot?.classes||0)?'warn':'ok'}/>
+    <Stat label="Measures collected (columns)" value={pct(tot?.covered||0,tot?.declared||0)} note={`${fmt(tot?.covered)} of ${fmt(tot?.declared)} declared, for most members`} tone="warn"/>
+    <Stat label="Classes with 2+ sources" value={fmt(tot?.two_sources)} note="member lists and values" tone={(tot?.two_sources||0)<(tot?.classes||0)?'warn':'ok'}/>
+   </div>
+   <Table rows={rows as Record<string,unknown>[]} cols={[
+    ['label','Class',(v,r)=><a href={'/rankings/'+String(r.ranking)}>{String(v||r.type)}</a>],
+    ['members','Members',(v,r)=>fmt(v)+(r.expected?' / '+fmt(r.expected):'')],
+    ['covered','Columns filled',(v,r)=>`${fmt(v)} / ${fmt(r.declared)} (${pct(Number(v),Number(r.declared))})`],
+    ['sources','Sources',(v,r)=>`${fmt(v)} values · ${fmt(r.member_lists)} member lists`],
+    ['single_source_metrics','One-source measures'],
+    ['open_problems','Open problems',(v,r)=>Number(v)?<span title={(r.problems as string[]).join('\n')}>{fmt(v)}</span>:'0'],
+    ['updated_at','Checked',(v)=>(v instanceof Date?v.toISOString():String(v)).slice(0,16).replace('T',' ')],
+   ]}/>
   </>;
  }else if(tab==='issues'){
   const status=String((await searchParams).status||'open') as 'open'|'resolved'|'ignored'|'all';

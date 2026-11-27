@@ -386,6 +386,14 @@ export const MIGRATIONS:Migration[]=[
   "create index if not exists site_pages_pending on site_pages(domain, priority desc) where status = 'pending'",
   'create index if not exists site_pages_tsv on site_pages using gin(tsv)',
  ]},
+ // Progress of every class with a published ranking (app/work/progress): rows, columns, sources, checks — the
+ // operators' view of how complete the data is.
+ {version:32,name:'class progress',statements:()=>[
+  `create table if not exists class_progress(type text primary key, label text not null default '', ranking text, members integer not null default 0,
+    expected integer, declared integer not null default 0, covered integer not null default 0, any_data integer not null default 0,
+    sources integer not null default 0, member_lists integer not null default 0, single_source_metrics integer not null default 0,
+    open_problems integer not null default 0, problems text[] not null default '{}', updated_at timestamptz not null default now())`,
+ ]},
 ];
 export const SCHEMA_VERSION=MIGRATIONS[MIGRATIONS.length-1].version;
 
