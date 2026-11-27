@@ -11,7 +11,7 @@ import {IssueActions} from './issue-actions';
 export const dynamic='force-dynamic';
 export const metadata:Metadata={title:'Admin · RankWiki',robots:{index:false,follow:false}};
 type Props={searchParams:Promise<Record<string,string|string[]|undefined>>};
-const TABS=[['overview','Overview'],['progress','Progress'],['issues','Issues'],['traffic','Traffic'],['models','Models now'],['costs','Model costs'],['services','Services'],['teams','Teams and data'],['config','Configuration']] as const;
+const TABS=[['overview','Overview'],['progress','Progress'],['sitemap','Site map'],['classes','Classes'],['fields','Fields and sources'],['issues','Issues'],['traffic','Traffic'],['models','Models now'],['costs','Model costs'],['services','Services'],['teams','Teams and data'],['config','Configuration']] as const;
 const fmt=(v:unknown)=>typeof v==='number'?v.toLocaleString('en'):String(v??'');
 const usd=(v:unknown)=>'$'+(Number(v)||0).toLocaleString('en',{minimumFractionDigits:2,maximumFractionDigits:2});
 
@@ -77,6 +77,58 @@ export default async function AdminPage({searchParams}:Props){
     ['updated_at','Checked',(v)=>(v instanceof Date?v.toISOString():String(v)).slice(0,16).replace('T',' ')],
    ]}/>
   </>;
+ }else if(tab==='sitemap'){
+  // The pages readers browse, as a tree (topics, rankings and their narrowing-down levels).
+  const {siteTree}=await import('@/app/ops/structure');const t=await siteTree(await entityDb());
+  const Node=({n}:{n:import('@/app/ops/structure').SiteNode})=>n.children.length
+   ?<li><details><summary><a href={n.path}>{n.name}</a> <small className="adm-muted">{n.kind}{n.live?'':' · not live'} · {n.children.length} below</small></summary><ul className="adm-tree">{n.children.map(c=><Node key={c.path} n={c}/>)}</ul></details></li>
+   :<li><a href={n.path}>{n.name}</a> <small className="adm-muted">{n.kind}{n.live?'':' · not live'}</small></li>;
+  body=<><p className="adm-note">{fmt(t.nodes)} pages. Open a branch to see what is below it.</p><ul className="adm-tree">{t.roots.map(n=><Node key={n.path} n={n}/>)}</ul></>;
+ }else if(tab==='classes'){
+  const sp=await searchParams;const type=String(sp.type||'');const q=String(sp.q||'').trim().toLowerCase();
+  const {classTree,classDetail}=await import('@/app/ops/structure');const db=await entityDb();
+  if(type){
+   const d=await classDetail(db,type);
+   body=!d?<p className="adm-empty">No such class.</p>:<>
+    <p className="adm-note"><a href="/admin?tab=classes">All classes</a> / {d.chain.map(c=><span key={c}><a href={'/admin?tab=classes&type='+c}>{c}</a> / </span>)}<b>{d.label}</b> <code>{d.type}</code>{d.national.length?' · national subclass '+d.national.join(','):''}</p>
+    {d.description&&<p>{d.description}</p>}
+    <div className="adm-stats">
+     <Stat label="Members" value={fmt(d.members)} note={d.universe.expected?`expected ${fmt(d.universe.expected)}`:'expected count unknown'}/>
+     <Stat label="Fields" value={fmt(d.fields.length)} note={`${fmt(d.fields.filter(f=>f.own).length)} own · ${fmt(d.fields.filter(f=>!f.own).length)} inherited`}/>
+     <Stat label="Fields with data" value={fmt(d.fields.filter(f=>f.filled>0).length)} note={`${fmt(d.fields.filter(f=>f.filled>=d.members*0.5&&d.members>0).length)} for at least half the members`}/>
+     <Stat label="Member lists" value={fmt(d.universe.lists.length)} tone={d.universe.lists.length<2?'warn':undefined}/>
+    </div>
+    {d.children.length>0&&<p className="adm-note">Subclasses: {d.children.map((c,i)=><span key={c.type}>{i?', ':''}<a href={'/admin?tab=classes&type='+c.type}>{c.label}</a></span>)}</p>}
+    {d.rankings.length>0&&<p className="adm-note">Rankings: {d.rankings.map((r,i)=><span key={r.slug}>{i?', ':''}<a href={'/rankings/'+r.slug}>{r.title}</a>{r.status!=='published'?' ('+r.status+')':''}</span>)}</p>}
+    <h2>Members: where the complete list comes from</h2>
+    {d.universe.admission&&<p className="adm-note">Admission: {d.universe.admission}</p>}
+    <Table rows={d.universe.lists} cols={[['name','List',(v,r)=>r.url?<a href={String(r.url)} rel="nofollow noopener" target="_blank">{String(v||r.url)}</a>:String(v||'')],['covers','Covers'],['access','Access']]}/>
+    {d.universe.gaps&&<p className="adm-note">Gaps: {d.universe.gaps}</p>}
+    <h2>Fields and their sources</h2>
+    <Table rows={d.fields as unknown as Record<string,unknown>[]} cols={[
+     ['label','Field',(v,r)=><span title={String(r.key)}>{String(v)}{r.deprecated?' (removed)':''}<br/><small className="adm-muted">{String(r.key)} · {String(r.kind)}{r.own?'':' · inherited'}{r.aspect?' · '+String(r.aspect):''}</small></span>],
+     ['unit','Unit'],
+     ['filled','Members with data',(v)=>d.members?`${fmt(v)} (${Math.round(Number(v)/d.members*100)}%)`:fmt(v)],
+     ['planned','Planned sources',(v,r)=>(v as {name:string;url:string;field:string;access:string}[]).length?<ol className="adm-srcs">{(v as {name:string;url:string;field:string;access:string}[]).map((x,i)=><li key={i}>{x.url?<a href={x.url} rel="nofollow noopener" target="_blank">{x.name||x.url}</a>:x.name}{x.field?<small className="adm-muted"> · {x.field}</small>:null}{x.access?<small className="adm-muted"> · {x.access}</small>:null}</li>)}</ol>:<span className="adm-bad">{r.sourceNeeded?'source needed':'none'}</span>],
+     ['loaded','Loaded from',(v,r)=>Number(r.loadedSources)?<span>{fmt(r.loadedSources)}: {(v as string[]).join('; ')}</span>:'—'],
+    ]}/>
+   </>;
+  }else{
+   const t=await classTree(db);
+   const match=(n:import('@/app/ops/structure').ClassNode):boolean=>!q||n.type.includes(q)||n.label.toLowerCase().includes(q)||n.children.some(match);
+   const Node=({n}:{n:import('@/app/ops/structure').ClassNode})=>{const kids=n.children.filter(match);const label=<><a href={'/admin?tab=classes&type='+n.type}>{n.label}</a> <small className="adm-muted">{n.type} · {fmt(n.members)} members{n.national?' · '+n.national:''}</small></>;
+    return kids.length?<li><details open={!!q}><summary>{label} <small className="adm-muted">· {n.children.length} subclasses</small></summary><ul className="adm-tree">{kids.map(c=><Node key={c.type} n={c}/>)}</ul></details></li>:<li>{label}</li>;};
+   body=<><form className="adm-search"><input type="hidden" name="tab" value="classes"/><input name="q" defaultValue={q} placeholder="Find a class"/><button>Search</button></form>
+    <p className="adm-note">{fmt(t.classes)} classes. Open a branch, or a class for its fields, sources and member lists.</p>
+    <ul className="adm-tree">{t.roots.filter(match).map(n=><Node key={n.type} n={n}/>)}</ul></>;
+  }
+ }else if(tab==='fields'){
+  const sp=await searchParams;const q=String(sp.q||'');const problem=String(sp.problem||'');
+  const {fieldSearch}=await import('@/app/ops/structure');const rows=await fieldSearch(await entityDb(),{q,problem});
+  body=<><form className="adm-search"><input type="hidden" name="tab" value="fields"/><input name="q" defaultValue={q} placeholder="Field or class"/>
+    <select name="problem" defaultValue={problem}><option value="">All fields</option><option value="one-source">Only one planned source</option><option value="no-source">No source yet</option></select><button>Show</button></form>
+   <p className="adm-note">{fmt(rows.length)}{rows.length>=500?'+':''} fields (own fields of each class; open a class for inherited ones and what is loaded).</p>
+   <Table rows={rows as unknown as Record<string,unknown>[]} cols={[['label','Class',(v,r)=><a href={'/admin?tab=classes&type='+String(r.type)}>{String(v||r.type)}</a>],['key','Field'],['kind','Kind'],['sources','Planned sources',(v,r)=>r.need?<span className="adm-bad">needed</span>:fmt(v)]]}/></>;
  }else if(tab==='issues'){
   const status=String((await searchParams).status||'open') as 'open'|'resolved'|'ignored'|'all';
   const list=await listIssues(await entityDb(),{status});

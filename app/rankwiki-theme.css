@@ -567,3 +567,12 @@ html,body{background:var(--rw-bg)}
 .report-problem-takedown{display:flex;gap:.4rem;align-items:center;color:var(--rw-muted)}
 .report-problem-error{color:#b91c1c}
 .report-problem-sent{color:var(--rw-muted)}
+.adm-tree{list-style:none;margin:0 0 0 4px;padding-left:16px;border-left:1px solid var(--rw-border)}
+.adm-tree li{margin:4px 0;font-size:14px}
+.adm-tree summary{cursor:pointer}
+.adm-muted{color:var(--rw-muted);font-size:12px}
+.adm-bad{color:#b42318;font-weight:550}
+.adm-srcs{margin:0;padding-left:18px;font-size:13px}
+.adm-search{display:flex;gap:8px;margin:0 0 16px;flex-wrap:wrap}
+.adm-search input,.adm-search select{padding:6px 10px;border:1px solid var(--rw-border);border-radius:8px;background:var(--rw-bg,transparent);color:inherit;min-width:220px}
+.adm-search button{padding:6px 14px;border:1px solid var(--rw-border);border-radius:8px;background:var(--rw-ink);color:var(--rw-bg,#fff);cursor:pointer}
