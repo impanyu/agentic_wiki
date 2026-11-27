@@ -21,7 +21,7 @@ export async function importSiteMap(db:EntityDb,spec:SiteMapSpec,{dryRun=true,lo
  const okPages=spec.pages.filter(p=>{
   const why=!SLUG.test(p.slug)?'bad slug':!p.name?'no name':p.shows?.hub?'':!p.shows?.class?'no class':!classes.has(p.shows.class)?'unknown class '+p.shows.class:'';
   if(why)out.problems.push(p.slug+': '+why);return !why;});
- const parentOk=(s:string)=>specSlugs.has(s)||existing.has(s);
+ const parentOk=(s:string)=>!s||specSlugs.has(s)||existing.has(s);
  for(const p of okPages)if(!parentOk(p.parent))out.problems.push(p.slug+': unknown parent '+p.parent);
  if(dryRun){
   const created=okPages.filter(p=>!existing.has(p.slug)).length;
@@ -38,7 +38,7 @@ export async function importSiteMap(db:EntityDb,spec:SiteMapSpec,{dryRun=true,lo
    existing.set(p.slug,r.rows[0].id);out.pagesCreated++;
   }
  }
- for(const p of okPages)if(existing.has(p.parent)&&p.parent!==p.slug)await db.query('update topics set parent_id=$2::uuid where slug=$1::text and parent_id is distinct from $2::uuid',[p.slug,existing.get(p.parent)]);
+ for(const p of okPages)if(p.parent&&existing.has(p.parent)&&p.parent!==p.slug)await db.query('update topics set parent_id=$2::uuid where slug=$1::text and parent_id is distinct from $2::uuid',[p.slug,existing.get(p.parent)]);
  // A class's own page: the page that shows it without filters.
  for(const p of okPages)if(p.shows.class&&!Object.keys(p.shows.filters||{}).length)await db.query('update entity_types set topic_id=$2::uuid where type=$1::text',[p.shows.class,existing.get(p.slug)]);
  // 2. Rankings: the main ranking (the page's existing main one keeps its address) and the views.
@@ -79,7 +79,11 @@ export async function importSiteMap(db:EntityDb,spec:SiteMapSpec,{dryRun=true,lo
   if(!existing.has(r.slug)||specSlugs.has(r.slug))continue;
   const into=existing.has(r.into)?r.into:'';
   await db.query(`update topics set status='archived', scope=scope||jsonb_build_object('convertedTo',$2::text,'retiredWhy',$3::text), updated_at=now() where slug=$1::text`,[r.slug,into,r.why||'']);
-  const intoMain=into?(await db.query<{slug:string}>(`select r.slug from rankings r join topics t on t.id=r.topic_id where t.slug=$1::text and r.status<>'archived' order by (r.config ? 'main') desc limit 1`,[into])).rows[0]?.slug:undefined;
+  // A one-country page leads to the platform's own country ranking of the same set (found by its query), not the
+  // world page: no mergedInto, so the retired ranking resolves to the published ranking with the same class and filters.
+  const oneCountry=(await db.query<{k:string[]}>(`select array(select jsonb_object_keys(coalesce(scope->'shows'->'filters','{}'::jsonb))) k from topics where slug=$1::text`,[r.slug])).rows[0]?.k;
+  const countryOnly=!!oneCountry&&oneCountry.length===1&&oneCountry[0]==='country_iso3';
+  const intoMain=into&&!countryOnly?(await db.query<{slug:string}>(`select r.slug from rankings r join topics t on t.id=r.topic_id where t.slug=$1::text and r.status<>'archived' order by (r.config ? 'main') desc limit 1`,[into])).rows[0]?.slug:undefined;
   await db.query(`update rankings set status='archived', config=config||jsonb_build_object('mergedInto',$2::text), updated_at=now() where topic_id=$1::uuid and status<>'archived'`,[existing.get(r.slug),intoMain||'']);
   out.retired++;
  }
