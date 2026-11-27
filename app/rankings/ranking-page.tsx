@@ -1,4 +1,5 @@
 import {serverUi,requestLocale} from '@/app/i18n/request';
+import ReportProblem from '@/app/components/report-problem';
 import {localizeLinks} from '@/app/i18n/locales';
 import {localizeContent} from '@/app/i18n/content';
 import {localeMeta} from '@/app/i18n/meta';
@@ -123,6 +124,7 @@ export async function RankingPage(props:Props){
    {base!==internal&&<Breadcrumbs trail={L(loc.trail)} current={loc.current.name}/>}
    <RankingBody slug={input.def.slug} kicker={t('Ranking')+(input.def.status==='draft'?' · '+t('Draft'):'')} subsets={L(loc.subsets)} title={name} baseTitle={loc.baseTitle} titles={titles} basePath={localizeLinks(base,locale)} defaultRank={block.defaultKey} rank={criterion?.key} period={period} charts={charts} props={L({...rprops,rows:packRows(rprops.rows as Record<string,unknown>[])})} lead={loc.lead}/>
    <p className="data-twin-files"><a href={internal+'/data.csv'} download>{t('Download the data (CSV)')}</a></p>
+   <ReportProblem labels={{open:t('Report a problem with this page'),placeholder:t('What is wrong or missing? (a value, a missing entry, a wrong link…)'),send:t('Send'),sent:t('Thank you — we will check it.'),takedown:t('This is a request to remove content'),failed:t('Could not send; try again later.')}}/>
 
    <RankingGrid rankings={L(popular)} title={t('Popular rankings')}/>
    {loc.related.length>0&&<section aria-labelledby="related-rankings"><h2 id="related-rankings">{t('Related rankings')}</h2><ul>{loc.related.map(r=><li key={r.href}><a href={L(r.href)}>{r.title}</a></li>)}</ul></section>}

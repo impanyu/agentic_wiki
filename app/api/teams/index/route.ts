@@ -54,6 +54,15 @@ export async function POST(request:Request){
     console.log('[operator-recipe]',rec.type,rec.name,JSON.stringify(x).slice(0,1500));if(!(x as {partial?:boolean}).partial)break;}})();
    return Response.json({saved:rec.name,type:rec.type,running:!!r.run});
   }
+  if(b.action==='sitemap'){
+   // The initialised site map, from a file on this machine ({path, dryRun}); a real run continues in the background.
+   const {readFile}=await import('node:fs/promises');const path=String((b as {path?:string}).path||'');
+   if(!/^\/home\/[a-z]+\/[a-z0-9_.-]+\.json$/.test(path))return Response.json({error:'path: /home/<user>/<file>.json'},{status:400});
+   const spec=JSON.parse(await readFile(path,'utf8'));const {importSiteMap}=await import('@/app/entity-db/site-map');
+   if((b as {dryRun?:boolean}).dryRun!==false)return Response.json(await importSiteMap(db,spec,{dryRun:true}));
+   void importSiteMap(db,spec,{dryRun:false,log:e=>{if(Math.random()<0.02)console.log('[site-map]',JSON.stringify(e));}}).then(r=>console.log('[site-map]',JSON.stringify({event:'done',...r,problems:r.problems.slice(0,50)}))).catch(e=>console.error('[site-map] failed',(e as Error).message));
+   return Response.json({started:true});
+  }
   if(b.action==='site_search'){const r=b as {site?:string;query?:string;count?:number};const {siteSearch}=await import('@/app/search/site-index');return Response.json(await siteSearch(db,String(r.site||''),String(r.query||''),Number(r.count)||10));}
   if(b.action==='tool'){
    // An entity tool as the crawler runs it ({name, args}): define_metric, compute_metric, metric_table, entity_get…

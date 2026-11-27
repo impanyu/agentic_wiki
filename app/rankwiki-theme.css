@@ -558,3 +558,12 @@ html,body{background:var(--rw-bg)}
 }
 .answer .rw-node-group-title{font-family:var(--rw-font);font-size:13px;font-weight:650;color:var(--rw-ink,#1e293b);border:0;padding:0;margin:14px 0 8px}
 .answer .rw-node-group .rw-nodes{margin-bottom:6px}
+/* Readers' problem reports (app/components/report-problem.tsx) */
+.report-problem{margin:1.5rem 0 0;font-size:.875rem}
+.report-problem-open{background:none;border:0;padding:0;color:var(--rw-muted);text-decoration:underline;cursor:pointer;font:inherit}
+.report-problem-form{display:flex;flex-direction:column;gap:.5rem;max-width:36rem}
+.report-problem-form textarea{width:100%;padding:.5rem;border:1px solid var(--rw-border);border-radius:8px;font:inherit;background:transparent;color:inherit}
+.report-problem-form button{align-self:flex-start;padding:.35rem .9rem;border-radius:8px;border:1px solid var(--rw-border);background:transparent;color:inherit;cursor:pointer}
+.report-problem-takedown{display:flex;gap:.4rem;align-items:center;color:var(--rw-muted)}
+.report-problem-error{color:#b91c1c}
+.report-problem-sent{color:var(--rw-muted)}

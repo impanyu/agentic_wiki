@@ -3,13 +3,13 @@ process.env.RANKS_SYNC='1';import test from 'node:test';import assert from 'node
 // The TS modules are transpiled into node_modules/.cache so their package imports (pglite, zod) resolve;
 // '@/…' imports are replaced by small stubs.
 const out=new URL('../node_modules/.cache/entity-db-test/',import.meta.url);mkdirSync(out,{recursive:true});
-const stubs={'@/app/data-tools/datasets':'./stub-datasets.mjs'};
+const stubs={'@/app/data-tools/datasets':'./stub-datasets.mjs','@/app/work/queue':'./work-queue.mjs'};
 writeFileSync(new URL('stub-datasets.mjs',out),`export const store=new Map();let n=0;
 export const datasetScope=ctx=>ctx.agent?.id||ctx.userId||'anonymous';
 export async function loadDataset(scope,id){const d=store.get(scope+'/'+id);if(!d)throw Error('Unknown dataset '+id);return d;}
 export async function saveDataset(scope,input){const id='ds_test'+String(++n).padStart(8,'0');const rows=input.rows;const columns=input.columns||[...new Set(rows.flatMap(r=>Object.keys(r)))];store.set(scope+'/'+id,{id,title:input.title,source:input.source,columns,rows,notes:input.notes});return {datasetId:id,title:input.title,source:input.source,rowCount:rows.length,columns:columns.map(name=>({name})),preview:rows.slice(0,8),notes:input.notes};}
 `);
-for(const f of ['client','schema','metrics','embeddings','units','reserved','repo','inherit','dedup','tools','tree-index','members','class-tree']){
+for(const f of ['client','schema','metrics','embeddings','units','reserved','repo','inherit','dedup','tools','tree-index','members','class-tree','site-map']){
  let js=ts.transpileModule(readFileSync(new URL(`../app/entity-db/${f}.ts`,import.meta.url),'utf8'),{compilerOptions:{module:ts.ModuleKind.ESNext,target:ts.ScriptTarget.ES2022}}).outputText;
  js=js.replace(/(from\s*|import\()\s*(['"])([^'"]+)\2/g,(m,pre,q,spec)=>stubs[spec]?`${pre}'${stubs[spec]}'`:spec.startsWith('./')?`${pre}'${spec}.mjs'`:m);
  writeFileSync(new URL(f+'.mjs',out),js);
@@ -636,4 +636,24 @@ test('completeness: a member list counts as complete when two independent lists 
  assert.equal(done.complete,true);assert.equal(done.checks.length,2,'one check per source, the latest');
  await assert.rejects(c.recordUniverseCheck(db,{type:'cp_x',source:'B',url:'',listed:10,matched:11,missingSample:'',by:'t'}));
  const sp=await c.specVerdict(db,'cp_x');assert.equal(sp.complete,false);assert.match(sp.problem,/declares 1 measures/);
+});
+
+test('site map import: pages updated in place or created, main rankings and views as stored queries, drafts until members exist, retired pages redirect, attributes handed to collectors',async()=>{
+ const sm=await import(new URL('site-map.mjs',out));
+ await db.query("insert into entity_types(type,label,plural,description,schema) values ('sm_div','Div','Divs','',$1::jsonb) on conflict (type) do update set schema=excluded.schema",[JSON.stringify({kind:'class',attributes:[]})]);
+ await db.query("insert into metrics(key,version,label,unit,kind,created_by,status,used) values ('sm_pop',1,'Pop','people','observed','t','published',true),('sm_area',1,'Area','km2','observed','t','published',true) on conflict do nothing");
+ await db.query("insert into topics(slug,name,scope) values ('sm-root','Root','{}'),('sm-old','Old','{}'),('sm-divs','Divs old name','{}') on conflict (slug) do nothing");
+ const spec={pages:[{slug:'sm-divs',keep:true,name:'Divisions',parent:'sm-root',shows:{class:'sm_div',filters:{}},purpose:'p',main:{title:'Division Rankings',criteria:['sm_pop','sm_area','nope'],default:'sm_pop',composite:null},views:[{slug:'sm-divs-asia',title:'Divisions in Asia',filters:{continent:'Asia'}}]},
+  {slug:'sm-new',name:'New hub',parent:'sm-root',shows:{hub:true}},{slug:'bad slug',name:'x',parent:'sm-root',shows:{class:'sm_div'}}],
+  retire:[{slug:'sm-old',into:'sm-divs',why:'dup'}],attributes_needed:[{class:'sm_div',attribute:'continent',type:'enum',values:['Asia'],why:'views'}]};
+ const dry=await sm.importSiteMap(db,spec,{dryRun:true});assert.equal(dry.pagesCreated,1);assert.ok(dry.problems.some(p=>/bad slug/.test(p)));assert.ok(dry.missingMetrics.includes('nope'));
+ const r=await sm.importSiteMap(db,spec,{dryRun:false});
+ assert.equal(r.pagesUpdated,1);assert.equal(r.pagesCreated,1);assert.equal(r.retired,1);assert.equal(r.attributes,1);
+ const t=(await db.query("select t.name, p.slug parent, t.scope from topics t left join topics p on p.id=t.parent_id where t.slug='sm-divs'")).rows[0];
+ assert.equal(t.name,'Divisions');assert.equal(t.parent,'sm-root');assert.deepEqual(t.scope.shows,{class:'sm_div',filters:{}});
+ const rk=(await db.query("select slug, status, scope, criteria from rankings where slug like 'sm-divs%' order by slug")).rows;
+ const main=rk.find(x=>x.slug==='sm-divs-rankings'),view=rk.find(x=>x.slug==='sm-divs-asia');
+ assert.equal(rk.length,2);assert.deepEqual(main.criteria,['sm_pop','sm_area']);assert.equal(main.status,'draft','no members yet');assert.deepEqual(view.scope.filters,{continent:'Asia'});
+ assert.equal((await db.query("select status, scope->>'convertedTo' c from topics where slug='sm-old'")).rows[0].c,'sm-divs');
+ assert.ok((await db.query("select schema from entity_types where type='sm_div'")).rows[0].schema.attributes.some(a=>a.key==='continent'));
 });

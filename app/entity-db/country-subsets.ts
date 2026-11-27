@@ -13,8 +13,8 @@ export async function normalizeCountries(db:Queryable):Promise<number>{
   map as (select k, min(iso3) iso3 from keys where k <> '' group by k having count(distinct iso3) = 1),
   cand as (select e.id, c.ord, upper(c.v) k from entities e,
     lateral (values (1, e.attributes->>'country_iso3'), (2, e.attributes->>'iso3'), (3, e.attributes->>'country_code'), (4, e.attributes->>'iso2'),
-     (5, e.attributes->>'country'), (6, ent_norm(e.attributes->>'country'))) c(ord, v)
-    where e.type <> 'country' and (e.attributes ?| array['country','iso3','iso2','country_code','country_iso3']) and coalesce(c.v,'') <> ''),
+     (5, e.attributes->>'country'), (6, ent_norm(e.attributes->>'country')), (7, e.attributes->>'countryLabel'), (8, ent_norm(e.attributes->>'countryLabel'))) c(ord, v)
+    where e.type <> 'country' and (e.attributes ?| array['country','iso3','iso2','country_code','country_iso3','countryLabel']) and coalesce(c.v,'') <> ''),
   src as (select distinct on (cand.id) cand.id, map.iso3 from cand join map on map.k = cand.k order by cand.id, cand.ord)
   update entities e set attributes = e.attributes || jsonb_build_object('country_iso3', src.iso3)
   from src where src.id = e.id and (e.attributes->>'country_iso3') is distinct from src.iso3 returning e.id`);

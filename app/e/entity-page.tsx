@@ -1,4 +1,5 @@
 import {serverUi,requestLocale} from '@/app/i18n/request';
+import ReportProblem from '@/app/components/report-problem';
 import {localizeLinks} from '@/app/i18n/locales';
 import {localeMeta} from '@/app/i18n/meta';
 import {cache} from 'react';
@@ -106,6 +107,7 @@ export async function EntityPage(props:Props){
     </div>
    </header>
    <EntityBody cards={L(model.cards)} sections={L(sections)}/>
+   <ReportProblem labels={{open:t('Report a problem with this page'),placeholder:t('What is wrong or missing? (a value, a missing entry, a wrong link…)'),send:t('Send'),sent:t('Thank you — we will check it.'),takedown:t('This is a request to remove content'),failed:t('Could not send; try again later.')}}/>
 
   </DbShell>
  </>;
