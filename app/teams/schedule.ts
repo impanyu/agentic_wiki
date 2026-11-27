@@ -77,7 +77,7 @@ export async function fillVectors(){
 
 // The manager's daily review and the team queue, on the same heartbeat (one review at a time).
 let reviewing=false,lastMaintenance=0,sweeping=false,lastSweep=0,lastSiteReview=0,lastLinkCheck=0,linkChecking=false;
-let lastTriggers=0,triggering=false;
+let lastTriggers=0,triggering=false,siteFetching=false;
 export const workQueueOn=()=>process.env.WORK_TASKS==='1';
 export async function manageTeams(){
  const {entityDb}=await import('@/app/entity-db/client');const {managerDue,runManagerDaily,runTeamQueue}=await import('./manager');
@@ -92,6 +92,9 @@ export async function manageTeams(){
  if(!workQueueOn()&&!reviewing&&await managerDue(db)){reviewing=true;void runManagerDaily(e=>console.log('[manager]',JSON.stringify(e))).catch(e=>console.error('[manager] failed',(e as Error).message)).finally(()=>{reviewing=false;});}
  // Every 15 minutes, one sweep at a time: the next nodes of the tree get their division judged (proposals only).
  if(!sweeping&&Date.now()-lastSweep>15*60_000){sweeping=true;lastSweep=Date.now();const {splitSweep}=await import('./trunk');void (process.env.SPLIT_SWEEP!=='1'?Promise.resolve({judged:0}):splitSweep(db,Number(process.env.SPLIT_SWEEP_NODES||12),e=>console.log('[tree]',JSON.stringify(e)))).then(async()=>{const {refreshMembers}=await import('@/app/entity-db/members');const m=await refreshMembers(db);if(m.refreshed)console.log('[members] refreshed',m.refreshed);}).catch(e=>console.error('[tree] sweep failed',(e as Error).message)).finally(()=>{sweeping=false;});}
+ // Our site index: pending pages of known data-source sites are read in the background (one request per site at a time).
+ if(!siteFetching&&process.env.SITE_INDEX_FETCH!=='0'){siteFetching=true;const {fetchPending}=await import('@/app/search/site-index');
+  void fetchPending(db,{budgetMs:50_000}).then(n=>{if(n)console.log('[site-index] fetched',n);}).catch(e=>console.error('[site-index] failed',(e as Error).message)).finally(()=>{siteFetching=false;});}
  // Every link readers can click must open: a sample of pages and all their links, every hour.
  {const every=Number(process.env.LINK_CHECK_MINUTES??60);if(every>0&&!linkChecking&&Date.now()-lastLinkCheck>every*60_000){lastLinkCheck=Date.now();linkChecking=true;const {linkCheck}=await import('@/app/ops/link-check');
   void linkCheck(db).then(r=>console.log('[links]',JSON.stringify(r))).catch(e=>console.error('[links] failed',(e as Error).message)).finally(()=>{linkChecking=false;});}}

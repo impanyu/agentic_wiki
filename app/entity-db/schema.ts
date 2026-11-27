@@ -374,6 +374,18 @@ export const MIGRATIONS:Migration[]=[
     status text not null default 'trial' check (status in ('trial','active','paused','retired')), created_by text not null default 'system', why text,
     last_run timestamptz, last_count integer, last_error text, sample jsonb, created_at timestamptz not null default now())`,
  ]},
+ // Our own search inside data-source websites (app/search/site-index): a site's pages, listed from its sitemaps or
+ // Common Crawl, fetched politely, searched in a full-text index — page-level searches without a search engine.
+ {version:31,name:'site index',statements:()=>[
+  `create table if not exists site_domains(domain text primary key, status text not null default 'discovering', urls integer not null default 0, source text,
+    robots jsonb, error text, created_at timestamptz not null default now(), refreshed_at timestamptz)`,
+  `create table if not exists site_pages(url text primary key, domain text not null, priority smallint not null default 0, status text not null default 'pending',
+    title text, body text, extra text, content_type text, data_links text[], fetched_at timestamptz,
+    tsv tsvector generated always as (to_tsvector('simple', regexp_replace(url, '[^[:alnum:]]+', ' ', 'g') || ' ' || coalesce(title,'') || ' ' || coalesce(extra,'') || ' ' || coalesce(body,''))) stored)`,
+  'create index if not exists site_pages_domain on site_pages(domain)',
+  "create index if not exists site_pages_pending on site_pages(domain, priority desc) where status = 'pending'",
+  'create index if not exists site_pages_tsv on site_pages using gin(tsv)',
+ ]},
 ];
 export const SCHEMA_VERSION=MIGRATIONS[MIGRATIONS.length-1].version;
 
