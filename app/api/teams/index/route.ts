@@ -40,6 +40,9 @@ export async function POST(request:Request){
     const k=KINDS[t.kind];if(!k||!t.target)continue;const r=await enqueue(db,{kind:t.kind,pool:k.pool,target:t.target,priority:t.priority,payload:t.payload,requestedBy:'operator'});if(r.created)made.push(t.kind+':'+t.target);}
    return Response.json({created:made.length,made:made.slice(0,50)});
   }
+  if(b.action==='checks'){const {syncBuiltins}=await import('@/app/work/checks');await syncBuiltins(db);
+   const c=b as {id?:string;status?:string};if(c.id&&c.status&&['active','paused','retired','trial'].includes(c.status))await db.query('update checks set status=$2 where id=$1',[c.id,c.status]);
+   return Response.json((await db.query('select id, object, kind, status, created_by, severity, last_run, last_count, last_error, title from checks order by status, id')).rows);}
   if(b.action==='queue'){const {queueState}=await import('@/app/work/queue');return Response.json(await queueState(db));}
   if(b.action==='place'){const {placeEntities}=await import('@/app/entity-db/tree-index');return Response.json(await placeEntities(db));}
   if(b.action==='show'&&b.slug){const t=(await db.query<{id:string}>('select id from topics where slug=$1::text',[b.slug])).rows[0];if(!t)return Response.json({error:'no such node'},{status:404});

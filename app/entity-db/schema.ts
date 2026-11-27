@@ -366,6 +366,14 @@ export const MIGRATIONS:Migration[]=[
   `create table if not exists reader_reports(id uuid primary key default gen_random_uuid(), path text not null, kind text not null check (kind in ('error','takedown','other')),
     text text not null, class text, page text, status text not null default 'new', created_at timestamptz not null default now())`,
  ]},
+ // Checks (app/work/checks): the desired state of classes and pages as read-only queries that return what fails;
+ // one loop turns failures into tasks. Built-in checks and checks agents add (on trial until a reviewer confirms).
+ {version:30,name:'checks',statements:()=>[
+  `create table if not exists checks(id text primary key, object text not null check (object in ('class','page')), kind text not null, title text not null,
+    severity integer not null default 30, cooldown_days integer not null default 7, sql text not null,
+    status text not null default 'trial' check (status in ('trial','active','paused','retired')), created_by text not null default 'system', why text,
+    last_run timestamptz, last_count integer, last_error text, sample jsonb, created_at timestamptz not null default now())`,
+ ]},
 ];
 export const SCHEMA_VERSION=MIGRATIONS[MIGRATIONS.length-1].version;
 

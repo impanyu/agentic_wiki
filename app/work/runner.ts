@@ -79,6 +79,12 @@ async function runTask(db:Queryable,t:Task,log:(e:Row)=>void){
    if(returns>=2)await enqueue(db,{kind:'arbitrate',pool:'manager',target:'page:'+page.slug,priority:t.priority+10,payload:{why:'returned 3 times',issues:v.issues}});
   }
  }
+ // A check on trial: confirmed → it runs site-wide; rejected → retired.
+ if(t.kind==='check_trial'&&t.target.startsWith('check:')){
+  const v=(result.verdict as {approved:boolean;issues:unknown[]})||{approved:false,issues:[]};
+  await db.query(`update checks set status=$2 where id=$1 and status='trial'`,[t.target.slice(6),v.approved?'active':'retired']);
+  if(!v.approved)status='returned';
+ }
  await finish(db,t.id,status,result);
  if(status==='done')for(const n of def.next?await def.next(db,t,result):[])await enqueue(db,{kind:n.kind,pool:KINDS[n.kind].pool,target:n.target,priority:n.priority??t.priority,payload:n.payload||{},parentId:t.id,requestedBy:'next:'+t.kind});
  log({event:'task_finished',id:t.id,kind:t.kind,target:t.target,status});

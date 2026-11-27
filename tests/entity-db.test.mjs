@@ -17,6 +17,11 @@ for(const f of ['client','schema','metrics','embeddings','units','reserved','rep
 {let js=ts.transpileModule(readFileSync(new URL('../app/teams/trunk.ts',import.meta.url),'utf8'),{compilerOptions:{module:ts.ModuleKind.ESNext,target:ts.ScriptTarget.ES2022}}).outputText;
  js=js.replace(/(from\s*|import\()\s*(['"])@\/app\/entity-db\/([a-z-]+)\2/g,(m,pre,q,f)=>`${pre}'./${f}.mjs'`);writeFileSync(new URL('trunk.mjs',out),js);}
 {let js=ts.transpileModule(readFileSync(new URL('../app/work/queue.ts',import.meta.url),'utf8'),{compilerOptions:{module:ts.ModuleKind.ESNext,target:ts.ScriptTarget.ES2022}}).outputText;writeFileSync(new URL('work-queue.mjs',out),js);}
+{let js=ts.transpileModule(readFileSync(new URL('../app/work/checks.ts',import.meta.url),'utf8'),{compilerOptions:{module:ts.ModuleKind.ESNext,target:ts.ScriptTarget.ES2022}}).outputText;
+ js=js.replace(/(['"])\.\/queue\1/g,"'./work-queue.mjs'").replace(/(['"])\.\/kinds\1/g,"'./stub-kinds.mjs'").replace(/(['"])@\/app\/entity-db\/inherit\1/g,"'./inherit.mjs'").replace(/(['"])@\/app\/ops\/issues\1/g,"'./stub-issues.mjs'");
+ writeFileSync(new URL('work-checks.mjs',out),js);
+ writeFileSync(new URL('stub-kinds.mjs',out),`export const KINDS={class_members:{pool:'collector',target:'class'},class_fields:{pool:'collector',target:'class'},page_build:{pool:'editor',target:'page'},page_refresh:{pool:'editor',target:'page'},page_retire:{pool:'editor',target:'page'},source_repair:{pool:'collector',target:'class'},source_review:{pool:'collector',target:'class'},class_evolution:{pool:'collector',target:'class'},class_patrol:{pool:'collector',target:'class'},page_patrol:{pool:'editor',target:'page'},page_fix:{pool:'editor',target:'page'},check_trial:{pool:'reviewer',target:'none'}};`);
+ writeFileSync(new URL('stub-issues.mjs',out),`export const raised=[];export async function raiseIssue(db,x){raised.push(x);return {issue:{id:'i'},isNew:true};}`);}
 const client=await import(new URL('client.mjs',out));
 const schema=await import(new URL('schema.mjs',out));
 const repo=await import(new URL('repo.mjs',out));
@@ -594,4 +599,26 @@ test('the work queue: one open task per kind and target (a second request joins 
  await q.finish(db,t.id,'done',{summary:'ok'});
  assert.equal((await q.enqueue(db,{kind:'class_members',pool:'collector',target:'w_film'})).created,true,'a finished task does not block a new one');
  await q.finish(db,t2.id,'queued',{requeued:'model busy'});assert.equal((await q.claim(db,'collector')).kind,'class_members');
+});
+
+test('checks: one loop turns failing classes and pages into tasks for their owners; agents\' checks go on trial, and pause when they flag most of the site',async()=>{
+ const c=await import(new URL('work-checks.mjs',out));
+ assert.ok(c.checkSqlProblem('delete from entities'));assert.ok(c.checkSqlProblem('select 1; drop table x'));assert.ok(c.checkSqlProblem("select pg_sleep(10) target"));
+ assert.equal(c.checkSqlProblem("select type target from entity_types where schema->>'kind'='class'"),undefined);
+ await db.query("insert into entity_types(type,label,plural,description,schema) values ('ck_root','Ck','Cks','',$1::jsonb),('ck_leaf','Ck leaf','Ck leaves','',$2::jsonb) on conflict (type) do update set schema=excluded.schema",
+  [JSON.stringify({kind:'class'}),JSON.stringify({kind:'class',extends:'ck_root'})]);
+ await db.query("delete from work_tasks");
+ const made=await c.runChecks(db,()=>{});
+ assert.ok(made['class-empty']>=1,'an empty leaf class gets a members task');
+ const t=(await db.query("select kind, pool, requested_by, payload from work_tasks where target='ck_leaf' and kind='class_members'")).rows[0];
+ assert.equal(t.pool,'collector');assert.equal(t.requested_by,'check:class-empty');
+ assert.equal((await db.query("select count(*)::int n from work_tasks where target='ck_root' and kind='class_members'")).rows[0].n,0,'a class with subclasses is collected through them');
+ const again=await c.runChecks(db,()=>{});assert.ok(!again['class-empty']||!(await db.query("select 1 from work_tasks where target='ck_leaf' and kind='class_members' and status='queued' offset 1")).rows.length,'no second open task');
+ // An agent's check: trial first (no tasks), a reviewer task to confirm it.
+ const p=await c.proposeCheck(db,{title:'Leaf classes named Ck',object:'class',kind:'class_fields',sql:"select type target from entity_types where label like 'Ck%'",why:'test'},'agent:collector');
+ assert.equal(p.status,'trial');assert.ok(p.flagged>=2);
+ assert.equal((await db.query("select count(*)::int n from work_tasks where kind='check_trial' and target=$1",['check:'+p.id])).rows[0].n,1);
+ await c.runChecks(db,()=>{});assert.equal((await db.query("select count(*)::int n from work_tasks where kind='class_fields' and requested_by=$1",['check:'+p.id])).rows[0].n,0,'a check on trial creates no tasks');
+ await assert.rejects(c.proposeCheck(db,{title:'bad',object:'class',kind:'class_fields',sql:'update entities set name=1',why:''},'agent:x'));
+ await assert.rejects(c.proposeCheck(db,{title:'wrong kind',object:'page',kind:'class_fields',sql:'select slug target from topics',why:''},'agent:x'));
 });
