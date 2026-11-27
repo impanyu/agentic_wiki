@@ -29,7 +29,9 @@ case "${1:-status}" in
   # (restart-teams forces an immediate restart.)
   if [ "${3:-}" = "restart-teams" ]; then
    for u in $(systemctl list-units --plain --no-legend 'rankwiki-teams@*' | awk '{print $1}'); do sudo systemctl restart "$u" || true; done
-  else touch "$DIR/data/drain-teams"; fi;;
+  else touch "$DIR/data/drain-teams"; fi
+  # Enabled team workers that are not running (stopped by hand, or failed) are started.
+  for u in $(ls /etc/systemd/system/multi-user.target.wants/ 2>/dev/null | grep '^rankwiki-teams@'); do systemctl is-active -q "$u" || sudo systemctl start "$u" || true; done;;
  status)
   echo "service: $(systemctl is-active rankwiki)"; curl -s localhost:3002/api/health; echo
   sudo docker ps --filter name=rankwiki-pg --format '{{.Names}} {{.Status}}' || true
