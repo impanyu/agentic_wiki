@@ -191,7 +191,9 @@ export async function upsertEntities(db:EntityDb,rows:Row[],mapping:EntityMappin
 export type ObservationInput={entityId:string;metric:string;value:number;period?:string;source?:string;retrievedAt?:string|Date;metricVersion?:number};
 async function writeObservations(q:Queryable,list:ObservationInput[]):Promise<number>{
  const byKey=new Map<string,ObservationInput>();// last one wins inside a batch
- for(const o of list){if(!UUID.test(o.entityId)||!Number.isFinite(o.value))continue;const key=parseMetricRef(o.metric).key;byKey.set([o.entityId,key,o.period||'',o.source||''].join('\u0000'),{...o,metric:key});}
+ // A percentage measure holding a count (a source's estimate column mapped to its percent column) is not written:
+ // no share, rate or change in percent reaches 10,000.
+ for(const o of list){if(!UUID.test(o.entityId)||!Number.isFinite(o.value))continue;const key=parseMetricRef(o.metric).key;if(/_pct$/.test(key)&&Math.abs(o.value)>1e4)continue;byKey.set([o.entityId,key,o.period||'',o.source||''].join('\u0000'),{...o,metric:key});}
  const rows=[...byKey.values()];if(!rows.length)return 0;
  await q.query(`insert into observations(entity_id,metric,metric_version,value,period,source,retrieved_at)
   select u.e, u.m, u.v, u.x, u.p, u.s, u.t from unnest($1::uuid[], $2::text[], $3::int[], $4::float8[], $5::text[], $6::text[], $7::timestamptz[]) u(e,m,v,x,p,s,t)
