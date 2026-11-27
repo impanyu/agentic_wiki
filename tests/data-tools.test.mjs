@@ -73,6 +73,7 @@ test('JSON responses: the largest array of objects, flattened; JSON Lines',()=>{
  const r=parse.jsonRows(wb);assert.equal(r.path,'$[1]');assert.equal(r.rows.length,2);assert.equal(r.rows[0]['country.value'],'France');assert.equal(r.rows[1].value,84482267);
  assert.equal(parse.jsonRows({meta:{n:1},data:{results:[{a:1},{a:2},{a:3}]}}).path,'$.data.results');
  const col=parse.jsonRows({values:[5,6,7],years:[2000,2001,2002],entities:[1,1,2],meta:{x:1}});assert.deepEqual(col.rows[2],{values:7,years:2002,entities:2},'columnar arrays are zipped');
+ const hdr=parse.jsonRows([['NAME','DP05_0001E','state'],['Ohio','11900000','39'],['Iowa','3200000','19']]);assert.equal(hdr.rows.length,2,'header-row tables');assert.equal(hdr.rows[1].NAME,'Iowa');assert.equal(hdr.rows[0].DP05_0001E,'11900000');
  assert.deepEqual(parse.parseJsonLines('{"a":1}\n\n{"a":2}\n'),[{a:1},{a:2}]);
  assert.throws(()=>parse.parseJsonLines('{"a":1}\nnope'),/Line 2/);
  assert.match(parse.describeShape({data:[{id:1,name:'x'}],total:3}),/data:array\(1×object\{id,name\}\)/);

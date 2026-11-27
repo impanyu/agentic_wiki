@@ -113,6 +113,12 @@ export function flattenRow(row:Row,maxDepth=3):Row{
 // The rows of a JSON response when no select expression is given: the array itself, or the largest
 // array of objects inside it (World Bank's [meta, rows], {"data":[…]}, {"results":[…]}, GeoJSON features…).
 export function jsonRows(value:unknown):{rows:Row[];path:string}{
+ // A table as an array of arrays whose first row is the header (the Census API, many statistics APIs).
+ if(Array.isArray(value)&&value.length>1&&value.every(r=>Array.isArray(r)&&r.length===(value[0] as unknown[]).length&&r.every(x=>x==null||typeof x!=='object'))
+  &&(value[0] as unknown[]).every(x=>typeof x==='string'&&x.length>0)&&new Set(value[0] as string[]).size===(value[0] as unknown[]).length){
+  const head=value[0] as string[];
+  return {rows:value.slice(1).map(r=>Object.fromEntries(head.map((h,i)=>[h,(r as unknown[])[i]]))) as Row[],path:'$[header row]'};
+ }
  let best:{arr:unknown[];path:string;score:number;columns?:string[]}|null=null;
  const visit=(v:unknown,path:string,depth:number)=>{
   if(depth>5||v==null||typeof v!=='object')return;
