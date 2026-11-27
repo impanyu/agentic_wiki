@@ -43,6 +43,8 @@ export const BUILTIN:Omit<Check,'status'|'created_by'>[]=[
      where (c->>'at')::timestamptz > now() - interval '180 days' and (c->>'listed')::numeric > 0 and (c->>'matched')::numeric/(c->>'listed')::numeric >= 0.9) g on true
    where et.schema->>'kind'='class' and coalesce(g.n,0) < 2 and exists (select 1 from entities e where e.type=et.type)
    order by (et.topic_id is not null) desc, et.type`},
+ {id:'class-source-scales',object:'class',kind:'data_verify',title:'One measure in different units across sources (medians 100x apart)',severity:85,cooldown_days:3,sql:'fn:sourceScales'},
+ {id:'ranking-top-sanity',object:'class',kind:'data_verify',title:'What a reader sees first: totals, duplicates or artifacts at the top of a ranking',severity:90,cooldown_days:1,sql:'fn:topSanity'},
  {id:'class-outliers',object:'class',kind:'data_verify',title:'Impossible values (far outside the rest of the class)',severity:75,cooldown_days:7,sql:'fn:outliers'},
  {id:'class-thin-measures',object:'class',kind:'class_fields',title:'Fewer than half of the declared measures are collected',severity:45,cooldown_days:7,sql:'fn:classGaps'},
  {id:'ranking-thin',object:'class',kind:'class_fields',title:'A published ranking compares on fewer than 5 measures with data',severity:75,cooldown_days:7,
@@ -132,6 +134,31 @@ async function runFn(db:Queryable,name:string,limit:number):Promise<{target:stri
   const by=new Map<string,string[]>();for(const r of rows){const l=by.get(r.type)||[];l.push(`${r.metric}: ${r.n} value(s) far outside the class (${String(r.names).slice(0,300)})`);by.set(r.type,l);}
   return [...by].map(([target,l])=>({target,detail:'Values that cannot be right — check each against its source, fix the unit or parsing in the recipe, and retract what is wrong: '+l.join('; ')}));
  }
+ if(name==='sourceScales'){
+  // One measure of one class whose sources' typical values are 100 times apart: one source gives millions or billions
+  // where another gives units, or a local currency where another gives USD (revenue 127 = billions next to 6e11).
+  const rows=(await db.query<{type:string;metric:string;detail:string}>(`with v as (select e.type, o.metric, o.source, o.value from observations o join entities e on e.id=o.entity_id
+     where o.value > 0 and o.source not like 'derived:%' and o.metric !~ '(year|date|_id$|code|rank|growth|change|_yoy|inflation|return)'),
+   m as (select type, metric, source, percentile_cont(0.5) within group (order by value) med, count(*) n from v group by 1,2,3 having count(*) >= 5),
+   r as (select type, metric, max(med)/nullif(min(med),0) ratio, string_agg(left(source,50)||' ≈ '||round(med::numeric,2), '; ' order by med) detail from m group by 1,2 having count(*) >= 2)
+   select type, metric, detail from r where ratio > 100 order by ratio desc limit $1::int`,[limit])).rows;
+  const by=new Map<string,string[]>();for(const r of rows){const l=by.get(r.type)||[];l.push(`${r.metric}: typical values by source — ${String(r.detail).slice(0,400)}`);by.set(r.type,l);}
+  return [...by].map(([target,l])=>({target,detail:'Sources give one measure in different units or scales, so the ranking mixes them: '+l.join(' | ')+'. Convert every value to the measure\'s unit (or retract the wrong source) and fix the recipe that loaded it.'}));
+ }
+ if(name==='topSanity'){
+  // The first rows of every published ranking, as a reader sees them: a total or aggregate row ("Totals", "World"),
+  // a name carrying a source's markup ("Great Britain[GBR]"), or one thing listed twice (same name, and the same
+  // country or nearly the same value).
+  const rows=(await db.query<{type:string;slug:string;metric:string;names:string}>(`with r as (select slug, scope->>'type' type, split_part(criteria[1],'@',1) metric from rankings
+     where status='published' and slug is not null and array_length(criteria,1)>0 and coalesce(scope->'filters','{}'::jsonb)='{}'::jsonb),
+   v as (select r.type, r.slug, r.metric, t.name, t.k, t.value, t.c, row_number() over (partition by r.slug order by t.value desc) rn from r cross join lateral (
+     select e.name, ent_norm(e.name) k, coalesce(e.attributes->>'country_iso3','') c, max(o.value) value from observations o join entities e on e.id=o.entity_id
+     where o.metric=r.metric and e.type=r.type group by e.id, e.name, e.attributes->>'country_iso3' order by 4 desc limit 30) t)
+   select type, slug, metric, string_agg(name, ', ') names from v where name ~* '^(totals?|grand total|world|all|others?|overall|sum|unknown)$' or name ~ '\\[[A-Z]{2,3}\\]$'
+     or exists (select 1 from v w where w.slug=v.slug and w.k=v.k and w.rn<>v.rn and ((w.c=v.c and v.c<>'') or abs(w.value-v.value)<=0.02*greatest(abs(v.value),1e-9)))
+   group by 1,2,3 limit $1::int`,[limit])).rows;
+  return rows.map(r=>({target:r.type,detail:`The top of the ranking ${r.slug} (by ${r.metric}) shows rows a reader would see as wrong: ${String(r.names).slice(0,400)}. Merge duplicates (one thing, one entity), remove totals and aggregates, clean names, and fix the recipe that produced them.`}));
+ }
  throw Error('Unknown built-in check '+name);
 }
 // How many of a class's declared measures must be collected for most members: at least half (and at least 5).
@@ -172,7 +199,7 @@ export async function runChecks(db:Queryable,log:(e:Row)=>void=e=>console.log('[
  await syncBuiltins(db);
  // Heavy checks (fn:unitJumps compares every observation with the entity's previous one) run once a week.
  const checks=(await db.query<Check>(`select id, object, kind, title, severity, cooldown_days, sql, status, created_by from checks where status in ('active','trial')
-  and not (sql in ('fn:unitJumps','fn:outliers') and last_run > now() - interval '7 days') order by id`)).rows;
+  and not (sql in ('fn:unitJumps','fn:outliers') and last_run > now() - interval '7 days') and not (sql in ('fn:sourceScales') and last_run > now() - interval '3 days') order by id`)).rows;
  const objects={class:Number((await db.query<{n:number}>(`select count(*)::int n from entity_types where schema->>'kind'='class'`)).rows[0]?.n||0),
   page:Number((await db.query<{n:number}>(`select count(*)::int n from topics where status<>'archived'`)).rows[0]?.n||0)};
  type Cand={check:Check;target:string;detail:string;payload?:Row;priority:number};

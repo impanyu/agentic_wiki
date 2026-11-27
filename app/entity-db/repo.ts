@@ -66,7 +66,9 @@ async function recordCandidates(q:Queryable,id:string,name:string,ids:Record<str
 // Two spellings of one code are the same id: "01", "1" and "0400000US01" (a Census GEOID) are FIPS 1; "Q173" and
 // "q173" are one Wikidata item. Codes that differ in their number are different ids.
 export function sameId(a:unknown,b:unknown):boolean{
- const x=String(a??'').trim(),y=String(b??'').trim();if(x===y||x.toLowerCase()===y.toLowerCase())return true;
+ // A link and a bare code are one id too: "https://openlibrary.org/works/OL17732W", "/works/OL17732W", "OL17732W".
+ const tail=(v:unknown)=>{const t=String(v??'').trim().replace(/[?#].*$/,'').replace(/\/+$/,'');return t.includes('/')?t.slice(t.lastIndexOf('/')+1):t;};
+ const x=tail(a),y=tail(b);if(x===y||x.toLowerCase()===y.toLowerCase())return true;
  const dx=/(\d+)$/.exec(x),dy=/(\d+)$/.exec(y);if(!dx||!dy)return false;
  const strip=(v:string,d:string)=>v.slice(0,v.length-d.length).replace(/^0+/,'');
  // The digits agree as numbers, and one code's prefix is empty or a GEOID-style prefix ("0400000US").

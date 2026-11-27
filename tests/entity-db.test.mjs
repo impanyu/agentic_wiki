@@ -659,6 +659,6 @@ test('site map import: pages updated in place or created, main rankings and view
 });
 test('one code in two spellings is one id: FIPS 01, 1 and the Census GEOID match; different numbers do not',async()=>{
  const {sameId}=await import(new URL('repo.mjs',out).href);
- assert.ok(sameId('01','1'));assert.ok(sameId('0400000US01','01'));assert.ok(sameId('Q173','q173'));
+ assert.ok(sameId('01','1'));assert.ok(sameId('0400000US01','01'));assert.ok(sameId('Q173','q173'));assert.ok(sameId('https://openlibrary.org/works/OL17732W','/works/OL17732W'));assert.ok(sameId('OL17732W','/works/OL17732W'));
  assert.ok(!sameId('01','02'));assert.ok(!sameId('Q173','P173'));assert.ok(!sameId('ABC1','XYZ1'));
 });
