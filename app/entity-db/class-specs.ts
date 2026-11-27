@@ -11,6 +11,15 @@ export type ClassSpec={national?:NationalSpec[];rankingCriteria?:string[];compos
  metrics?:Row[];attributes?:Row[];remove?:(string|Row)[];notes?:string};
 
 const KEY=/^[a-z][a-z0-9_]{0,63}$/;
+// "US state" → "US states", "UK university" → "UK universities", "School in England" → "Schools in England",
+// "US law school (ABA disclosures)" → "US law schools (ABA disclosures)".
+export function pluralLabel(label:string):string{
+ const m=/^(.*?)(\s*\(.*)?$/.exec(label)!;const head=m[1],tail=m[2]||'';
+ const o=/^(.*?)(\s+(?:of|in|for|by|with|under)\s+.*)$/.exec(head);const core=o?o[1]:head,rest=o?o[2]:'';
+ const i=core.lastIndexOf(' ');const w=core.slice(i+1);
+ const p=/^(equipment|software|series|species|aircraft|apparatus)$/i.test(w)||/[^s]s$/.test(w)?w:/[^aeiou]y$/.test(w)?w.slice(0,-1)+'ies':/(s|x|z|ch|sh)$/.test(w)?w+'es':w+'s';
+ return core.slice(0,i+1)+p+rest+tail;
+}
 const unite=(cur:unknown,next:Row[]):Row[]=>{
  const list=(v:unknown):Row[]=>Array.isArray(v)?v as Row[]:v&&typeof v==='object'?Object.entries(v as Row).map(([key,x])=>({key,...(x as Row)})):[];
  const m=new Map(list(cur).map(x=>[String(x.key),x]));
@@ -51,7 +60,7 @@ export async function importClassSpecs(db:Queryable,specs:Record<string,ClassSpe
   const pschema=classes.get(parent)!;
   await db.query(`insert into entity_types(type,label,plural,description,schema,status,updated_by) values ($1::text,$2::text,$3::text,$4::text,$5::jsonb,'published','class-specs')
     on conflict (type) do update set schema = (entity_types.schema - 'retiredInto') || excluded.schema, label=excluded.label, status='published', updated_at=now()`,
-   [n.key,n.label,n.label.endsWith('s')?n.label:n.label+'s',n.why||'',JSON.stringify({kind:'class',extends:parent,value:[n.country_iso3],area:pschema.area,metrics:n.metrics||[],attributes:n.attributes||[],universe:{admission:`Members of ${parent} in ${n.country_iso3}.`}})]);
+   [n.key,n.label,pluralLabel(n.label),n.why||'',JSON.stringify({kind:'class',extends:parent,value:[n.country_iso3],area:pschema.area,metrics:n.metrics||[],attributes:n.attributes||[],universe:{admission:`Members of ${parent} in ${n.country_iso3}.`}})]);
   await db.query(`update entity_types set schema = schema || '{"splitBy":{"key":"country_iso3","label":"country"}}'::jsonb where type=$1::text and coalesce(schema->>'splitBy','null')='null'`,[parent]);
   const r=await db.query<{id:string}>(`update entities set type=$2::text, updated_at=now() where type=$1::text and attributes->>'country_iso3'=$3::text returning id`,[parent,n.key,n.country_iso3]);
   moved+=r.rows.length;
