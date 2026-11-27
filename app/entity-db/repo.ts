@@ -63,6 +63,8 @@ async function recordCandidates(q:Queryable,id:string,name:string,ids:Record<str
  for(const r of n)if(!country||!r.c||r.c===country)others.add(r.id+'|name');
  for(const o of others){const [b,reason]=o.split('|');await q.query(`insert into entity_candidates(a,b,reason) values ($1::uuid,$2::uuid,$3::text) on conflict do nothing`,[id,b,reason]);}
 }
+// The shape of a code: digits only, letters only, or mixed (after its link prefix).
+export function idShape(v:unknown):'digits'|'letters'|'mixed'{const t=String(v??'').trim().replace(/^.*\//,'');return /^\d+$/.test(t)?'digits':/^[a-z]+$/i.test(t)?'letters':'mixed';}
 // Two spellings of one code are the same id: "01", "1" and "0400000US01" (a Census GEOID) are FIPS 1; "Q173" and
 // "q173" are one Wikidata item. Codes that differ in their number are different ids.
 export function sameId(a:unknown,b:unknown):boolean{
@@ -101,7 +103,11 @@ export async function upsertEntity(q:Queryable,input:EntityInput):Promise<{id:st
    order by (type = $4::text) desc, (ent_norm(name) = ent_norm($2::text)) desc, created_at limit 10`,[family,name,aliases,type]);
   // Another type of the family is the same thing on the name only when both name the same country; otherwise (two
   // films called "Adam") the pair goes to the resolver as a candidate.
-  target=r.rows.find(row=>!Object.keys(ids).some(k=>row.ids[k]!=null&&!sameId(row.ids[k],ids[k]))&&(row.t===type||(!!country&&row.c===country)))||null;
+  // An id that cannot be the same kind of code as the one already stored (a number where the other is letters:
+  // USPS "AL" against "1") is a mislabelled column, not a different thing: it does not stop a same-name match in the
+  // same type (it is dropped below).
+  const clash=(a:unknown,b:unknown)=>!sameId(a,b)&&idShape(a)===idShape(b);
+  target=r.rows.find(row=>!Object.keys(ids).some(k=>row.ids[k]!=null&&(row.t===type?clash(row.ids[k],ids[k]):!sameId(row.ids[k],ids[k])))&&(row.t===type||(!!country&&row.c===country)))||null;
  }
  if(target)for(const k of Object.keys(ids))if(target.ids[k]!=null&&!sameId(target.ids[k],ids[k])&&!drop.has(k)){drop.add(k);conflicts++;}
  const writeIds=Object.fromEntries(Object.entries(ids).filter(([k])=>!drop.has(k)));

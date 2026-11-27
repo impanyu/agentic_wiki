@@ -660,5 +660,12 @@ test('site map import: pages updated in place or created, main rankings and view
 test('one code in two spellings is one id: FIPS 01, 1 and the Census GEOID match; different numbers do not',async()=>{
  const {sameId}=await import(new URL('repo.mjs',out).href);
  assert.ok(sameId('01','1'));assert.ok(sameId('0400000US01','01'));assert.ok(sameId('Q173','q173'));assert.ok(sameId('https://openlibrary.org/works/OL17732W','/works/OL17732W'));assert.ok(sameId('OL17732W','/works/OL17732W'));
- assert.ok(!sameId('01','02'));assert.ok(!sameId('Q173','P173'));assert.ok(!sameId('ABC1','XYZ1'));
+ assert.ok(!sameId('01','02'));assert.equal(repo.idShape('AL'),'letters');assert.equal(repo.idShape('01'),'digits');assert.ok(!sameId('Q173','P173'));assert.ok(!sameId('ABC1','XYZ1'));
+});
+test('a mislabelled id column (a number where the stored code is letters) does not create a second entity of the same name',async()=>{
+ const a=await db.tx(q=>repo.upsertEntity(q,{type:'research_univ',name:'Shape Test State',ids:{usps:'AL'}}));
+ const b=await db.tx(q=>repo.upsertEntity(q,{type:'research_univ',name:'Shape Test State',ids:{usps:'1'}}));
+ assert.equal(b.id,a.id);
+ const c=await db.tx(q=>repo.upsertEntity(q,{type:'research_univ',name:'Shape Test State',ids:{usps:'AK'}}));
+ assert.notEqual(c.id,a.id,'a different code of the same shape is a different thing');
 });
