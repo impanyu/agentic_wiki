@@ -9,7 +9,7 @@ export const datasetScope=ctx=>ctx.agent?.id||ctx.userId||'anonymous';
 export async function loadDataset(scope,id){const d=store.get(scope+'/'+id);if(!d)throw Error('Unknown dataset '+id);return d;}
 export async function saveDataset(scope,input){const id='ds_test'+String(++n).padStart(8,'0');const rows=input.rows;const columns=input.columns||[...new Set(rows.flatMap(r=>Object.keys(r)))];store.set(scope+'/'+id,{id,title:input.title,source:input.source,columns,rows,notes:input.notes});return {datasetId:id,title:input.title,source:input.source,rowCount:rows.length,columns:columns.map(name=>({name})),preview:rows.slice(0,8),notes:input.notes};}
 `);
-for(const f of ['client','schema','metrics','embeddings','units','reserved','repo','inherit','dedup','tools','tree-index','members']){
+for(const f of ['client','schema','metrics','embeddings','units','reserved','repo','inherit','dedup','tools','tree-index','members','class-tree']){
  let js=ts.transpileModule(readFileSync(new URL(`../app/entity-db/${f}.ts`,import.meta.url),'utf8'),{compilerOptions:{module:ts.ModuleKind.ESNext,target:ts.ScriptTarget.ES2022}}).outputText;
  js=js.replace(/(from\s*|import\()\s*(['"])([^'"]+)\2/g,(m,pre,q,spec)=>stubs[spec]?`${pre}'${stubs[spec]}'`:spec.startsWith('./')?`${pre}'${spec}.mjs'`:m);
  writeFileSync(new URL(f+'.mjs',out),js);
@@ -555,4 +555,27 @@ test('the database keeps the tree (closure table) and each ranking\'s members (i
  // A change to the class refreshes the members.
  await db.query("update entities set attributes=attributes||'{\"country\":\"Canada\"}', updated_at=now()+interval '1 second' where id=$1",[b.id]);
  await mem.refreshMembers(db);assert.equal((await mem.memberOf(db,b.id,['y-ca'])).get('y-ca'),true);void r;
+});
+
+test('importing the class tree: old types become their classes, view members carry the view\'s values, twins merge, tags end, rankings re-scope',async()=>{
+ const ct=await import(new URL('class-tree.mjs',out));const inh=await import(new URL('inherit.mjs',out));
+ const F=await repo.createTopic(db,{slug:'z-fp',name:'Football players'});const PL=await repo.createTopic(db,{slug:'z-pl',name:'Premier League players',parentId:F.id});const Y=await repo.createTopic(db,{slug:'z-young',name:'Young',parentId:F.id});
+ await db.query(`insert into entity_types(type,topic_id,schema,template,status) values ('z_fp',$1,'{"metrics":[{"key":"goals"}]}','{"lead":["x"]}','published'),('z_pl',$2,'{"extends":"z_fp","metrics":[{"key":"pl_goals"}]}','{}','published'),('z_young',$3,'{"kind":"interface","appliesTo":"z_fp"}','{}','draft')`,[F.id,PL.id,Y.id]);inh.clearTypeCache();
+ const k=await repo.upsertEntity(db,{type:'z_fp',name:'Harry Kane'});await db.query("insert into entities(type,name) values ('z_pl','Harry Kane')");await repo.upsertEntity(db,{type:'z_pl',name:'Bukayo Saka'});
+ await db.query("update entities set also_types=array['z_young'] where name='Bukayo Saka'");
+ await db.query(`insert into rankings(slug,title,topic_id,scope,criteria,config,status) values ('z-pl-r','PL',$1,'{"type":"z_pl"}','{}','{}','published'),('z-y-r','Young',$2,'{"type":"z_young"}','{}','{}','published')`,[PL.id,Y.id]);
+ const spec={classes:[{key:'z_fp',label:'Football player',plural:'Football players',parent:null,attributes:[{key:'leagues_played',type:'list'},{key:'young_star',type:'bool'}],metrics:[{key:'caps'}],mapsFrom:{types:['z_fp'],topics:['z-fp']}}],
+  views:[{topic:'z-pl',class:'z_fp',filters:{leagues_played:'Premier League'}},{topic:'z-young',class:'z_fp',filters:{young_star:'yes'}}]};
+ const dry=await ct.importClassTree(db,spec,{dryRun:true,log:()=>{}});assert.equal(dry.moves.find(m=>m.from==='z_pl').to,'z_fp');
+ await assert.rejects(ct.importClassTree(db,spec,{log:()=>{}}),/have no class/);const r=await ct.importClassTree(db,spec,{allowUnmapped:true,log:()=>{}});assert.equal(r.merged,1);
+ const rows=(await db.query("select name, type, attributes, also_types from entities where name in ('Harry Kane','Bukayo Saka') and type like 'z_%' order by name")).rows;
+ assert.equal(rows.length,2);assert.ok(rows.every(x=>x.type==='z_fp'));
+ assert.deepEqual(rows.find(x=>x.name==='Harry Kane').attributes.leagues_played,['Premier League']);
+ assert.equal(rows.find(x=>x.name==='Bukayo Saka').attributes.young_star,'yes');assert.deepEqual(rows.find(x=>x.name==='Bukayo Saka').also_types,[]);
+ const sc=Object.fromEntries((await db.query("select slug, scope from rankings where slug like 'z-%'")).rows.map(x=>[x.slug,x.scope]));
+ assert.deepEqual(sc['z-pl-r'],{type:'z_fp',filters:{leagues_played:'Premier League'}});assert.deepEqual(sc['z-y-r'],{type:'z_fp',filters:{young_star:'yes'}});
+ assert.equal((await repo.entitySearchIds(db,{type:'z_fp',filters:{leagues_played:'Premier League'}})).length,2);
+ const et=(await db.query("select type, schema, template from entity_types where type in ('z_fp','z_pl')")).rows;
+ const fp=et.find(x=>x.type==='z_fp');assert.ok(fp.schema.metrics.some(m=>m.key==='pl_goals'),'old types\' metrics kept');assert.deepEqual(fp.template.lead,['x']);
+ assert.equal(et.find(x=>x.type==='z_pl').schema.kind,'retired');void k;
 });

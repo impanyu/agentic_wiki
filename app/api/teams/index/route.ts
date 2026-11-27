@@ -21,6 +21,17 @@ export async function POST(request:Request){
    for(const s of (b.slugs||[]).map(String).slice(0,40))out[s]=await convertView(db,s).catch(e=>({ok:false,reason:(e as Error).message}));
    return Response.json(out);
   }
+  if(b.action==='import'){
+   // The initialised class tree, from a file on this machine ({path, dryRun}).
+   const {readFile}=await import('node:fs/promises');const path=String((b as {path?:string}).path||'');
+   if(!/^\/home\/[a-z]+\/[a-z0-9_.-]+\.json$/.test(path))return Response.json({error:'path: /home/<user>/<file>.json'},{status:400});
+   const spec=JSON.parse(await readFile(path,'utf8'));const {importClassTree}=await import('@/app/entity-db/class-tree');
+   const dryRun=(b as {dryRun?:boolean}).dryRun!==false;
+   if(dryRun)return Response.json(await importClassTree(db,spec,{dryRun,log:e=>{if(log.length<400)log.push(e);}}).then(r=>({...r,log})));
+   // The migration runs for a while: started here, followed in the log ([class-tree] lines).
+   void importClassTree(db,spec,{}).catch(e=>console.error('[class-tree] failed',(e as Error).message));
+   return Response.json({started:true});
+  }
   if(b.action==='place'){const {placeEntities}=await import('@/app/entity-db/tree-index');return Response.json(await placeEntities(db));}
   if(b.action==='show'&&b.slug){const t=(await db.query<{id:string}>('select id from topics where slug=$1::text',[b.slug])).rows[0];if(!t)return Response.json({error:'no such node'},{status:404});
    const {nodeIndex}=await import('@/app/entity-db/tree-index');return Response.json(await nodeIndex(db,t.id));}
