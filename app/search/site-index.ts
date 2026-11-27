@@ -18,7 +18,7 @@ export function domainOf(input:string):string{
 async function get(url:string,ms:number,maxBytes=8*1024*1024,anyType=true){
  const {fetchText}=await import('@/app/data-tools/net');
  const ac=new AbortController();const t=setTimeout(()=>ac.abort(),ms);
- try{return await fetchText(url,ac.signal,{anyType,maxBytes,headers:{'user-agent':UA},accept:'text/html,application/xml,text/xml,text/plain,*/*;q=0.5'});}finally{clearTimeout(t);}
+ try{return await fetchText(url,ac.signal,{timeoutMs:ms,anyType,maxBytes,headers:{'user-agent':UA},accept:'text/html,application/xml,text/xml,text/plain,*/*;q=0.5'});}finally{clearTimeout(t);}
 }
 // robots.txt: the sitemaps it names and the paths closed to every robot (User-agent: *).
 function parseRobots(text:string){
@@ -45,11 +45,11 @@ async function fromSitemaps(start:string[],domain:string,deadline:number):Promis
 // The Internet Archive's URL index (free; Common Crawl's index refuses cloud addresses): pages of the site seen since
 // 2023, one per address.
 async function fromArchive(domain:string):Promise<string[]>{
- const r=await get(`https://web.archive.org/cdx/search/cdx?url=${encodeURIComponent(domain)}&matchType=domain&fl=original,mimetype&filter=statuscode:200&collapse=urlkey&from=2023&limit=${MAX_URLS}`,120_000,30*1024*1024).catch(()=>null);
+ const r=await get(`https://web.archive.org/cdx/search/cdx?url=${encodeURIComponent(domain)}&matchType=domain&fl=original,mimetype&filter=statuscode:200&collapse=urlkey&from=2023&limit=${MAX_URLS}`,240_000,30*1024*1024).catch(()=>null);
  if(!r)return [];
  const urls=new Set<string>();
  for(const line of r.text.split('\n')){const [u,mime]=line.trim().split(/\s+/);if(!u||/image|video|audio|font|javascript|css/.test(mime||''))continue;
-  try{const x=new URL(u.replace(/^http:/,'https:'));x.port='';x.hash='';urls.add(x.href);}catch{}}
+  try{const x=new URL(u.replace(/^http:/,'https:'));x.port='';x.hash='';if(/__hs|utm_|fbclid|gclid|sessionid/i.test(x.search))x.search='';urls.add(x.href);}catch{}}
  return [...urls];
 }
 // Lists a site's pages (once; again after 30 days) into site_pages, pending fetch.
@@ -61,8 +61,11 @@ export async function discoverSite(db:Queryable,domain:string,{force=false}:{for
  const robots=await get(`https://${domain}/robots.txt`,15_000,1024*1024,true).then(r=>parseRobots(r.text)).catch(()=>({sitemaps:[] as string[],disallow:[] as string[]}));
  let urls=await fromSitemaps(robots.sitemaps.length?robots.sitemaps:[`https://${domain}/sitemap.xml`,`https://www.${domain}/sitemap.xml`],domain,deadline);
  let source='sitemap';
- // Sitemaps are often partial (a site's newest section only): the Internet Archive's index adds what it has seen.
- {const wb=await fromArchive(domain).catch(()=>[]);if(wb.length){const before=urls.length;urls=[...new Set([...urls,...wb])];source=before?'sitemap+archive':'archive';}}
+ // Sitemaps are often partial (a site's newest section only): the Internet Archive's index adds what it has seen —
+ // in the background (it takes a minute or two), so a search waits only for the sitemaps.
+ void fromArchive(domain).then(async wb=>{const ok=wb.filter(u=>sameSite(u,domain)&&allowed(u,robots.disallow));
+  for(let i=0;i<ok.length;i+=1000)await db.query(`insert into site_pages(url,domain,priority) select u, $2, case when u ~* $3 then 1 else 0 end from unnest($1::text[]) u on conflict (url) do nothing`,[ok.slice(i,i+1000),domain,DATA_HINT.source]);
+  await db.query(`update site_domains set urls=(select count(*) from site_pages where domain=$1), source=coalesce(source,'')||'+archive' where domain=$1`,[domain]);}).catch(()=>{});
  urls=urls.filter(u=>allowed(u,robots.disallow)).slice(0,MAX_URLS);
  for(let i=0;i<urls.length;i+=1000){const part=urls.slice(i,i+1000);
   await db.query(`insert into site_pages(url,domain,priority) select u, $2, case when u ~* $3 then 1 else 0 end from unnest($1::text[]) u on conflict (url) do nothing`,[part,domain,DATA_HINT.source]);}

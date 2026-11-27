@@ -39,11 +39,11 @@ export function urlKeys(url:URL){
  for(const scheme of ['https://','http://'])for(const h of [host,'www.'+host])for(const p of [path||'/',path+'/'])for(const q of new Set([url.search,cleanQuery(url),'']))keys.add('url:'+scheme+h+p+q);
  return [...keys];
 }
-export type FetchOptions={accept?:string;allowType?:(type:string)=>boolean;maxBytes?:number;referer?:string;headers?:Record<string,string>};
+export type FetchOptions={accept?:string;allowType?:(type:string)=>boolean;maxBytes?:number;referer?:string;headers?:Record<string,string>;timeoutMs?:number};
 const documentTypes=['text/html','application/xhtml+xml','text/plain','text/markdown','application/json','application/pdf'];
 export async function fetchSource(url:URL,signal:AbortSignal,options:FetchOptions={}){
  const max=options.maxBytes||limit;
- const deadline=AbortSignal.any([signal,AbortSignal.timeout(25000)]);
+ const deadline=AbortSignal.any([signal,AbortSignal.timeout(options.timeoutMs||25000)]);
  for(let redirects=0;redirects<=5;redirects++){
   deadline.throwIfAborted();
   // Pin the validated address on the socket: a second DNS lookup cannot rebind to an internal host.
