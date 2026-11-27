@@ -225,7 +225,8 @@ export default function Ranking({props,setValue,fire,ctx}:VizProps){
  const pills=allCriteria.length<=4;
  const groupColor=(g:string)=>PALETTE[groups.indexOf(g)%PALETTE.length];
  // The podium: the first three on the criterion in view (distinct ranks; ties leave it out).
- const podium=(()=>{const p=ranked.filter(e=>e.value!=null&&e.rank!=null&&e.rank<=3).slice(0,3);return p.length===3&&new Set(p.map(e=>e.rank)).size===3?p:[];})();
+ // Ties keep their medals (two golds when two share first place).
+ const podium=(()=>{const p=ranked.filter(e=>e.value!=null&&e.rank!=null&&e.rank<=3).slice(0,3);return p.length===3?p:[];})();
 
  const row=(e:Entry,i:number)=>{
   const share=shareOf(e,summary,locale);const medal=e.rank!=null&&e.rank<=3?e.rank:0;

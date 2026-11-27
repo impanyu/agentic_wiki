@@ -32,6 +32,15 @@ export async function POST(request:Request){
    void importClassTree(db,spec,{}).catch(e=>console.error('[class-tree] failed',(e as Error).message));
    return Response.json({started:true});
   }
+  if(b.action==='audit'){const {classGaps}=await import('@/app/work/audit');return Response.json(await classGaps(db));}
+  if(b.action==='enqueue'){
+   // Operator-created work: [{kind, target, priority, payload}].
+   const {enqueue}=await import('@/app/work/queue');const {KINDS}=await import('@/app/work/kinds');const made:string[]=[];
+   for(const t of ((b as {tasks?:{kind:string;target:string;priority?:number;payload?:Record<string,unknown>}[]}).tasks||[]).slice(0,5000)){
+    const k=KINDS[t.kind];if(!k||!t.target)continue;const r=await enqueue(db,{kind:t.kind,pool:k.pool,target:t.target,priority:t.priority,payload:t.payload,requestedBy:'operator'});if(r.created)made.push(t.kind+':'+t.target);}
+   return Response.json({created:made.length,made:made.slice(0,50)});
+  }
+  if(b.action==='queue'){const {queueState}=await import('@/app/work/queue');return Response.json(await queueState(db));}
   if(b.action==='place'){const {placeEntities}=await import('@/app/entity-db/tree-index');return Response.json(await placeEntities(db));}
   if(b.action==='show'&&b.slug){const t=(await db.query<{id:string}>('select id from topics where slug=$1::text',[b.slug])).rows[0];if(!t)return Response.json({error:'no such node'},{status:404});
    const {nodeIndex}=await import('@/app/entity-db/tree-index');return Response.json(await nodeIndex(db,t.id));}

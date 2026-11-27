@@ -92,6 +92,27 @@ export async function runTriggers(db:Queryable,log:(e:Row)=>void=e=>console.log(
    if(r.type&&!await recently(db,'class_fields',r.type,7)&&(await enqueue(db,{kind:'class_fields',pool:'collector',target:r.type,priority:80,payload:{why:`the ranking ${r.slug} has fewer than 5 measures with data: load the class's declared metrics (what readers compare), not descriptive fields`}})).created)add('thin_ranking_data');
    if(!await recently(db,'page_refresh',r.page,7)&&(await enqueue(db,{kind:'page_refresh',pool:'editor',target:r.page,priority:60,payload:{why:`${r.slug} ranks by too few meaningful measures; once the collectors load them, choose criteria readers compare (never a year or date as a criterion)`}})).created)add('thin_ranking_page');
   }}
+ // 14. Classes whose members lack what the class tree asks for (fewer than 5 declared measures covered for most
+ //     members): the collectors load the declared fields — classes with pages first, then by size. Checked again
+ //     every 7 days per class.
+ {let n=await room(db,'class_fields',12);
+  const rows=n?(await db.query<{type:string;page:boolean}>(`select et.type, (et.topic_id is not null) page from entity_types et
+   where et.schema->>'kind'='class' and exists (select 1 from entities e where e.type=et.type)
+    and not exists (select 1 from work_tasks w where w.target=et.type and w.kind in ('class_fields','class_members') and w.created_at > now() - interval '7 days')
+   order by (et.topic_id is not null) desc, (select count(*) from entities e where e.type=et.type) desc limit 60`)).rows:[];
+  const {classGaps}=await import('./audit');
+  for(const r of rows){if(n<=0)break;
+   const g=(await classGapsOf(db,r.type,classGaps));if(!g||Number(g.metricsCovered)>=5)continue;
+   if((await enqueue(db,{kind:'class_fields',pool:'collector',target:r.type,priority:r.page?75:45,payload:{why:`only ${g.metricsCovered} of ${g.metrics} declared measures are collected for most members`,missingMetrics:g.missingMetrics,missingAttributes:g.missingAttributes}})).created){add('class_fields');n--;}}}
  if(Object.keys(made).length)log({event:'triggered',...made});
  return made;
+}
+
+async function classGapsOf(db:Queryable,type:string,_all:unknown):Promise<Row|null>{
+ const {effectiveType}=await import('@/app/entity-db/inherit');const eff=await effectiveType(db,type).catch(()=>null);
+ const metrics=(Array.isArray((eff?.schema as Row|undefined)?.metrics)?(eff!.schema as Row).metrics as Row[]:[]).map(m=>String(m.key));
+ const n=Number((await db.query<{n:number}>('select count(*)::int n from entities where type=$1',[type])).rows[0]?.n||0);if(!n)return null;
+ const have=new Map((await db.query<{metric:string;n:number}>(`select o.metric, count(distinct o.entity_id)::int n from observations o join entities e on e.id=o.entity_id where e.type=$1 and o.metric=any($2::text[]) group by 1`,[type,metrics])).rows.map(r=>[r.metric,r.n]));
+ const covered=metrics.filter(k=>(have.get(k)||0)>=0.6*n);
+ return {metrics:metrics.length,metricsCovered:covered.length,missingMetrics:metrics.filter(k=>!covered.includes(k)).slice(0,40),missingAttributes:[]};
 }
