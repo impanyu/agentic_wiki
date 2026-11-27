@@ -58,6 +58,7 @@ async function pageGate(db:Queryable,slug:string):Promise<string|undefined>{
 
 // ───────────── kinds ─────────────
 const DIMENSIONS=' A ranking compares on many dimensions: at least 5 measures with data, covering different aspects (size, quality, performance, cost, popularity, reliability…). For anything sold, think as a buyer: price, user rating and number of ratings, the performance specs buyers compare, durability or reliability and warranty, support, and a value-for-money index. Years and dates describe; they never rank.';
+const FIELDS_NOTE=' Collect as much as exists: every attribute and measure a reader, buyer or expert could use about these entities, from every source that has it. A source with hundreds of fields (a government file, a registry, an API) is mapped broadly — all meaningful columns, not the five convenient ones. When the best source lacks a field, look further (national and regional registries, statistics offices, industry bodies, Wikidata, the entities\' own published data) before calling it unavailable; record what you tried.';
 const CLASS_NOTE='Your target is one class of the class tree (task.class: its definition, split, inherited and own attributes, metrics and sources, universe). Work on that class only. Entities you load are of this class or one of its subclasses (the most specific one each fits; one that fits no subclass stays in this class); every entity carries the split attributes of its line.';
 const PAGE_NOTE='Your target is one page of the site map (task.page: what it shows, its rankings, its children).'+DIMENSIONS+' A ranking is a stored query: scope {type: <class>, filters: {attribute conditions}} over the class tree. Membership is decided by attributes only — never a hand-made list. When a filter needs an attribute the data lacks, request it from the collectors (requests: kind "class_attribute", target the class, why and the attribute\'s definition and likely source).';
 export const KINDS:Record<string,Kind>={
@@ -66,10 +67,16 @@ export const KINDS:Record<string,Kind>={
   instructions:CLASS_NOTE+' Task: make the collection of this class\'s members automatic and complete. Use the class\'s sources (start with the ones the class and its ancestors name), add sources where they miss members (per country, local languages), write the collection as recipes (save_recipe) and run them (run_recipe) until they load cleanly, apply the admission standard, match members to existing entities (no duplicates), and check the result: the count against the expected universe, well-known members present, a sample correct.',
   gate:(db,t)=>dataGate(db,t.target),next:async(_db,t)=>[{kind:'class_fields',target:t.target,priority:t.priority}]},
  class_fields:{pool:'collector',title:'load the class\'s fields',target:'class',budget:{rounds:60,calls:140},
-  instructions:CLASS_NOTE+DIMENSIONS+' Task: load every attribute and metric this class declares (its own; the inherited ones too where its members lack them), with history where the source has it, each by a recipe that runs by itself; the split attribute of this class and of its ancestors on every member first. List what no public source has (with the sources you tried).',
-  gate:(db,t)=>dataGate(db,t.target),next:async(db,t)=>{const c=await classInfo(db,t.target);
+  instructions:CLASS_NOTE+DIMENSIONS+FIELDS_NOTE+' Task: load every attribute and metric this class declares (its own; the inherited ones too where its members lack them), with history where the source has it, each by a recipe that runs by itself; the split attribute of this class and of its ancestors on every member first. List what no public source has (with the sources you tried).',
+  gate:async(db,t)=>{const d=await dataGate(db,t.target);if(d)return d;
+   const {classGapsOf,wantCovered}=await import('./checks');const g=await classGapsOf(db,t.target);
+   return g&&g.metricsCovered<wantCovered(g.metrics)?`Only ${g.metricsCovered} of the ${g.metrics} declared measures are collected for most members (at least ${wantCovered(g.metrics)} needed). Still missing: ${g.missingMetrics.slice(0,25).join(', ')}. Load them from the class's sources or others; for a measure no public source has, remove it from the class only if it truly does not exist publicly.`:undefined;},
+  next:async(db,t)=>{const c=await classInfo(db,t.target);
    const hasPage=c?.topicId&&(await db.query('select 1 from rankings r join entity_types et on et.topic_id=r.topic_id where et.type=$1::text and r.status<>\'archived\' limit 1',[t.target])).rows.length;
    return hasPage?[]:[{kind:'page_build',target:'class:'+t.target,priority:t.priority}];}},
+ class_spec:{pool:'collector',title:'widen the class\'s specification',target:'class',budget:{rounds:40,calls:90},
+  instructions:CLASS_NOTE+DIMENSIONS+FIELDS_NOTE+' Task: the class declares too few fields (task.payload). As an expert on these entities, list everything readers, buyers and specialists look up and compare about them — identity and classification, size, quality, performance, cost, popularity, reliability, history, people and places, the standard indices of the field — and every field the class\'s sources (and other public sources) publish. Declare them in the class schema (set_entity_schema: attributes with their definitions, metrics with unit and direction, sources), only adding. Then the collectors load them.',
+  next:async(_db,t)=>[{kind:'class_fields',target:t.target,priority:t.priority}]},
  class_attribute:{pool:'collector',title:'add an attribute readers need',target:'class',budget:{rounds:40,calls:100},
   instructions:CLASS_NOTE+' Task: an editor needs an attribute on this class (task.requests: which, its definition, why, suggested sources). Define it in the class schema (set_entity_schema, only adding), find an authoritative public source, load it for every member by a recipe that runs by itself, or derive it from existing data or relations when it follows from them (a rule, not a list). If it has no objective, checkable definition or no public source, say so in your summary (the editor will change the ranking).',
   gate:async(db,t)=>{const key=String(((t.payload.requests as Row[]|undefined)?.[0]?.attribute)||t.payload.attribute||'');if(!key)return dataGate(db,t.target);
@@ -121,7 +128,7 @@ export const KINDS:Record<string,Kind>={
 // Which kinds each pool may ask of others (an agent's requests are checked against this).
 export const MAY_REQUEST:Record<Pool,string[]>={
  editor:['class_attribute','class_members','class_fields','data_verify','arbitrate','page_fix','page_view','page_retire','page_review'],
- collector:['page_refresh','arbitrate','data_verify','class_members','class_fields','source_repair','class_evolution'],
+ collector:['page_refresh','arbitrate','data_verify','class_members','class_fields','class_spec','source_repair','class_evolution'],
  reviewer:['page_fix','data_verify','class_attribute','arbitrate'],
  manager:Object.keys(KINDS),
 };

@@ -30,7 +30,14 @@ export const BUILTIN:Omit<Check,'status'|'created_by'>[]=[
   sql:`select e.type target, count(*)||' members and no split' detail from entities e join entity_types et on et.type=e.type
    where et.schema->>'kind'='class' and coalesce(et.schema->>'splitBy','null')='null' group by e.type having count(*) > 20000`},
  {id:'class-unit-jumps',object:'class',kind:'data_verify',title:'A measure changes unit between years',severity:70,cooldown_days:7,sql:'fn:unitJumps'},
- {id:'class-thin-measures',object:'class',kind:'class_fields',title:'Most members lack the declared measures',severity:45,cooldown_days:7,sql:'fn:classGaps'},
+ {id:'class-narrow-spec',object:'class',kind:'class_spec',title:'A class declares too few fields',severity:35,cooldown_days:60,
+  sql:`with recursive line(type, anc, d) as (select type, type, 0 from entity_types where schema->>'kind'='class'
+     union all select l.type, p.schema->>'extends', l.d+1 from line l join entity_types p on p.type=l.anc where coalesce(p.schema->>'extends','')<>'' and l.d<30),
+   spec as (select l.type, sum(case when jsonb_typeof(a.schema->'metrics')='array' then jsonb_array_length(a.schema->'metrics') else 0 end) metrics,
+     sum(case when jsonb_typeof(a.schema->'attributes')='array' then jsonb_array_length(a.schema->'attributes') else 0 end) attrs from line l join entity_types a on a.type=l.anc group by l.type)
+   select s.type target, 'declares '||s.metrics||' measures and '||s.attrs||' attributes (with inherited ones)' detail from spec s join entity_types et on et.type=s.type
+   where (s.metrics < 15 or s.metrics+s.attrs < 30) and (et.topic_id is not null or exists (select 1 from entities e where e.type=s.type))`},
+ {id:'class-thin-measures',object:'class',kind:'class_fields',title:'Fewer than half of the declared measures are collected',severity:45,cooldown_days:7,sql:'fn:classGaps'},
  {id:'ranking-thin',object:'class',kind:'class_fields',title:'A published ranking compares on fewer than 5 measures with data',severity:75,cooldown_days:7,
   sql:`select distinct r.scope->>'type' target, 'the ranking '||r.slug||' has fewer than 5 measures with data: load the class''s declared metrics' detail from rankings r
    where r.status='published' and coalesce(r.scope->'filters','{}'::jsonb)='{}'::jsonb and r.scope->>'type' is not null
@@ -90,8 +97,8 @@ async function runFn(db:Queryable,name:string,limit:number):Promise<{target:stri
     and not exists (select 1 from work_tasks w where w.target=et.type and w.kind in ('class_fields','class_members') and w.created_at > now() - interval '7 days')
    order by (et.topic_id is not null) desc, (select count(*) from entities e where e.type=et.type) desc limit $1::int`,[Math.min(limit,60)])).rows;
   const out:{target:string;detail:string;payload?:Row}[]=[];
-  for(const r of rows){const g=await classGapsOf(db,r.type);if(!g||g.metricsCovered>=5)continue;
-   out.push({target:r.type,detail:`only ${g.metricsCovered} of ${g.metrics} declared measures are collected for most members`,payload:{missingMetrics:g.missingMetrics}});}
+  for(const r of rows){const g=await classGapsOf(db,r.type);if(!g||g.metricsCovered>=wantCovered(g.metrics))continue;
+   out.push({target:r.type,detail:`only ${g.metricsCovered} of ${g.metrics} declared measures are collected for most members: collect every one a source has`,payload:{missingMetrics:g.missingMetrics}});}
   return out;
  }
  if(name==='unitJumps'){
@@ -106,12 +113,14 @@ async function runFn(db:Queryable,name:string,limit:number):Promise<{target:stri
  }
  throw Error('Unknown built-in check '+name);
 }
+// How many of a class's declared measures must be collected for most members: at least half (and at least 5).
+export const wantCovered=(declared:number)=>Math.min(declared,Math.max(5,Math.ceil(declared*Number(process.env.CLASS_MIN_COVERAGE||0.5))));
 export async function classGapsOf(db:Queryable,type:string){
  const {effectiveType}=await import('@/app/entity-db/inherit');const eff=await effectiveType(db,type).catch(()=>null);
  const metrics=(Array.isArray((eff?.schema as Row|undefined)?.metrics)?(eff!.schema as Row).metrics as Row[]:[]).map(m=>String(m.key));
  const n=Number((await db.query<{n:number}>('select count(*)::int n from entities where type=$1',[type])).rows[0]?.n||0);if(!n)return null;
  const have=new Map((await db.query<{metric:string;n:number}>(`select o.metric, count(distinct o.entity_id)::int n from observations o join entities e on e.id=o.entity_id where e.type=$1 and o.metric=any($2::text[]) group by 1`,[type,metrics])).rows.map(r=>[r.metric,r.n]));
- const covered=metrics.filter(k=>(have.get(k)||0)>=0.6*n);
+ const covered=metrics.filter(k=>(have.get(k)||0)>=0.5*n);
  return {metrics:metrics.length,metricsCovered:covered.length,missingMetrics:metrics.filter(k=>!covered.includes(k)).slice(0,40)};
 }
 
