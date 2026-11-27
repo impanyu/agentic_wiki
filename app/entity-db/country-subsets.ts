@@ -30,19 +30,28 @@ export async function countrySubsets(db:Queryable):Promise<{created:number}>{
   where status = 'published' and topic_id is not null and coalesce(scope->'filters','{}'::jsonb) = '{}'::jsonb and scope->>'type' <> 'country'`)).rows;
  let created=0;
  for(const m of mains){
-  const label=String(m.title).replace(/\s*Rankings?\s*$/i,'').trim()||m.type;
+  const label=String(m.title).replace(/\s*Rankings?\s*$/i,'').replace(/\s+(of|in) the world$/i,'').replace(/^(the\s+)?world'?s?\s+/i,'').trim()||m.type;
+  // A country whose members form a national subclass (US states under first-level divisions: the Census, BEA, BLS
+  // fields) gets that class's own ranking: its members, its readers' criteria first, its name ("US States Rankings").
+  const nat=new Map((await db.query<{type:string;plural:string;iso3:string;crit:unknown}>(`select type, plural, schema->'value'->>0 iso3, schema->'rankingCriteria' crit from entity_types
+    where schema->>'kind'='class' and schema->>'extends'=$1::text and jsonb_typeof(schema->'value')='array' and schema->'value'->>0 ~ '^[A-Z]{3}$'`,[m.type])).rows.map(r=>[r.iso3,r]));
   const per=(await db.query<{iso3:string;iso2:string;name:string;continent:string;n:number}>(`select e.attributes->>'country_iso3' iso3, coalesce(upper(c.ids->>'iso2'),'') iso2, c.name, coalesce(c.attributes->>'continent','') continent, count(*)::int n from entities e
     join entities c on c.type = 'country' and upper(c.ids->>'iso3') = e.attributes->>'country_iso3'
-    where e.type = $1::text and e.attributes ? 'country_iso3' group by 1, 2, 3, 4 having count(*) >= $2::int order by 5 desc limit 120`,[m.type,MIN])).rows;
+    where (e.type = $1::text or e.type = any($3::text[])) and e.attributes ? 'country_iso3' group by 1, 2, 3, 4 having count(*) >= $2::int order by 5 desc limit 120`,[m.type,MIN,[...nat.values()].map(n=>n.type)])).rows;
   if(per.length<2)continue;// one country: the main ranking is that country's
   for(const c of per){
    const slug=(m.slug+'-in-'+c.iso3.toLowerCase()).slice(0,120);
+   const n=nat.get(c.iso3);
+   const title=n?n.plural.replace(/\b[a-z]/g,x=>x.toUpperCase())+' Rankings':`${label} Rankings in ${c.name}`;
+   const crit=n?[...new Set([...(Array.isArray(n.crit)?n.crit.map(String):[]),...m.criteria])].slice(0,40):m.criteria;
+   const scope=n?{type:n.type,filters:{}}:{type:m.type,filters:{country_iso3:c.iso3}};
    const cfg={...m.config,main:undefined,auto:'country',segment:c.name,...(c.continent?{navGroup:c.continent}:{}),about:[`${label} in ${c.name}.`]};delete (cfg as Record<string,unknown>).main;
    const r=await db.query(`insert into rankings(slug,title,topic_id,scope,criteria,config,status) values ($1::text,$2::text,$3::uuid,$4::jsonb,$5::text[],$6::jsonb,'published')
-     on conflict (slug) where slug is not null do update set criteria=excluded.criteria, config=excluded.config, topic_id=excluded.topic_id,
+     on conflict (slug) where slug is not null do update set criteria=excluded.criteria, config=excluded.config, topic_id=excluded.topic_id, title=excluded.title, scope=excluded.scope,
       status=case when rankings.status='archived' then 'published' else rankings.status end, updated_at=now()
-      where rankings.criteria is distinct from excluded.criteria or rankings.config is distinct from excluded.config or rankings.status='archived' returning (xmax = 0) inserted`,
-    [slug,`${label} Rankings in ${c.name}`,m.topic_id,JSON.stringify({type:m.type,filters:{country_iso3:c.iso3}}),m.criteria,JSON.stringify(cfg)]);
+      where rankings.criteria is distinct from excluded.criteria or rankings.config is distinct from excluded.config or rankings.title is distinct from excluded.title
+       or rankings.scope is distinct from excluded.scope or rankings.status='archived' returning (xmax = 0) inserted`,
+    [slug,title,m.topic_id,JSON.stringify(scope),crit,JSON.stringify(cfg)]);
    if(r.rows[0]?.inserted)created++;
   }
   // An editor's own one-country subsets of this class (filtered by another form of the country) are the same sets.

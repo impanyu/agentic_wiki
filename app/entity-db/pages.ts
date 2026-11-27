@@ -1,5 +1,5 @@
 import type {Queryable,Row} from './client';
-import {getEntity,metricTable,hybridSearch,inScope,RANK_LIMIT} from './repo';
+import {getEntity,metricTable,hybridSearch,inScope,scopeMetricCoverage,RANK_LIMIT} from './repo';
 import {ttlCache} from './ttl-cache';
 import {snapshot} from './snapshots';
 import {packRows,unpackRows,isPacked,type PackedRows} from '@/app/seo/pack-rows';
@@ -87,8 +87,29 @@ export function storedRanking(v:RankingPageInput|null):StoredRanking|null{
 // of one theme (the main, unthemed ones by default; at most 12) with their whole history, and lists the others,
 // which load when a reader picks one (their own address, ?rank=<key>).
 export const themeOf=(def:{config:Record<string,unknown>},c:string)=>{const t=obj(def.config.themes);const v=t[c]??t[c.split('@')[0]];return typeof v==='string'?v.trim():'';};
+// Readers can rank by every measure enough of the ranking's members have, not only the criteria it was set up
+// with: the class's readers' criteria first, then the rest by coverage, grouped by aspect (demography, economy …)
+// in the Rank by menu. A ranking whose editor fixed its criteria (config.fixedCriteria) keeps them.
+const ASPECT_LABEL=(a:string)=>a?a.replace(/[_-]+/g,' ').replace(/^./,x=>x.toUpperCase()):'More measures';
+async function withCoveredCriteria(db:Queryable,def:RankingDef):Promise<RankingDef>{
+ if(def.config.fixedCriteria||!def.scope.type)return def;
+ const cov=await scopeMetricCoverage(db,{type:def.scope.type,filters:def.scope.filters as Record<string,unknown>|undefined}).catch(()=>null);
+ if(!cov?.metrics.length)return def;
+ const schema=(await getEntityType(db,def.scope.type)).schema;
+ const fields=(Array.isArray(schema.metrics)?schema.metrics:[]) as Row[];
+ const deprecated=new Set(fields.filter(f=>f.deprecated).map(f=>String(f.key)));
+ const aspect=new Map(fields.map(f=>[String(f.key),String(f.aspect||'')]));
+ const prefer=(Array.isArray(schema.rankingCriteria)?schema.rankingCriteria:[]).map(String);
+ const covered=new Set(cov.metrics.map(m=>m.key));const have=new Set(def.criteria.map(c=>c.split('@')[0]));
+ const extra=[...new Set([...prefer.filter(k=>covered.has(k)),...cov.metrics.map(m=>m.key)])].filter(k=>!have.has(k)&&!deprecated.has(k)).slice(0,150);
+ if(!extra.length)return def;
+ const themes={...obj(def.config.themes)} as Record<string,unknown>;
+ for(const k of extra)if(typeof themes[k]!=='string'||!themes[k])themes[k]=ASPECT_LABEL(aspect.get(k)||'');
+ return {...def,criteria:[...def.criteria,...extra],config:{...def.config,themes}};
+}
 export async function buildRankingPage(db:Queryable,slug:string,preview=false,theme=''):Promise<RankingPageInput|null>{
- const def=await getRankingDefinition(db,slug,preview);if(!def)return null;
+ const def0=await getRankingDefinition(db,slug,preview);if(!def0)return null;
+ const def=await withCoveredCriteria(db,def0);
  const own=def.criteria.filter(c=>themeOf(def,c)===theme);
  const criteria=(own.length?own:def.criteria).slice(0,12);
  const rest=def.criteria.filter(c=>!criteria.includes(c));

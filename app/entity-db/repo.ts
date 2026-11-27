@@ -342,6 +342,16 @@ export async function inScope(db:Queryable,scope:Scope,entityId:string):Promise<
  const r=await db.query(`select 1 from entities e where ${where} and e.id = ${p.add(entityId)}::uuid limit 1`,p.list);
  return r.rows.length>0;
 }
+// The measures a scope's members have data for, with how many members have each (most covered first): a ranking
+// offers every measure enough of its members have, beyond the criteria it was set up with.
+export async function scopeMetricCoverage(db:Queryable,scope:Scope,{minShare=0.3,min=3,limit=120}:{minShare?:number;min?:number;limit?:number}={}):Promise<{members:number;metrics:{key:string;count:number}[]}>{
+ const p=new Params();const where=await scopeSql(db,p,scope);
+ const r=await db.query<{key:string;k:number;n:number}>(`with ents as (select e.id from entities e where ${where}), n as (select count(*)::int n from ents)
+  select o.metric as key, count(distinct o.entity_id)::int k, (select n from n) n from observations o join ents on ents.id = o.entity_id
+  where o.metric in (select key from metrics where status = 'published')
+  group by o.metric having count(distinct o.entity_id) >= greatest(${p.add(min)}::int, ceil((select n from n) * ${p.add(minShare)}::float8)) order by 2 desc limit ${Math.max(1,Math.min(500,limit))}`,p.list);
+ return {members:r.rows[0]?.n||0,metrics:r.rows.map(x=>({key:x.key,count:x.k}))};
+}
 // The ids of the entities in a scope (type and filters), at most `limit`.
 export async function entitySearchIds(db:Queryable,scope:Scope,limit=5000):Promise<string[]>{
  const p=new Params();const where=await scopeSql(db,p,scope);
