@@ -85,6 +85,8 @@ export const KINDS:Record<string,Kind>={
   instructions:CLASS_NOTE+' Task: data of this class is questioned (task.payload: a reader report, a value that jumped or is out of range, two sources that disagree, a reviewer finding). Check it against the sources, correct the values or the recipe, retract wrong data, and say what you found.'},
  class_evolution:{pool:'collector',title:'propose how the class should change',target:'class',budget:{rounds:30,calls:60},
   instructions:CLASS_NOTE+' Task: the class has grown (task.payload: why). Judge whether it should split (one attribute, complete, non-overlapping subclasses that each help collection — their own registries or fields) or merge into its parent, and return the proposal in your summary with requests of kind "arbitrate" to the manager; never restructure the tree yourself.'},
+ class_patrol:{pool:'collector',title:'patrol the class (scheduled full check)',target:'class',budget:{rounds:30,calls:60},
+  instructions:CLASS_NOTE+DIMENSIONS+' Task: the scheduled patrol — every class is checked in turn, nothing waits for a symptom. Go through the whole class as its owner: (1) definition and admission standard clear, the universe and expectedCount right; (2) its split: one attribute, the subclasses complete and non-overlapping, members carry the split value; (3) attributes and metrics: what experts and buyers compare is declared (at least 5 measures that rank), nothing missing, nothing useless; (4) sources: still the best and authoritative ones, reachable, current, nothing better or missing (markets, languages); (5) the data: member count against the universe, well-known members present, a sample of values against the source, freshness, duplicates. Fix small things yourself (schema additions, a recipe, a value). For larger work return requests (class_members, class_fields, source_repair, data_verify, class_evolution on this class; page_refresh on its page). In your summary list what you checked and what you found, even when all is well.'},
  // editors
  page_build:{pool:'editor',title:'build a page',target:'page',budget:{rounds:50,calls:110},
   instructions:PAGE_NOTE+' Task: build the page (task.target: "class:<key>" for a class that has members and no page yet — create its page under the page of its nearest ancestor class with create_page; or a page slug; or "inbox:<page>" for readers\' queries in task.payload). Save its main ranking (the class, no filters) with the criteria readers compare (measures with data; composite indices as derived metrics scored 0–100 with their formula), the entity template if the class has none, and the views readers need (class + filters). Preview the page and fix what is wrong.',
@@ -103,6 +105,9 @@ export const KINDS:Record<string,Kind>={
   instructions:PAGE_NOTE+' Task: this page is outdated, empty or a duplicate (task.payload). Merge its content into the right page or archive it; its address must keep working (the platform redirects a retired ranking to where its content went — record mergedInto in the ranking config).'},
  calendar_event:{pool:'editor',title:'prepare for a dated event',target:'page',budget:{rounds:40,calls:90},
   instructions:PAGE_NOTE+' Task: a dated event is coming (task.payload: a season start, an election, an award ceremony, an annual list, a product launch season). Prepare the pages it needs (new views, criteria for the new period) and request the data from the collectors ahead of the date.'},
+ page_patrol:{pool:'editor',title:'patrol the page (scheduled full check)',target:'page',budget:{rounds:30,calls:60},
+  instructions:PAGE_NOTE+' Task: the scheduled patrol — every page is checked in turn, nothing waits for a symptom. Go through the page as its owner and as a reader: (1) its place in the site map (right parent, the sub-pages and views readers look for exist, no duplicate page elsewhere); (2) each ranking: the default is the one readers want (a composite where it fits), criteria are measures with data, the podium and values look right, the order makes sense; (3) the views readers need (popular filters by country, era, type, price band) exist and are not empty; (4) texts still true, links working, the entity template useful. Fix what is yours; send data problems to the collectors as requests; ask for page_retire when the page should go. In your summary list what you checked and what you found, even when all is well.',
+  gate:(db,t)=>pageGate(db,t.target)},
  // reviewers
  page_review:{pool:'reviewer',title:'review a page as a reader',target:'page',budget:{rounds:40,calls:60},
   instructions:'You review one page of the site map (task.page) as a demanding reader: open it (view_page) and its rankings (other criteria, an older year) and 3–5 entity pages; check membership (right entities, none missing that readers expect), values, texts, links. In your result give verdict.approved and verdict.issues, each with owner "editor" (pages, rankings, texts) or "collector" (wrong or missing data; target = the class key) and a concrete fix. Approve unless something is wrong; missing data is work for the collectors, not a reason to hold a correct page.'},
@@ -112,8 +117,8 @@ export const KINDS:Record<string,Kind>={
 };
 // Which kinds each pool may ask of others (an agent's requests are checked against this).
 export const MAY_REQUEST:Record<Pool,string[]>={
- editor:['class_attribute','class_members','data_verify','arbitrate'],
- collector:['page_refresh','arbitrate','data_verify'],
+ editor:['class_attribute','class_members','class_fields','data_verify','arbitrate','page_fix','page_view','page_retire','page_review'],
+ collector:['page_refresh','arbitrate','data_verify','class_members','class_fields','source_repair','class_evolution'],
  reviewer:['page_fix','data_verify','class_attribute','arbitrate'],
  manager:Object.keys(KINDS),
 };

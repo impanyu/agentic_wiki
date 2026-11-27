@@ -104,6 +104,36 @@ export async function runTriggers(db:Queryable,log:(e:Row)=>void=e=>console.log(
   for(const r of rows){if(n<=0)break;
    const g=(await classGapsOf(db,r.type,classGaps));if(!g||Number(g.metricsCovered)>=5)continue;
    if((await enqueue(db,{kind:'class_fields',pool:'collector',target:r.type,priority:r.page?75:45,payload:{why:`only ${g.metricsCovered} of ${g.metrics} declared measures are collected for most members`,missingMetrics:g.missingMetrics,missingAttributes:g.missingAttributes}})).created){add('class_fields');n--;}}}
+ // 15. Patrols: besides reacting to symptoms, every class and every page is visited in turn (like a search engine's
+ //     recrawl schedule): due when its last patrol is older than its interval (30 days for what readers see — a
+ //     class with a page or members, a page with rankings — 90 days otherwise); the most overdue and most read first,
+ //     parents before children. Low priority: patrols fill the pools' idle time and never hold back real work.
+ {const n=await room(db,'class_patrol',Number(process.env.PATROL_CLASS_ROOM||8));
+  const rows=n?(await db.query<{type:string}>(`with recursive tree(type, depth) as (
+     select type, 0 from entity_types where schema->>'kind'='class' and coalesce(schema->>'extends','')=''
+     union all select c.type, t.depth+1 from entity_types c join tree t on c.schema->>'extends'=t.type where c.schema->>'kind'='class' and t.depth < 30),
+    info as (select t.type, t.depth, et.topic_id, exists (select 1 from entities e where e.type=t.type) has_members,
+      (select max(created_at) from work_tasks w where w.kind='class_patrol' and w.target=t.type) last,
+      coalesce((select sum(v.n) from rankings r join ranking_views v on v.slug=r.slug where r.topic_id=et.topic_id and v.day > current_date - 30),0) views
+     from tree t join entity_types et on et.type=t.type)
+   select type from info
+   where coalesce(last, 'epoch'::timestamptz) < now() - make_interval(days => case when topic_id is not null or has_members then 30 else 90 end)
+    and not exists (select 1 from work_tasks w where w.target=info.type and w.pool='collector' and w.created_at > now() - interval '7 days')
+   order by (last is null) desc, (topic_id is not null or has_members) desc, depth, views desc, type limit $1::int`,[n])).rows:[];
+  for(const r of rows)if((await enqueue(db,{kind:'class_patrol',pool:'collector',target:r.type,priority:25,payload:{why:'scheduled patrol'}})).created)add('class_patrol');}
+ {const n=await room(db,'page_patrol',Number(process.env.PATROL_PAGE_ROOM||6));
+  const rows=n?(await db.query<{slug:string}>(`with recursive tree(id, depth) as (
+     select id, 0 from topics where parent_id is null and status<>'archived'
+     union all select c.id, t.depth+1 from topics c join tree t on c.parent_id=t.id where c.status<>'archived' and t.depth < 30),
+    info as (select tp.slug, t.depth, exists (select 1 from rankings r where r.topic_id=tp.id and r.status='published') live,
+      (select max(created_at) from work_tasks w where w.kind='page_patrol' and w.target=tp.slug) last,
+      coalesce((select sum(v.n) from rankings r join ranking_views v on v.slug=r.slug where r.topic_id=tp.id and v.day > current_date - 30),0) views
+     from tree t join topics tp on tp.id=t.id)
+   select slug from info
+   where coalesce(last, 'epoch'::timestamptz) < now() - make_interval(days => case when live then 30 else 90 end)
+    and not exists (select 1 from work_tasks w where w.target=info.slug and w.pool='editor' and w.created_at > now() - interval '7 days')
+   order by (last is null) desc, live desc, views desc, depth, slug limit $1::int`,[n])).rows:[];
+  for(const r of rows)if((await enqueue(db,{kind:'page_patrol',pool:'editor',target:r.slug,priority:25,payload:{why:'scheduled patrol'}})).created)add('page_patrol');}
  if(Object.keys(made).length)log({event:'triggered',...made});
  return made;
 }
