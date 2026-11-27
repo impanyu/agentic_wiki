@@ -18,8 +18,11 @@ const sizes=():Record<Pool,number>=>{const out:Record<Pool,number>={collector:2,
 export async function runWork(log:(e:Row)=>void=e=>console.log('[work]',JSON.stringify(e))):Promise<string[]>{
  const db=await entityDb();await renew(db,[...running.keys()]);
  // Tasks whose holder stopped renewing go back to the queue (a crash or restart); after 3 attempts the manager rules.
- const lost=(await db.query<{id:string;kind:string;target:string;attempts:number}>(`update work_tasks set status='queued', worker=null where status='running' and lease_until < now() and not (id = any($1::uuid[])) returning id, kind, target, attempts`,[[...running.keys()]])).rows;
- for(const l of lost)if(l.attempts>=3){await finish(db,l.id,'failed',{error:'interrupted 3 times'});await enqueue(db,{kind:'arbitrate',pool:'manager',target:'task:'+l.id,priority:60,payload:{why:'stuck',task:l}});}
+ // A restart (a deploy) is not the task's fault: the attempt is given back; a task that dies 6 times is stuck.
+ const lost=(await db.query<{id:string;kind:string;target:string;attempts:number;interrupted:number}>(`update work_tasks set status='queued', worker=null, attempts=greatest(0,attempts-1),
+   payload=jsonb_set(payload,'{interrupted}',to_jsonb(coalesce((payload->>'interrupted')::int,0)+1))
+  where status='running' and lease_until < now() and not (id = any($1::uuid[])) returning id, kind, target, attempts, (payload->>'interrupted')::int interrupted`,[[...running.keys()]])).rows;
+ for(const l of lost)if(l.interrupted>=6){await finish(db,l.id,'failed',{error:'interrupted 6 times'});await enqueue(db,{kind:'arbitrate',pool:'manager',target:'task:'+l.id,priority:60,payload:{why:'stuck',task:l}});}
  const started:string[]=[];const size=sizes();
  for(const pool of Object.keys(size) as Pool[]){
   while([...running.values()].filter(p=>p===pool).length<size[pool]){

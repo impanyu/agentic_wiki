@@ -11,6 +11,8 @@ const SCALES:[RegExp,number][]=[
 const LETTER=/(?:^|[\s$€£¥(])([kKmMbBtT])(?=$|[\s)])/;
 const LETTER_SCALE:Record<string,number>={k:1e3,m:1e6,b:1e9,t:1e12};
 const CONVERT:[RegExp,string,number][]=[
+ // A share given as 0–1 (many statistical files) is stored as a percentage.
+ [/^(fraction|proportion|share 0-1|ratio 0-1)$/i,'%',100],
  [/^(sq\.?\s*mi|square\s+miles?|mi2|mi²)$/i,'km2',2.589988110336],
  [/^(sq\.?\s*km|square\s+kilomet(er|re)s?|km2|km²|平方公里|平方千米)$/i,'km2',1],
  [/^(hectares?|ha)$/i,'km2',0.01],

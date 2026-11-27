@@ -29,6 +29,7 @@ export const BUILTIN:Omit<Check,'status'|'created_by'>[]=[
  {id:'class-too-large',object:'class',kind:'class_evolution',title:'A class grew large without a split',severity:15,cooldown_days:30,
   sql:`select e.type target, count(*)||' members and no split' detail from entities e join entity_types et on et.type=e.type
    where et.schema->>'kind'='class' and coalesce(et.schema->>'splitBy','null')='null' group by e.type having count(*) > 20000`},
+ {id:'class-unit-jumps',object:'class',kind:'data_verify',title:'A measure changes unit between years',severity:70,cooldown_days:7,sql:'fn:unitJumps'},
  {id:'class-thin-measures',object:'class',kind:'class_fields',title:'Most members lack the declared measures',severity:45,cooldown_days:7,sql:'fn:classGaps'},
  {id:'ranking-thin',object:'class',kind:'class_fields',title:'A published ranking compares on fewer than 5 measures with data',severity:75,cooldown_days:7,
   sql:`select distinct r.scope->>'type' target, 'the ranking '||r.slug||' has fewer than 5 measures with data: load the class''s declared metrics' detail from rankings r
@@ -74,9 +75,9 @@ export function checkSqlProblem(sql:string):string|undefined{
  return undefined;
 }
 // Run a check's query: read-only, time-limited, at most `limit` rows {target, detail}.
-async function runSql(db:Queryable,sql:string,limit:number):Promise<{target:string;detail:string}[]>{
+async function runSql(db:Queryable,sql:string,limit:number,timeout='30s'):Promise<{target:string;detail:string}[]>{
  const q=`select * from (${sql}) q limit ${Math.max(1,Math.min(2000,limit))}`;
- const rows=typeof (db as Partial<EntityDb>).tx==='function'?await (db as EntityDb).tx(async t=>{await t.query('set transaction read only');await t.query(`set local statement_timeout = '30s'`);return (await t.query<Row>(q)).rows;})
+ const rows=typeof (db as Partial<EntityDb>).tx==='function'?await (db as EntityDb).tx(async t=>{await t.query('set transaction read only');await t.query(`set local statement_timeout = '${timeout}'`);return (await t.query<Row>(q)).rows;})
   :(await db.query<Row>(q)).rows;
  if(rows.length&&!('target' in rows[0]))throw Error('A check query must return a column named target.');
  return rows.map(r=>({target:String(r.target??'').trim(),detail:String(r.detail??'').slice(0,800)})).filter(r=>r.target);
@@ -92,6 +93,16 @@ async function runFn(db:Queryable,name:string,limit:number):Promise<{target:stri
   for(const r of rows){const g=await classGapsOf(db,r.type);if(!g||g.metricsCovered>=5)continue;
    out.push({target:r.type,detail:`only ${g.metricsCovered} of ${g.metrics} declared measures are collected for most members`,payload:{missingMetrics:g.missingMetrics}});}
   return out;
+ }
+ if(name==='unitJumps'){
+  // The same measure of a class whose typical value jumps 20-fold from one year to the next: a unit or scale changed
+  // between sources (a share as 0–1 against a percentage, thousands against units) — rankings mix them.
+  const rows=(await db.query<{type:string;metric:string;pp:string;prev:number;period:string;med:number}>(`with m as (select e.type, o.metric, o.period, percentile_cont(0.5) within group (order by o.value) med
+    from observations o join entities e on e.id=o.entity_id where o.value<>0 and o.period ~ '^\\d{4}$' and o.source not like 'derived:%' and o.metric !~ '(growth|change|_yoy|inflation|return)' group by 1,2,3 having count(*)>=20),
+   r as (select type, metric, period, med, lag(med) over (partition by type, metric order by period) prev, lag(period) over (partition by type, metric order by period) pp from m)
+   select type, metric, pp, prev, period, med from r where prev>0 and med>0 and (med/prev>20 or med/prev<0.05) limit $1::int`,[limit])).rows;
+  const by=new Map<string,string[]>();for(const r of rows){const l=by.get(r.type)||[];l.push(`${r.metric}: typical value ${Number(r.prev).toPrecision(3)} in ${r.pp} but ${Number(r.med).toPrecision(3)} in ${r.period}`);by.set(r.type,l);}
+  return [...by].map(([target,l])=>({target,detail:'A unit or scale changed between sources, so values cannot be compared: '+l.join('; ')+'. Put every value of each measure in one unit (convert or retract the wrong ones) and fix the recipe that loaded them.'}));
  }
  throw Error('Unknown built-in check '+name);
 }
@@ -129,7 +140,9 @@ const poolSizes=():Record<string,number>=>{const out:Record<string,number>={coll
 export async function runChecks(db:Queryable,log:(e:Row)=>void=e=>console.log('[work:checks]',JSON.stringify(e))):Promise<Row>{
  const {KINDS}=await import('./kinds');
  await syncBuiltins(db);
- const checks=(await db.query<Check>(`select id, object, kind, title, severity, cooldown_days, sql, status, created_by from checks where status in ('active','trial') order by id`)).rows;
+ // Heavy checks (fn:unitJumps scans every observation) run once a day.
+ const checks=(await db.query<Check>(`select id, object, kind, title, severity, cooldown_days, sql, status, created_by from checks where status in ('active','trial')
+  and not (sql in ('fn:unitJumps') and last_run > now() - interval '23 hours') order by id`)).rows;
  const objects={class:Number((await db.query<{n:number}>(`select count(*)::int n from entity_types where schema->>'kind'='class'`)).rows[0]?.n||0),
   page:Number((await db.query<{n:number}>(`select count(*)::int n from topics where status<>'archived'`)).rows[0]?.n||0)};
  type Cand={check:Check;target:string;detail:string;payload?:Row;priority:number};
@@ -137,7 +150,7 @@ export async function runChecks(db:Queryable,log:(e:Row)=>void=e=>console.log('[
  for(const c of checks){
   const def=KINDS[c.kind];if(!def)continue;
   let found:{target:string;detail:string;payload?:Row}[]=[];
-  try{found=c.sql.startsWith('fn:')?await runFn(db,c.sql.slice(3),200):await runSql(db,c.sql,c.status==='trial'?2000:400);}
+  try{found=c.sql.startsWith('fn:')?await runFn(db,c.sql.slice(3),200):await runSql(db,c.sql,c.status==='trial'?2000:400,c.created_by==='system'?'180s':'30s');}
   catch(e){await db.query(`update checks set last_run=now(), last_error=$2 where id=$1`,[c.id,String((e as Error).message).slice(0,500)]);stats[c.id]='error';continue;}
   await db.query(`update checks set last_run=now(), last_error=null, last_count=$2, sample=$3::jsonb where id=$1`,[c.id,found.length,JSON.stringify(found.slice(0,10))]);
   stats[c.id]=found.length;

@@ -49,7 +49,8 @@ async function pageGate(db:Queryable,slug:string):Promise<string|undefined>{
  const p=await pageInfo(db,slug);if(!p)return 'No page '+slug+': create it with create_page.';
  if(!p.rankings.length)return 'The page has no ranking yet: save its ranking (save_ranking with scope {type, filters}).';
  const {checkTopic}=await import('@/app/teams/qa');const qa=await checkTopic(db,p.topicId);
- const blockers=qa.issues.filter(i=>i.severity==='blocker');
+ // Blockers, and a ranking that compares on too few measures (a task is not done while readers get a thin ranking).
+ const blockers=qa.issues.filter(i=>i.severity==='blocker'||/measure\(s\) readers compare have data|opens on .*, a date or year/.test(i.problem));
  if(blockers.length)return 'The quality check finds: '+blockers.slice(0,6).map(i=>i.target+': '+i.problem).join(' | ');
  if(!await opens(db,slug))return 'The page does not open (not 200): fix it.';
  return undefined;
@@ -110,7 +111,7 @@ export const KINDS:Record<string,Kind>={
   gate:(db,t)=>pageGate(db,t.target)},
  // reviewers
  page_review:{pool:'reviewer',title:'review a page as a reader',target:'page',budget:{rounds:40,calls:60},
-  instructions:'You review one page of the site map (task.page) as a demanding reader: open it (view_page) and its rankings (other criteria, an older year) and 3–5 entity pages; check membership (right entities, none missing that readers expect), values, texts, links. In your result give verdict.approved and verdict.issues, each with owner "editor" (pages, rankings, texts) or "collector" (wrong or missing data; target = the class key) and a concrete fix. Approve unless something is wrong; missing data is work for the collectors, not a reason to hold a correct page.'},
+  instructions:'You review one page of the site map (task.page) as the people who use it would. First write down who comes to this page and what they want to compare before choosing (a student choosing a college: admission chances and test scores, cost and net price, graduation and retention, earnings and debt after, size, setting, resources; a buyer: price, ratings, the specs that matter, reliability, value) — the 8–12 measures an expert guide for them would show. Then open the page (view_page), its rankings (other criteria, an older year) and 3–5 entity pages, and check against that list: are those measures there with data, is the default ranking what such a reader wants (a composite where experts use one), are the members right (none that do not belong, none missing that readers expect), are values plausible and in one unit (a rate of 0.97 next to 98 is a defect), are texts and links right. In your result give verdict.approved and verdict.issues, each with owner "editor" (pages, rankings, texts) or "collector" (wrong or missing data; target = the class key) and a concrete fix — name the missing measures and their likely source. Approve only a page that serves those readers well; a page that ranks on a few convenient numbers is not done.'},
  check_trial:{pool:'reviewer',title:'confirm a new check',target:'none',budget:{rounds:25,calls:40},
   instructions:'An agent added a check (task.payload.check: what it looks for, the query, the task it creates) and it ran on trial: task.payload.flagged objects, a sample in task.payload.sample. Look at 5 or more of the flagged classes or pages yourself (team_state, coverage, view_page, entity_search) and judge: is each a real problem of that kind, and would the task it creates fix it? Approve (verdict.approved true) only if the findings are real and the check is not too broad; otherwise return the problems in verdict.issues (owner "editor" or "collector", what is wrong with the check). An approved check runs across the whole site from now on.'},
  // manager

@@ -43,6 +43,22 @@ export async function POST(request:Request){
   if(b.action==='checks'){const {syncBuiltins}=await import('@/app/work/checks');await syncBuiltins(db);
    const c=b as {id?:string;status?:string};if(c.id&&c.status&&['active','paused','retired','trial'].includes(c.status))await db.query('update checks set status=$2 where id=$1',[c.id,c.status]);
    return Response.json((await db.query('select id, object, kind, status, created_by, severity, last_run, last_count, last_error, title from checks order by status, id')).rows);}
+  if(b.action==='recipe'){
+   // An operator's recipe ({type, name, description, steps, run}): saved like a collector's; run=true runs it now in
+   // the background, again while the source is only partly loaded (bulk files load over several runs).
+   const r=b as {type?:string;name?:string;description?:string;steps?:Record<string,unknown>[];run?:boolean};
+   const {saveRecipe}=await import('@/app/teams/config');const {runRecipe,checkRecipe,parseSteps}=await import('@/app/teams/recipes');
+   const problems=checkRecipe(parseSteps(r.steps));if(problems.length)return Response.json({error:problems.join(' ')},{status:400});
+   const rec=await saveRecipe(db,{type:String(r.type),name:String(r.name),description:String(r.description||''),steps:r.steps||[],createdBy:'operator'});
+   if(r.run)void (async()=>{for(let i=0;i<30;i++){const x=await runRecipe(db,rec).catch(e=>({ok:false,error:String((e as Error).message)}) as Record<string,unknown>);
+    console.log('[operator-recipe]',rec.type,rec.name,JSON.stringify(x).slice(0,1500));if(!(x as {partial?:boolean}).partial)break;}})();
+   return Response.json({saved:rec.name,type:rec.type,running:!!r.run});
+  }
+  if(b.action==='tool'){
+   // An entity tool as the crawler runs it ({name, args}): define_metric, compute_metric, metric_table, entity_get…
+   const r=b as {name?:string;args?:Record<string,unknown>};const {runEntityTool}=await import('@/app/entity-db/tools');const {crawlerContext}=await import('@/app/teams/recipes');
+   return Response.json(await runEntityTool(String(r.name),r.args||{},crawlerContext({type:'operator',name:'tool'})));
+  }
   if(b.action==='queue'){const {queueState}=await import('@/app/work/queue');return Response.json(await queueState(db));}
   if(b.action==='place'){const {placeEntities}=await import('@/app/entity-db/tree-index');return Response.json(await placeEntities(db));}
   if(b.action==='show'&&b.slug){const t=(await db.query<{id:string}>('select id from topics where slug=$1::text',[b.slug])).rows[0];if(!t)return Response.json({error:'no such node'},{status:404});
