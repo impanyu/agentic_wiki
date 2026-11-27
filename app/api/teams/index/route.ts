@@ -54,6 +54,7 @@ export async function POST(request:Request){
     console.log('[operator-recipe]',rec.type,rec.name,JSON.stringify(x).slice(0,1500));if(!(x as {partial?:boolean}).partial)break;}})();
    return Response.json({saved:rec.name,type:rec.type,running:!!r.run});
   }
+  if(b.action==='site_search'){const r=b as {site?:string;query?:string;count?:number};const {siteSearch}=await import('@/app/search/site-index');return Response.json(await siteSearch(db,String(r.site||''),String(r.query||''),Number(r.count)||10));}
   if(b.action==='tool'){
    // An entity tool as the crawler runs it ({name, args}): define_metric, compute_metric, metric_table, entity_get…
    const r=b as {name?:string;args?:Record<string,unknown>};const {runEntityTool}=await import('@/app/entity-db/tools');const {crawlerContext}=await import('@/app/teams/recipes');
