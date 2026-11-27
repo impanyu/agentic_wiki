@@ -657,3 +657,8 @@ test('site map import: pages updated in place or created, main rankings and view
  assert.equal((await db.query("select status, scope->>'convertedTo' c from topics where slug='sm-old'")).rows[0].c,'sm-divs');
  assert.ok((await db.query("select schema from entity_types where type='sm_div'")).rows[0].schema.attributes.some(a=>a.key==='continent'));
 });
+test('one code in two spellings is one id: FIPS 01, 1 and the Census GEOID match; different numbers do not',async()=>{
+ const {sameId}=await import(new URL('repo.mjs',out).href);
+ assert.ok(sameId('01','1'));assert.ok(sameId('0400000US01','01'));assert.ok(sameId('Q173','q173'));
+ assert.ok(!sameId('01','02'));assert.ok(!sameId('Q173','P173'));assert.ok(!sameId('ABC1','XYZ1'));
+});

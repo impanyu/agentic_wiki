@@ -63,6 +63,15 @@ async function recordCandidates(q:Queryable,id:string,name:string,ids:Record<str
  for(const r of n)if(!country||!r.c||r.c===country)others.add(r.id+'|name');
  for(const o of others){const [b,reason]=o.split('|');await q.query(`insert into entity_candidates(a,b,reason) values ($1::uuid,$2::uuid,$3::text) on conflict do nothing`,[id,b,reason]);}
 }
+// Two spellings of one code are the same id: "01", "1" and "0400000US01" (a Census GEOID) are FIPS 1; "Q173" and
+// "q173" are one Wikidata item. Codes that differ in their number are different ids.
+export function sameId(a:unknown,b:unknown):boolean{
+ const x=String(a??'').trim(),y=String(b??'').trim();if(x===y||x.toLowerCase()===y.toLowerCase())return true;
+ const dx=/(\d+)$/.exec(x),dy=/(\d+)$/.exec(y);if(!dx||!dy)return false;
+ const strip=(v:string,d:string)=>v.slice(0,v.length-d.length).replace(/^0+/,'');
+ // The digits agree as numbers, and one code's prefix is empty or a GEOID-style prefix ("0400000US").
+ return Number(dx[1])===Number(dy[1])&&(!strip(x,dx[1])||!strip(y,dy[1])||/US$/i.test(strip(x,dx[1]))||/US$/i.test(strip(y,dy[1])));
+}
 export async function upsertEntity(q:Queryable,input:EntityInput):Promise<{id:string;action:'inserted'|'merged';idConflicts:number}>{
  // An entity loaded under a tag interface (gaming_laptop) is one of the tag's class (laptop), tagged with it.
  const asType=normalizeType(input.type);const {interfaceClass}=await import('./inherit');const cls=await interfaceClass(q,asType).catch(()=>null);
@@ -90,9 +99,9 @@ export async function upsertEntity(q:Queryable,input:EntityInput):Promise<{id:st
    order by (type = $4::text) desc, (ent_norm(name) = ent_norm($2::text)) desc, created_at limit 10`,[family,name,aliases,type]);
   // Another type of the family is the same thing on the name only when both name the same country; otherwise (two
   // films called "Adam") the pair goes to the resolver as a candidate.
-  target=r.rows.find(row=>!Object.keys(ids).some(k=>row.ids[k]!=null&&row.ids[k]!==ids[k])&&(row.t===type||(!!country&&row.c===country)))||null;
+  target=r.rows.find(row=>!Object.keys(ids).some(k=>row.ids[k]!=null&&!sameId(row.ids[k],ids[k]))&&(row.t===type||(!!country&&row.c===country)))||null;
  }
- if(target)for(const k of Object.keys(ids))if(target.ids[k]!=null&&target.ids[k]!==ids[k]&&!drop.has(k)){drop.add(k);conflicts++;}
+ if(target)for(const k of Object.keys(ids))if(target.ids[k]!=null&&!sameId(target.ids[k],ids[k])&&!drop.has(k)){drop.add(k);conflicts++;}
  const writeIds=Object.fromEntries(Object.entries(ids).filter(([k])=>!drop.has(k)));
  const attributes=Object.fromEntries(Object.entries(input.attributes||{}).filter(([,v])=>v!==undefined&&v!==null&&v!==''));
  const description=String(input.description||'').trim().slice(0,4000),image=String(input.image||'').trim().slice(0,2000),pageId=String(input.pageId||'').trim().slice(0,200);

@@ -44,6 +44,10 @@ export async function POST(request:Request){
    const c=b as {id?:string;status?:string};if(c.id&&c.status&&['active','paused','retired','trial'].includes(c.status))await db.query('update checks set status=$2 where id=$1',[c.id,c.status]);
    return Response.json((await db.query('select id, object, kind, status, created_by, severity, last_run, last_count, last_error, title from checks order by status, id')).rows);}
   // Country rankings now (otherwise hourly), and ranking pages rebuilt now ({slugs} or {type}: every ranking of it).
+  // Duplicates merged ({pairs:[[keepId, dropId]]}): facts, relations, ids and aliases move to the kept entity.
+  if(b.action==='merge'){const {mergeEntities}=await import('@/app/entity-db/dedup');const pairs=((b as {pairs?:string[][]}).pairs||[]).slice(0,2000);let n=0;const failed:string[]=[];
+   for(const [k,d] of pairs){try{await mergeEntities(db,k,d);n++;}catch(e){failed.push(d+': '+(e as Error).message);}}
+   return Response.json({merged:n,failed:failed.slice(0,20)});}
   if(b.action==='subsets'){const cs=await import('@/app/entity-db/country-subsets');await cs.normalizeCountries(db);return Response.json(await cs.countrySubsets(db));}
   // A type's member pages and ranks rebuilt now ({entityType}): values, ranks within the type, every member page.
   if(b.action==='rebuild'&&(b as {entityType?:string}).entityType){const t=String((b as {entityType?:string}).entityType);
