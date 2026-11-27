@@ -45,6 +45,12 @@ export async function POST(request:Request){
    return Response.json((await db.query('select id, object, kind, status, created_by, severity, last_run, last_count, last_error, title from checks order by status, id')).rows);}
   // Country rankings now (otherwise hourly), and ranking pages rebuilt now ({slugs} or {type}: every ranking of it).
   if(b.action==='subsets'){const cs=await import('@/app/entity-db/country-subsets');await cs.normalizeCountries(db);return Response.json(await cs.countrySubsets(db));}
+  // A type's member pages and ranks rebuilt now ({entityType}): values, ranks within the type, every member page.
+  if(b.action==='rebuild'&&(b as {entityType?:string}).entityType){const t=String((b as {entityType?:string}).entityType);
+   const {rerankType}=await import('@/app/entity-db/repo');const {loadEntityPageByNum}=await import('@/app/entity-db/pages');const rr=await rerankType(db,t);
+   const nums=(await db.query<{num:string}>(`select num::text num from entities where type=$1::text and has_page limit 5000`,[t])).rows.map(x=>x.num);let pages=0;
+   for(const n of nums){try{if(await loadEntityPageByNum(db,n,{fresh:true}))pages++;}catch{}}
+   return Response.json({...rr,pages});}
   if(b.action==='rebuild'){const r=b as {slugs?:string[];type?:string};const {loadRankingPage}=await import('@/app/entity-db/pages');
    const slugs=r.slugs?.length?r.slugs.slice(0,200):r.type?(await db.query<{slug:string}>(`select slug from rankings where slug is not null and status='published' and scope->>'type'=$1::text limit 300`,[r.type])).rows.map(x=>x.slug):[];
    const done:string[]=[],failed:string[]=[];for(const s of slugs){try{await loadRankingPage(db,s,{fresh:true});done.push(s);}catch(e){failed.push(s+': '+(e as Error).message);}}

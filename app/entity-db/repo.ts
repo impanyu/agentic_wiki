@@ -667,6 +667,17 @@ export async function refreshLatestRanks(q:Queryable,type:string,metric:{key:str
  while(n>=RANK_BATCH)n=await run();
  return 1;
 }
+// A type's snapshot from scratch: every member's latest values, then every measure's ranks within the type. Needed
+// when members move between types (a national subclass takes a country's members): their ranks were among the old
+// type's members, which no write of a value would correct.
+export async function rerankType(q:Queryable,type:string):Promise<{entities:number;metrics:number}>{
+ const t=normalizeType(type);
+ const ids=(await q.query<{id:string}>('select id from entities where type = $1::text',[t])).rows.map(r=>r.id);
+ for(let i=0;i<ids.length;i+=2000)await refreshLatestValues(q,ids.slice(i,i+2000));
+ const ms=(await q.query<{metric:string;metric_version:number}>(`select distinct o.metric, o.metric_version from observations o join entities e on e.id = o.entity_id where e.type = $1::text`,[t])).rows;
+ for(const m of ms)await refreshLatestRanks(q,t,{key:m.metric,version:Number(m.metric_version)});
+ return {entities:ids.length,metrics:ms.length};
+}
 // Keeps the snapshot current after a write: values/relations of the touched entities, ranks of the touched metrics in their types.
 // Recomputes has_page for some entities (ids) or a whole type: the entity has data. Every entity a ranking lists has a page (a type without its own template uses the
 // default one), so every name in a ranking links to it.

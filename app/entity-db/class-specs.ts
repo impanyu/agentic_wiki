@@ -78,6 +78,10 @@ export async function importClassSpecs(db:Queryable,specs:Record<string,ClassSpe
   const r=await db.query<{id:string}>(`update entities set type=$2::text, updated_at=now() where type=$1::text and attributes->>'country_iso3'=$3::text returning id`,[parent,n.key,n.country_iso3]);
   moved+=r.rows.length;
  }
+ // Moved members are ranked among their new class (and the old class without them).
+ if(!dryRun&&moved){const {rerankType}=await import('./repo');const touched=new Set<string>();
+  for(const [parent,s] of Object.entries(specs))for(const n of s.national||[])if(classes.has(parent)&&KEY.test(n.key)){touched.add(parent);touched.add(n.key);}
+  for(const t of touched)await rerankType(db,t).catch(()=>null);}
  out.newMetricKeys=newMetrics.size;
  if(!dryRun)for(const [k,m] of newMetrics){
   const order=m.order==='asc'?'asc':'desc';
