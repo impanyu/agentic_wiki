@@ -35,7 +35,7 @@ const one=(v:string|string[]|undefined)=>typeof v==='string'?v:undefined;
 const rankingData=ttlCache<Awaited<ReturnType<typeof loadUncached>>>(10*60_000,200,24*3600_000),chartSvgs=ttlCache<Record<string,string>>(10*60_000,600,24*3600_000);
 // An agent checking its own change (wantsFresh) gets the page rebuilt from the database, not a stored copy.
 // theme: the theme of criteria the page shows (the main criteria when empty; another theme loads when picked).
-const load=cache(async(slug:string,theme='')=>await wantsFresh()?loadUncached(slug,true,theme):rankingData.get(slug+'|'+theme,()=>loadUncached(slug,false,theme)));
+const load=cache(async(slug:string,theme='')=>{if(await wantsFresh()){const v=loadUncached(slug,true,theme);rankingData.set(slug+'|'+theme,v);return v;}return rankingData.get(slug+'|'+theme,()=>loadUncached(slug,false,theme));});
 async function loadUncached(slug:string,fresh=false,theme=''){
  const db=await entityDb();const input=await loadRankingPage(db,slug,{fresh,theme});if(!input)return null;
  const model=assembleRankingPage(input,'en');

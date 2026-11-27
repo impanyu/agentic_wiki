@@ -37,6 +37,12 @@ export const BUILTIN:Omit<Check,'status'|'created_by'>[]=[
      sum(case when jsonb_typeof(a.schema->'attributes')='array' then jsonb_array_length(a.schema->'attributes') else 0 end) attrs from line l join entity_types a on a.type=l.anc group by l.type)
    select s.type target, 'declares '||s.metrics||' measures and '||s.attrs||' attributes (with inherited ones)' detail from spec s join entity_types et on et.type=s.type
    where (s.metrics < 15 or s.metrics+s.attrs < 30) and (et.topic_id is not null or exists (select 1 from entities e where e.type=s.type))`},
+ {id:'class-universe-unverified',object:'class',kind:'class_members',title:'A member list not confirmed by two independent lists',severity:35,cooldown_days:30,
+  sql:`select et.type target, 'the member list is confirmed by '||coalesce(g.n,0)||' independent list(s) of the 2 needed: compare it with official registries, directories, federations or Wikidata and load what is missing' detail
+   from entity_types et left join lateral (select count(*) n from jsonb_array_elements(case when jsonb_typeof(et.schema->'universe'->'checks')='array' then et.schema->'universe'->'checks' else '[]'::jsonb end) c
+     where (c->>'at')::timestamptz > now() - interval '180 days' and (c->>'listed')::numeric > 0 and (c->>'matched')::numeric/(c->>'listed')::numeric >= 0.9) g on true
+   where et.schema->>'kind'='class' and coalesce(g.n,0) < 2 and exists (select 1 from entities e where e.type=et.type)
+   order by (et.topic_id is not null) desc, et.type`},
  {id:'class-thin-measures',object:'class',kind:'class_fields',title:'Fewer than half of the declared measures are collected',severity:45,cooldown_days:7,sql:'fn:classGaps'},
  {id:'ranking-thin',object:'class',kind:'class_fields',title:'A published ranking compares on fewer than 5 measures with data',severity:75,cooldown_days:7,
   sql:`select distinct r.scope->>'type' target, 'the ranking '||r.slug||' has fewer than 5 measures with data: load the class''s declared metrics' detail from rankings r

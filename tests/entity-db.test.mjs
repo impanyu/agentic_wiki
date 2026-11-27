@@ -20,6 +20,8 @@ for(const f of ['client','schema','metrics','embeddings','units','reserved','rep
 {let js=ts.transpileModule(readFileSync(new URL('../app/work/checks.ts',import.meta.url),'utf8'),{compilerOptions:{module:ts.ModuleKind.ESNext,target:ts.ScriptTarget.ES2022}}).outputText;
  js=js.replace(/(['"])\.\/queue\1/g,"'./work-queue.mjs'").replace(/(['"])\.\/kinds\1/g,"'./stub-kinds.mjs'").replace(/(['"])@\/app\/entity-db\/inherit\1/g,"'./inherit.mjs'").replace(/(['"])@\/app\/ops\/issues\1/g,"'./stub-issues.mjs'");
  writeFileSync(new URL('work-checks.mjs',out),js);
+ let cj=ts.transpileModule(readFileSync(new URL('../app/work/completeness.ts',import.meta.url),'utf8'),{compilerOptions:{module:ts.ModuleKind.ESNext,target:ts.ScriptTarget.ES2022}}).outputText;
+ writeFileSync(new URL('work-completeness.mjs',out),cj.replace(/(['"])@\/app\/entity-db\/inherit\1/g,"'./inherit.mjs'"));
  writeFileSync(new URL('stub-kinds.mjs',out),`export const KINDS={class_members:{pool:'collector',target:'class'},class_fields:{pool:'collector',target:'class'},page_build:{pool:'editor',target:'page'},page_refresh:{pool:'editor',target:'page'},page_retire:{pool:'editor',target:'page'},source_repair:{pool:'collector',target:'class'},source_review:{pool:'collector',target:'class'},class_evolution:{pool:'collector',target:'class'},class_patrol:{pool:'collector',target:'class'},page_patrol:{pool:'editor',target:'page'},page_fix:{pool:'editor',target:'page'},check_trial:{pool:'reviewer',target:'none'}};`);
  writeFileSync(new URL('stub-issues.mjs',out),`export const raised=[];export async function raiseIssue(db,x){raised.push(x);return {issue:{id:'i'},isNew:true};}`);}
 const client=await import(new URL('client.mjs',out));
@@ -621,4 +623,17 @@ test('checks: one loop turns failing classes and pages into tasks for their owne
  await c.runChecks(db,()=>{});assert.equal((await db.query("select count(*)::int n from work_tasks where kind='class_fields' and requested_by=$1",['check:'+p.id])).rows[0].n,0,'a check on trial creates no tasks');
  await assert.rejects(c.proposeCheck(db,{title:'bad',object:'class',kind:'class_fields',sql:'update entities set name=1',why:''},'agent:x'));
  await assert.rejects(c.proposeCheck(db,{title:'wrong kind',object:'page',kind:'class_fields',sql:'select slug target from topics',why:''},'agent:x'));
+});
+
+test('completeness: a member list counts as complete when two independent lists match it (≥90%); a specification when it declares enough fields with sources',async()=>{
+ const c=await import(new URL('work-completeness.mjs',out));
+ await db.query("insert into entity_types(type,label,plural,description,schema) values ('cp_x','Cp','Cps','',$1::jsonb) on conflict (type) do update set schema=excluded.schema",[JSON.stringify({kind:'class',metrics:[{key:'a',source:'S'}],attributes:[]})]);
+ assert.equal((await c.universeVerdict(db,'cp_x')).complete,false);
+ await c.recordUniverseCheck(db,{type:'cp_x',source:'Registry A',url:'',listed:100,matched:95,missingSample:'',by:'t'});
+ const half=await c.recordUniverseCheck(db,{type:'cp_x',source:'Wikidata',url:'',listed:100,matched:60,missingSample:'x',by:'t'});
+ assert.equal(half.complete,false);assert.match(half.problem,/Wikidata: 60 of 100/);
+ const done=await c.recordUniverseCheck(db,{type:'cp_x',source:'wikidata',url:'',listed:100,matched:92,missingSample:'',by:'t'});
+ assert.equal(done.complete,true);assert.equal(done.checks.length,2,'one check per source, the latest');
+ await assert.rejects(c.recordUniverseCheck(db,{type:'cp_x',source:'B',url:'',listed:10,matched:11,missingSample:'',by:'t'}));
+ const sp=await c.specVerdict(db,'cp_x');assert.equal(sp.complete,false);assert.match(sp.problem,/declares 1 measures/);
 });

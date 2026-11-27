@@ -25,6 +25,8 @@ export function ttlCache<V>(ttlMs:number,max=200,staleMs=ttlMs*12){
    }
    return put(key,load()).value;
   },
+  // A value computed outside (an operator's fresh build) replaces what readers are served.
+  set(key:string,value:Promise<V>){put(key,value);},
   clear(){store.clear();},
  };
 }
