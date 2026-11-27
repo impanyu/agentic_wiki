@@ -56,8 +56,8 @@ export async function countrySubsets(db:Queryable):Promise<{created:number}>{
   }
   // An editor's own one-country subsets of this class (filtered by another form of the country) are the same sets.
   await db.query(`update rankings set status='archived', config=config||'{"mergedInto":"country subset"}'::jsonb, updated_at=now()
-   where scope->>'type' = $1::text and status <> 'archived' and coalesce(config->>'auto','') = '' and (select count(*) from jsonb_object_keys(coalesce(scope->'filters','{}'::jsonb))) = 1
-    and exists (select 1 from jsonb_each_text(scope->'filters') f where f.key in ('iso3','iso2','country','country_code','country_iso3')
+   where scope->>'type' = $1::text and status <> 'archived' and coalesce(config->>'auto','') = '' and jsonb_typeof(scope->'filters') = 'object' and (select count(*) from jsonb_object_keys(scope->'filters')) = 1
+    and exists (select 1 from jsonb_each_text(case when jsonb_typeof(scope->'filters')='object' then scope->'filters' else '{}'::jsonb end) f where f.key in ('iso3','iso2','country','country_code','country_iso3')
      and (upper(f.value) = any($2::text[]) or lower(f.value) = any($3::text[])))`,[m.type,[...per.map(c=>c.iso3),...per.map(c=>c.iso2).filter(Boolean)],per.map(c=>c.name.toLowerCase())]);
  }
  return {created};
