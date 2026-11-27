@@ -1,6 +1,6 @@
 import type {Queryable} from '@/app/entity-db/client';
 // Our own search inside a website. A third-party search engine finds which sites hold the data (site level); once a
-// site is known, we list its pages ourselves — its robots.txt sitemaps, else Common Crawl's free URL index — fetch
+// site is known, we list its pages ourselves — its robots.txt sitemaps and the Internet Archive's free URL index — fetch
 // them politely in the background (robots.txt rules, one request per site at a time) and search them in our own
 // full-text index (site_pages). Page-level searches then cost no third-party queries.
 type Row=Record<string,unknown>;
@@ -42,19 +42,16 @@ async function fromSitemaps(start:string[],domain:string,deadline:number):Promis
  }
  return [...urls];
 }
-let ccIndex:{at:number;api:string}|null=null;
-async function fromCommonCrawl(domain:string):Promise<string[]>{
- if(!ccIndex||Date.now()-ccIndex.at>7*86400_000){
-  const r=await get('https://index.commoncrawl.org/collinfo.json',30_000,2*1024*1024);
-  const list=JSON.parse(r.text) as {'cdx-api':string}[];ccIndex={at:Date.now(),api:list[0]['cdx-api']};
- }
- const r=await get(`${ccIndex.api}?url=${encodeURIComponent('*.'+domain)}&output=json&fl=url,mime&filter=statuscode:200&limit=${MAX_URLS}`,90_000,30*1024*1024).catch(()=>null);
+// The Internet Archive's URL index (free; Common Crawl's index refuses cloud addresses): pages of the site seen since
+// 2023, one per address.
+async function fromArchive(domain:string):Promise<string[]>{
+ const r=await get(`https://web.archive.org/cdx/search/cdx?url=${encodeURIComponent(domain)}&matchType=domain&fl=original,mimetype&filter=statuscode:200&collapse=urlkey&from=2023&limit=${MAX_URLS}`,120_000,30*1024*1024).catch(()=>null);
  if(!r)return [];
  const urls=new Set<string>();
- for(const line of r.text.split('\n')){if(!line.trim())continue;try{const x=JSON.parse(line) as {url:string;mime?:string};if(!/image|video|audio|font|javascript|css/.test(x.mime||''))urls.add(x.url.replace(/^http:/,'https:'));}catch{}}
+ for(const line of r.text.split('\n')){const [u,mime]=line.trim().split(/\s+/);if(!u||/image|video|audio|font|javascript|css/.test(mime||''))continue;
+  try{const x=new URL(u.replace(/^http:/,'https:'));x.port='';x.hash='';urls.add(x.href);}catch{}}
  return [...urls];
 }
-
 // Lists a site's pages (once; again after 30 days) into site_pages, pending fetch.
 export async function discoverSite(db:Queryable,domain:string,{force=false}:{force?:boolean}={}):Promise<Row>{
  const known=(await db.query<{status:string;refreshed_at:string|null;urls:number}>('select status, refreshed_at, urls from site_domains where domain=$1',[domain])).rows[0];
@@ -64,8 +61,8 @@ export async function discoverSite(db:Queryable,domain:string,{force=false}:{for
  const robots=await get(`https://${domain}/robots.txt`,15_000,1024*1024,true).then(r=>parseRobots(r.text)).catch(()=>({sitemaps:[] as string[],disallow:[] as string[]}));
  let urls=await fromSitemaps(robots.sitemaps.length?robots.sitemaps:[`https://${domain}/sitemap.xml`,`https://www.${domain}/sitemap.xml`],domain,deadline);
  let source='sitemap';
- // Sitemaps are often partial (a site's newest section only): Common Crawl's index adds what it has seen.
- {const cc=await fromCommonCrawl(domain).catch(()=>[]);if(cc.length){const before=urls.length;urls=[...new Set([...urls,...cc])];source=before?'sitemap+commoncrawl':'commoncrawl';}}
+ // Sitemaps are often partial (a site's newest section only): the Internet Archive's index adds what it has seen.
+ {const wb=await fromArchive(domain).catch(()=>[]);if(wb.length){const before=urls.length;urls=[...new Set([...urls,...wb])];source=before?'sitemap+archive':'archive';}}
  urls=urls.filter(u=>allowed(u,robots.disallow)).slice(0,MAX_URLS);
  for(let i=0;i<urls.length;i+=1000){const part=urls.slice(i,i+1000);
   await db.query(`insert into site_pages(url,domain,priority) select u, $2, case when u ~* $3 then 1 else 0 end from unnest($1::text[]) u on conflict (url) do nothing`,[part,domain,DATA_HINT.source]);}
