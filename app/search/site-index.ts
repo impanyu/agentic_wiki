@@ -64,7 +64,8 @@ export async function discoverSite(db:Queryable,domain:string,{force=false}:{for
  const robots=await get(`https://${domain}/robots.txt`,15_000,1024*1024,true).then(r=>parseRobots(r.text)).catch(()=>({sitemaps:[] as string[],disallow:[] as string[]}));
  let urls=await fromSitemaps(robots.sitemaps.length?robots.sitemaps:[`https://${domain}/sitemap.xml`,`https://www.${domain}/sitemap.xml`],domain,deadline);
  let source='sitemap';
- if(urls.length<50){const cc=await fromCommonCrawl(domain).catch(()=>[]);if(cc.length>urls.length){urls=[...new Set([...urls,...cc])];source=urls.length===cc.length?'commoncrawl':'sitemap+commoncrawl';}}
+ // Sitemaps are often partial (a site's newest section only): Common Crawl's index adds what it has seen.
+ {const cc=await fromCommonCrawl(domain).catch(()=>[]);if(cc.length){const before=urls.length;urls=[...new Set([...urls,...cc])];source=before?'sitemap+commoncrawl':'commoncrawl';}}
  urls=urls.filter(u=>allowed(u,robots.disallow)).slice(0,MAX_URLS);
  for(let i=0;i<urls.length;i+=1000){const part=urls.slice(i,i+1000);
   await db.query(`insert into site_pages(url,domain,priority) select u, $2, case when u ~* $3 then 1 else 0 end from unnest($1::text[]) u on conflict (url) do nothing`,[part,domain,DATA_HINT.source]);}
@@ -82,6 +83,11 @@ async function fetchPage(db:Queryable,url:string){
  const body=html?strip(r.text):r.text.slice(0,4000);
  // Links to files and data on the page are indexed too (a page listing downloads is found by what it links to).
  const links=html?[...new Set([...r.text.matchAll(/href=["']([^"'#]+\.(?:csv|xlsx?|json|zip|ods|tsv)(?:\?[^"']*)?)["']/gi)].map(m=>{try{return new URL(m[1],url).href;}catch{return '';}}).filter(Boolean))].slice(0,50):[];
+ // Pages of the same site it links to join the index (a crawl, bounded per site).
+ if(html){const domain=(await db.query<{domain:string}>('select domain from site_pages where url=$1',[url])).rows[0]?.domain||domainOf(url);const out=[...new Set([...r.text.matchAll(/href=["']([^"'#\s]+)["']/gi)].map(m=>{try{const u=new URL(m[1],url);u.hash='';return u.href;}catch{return '';}})
+   .filter(u=>/^https?:/.test(u)&&sameSite(u,domain)&&!/\.(png|jpe?g|gif|svg|webp|css|js|ico|woff2?|mp4|mp3)(\?|$)/i.test(u)))].slice(0,300);
+  if(out.length)await db.query(`insert into site_pages(url,domain,priority) select u, $2, case when u ~* $3 then 1 else 0 end from unnest($1::text[]) u
+    where (select count(*) from site_pages where domain=$2) < $4::int on conflict (url) do nothing`,[out,domain,DATA_HINT.source,MAX_URLS]).catch(()=>{});}
  await db.query(`update site_pages set status='ok', fetched_at=now(), title=$2, body=left($3,20000), content_type=$4, data_links=$5::text[], extra=$6 where url=$1`,[url,title,body,r.type,links,links.join(' ').replace(/[^A-Za-z0-9]+/g,' ')]);
  return true;
 }
