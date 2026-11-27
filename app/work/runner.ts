@@ -71,6 +71,15 @@ async function runTask(db:Queryable,t:Task,log:(e:Row)=>void){
  }catch(e){
   const {transientModelError}=await import('@/app/teams/run');
   if(transientModelError(e)){await finish(db,t.id,'queued',{requeued:String((e as Error).message).slice(0,200)});return;}
+  // The work's gate (fields covered, members verified) not met at the end of the budget: what the agent loaded stays,
+  // the task ends as partial and its continuation is queued with what is still missing (not a failure to escalate).
+  if(/AGENT_INVALID_FINAL|AGENT_TOOL_BUDGET/.test((e as Error).message)&&def.gate){
+   const missing=await def.gate(db,t).catch(()=>undefined);
+   if(missing){const n=Number((t.payload as Row)?.continuation||0);
+    await finish(db,t.id,'done',{partial:true,missing:String(missing).slice(0,1000)});
+    if(n<5)await enqueue(db,{kind:t.kind,pool:def.pool,target:t.target,priority:Math.max(10,(t.priority||50)-5),payload:{...t.payload,continuation:n+1,stillMissing:String(missing).slice(0,800)},requestedBy:'continuation'});
+    log({event:'task_partial',id:t.id,kind:t.kind,target:t.target});return;}
+  }
   await finish(db,t.id,'failed',{error:String((e as Error).message).slice(0,1000)});
   if(t.attempts>=2)await enqueue(db,{kind:'arbitrate',pool:'manager',target:'task:'+t.id,priority:60,payload:{why:'failed repeatedly',task:{kind:t.kind,target:t.target},error:String((e as Error).message).slice(0,500)}});
   else await enqueue(db,{kind:t.kind,pool:def.pool,target:t.target,priority:t.priority,payload:{...t.payload,previousError:String((e as Error).message).slice(0,500)},requestedBy:'retry'});

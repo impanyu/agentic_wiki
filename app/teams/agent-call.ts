@@ -24,7 +24,10 @@ export async function ask(role:Role,agent:Agent,topicId:string,instructions:stri
  }
  if(!builder)return askOnce(role,agent,topicId,instructions,task,schema,log,budget,'premium',accept,tools);
  try{return await askOnce(role,agent,topicId,instructions,task,schema,log,budget,'agent',accept,tools);}
- catch(e){log({event:'escalated',role,from:'agent',to:'premium',reason:(e as Error).message.slice(0,300)});return askOnce(role,agent,topicId,instructions,task,schema,log,budget,'premium',accept,tools);}
+ catch(e){
+  // A stage's acceptance check not met is the work's state, not the model's failing: no second, costlier run.
+  if(accept&&/AGENT_INVALID_FINAL/.test((e as Error).message))throw e;
+  log({event:'escalated',role,from:'agent',to:'premium',reason:(e as Error).message.slice(0,300)});return askOnce(role,agent,topicId,instructions,task,schema,log,budget,'premium',accept,tools);}
 }
 async function askOnce(role:Role,agent:Agent,topicId:string,instructions:string,task:unknown,schema:Record<string,unknown>,log:Log,budget:{rounds:number;calls:number},llmClass:'agent'|'premium'|'review',accept?:Accept,tools?:string[]){
  const db=await entityDb();
