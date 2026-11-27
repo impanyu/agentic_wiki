@@ -632,16 +632,22 @@ export async function refreshLatestValues(q:Queryable,entityIds:string[]):Promis
   from ids left join m on m.entity_id = ids.id left join rl on rl.subject_id = ids.id where e.id = ids.id`,[ids]);
  return ids.length;
 }
+const RANK_BATCH=Number(process.env.RANK_BATCH||3000);
 export async function refreshLatestRanks(q:Queryable,type:string,metric:{key:string;version:number}):Promise<number>{
  const def=metric.version?await getMetric(q,metric.key,metric.version):(await q.query('select sort_order from metrics where key = $1::text order by version desc limit 1',[metric.key])).rows[0];
  const order=(def as {order?:string;sort_order?:string}|undefined)?.order||(def as {sort_order?:string}|undefined)?.sort_order||'desc';
  const slot=metricSlot(metric.key,metric.version);
- await q.query(`with v as (select distinct on (o.entity_id) o.entity_id, o.value from observations o join entities e on e.id = o.entity_id
+ const run=()=>q.query<{id:string}>(`with v as (select distinct on (o.entity_id) o.entity_id, o.value from observations o join entities e on e.id = o.entity_id
    where e.type = $1::text and o.metric = $2::text and o.metric_version = $3::int order by o.entity_id, o.period desc, o.retrieved_at desc),
-  rk as (select entity_id, rank() over (order by value ${order==='asc'?'asc':'desc'}) as rk, count(*) over () as n from v)
-  update entities e set latest = jsonb_set(e.latest, array['metrics', $4::text], (e.latest->'metrics'->$4::text) || jsonb_build_object('rank', rk.rk, 'of', rk.n))
-  from rk where e.id = rk.entity_id and e.latest->'metrics' ? $4::text
-   and ((e.latest->'metrics'->$4::text->>'rank') is distinct from rk.rk::text or (e.latest->'metrics'->$4::text->>'of') is distinct from rk.n::text)`,[type,metric.key,metric.version,slot]);
+  rk as (select entity_id, rank() over (order by value ${order==='asc'?'asc':'desc'}) as rk, count(*) over () as n from v),
+  todo as (select rk.* from rk join entities e on e.id = rk.entity_id where e.latest->'metrics' ? $4::text
+   and ((e.latest->'metrics'->$4::text->>'rank') is distinct from rk.rk::text or (e.latest->'metrics'->$4::text->>'of') is distinct from rk.n::text) limit $5::int)
+  update entities e set latest = jsonb_set(e.latest, array['metrics', $4::text], (e.latest->'metrics'->$4::text) || jsonb_build_object('rank', todo.rk, 'of', todo.n))
+  from todo where e.id = todo.entity_id returning e.id`,[type,metric.key,metric.version,slot,RANK_BATCH]).then(r=>r.rows.length);
+ let n=await run();
+ // In batches: a large type (100,000 entities) is updated a few thousand rows at a time, so no statement holds its rows
+ // for long (one statement over the whole type once held the writers for over an hour).
+ while(n>=RANK_BATCH)n=await run();
  return 1;
 }
 // Keeps the snapshot current after a write: values/relations of the touched entities, ranks of the touched metrics in their types.
