@@ -6,7 +6,8 @@ import type {Queryable} from './client';
 // researched again takes the new label, unit, direction and sources), fields marked for removal are flagged
 // deprecated (kept, so data loaded under them stays readable). New metric keys get their public definition.
 type Row=Record<string,unknown>;
-export type ClassSpec={universe?:{expected?:number;admission?:string;lists?:Row[];gaps?:string;expected_total?:number;union_of?:string[]};
+export type NationalSpec={key:string;label:string;country_iso3:string;why?:string;metrics?:Row[];attributes?:Row[]};
+export type ClassSpec={national?:NationalSpec[];rankingCriteria?:string[];composites?:Row[];universe?:{expected?:number;admission?:string;lists?:Row[];gaps?:string;expected_total?:number;union_of?:string[]};
  metrics?:Row[];attributes?:Row[];remove?:(string|Row)[];notes?:string};
 
 const KEY=/^[a-z][a-z0-9_]{0,63}$/;
@@ -33,9 +34,27 @@ export async function importClassSpecs(db:Queryable,specs:Record<string,ClassSpe
    ...(u.admission?{admission:u.admission}:{}),...(u.lists?{lists:u.lists}:{}),...(u.gaps?{gaps:u.gaps}:{}),...(u.union_of?{unionOf:u.union_of}:{}),researched:'2026-11-27'};
   out.classes++;out.metricsDeclared+=metrics.length;out.attributesDeclared+=attributes.length;
   if(dryRun)continue;
+  // Readers' ranking criteria and the composite indices experts use, for the editors (and page builds).
+  if(s.rankingCriteria?.length||s.composites?.length)await db.query(`update entity_types set schema = schema || jsonb_build_object('rankingCriteria',$2::jsonb,'composites',$3::jsonb) where type=$1::text`,
+   [key,JSON.stringify(s.rankingCriteria||[]),JSON.stringify(s.composites||[])]);
   await db.query(`update entity_types set schema = schema || jsonb_build_object('metrics',$2::jsonb,'attributes',$3::jsonb,'universe',$4::jsonb)
     || case when $5::text<>'' then jsonb_build_object('fieldNotes',$5::text) else '{}'::jsonb end, updated_at=now() where type=$1::text`,
    [key,JSON.stringify(metrics),JSON.stringify(attributes),JSON.stringify(universe),String(s.notes||'').slice(0,4000)]);
+ }
+ // National subclasses: a class whose members in one country come from a national statistics system with its own
+ // fields gets a subclass for that country (split by country_iso3); the country's members move into it.
+ let nationals=0,moved=0;
+ for(const [parent,s] of Object.entries(specs))for(const n of s.national||[]){
+  if(!classes.has(parent)||!KEY.test(n.key)||!/^[A-Z]{3}$/.test(n.country_iso3||''))continue;
+  for(const m of n.metrics||[])if(KEY.test(String(m.key))&&!known.has(String(m.key)))newMetrics.set(String(m.key),m);
+  nationals++;if(dryRun)continue;
+  const pschema=classes.get(parent)!;
+  await db.query(`insert into entity_types(type,label,plural,description,schema,status,updated_by) values ($1::text,$2::text,$3::text,$4::text,$5::jsonb,'published','class-specs')
+    on conflict (type) do update set schema = (entity_types.schema - 'retiredInto') || excluded.schema, label=excluded.label, status='published', updated_at=now()`,
+   [n.key,n.label,n.label.endsWith('s')?n.label:n.label+'s',n.why||'',JSON.stringify({kind:'class',extends:parent,value:[n.country_iso3],area:pschema.area,metrics:n.metrics||[],attributes:n.attributes||[],universe:{admission:`Members of ${parent} in ${n.country_iso3}.`}})]);
+  await db.query(`update entity_types set schema = schema || '{"splitBy":{"key":"country_iso3","label":"country"}}'::jsonb where type=$1::text and coalesce(schema->>'splitBy','null')='null'`,[parent]);
+  const r=await db.query<{id:string}>(`update entities set type=$2::text, updated_at=now() where type=$1::text and attributes->>'country_iso3'=$3::text returning id`,[parent,n.key,n.country_iso3]);
+  moved+=r.rows.length;
  }
  out.newMetricKeys=newMetrics.size;
  if(!dryRun)for(const [k,m] of newMetrics){
@@ -43,5 +62,5 @@ export async function importClassSpecs(db:Queryable,specs:Record<string,ClassSpe
   await db.query(`insert into metrics(key,version,label,unit,description,sort_order,kind,created_by,status,used) values ($1::text,1,$2::text,$3::text,$4::text,$5::text,'observed','class-specs','published',false)
     on conflict do nothing`,[k,String(m.label||k.replace(/_/g,' ')).slice(0,200),String(m.unit||'').slice(0,60),String(m.description||'').slice(0,1000),order]);
  }
- return {...out,unknown:out.unknown.slice(0,50)};
+ return {...out,nationals,moved,unknown:out.unknown.slice(0,50)};
 }
