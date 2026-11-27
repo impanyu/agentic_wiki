@@ -445,8 +445,8 @@ async function buildPathMaps(db:Queryable):Promise<AddressTree>{
  const add=(n:NodeInfo)=>{nodes.set(n.path,n);if(n.parent){const c=children.get(n.parent)??[];c.push(n.path);children.set(n.parent,c);}};
  for(const t of topics){const path=paths.get(t.slug)!;const parent=t.parentId&&topicById.has(t.parentId)?paths.get(topicById.get(t.parentId)!.slug)!:null;add({path,kind:'topic',slug:t.slug,name:t.name,description:t.description,parent});}
  const rows=(await db.query<{slug:string;title:string;topic_id:string|null;scope:Row;config:Row}>('select slug, title, topic_id, scope, config from rankings where slug is not null and topic_id is not null and status = any($1::text[]) order by updated_at desc',[PAGE_STATUSES])).rows;
- const byTopic=new Map<string,{slug:string;title:string;type:string;filters:[string,string][];main:boolean;segment:string;group:string}[]>();
- for(const r of rows){const sc=obj(r.scope);const list=byTopic.get(String(r.topic_id))??[];list.push({slug:String(r.slug),title:String(r.title||r.slug),type:String(sc.type||''),filters:filterEntries(sc.filters),main:obj(r.config).main===true,segment:typeof obj(r.config).segment==='string'?slugify(String(obj(r.config).segment)):'',group:typeof obj(r.config).navGroup==='string'?String(obj(r.config).navGroup):''});byTopic.set(String(r.topic_id),list);}
+ const byTopic=new Map<string,{slug:string;title:string;type:string;filters:[string,string][];main:boolean;segment:string;group:string;under:string}[]>();
+ for(const r of rows){const sc=obj(r.scope);const list=byTopic.get(String(r.topic_id))??[];list.push({slug:String(r.slug),title:String(r.title||r.slug),type:String(sc.type||''),filters:filterEntries(sc.filters),main:obj(r.config).main===true,segment:typeof obj(r.config).segment==='string'?slugify(String(obj(r.config).segment)):'',group:typeof obj(r.config).navGroup==='string'?String(obj(r.config).navGroup):'',under:typeof obj(r.config).under==='string'?String(obj(r.config).under):''});byTopic.set(String(r.topic_id),list);}
  for(const [topicId,list] of byTopic){
   const t=topicById.get(topicId);if(!t)continue;const tp=paths.get(t.slug)!;
   // The topic's main ranking: unfiltered, of the topic's one kind of entity (the newest when there are several).
@@ -456,10 +456,12 @@ async function buildPathMaps(db:Queryable):Promise<AddressTree>{
   const placed=new Map<string,string>();// slug → path
   if(main){placed.set(main.slug,tp);rankings.set(main.slug,tp);mainOf.set(tp,main.slug);const n=nodes.get(tp)!;nodes.set(tp,{...n,kind:'ranking',slug:main.slug});}
   // Narrower sets after wider ones, each under the most specific set it narrows.
-  for(const r of [...list].filter(r=>r!==main).sort((a,b)=>a.filters.length-b.filters.length)){
+  // A ranking that names the level it sits under (config.under: a country under its continent) goes there.
+  for(const r of [...list].filter(r=>r!==main).sort((a,b)=>Number(!!a.under)-Number(!!b.under)||a.filters.length-b.filters.length)){
    const has=(f:[string,string][],x:[string,string])=>f.some(y=>y[0]===x[0]&&y[1]===x[1]);
+   const named=r.under&&placed.has(r.under)?list.find(q=>q.slug===r.under):undefined;
    const parents=list.filter(q=>q!==r&&placed.has(q.slug)&&q.type===r.type&&q.filters.length<r.filters.length&&q.filters.every(x=>has(r.filters,x)));
-   const parent=parents.sort((a,b)=>b.filters.length-a.filters.length)[0];
+   const parent=named||parents.sort((a,b)=>b.filters.length-a.filters.length)[0];
    const base=parent?placed.get(parent.slug)!:tp;
    const extra=r.filters.filter(x=>!parent||!has(parent.filters,x));
    // A ranking may name its own address segment (config.segment: a country's name rather than its code).
@@ -485,6 +487,9 @@ export async function resolvePath(db:Queryable,segments:string[]):Promise<Resolv
  const last=segs[segs.length-1];
  const to=maps.topics.get(last)??maps.rankings.get(last)??null;
  if(to&&to!==here)return {kind:'redirect',to};
+ // A node moved one level down (a country now under its continent): the same last segment below the same parent.
+ {const prefix='/'+segs.slice(0,-1).map(encodeURIComponent).join('/')+'/',tail='/'+encodeURIComponent(last);
+  const hits=[...maps.nodes.keys()].filter(k=>k.startsWith(prefix)&&k.endsWith(tail));if(hits.length===1)return {kind:'redirect',to:hits[0]};}
  // A subtopic that became a tag of its parent's class: its address leads to the parent.
  const conv=(await db.query<{p:string}>(`select scope->>'convertedTo' p from topics where slug=$1::text and status='archived' and scope ? 'convertedTo'`,[last]).catch(()=>({rows:[]}))).rows[0]?.p;
  const up=conv?maps.topics.get(conv)??null:null;
