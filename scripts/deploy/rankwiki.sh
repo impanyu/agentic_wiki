@@ -25,11 +25,13 @@ case "${1:-status}" in
   SERVICE=rankwiki APP_PORT=3002 DATA_DIR=$DIR/data sh scripts/deploy/install-release.sh "$sha"
   # The background processes: the worker (model scheduler, maintenance) and the team workers.
   sudo systemctl restart rankwiki-worker || true
-  # Team workers drain: they take no new tasks, finish the running ones, then restart on the new release.
-  # (restart-teams forces an immediate restart.)
-  if [ "${3:-}" = "restart-teams" ]; then
-   for u in $(systemctl list-units --plain --no-legend 'rankwiki-teams@*' | awk '{print $1}'); do sudo systemctl restart "$u" || true; done
-  else touch "$DIR/data/drain-teams"; fi
+  # Team workers run from their own copy of a release and keep it until told: "teams" drains them (no new tasks,
+  # finish the running ones, then restart on this release); "restart-teams" restarts them now; by default they
+  # keep running (a change to pages or data tools does not need them).
+  case "${3:-}" in
+   restart-teams) for u in $(systemctl list-units --plain --no-legend 'rankwiki-teams@*' | awk '{print $1}'); do sudo systemctl restart "$u" || true; done;;
+   teams) touch "$DIR/data/drain-teams";;
+  esac
   # Enabled team workers that are not running (stopped by hand, or failed) are started.
   for u in $(ls /etc/systemd/system/multi-user.target.wants/ 2>/dev/null | grep '^rankwiki-teams@'); do systemctl is-active -q "$u" || sudo systemctl start "$u" || true; done;;
  status)
