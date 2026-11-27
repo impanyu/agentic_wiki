@@ -11,7 +11,17 @@ const { spawn } = await import('node:child_process');
 // with a secret generated per boot (the tick endpoint rejects every other caller).
 process.env.LIVE_AGENT_TICK_TOKEN = (await import('node:crypto')).randomBytes(24).toString('hex');
 const dev = process.argv.includes('--dev');
-const child = spawn(process.execPath, dev ? ['node_modules/next/dist/bin/next', 'dev', '-H', process.env.HOSTNAME || '0.0.0.0', '-p', process.env.PORT || '3000'] : ['.next/standalone/server.js'], { stdio: 'inherit', env: process.env });
+// A team worker runs from its own copy of the release: a deploy swaps .next/standalone while the worker drains
+// (finishes its running agents' tasks on the old code), and the old code's files must stay where it loads them from.
+let server = '.next/standalone/server.js';
+if (!dev && process.env.RANKWIKI_ROLE === 'teams') {
+  const { cpSync, rmSync } = await import('node:fs');
+  const snap = resolve(process.env.DATA_DIR, 'teams-build-' + String(process.env.RANKWIKI_INSTANCE || '1').replace(/[^a-z0-9]+/gi, '_'));
+  rmSync(snap, { recursive: true, force: true });
+  cpSync(resolve('.next/standalone'), snap, { recursive: true, verbatimSymlinks: true });
+  server = resolve(snap, 'server.js');
+}
+const child = spawn(process.execPath, dev ? ['node_modules/next/dist/bin/next', 'dev', '-H', process.env.HOSTNAME || '0.0.0.0', '-p', process.env.PORT || '3000'] : [server], { stdio: 'inherit', env: process.env });
 for (const signal of ['SIGTERM', 'SIGINT']) process.on(signal, () => child.kill(signal));
 child.on('exit', code => process.exit(code ?? 1));
 const tick = () => fetch('http://127.0.0.1:' + (process.env.PORT || '3000') + '/api/live-agents/tick', { method: 'POST', headers: { 'x-live-agent-token': process.env.LIVE_AGENT_TICK_TOKEN }, signal: AbortSignal.timeout(20000) }).catch(() => {});

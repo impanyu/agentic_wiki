@@ -25,7 +25,11 @@ case "${1:-status}" in
   SERVICE=rankwiki APP_PORT=3002 DATA_DIR=$DIR/data sh scripts/deploy/install-release.sh "$sha"
   # The background processes: the worker (model scheduler, maintenance) and the team workers.
   sudo systemctl restart rankwiki-worker || true
-  for u in $(systemctl list-units --plain --no-legend 'rankwiki-teams@*' | awk '{print $1}'); do sudo systemctl restart "$u" || true; done;;
+  # Team workers drain: they take no new tasks, finish the running ones, then restart on the new release.
+  # (restart-teams forces an immediate restart.)
+  if [ "${3:-}" = "restart-teams" ]; then
+   for u in $(systemctl list-units --plain --no-legend 'rankwiki-teams@*' | awk '{print $1}'); do sudo systemctl restart "$u" || true; done
+  else touch "$DIR/data/drain-teams"; fi;;
  status)
   echo "service: $(systemctl is-active rankwiki)"; curl -s localhost:3002/api/health; echo
   sudo docker ps --filter name=rankwiki-pg --format '{{.Names}} {{.Status}}' || true

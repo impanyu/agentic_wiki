@@ -15,8 +15,22 @@ const RESULT={type:'object',additionalProperties:false,required:['summary','requ
 const sizes=():Record<Pool,number>=>{const out:Record<Pool,number>={collector:2,editor:1,reviewer:1,manager:1};
  for(const p of String(process.env.WORK_POOLS||'').split(',')){const [k,v]=p.split(':');if(k in out&&Number.isFinite(Number(v)))out[k as Pool]=Math.max(0,Number(v));}return out;};
 
+// A deploy does not cut running tasks short (an agent's hours of work would start over): it leaves a drain mark
+// (DATA_DIR/drain-teams); this process then takes no new tasks and, once its running ones finish (at most 3 hours
+// later), exits so the service restarts it on the new release.
+const BOOT=Date.now();
+async function drainMark():Promise<number>{
+ try{const {stat}=await import('node:fs/promises');const {join}=await import('node:path');
+  const m=(await stat(join(process.env.DATA_DIR||'./data','drain-teams'))).mtimeMs;return m>BOOT?m:0;}catch{return 0;}
+}
 export async function runWork(log:(e:Row)=>void=e=>console.log('[work]',JSON.stringify(e))):Promise<string[]>{
  const db=await entityDb();await renew(db,[...running.keys()]);
+ const mark=await drainMark();
+ if(mark){
+  if(!running.size||Date.now()-mark>3*3600_000){log({event:'drained',restart:true});setTimeout(()=>process.exit(75),2000);}
+  else log({event:'draining',running:running.size});
+  return [];
+ }
  // Tasks whose holder stopped renewing go back to the queue (a crash or restart); after 3 attempts the manager rules.
  // A restart (a deploy) is not the task's fault: the attempt is given back; a task that dies 6 times is stuck.
  const lost=(await db.query<{id:string;kind:string;target:string;attempts:number;interrupted:number}>(`update work_tasks set status='queued', worker=null, attempts=greatest(0,attempts-1),
