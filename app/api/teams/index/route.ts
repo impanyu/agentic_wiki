@@ -48,6 +48,11 @@ export async function POST(request:Request){
   if(b.action==='merge'){const {mergeEntities}=await import('@/app/entity-db/dedup');const pairs=((b as {pairs?:string[][]}).pairs||[]).slice(0,2000);let n=0;const failed:string[]=[];
    for(const [k,d] of pairs){try{await mergeEntities(db,k,d);n++;}catch(e){failed.push(d+': '+(e as Error).message);}}
    return Response.json({merged:n,failed:failed.slice(0,20)});}
+  // The structures the admin pages show ({type} for one class; else sizes of the site map and class tree).
+  if(b.action==='structure'){const st=await import('@/app/ops/structure');const t=String((b as {type?:string}).type||'');
+   if(t)return Response.json(await st.classDetail(db,t));
+   const [s1,c1,f1]=await Promise.all([st.siteTree(db),st.classTree(db),st.fieldSearch(db,{problem:'no-source'})]);
+   return Response.json({siteNodes:s1.nodes,siteRoots:s1.roots.length,classes:c1.classes,classRoots:c1.roots.length,fieldsWithoutSource:f1.length});}
   if(b.action==='progress'){const {refreshClassProgress}=await import('@/app/work/progress');return Response.json({classes:await refreshClassProgress(db,{limit:Number((b as {limit?:number}).limit)||400})});}
   if(b.action==='subsets'){const cs=await import('@/app/entity-db/country-subsets');await cs.normalizeCountries(db);return Response.json(await cs.countrySubsets(db));}
   // A type's member pages and ranks rebuilt now ({entityType}): values, ranks within the type, every member page.
