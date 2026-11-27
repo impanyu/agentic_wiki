@@ -20,7 +20,7 @@ export type ViewSpec={topic:string;class:string;filters:Row;why?:string};
 const arr=(v:unknown):Row[]=>Array.isArray(v)?v.filter(x=>x&&typeof x==='object') as Row[]:[];
 const keyOf=(x:Row)=>String(x.key??x.url??x.name??JSON.stringify(x));
 
-export async function importClassTree(edb:EntityDb,spec:{classes:ClassSpec[];views:ViewSpec[];dropped?:{topic:string;why?:string}[]},
+export async function importClassTree(edb:EntityDb,spec:{classes:ClassSpec[];views:ViewSpec[];dropped?:{topic:string;why?:string}[];typeValues?:Record<string,Row>},
  {dryRun=false,allowUnmapped=false,log=(e:Row)=>console.log('[class-tree]',JSON.stringify(e))}:{dryRun?:boolean;allowUnmapped?:boolean;log?:(e:Row)=>void}={}):Promise<Row>{
  const classes=new Map(spec.classes.map(c=>[c.key,c]));
  const oldTypes=new Map((await edb.query<{type:string;topic_id:string|null;schema:Row;template:Row;status:string;n:number}>(`select et.type, et.topic_id, et.schema, et.template, et.status,
@@ -35,7 +35,9 @@ export async function importClassTree(edb:EntityDb,spec:{classes:ClassSpec[];vie
  for(const c of spec.classes)for(const t of c.mapsFrom?.topics||[])if(!shows.has(t))shows.set(t,{class:c.key,filters:{}});
  for(const v of spec.views)if(v.topic&&classes.has(v.class))shows.set(v.topic,{class:v.class,filters:v.filters||{}});
  // An old type (or tag) whose own topic became a view: its members carry the view's values.
- const viewOf=(t:string)=>{const o=oldTypes.get(t);const s=o?.topic_id?slugById.get(o.topic_id):undefined;const v=s?shows.get(s):undefined;return v&&Object.keys(v.filters).length?v:null;};
+ // spec.typeValues: values an old type's members carry when no view says it (types outside the site's topics).
+ const tv0=(spec as {typeValues?:Record<string,Row>}).typeValues||{};
+ const viewOf=(t:string)=>{if(tv0[t])return {class:typeTo.get(t)||'',filters:tv0[t]};const o=oldTypes.get(t);const s=o?.topic_id?slugById.get(o.topic_id):undefined;const v=s?shows.get(s):undefined;return v&&Object.keys(v.filters).length?v:null;};
  for(const [t,o] of oldTypes){if(typeTo.has(t))continue;const v=viewOf(t);if(v)typeTo.set(t,v.class);else if(o.n>0)log({event:'unmapped_type',type:t,n:o.n});}
  // List attributes (a value is added to the list, not replacing it).
  const listAttrs=new Set(spec.classes.flatMap(c=>arr(c.attributes).filter(a=>a.type==='list').map(a=>String(a.key))));
