@@ -40,6 +40,11 @@ export async function checkRanking(db:Queryable,def:RankingDef):Promise<QaIssue[
   const cov=(await db.query<{metric:string;n:number}>(`select o.metric, count(distinct o.entity_id)::int n from observations o join entities e on e.id=o.entity_id where ${m.where} and o.metric = any($${m.args.length+1}::text[]) group by o.metric`,[...m.args,keys])).rows;
   // Rank what there is: a ranking leaves readers only when none of its entities has any of its criteria.
   if(!cov.some(c=>c.n>0))out.push({severity:'blocker',owner:'collector',target:t,problem:'None of this ranking\'s entities has a value for any of its criteria.',fix:'Collect its criteria.'});
+  // A ranking compares its entities: at least 3 measures with data, and never a year or date as what it opens on
+  // (when something began describes it; it does not rank it).
+  {const {DESCRIPTIVE}=await import('@/app/work/triggers');const measured=keys.filter(k=>!DESCRIPTIVE.test(k)&&(cov.find(c=>c.metric===k)?.n||0)>0);
+   if(measured.length<3)out.push({severity:'major',owner:'collector',target:t,problem:`Only ${measured.length} measure(s) readers compare have data (${measured.join(', ')||'none'}); years and dates do not rank.`,fix:'The collector loads the class\'s declared measures (what readers compare); the editor then ranks by them.'});
+   const opens=String(def.config?.default||keys[0]||'').split('@')[0];if(opens&&DESCRIPTIVE.test(opens))out.push({severity:'major',owner:'editor',target:t,problem:`The ranking opens on ${opens}, a date or year.`,fix:'Open it on a measure readers compare (config.default).'});}
   for(const k of keys){const have=cov.find(c=>c.metric===k)?.n||0;const share=have/n;
    // The criterion the ranking opens on, or one barely measured, leaves readers a list of "no data": a blocker.
    const main=k===String(def.config?.default||keys[0]).split('@')[0];

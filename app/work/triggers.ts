@@ -3,6 +3,8 @@ import {enqueue} from './queue';
 // What creates work, besides tasks finishing and agents asking each other. Run every 15 minutes; each trigger is
 // bounded so the queues stay short (a pool's queue holds at most a few rounds of its workers' work).
 type Row=Record<string,unknown>;
+// Fields that describe an entity (when it began, how old it is) and do not compare it.
+export const DESCRIPTIVE=/(^|_)(year|years|date|founded|established|opened|launch|launched|release|released|since|inception|start|end|age)($|_)/;
 const room=async(db:Queryable,kind:string,max:number)=>Math.max(0,max-Number((await db.query<{n:number}>(`select count(*)::int n from work_tasks where kind=$1 and status='queued'`,[kind])).rows[0]?.n||0));
 const recently=async(db:Queryable,kind:string,target:string,days:number)=>(await db.query(`select 1 from work_tasks where kind=$1 and target=$2 and created_at > now() - make_interval(days => $3::int) limit 1`,[kind,target,days])).rows.length>0;
 
@@ -78,6 +80,18 @@ export async function runTriggers(db:Queryable,log:(e:Row)=>void=e=>console.log(
  // 12. Spending: near the month's cap → the operators and the manager decide what waits.
  {const {llmSpend}=await import('@/app/llm');const s=await llmSpend().catch(()=>null);const cap=Number(process.env.TEAM_MONTHLY_BUDGET_USD||200);
   if(s&&s.spentUsd>=cap*0.9&&!await recently(db,'arbitrate','budget',7)){await enqueue(db,{kind:'arbitrate',pool:'manager',target:'budget',priority:80,payload:{why:`model spending ${s.spentUsd.toFixed(0)} of ${cap} USD this month: decide what waits`}});add('budget');}}
+ // 13. Rankings readers cannot use: fewer than 3 measures with data that compare the entities (years and dates
+ //     describe, they do not rank) → the collectors load the class's declared measures first, then the editor
+ //     re-chooses the criteria.
+ {const rows=(await db.query<{slug:string;page:string;type:string}>(`select r.slug, t.slug page, r.scope->>'type' type from rankings r join topics t on t.id=r.topic_id
+   where r.status='published' and coalesce(r.scope->'filters','{}'::jsonb)='{}'::jsonb
+    and (select count(*) from unnest(r.criteria) c where c !~ '${DESCRIPTIVE.source}'
+      and exists (select 1 from entity_types et, observations o, entities e where et.type=r.scope->>'type' and e.type=et.type and o.entity_id=e.id and o.metric=split_part(c,'@',1) limit 1)) < 3
+   limit 20`).catch(()=>({rows:[]}))).rows;
+  for(const r of rows){
+   if(r.type&&!await recently(db,'class_fields',r.type,7)&&(await enqueue(db,{kind:'class_fields',pool:'collector',target:r.type,priority:80,payload:{why:`the ranking ${r.slug} has fewer than 3 measures with data: load the class's declared metrics (what readers compare), not descriptive fields`}})).created)add('thin_ranking_data');
+   if(!await recently(db,'page_refresh',r.page,7)&&(await enqueue(db,{kind:'page_refresh',pool:'editor',target:r.page,priority:60,payload:{why:`${r.slug} ranks by too few meaningful measures; once the collectors load them, choose criteria readers compare (never a year or date as a criterion)`}})).created)add('thin_ranking_page');
+  }}
  if(Object.keys(made).length)log({event:'triggered',...made});
  return made;
 }
