@@ -43,6 +43,7 @@ export const BUILTIN:Omit<Check,'status'|'created_by'>[]=[
      where (c->>'at')::timestamptz > now() - interval '180 days' and (c->>'listed')::numeric > 0 and (c->>'matched')::numeric/(c->>'listed')::numeric >= 0.9) g on true
    where et.schema->>'kind'='class' and coalesce(g.n,0) < 2 and exists (select 1 from entities e where e.type=et.type)
    order by (et.topic_id is not null) desc, et.type`},
+ {id:'class-outliers',object:'class',kind:'data_verify',title:'Impossible values (far outside the rest of the class)',severity:75,cooldown_days:7,sql:'fn:outliers'},
  {id:'class-thin-measures',object:'class',kind:'class_fields',title:'Fewer than half of the declared measures are collected',severity:45,cooldown_days:7,sql:'fn:classGaps'},
  {id:'ranking-thin',object:'class',kind:'class_fields',title:'A published ranking compares on fewer than 5 measures with data',severity:75,cooldown_days:7,
   sql:`select distinct r.scope->>'type' target, 'the ranking '||r.slug||' has fewer than 5 measures with data: load the class''s declared metrics' detail from rankings r
@@ -119,6 +120,18 @@ async function runFn(db:Queryable,name:string,limit:number):Promise<{target:stri
   const by=new Map<string,string[]>();for(const r of rows){const l=by.get(r.type)||[];l.push(`${r.metric}: for ${r.n} entities the value from "${r.source}" (${r.period}) is ${Number(r.med).toPrecision(3)} times the value from "${r.ps}" (${r.pp})`);by.set(r.type,l);}
   return [...by].map(([target,l])=>({target,detail:'Values cannot be compared — a unit, scale or column differs between sources: '+l.join('; ')+'. Put every value of each measure in one unit (convert or retract the wrong ones), fix the recipe that loaded them, and keep different definitions under different measures.'}));
  }
+ if(name==='outliers'){
+  // A value 50 times the class's 99th percentile (or below a fiftieth of its 1st percentile, for positive measures)
+  // is almost always a unit or parsing error (square metres read as km², a code read as a number): the top of a
+  // ranking is where readers look first.
+  const rows=(await db.query<{type:string;metric:string;n:number;names:string}>(`with v as (select e.type, o.metric, o.value, e.name from observations o join entities e on e.id=o.entity_id
+     where o.value > 0 and o.source not like 'derived:%' and o.metric !~ '(year|date|_id$|code|rank)'),
+   q as (select type, metric, percentile_cont(0.99) within group (order by value) p99, percentile_cont(0.01) within group (order by value) p01, count(*) c from v group by 1,2 having count(*) >= 30)
+   select v.type, v.metric, count(*)::int n, string_agg(v.name||' ('||v.value||')', ', ' order by v.value desc) names from v join q using (type, metric)
+   where v.value > 50*q.p99 or v.value < q.p01/50 group by 1,2 order by 3 desc limit $1::int`,[limit])).rows;
+  const by=new Map<string,string[]>();for(const r of rows){const l=by.get(r.type)||[];l.push(`${r.metric}: ${r.n} value(s) far outside the class (${String(r.names).slice(0,300)})`);by.set(r.type,l);}
+  return [...by].map(([target,l])=>({target,detail:'Values that cannot be right — check each against its source, fix the unit or parsing in the recipe, and retract what is wrong: '+l.join('; ')}));
+ }
  throw Error('Unknown built-in check '+name);
 }
 // How many of a class's declared measures must be collected for most members: at least half (and at least 5).
@@ -159,7 +172,7 @@ export async function runChecks(db:Queryable,log:(e:Row)=>void=e=>console.log('[
  await syncBuiltins(db);
  // Heavy checks (fn:unitJumps compares every observation with the entity's previous one) run once a week.
  const checks=(await db.query<Check>(`select id, object, kind, title, severity, cooldown_days, sql, status, created_by from checks where status in ('active','trial')
-  and not (sql in ('fn:unitJumps') and last_run > now() - interval '7 days') order by id`)).rows;
+  and not (sql in ('fn:unitJumps','fn:outliers') and last_run > now() - interval '7 days') order by id`)).rows;
  const objects={class:Number((await db.query<{n:number}>(`select count(*)::int n from entity_types where schema->>'kind'='class'`)).rows[0]?.n||0),
   page:Number((await db.query<{n:number}>(`select count(*)::int n from topics where status<>'archived'`)).rows[0]?.n||0)};
  type Cand={check:Check;target:string;detail:string;payload?:Row;priority:number};

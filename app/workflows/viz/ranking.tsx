@@ -222,7 +222,7 @@ export default function Ranking({props,setValue,fire,ctx}:VizProps){
 
  if(!c)return <figure className="wf-viz wf-rank"><div className="wf-rank-empty">{t('No criteria to rank by.')}</div></figure>;
  const title=typeof props.title==='string'?props.title:'',subtitle=typeof props.subtitle==='string'?props.subtitle:'',source=typeof props.source==='string'?props.source:'';
- const pills=allCriteria.length<=4;
+ const pills=false;// one form on every page: the criteria in a dropdown
  const groupColor=(g:string)=>PALETTE[groups.indexOf(g)%PALETTE.length];
  // The podium: the first three on the criterion in view (distinct ranks; ties leave it out).
  // Ties keep their medals (two golds when two share first place).
