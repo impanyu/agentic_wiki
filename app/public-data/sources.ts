@@ -187,10 +187,13 @@ const openalex:ProviderDef={id:'openalex',name:'OpenAlex',description:'Scholarly
   const sort=a.sort==='relevance'?(a.query?'relevance_score:desc':undefined):(a.sort||'cited_by_count')+':desc';
   if(a.sort==='works_count'&&a.entity==='works')throw Error('works cannot be sorted by works_count; use cited_by_count or publication_year.');
   // Large lists page through the results with OpenAlex's cursor (a whole universe: every university, not the first 200).
-  const want=a.count||25,rows:any[]=[];let cursor='*',total:number|null=null;
-  while(rows.length<want&&cursor){
-   const r=await c.http.json('https://api.openalex.org/'+a.entity+'?'+qs({search:a.query,filter:a.filter,sort,per_page:Math.min(200,want-rows.length),cursor,select:OPENALEX_SELECT[a.entity],api_key:oaKey(c)}));
-   total=r?.meta?.count??total;const got=r?.results||[];rows.push(...got);cursor=got.length?r?.meta?.next_cursor||'':'';
+  // Without an API key OpenAlex pages by number (page=1, 2, … up to the first 10,000 results); with one, by cursor.
+  const want=a.count||25,rows:any[]=[],key=oaKey(c);let cursor='*',total:number|null=null;
+  for(let page=1;rows.length<want&&(key?cursor:page<=50);page++){
+   const per=Math.min(200,key?want-rows.length:200);
+   const r=await c.http.json('https://api.openalex.org/'+a.entity+'?'+qs({search:a.query,filter:a.filter,sort,per_page:per,...(key?{cursor}:{page}),select:OPENALEX_SELECT[a.entity],api_key:key}));
+   total=r?.meta?.count??total;const got=r?.results||[];rows.push(...got);
+   if(key)cursor=got.length?r?.meta?.next_cursor||'':'';else if(got.length<per)break;
   }
   return {title:'OpenAlex '+a.entity+(a.query?' — '+a.query:'')+(a.filter?' ['+a.filter+']':''),source:'https://openalex.org/',total,rows:rows.slice(0,want).map((x:any)=>openAlexRow(a.entity,x))};
  }),

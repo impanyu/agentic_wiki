@@ -656,9 +656,15 @@ export async function refreshLatestRanks(q:Queryable,type:string,metric:{key:str
 export async function refreshPages(db:Queryable,{type,ids}:{type?:string;ids?:string[]}={}):Promise<void>{
  const list=ids?[...new Set(ids.filter(id=>UUID.test(id)))]:null;if(list&&!list.length)return;
  const t=type?normalizeType(type):null;
- await db.query(`update entities e set has_page = coalesce((
-   select exists (select 1 from observations o where o.entity_id=e.id) from entity_types t where t.type=e.type), false)
-  where ($1::text is null or e.type=$1::text) and ($2::uuid[] is null or e.id = any($2::uuid[]))`,[t,list]);
+ // One plan per case (a combined "$1 is null or …" condition scanned every entity for each batch of ids and once ran
+ // for ten hours), only rows whose value changes, and a whole type a few thousand rows at a time.
+ const has=`exists (select 1 from observations o where o.entity_id=e.id)`;
+ if(list){await db.query(`update entities e set has_page=${has} where e.id = any($1::uuid[]) and e.has_page is distinct from ${has}`,[list]);return;}
+ for(let after='00000000-0000-0000-0000-000000000000';;){
+  const r=await db.query<{id:string}>(`select id from entities where ($1::text is null or type=$1::text) and id > $2::uuid order by id limit 5000`,[t,after]);
+  if(!r.rows.length)return;after=r.rows[r.rows.length-1].id;
+  await db.query(`update entities e set has_page=${has} where e.id = any($1::uuid[]) and e.has_page is distinct from ${has}`,[r.rows.map(x=>x.id)]);
+ }
 }
 export async function syncLatest(db:Queryable,entityIds:string[],metrics:{key:string;version:number}[]):Promise<void>{
  const ids=[...new Set(entityIds.filter(id=>UUID.test(id)))];if(!ids.length)return;
