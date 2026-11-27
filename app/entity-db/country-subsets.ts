@@ -42,7 +42,7 @@ export async function countrySubsets(db:Queryable):Promise<{created:number}>{
   for(const c of per){
    const slug=(m.slug+'-in-'+c.iso3.toLowerCase()).slice(0,120);
    const n=nat.get(c.iso3);
-   const title=n?n.plural.replace(/\b[a-z]/g,x=>x.toUpperCase())+' Rankings':`${label} Rankings in ${c.name}`;
+   const title=n?n.plural.replace(/\b[a-z]+/g,(w,i)=>i&&/^(or|and|of|in|the|for|by|to)$/.test(w)?w:w[0].toUpperCase()+w.slice(1))+' Rankings':`${label} Rankings in ${c.name}`;
    const crit=n?[...new Set([...(Array.isArray(n.crit)?n.crit.map(String):[]),...m.criteria])].slice(0,40):m.criteria;
    const scope=n?{type:n.type,filters:{}}:{type:m.type,filters:{country_iso3:c.iso3}};
    const cfg={...m.config,main:undefined,auto:'country',segment:c.name,...(c.continent?{navGroup:c.continent}:{}),about:[`${label} in ${c.name}.`]};delete (cfg as Record<string,unknown>).main;
