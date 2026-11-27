@@ -76,6 +76,8 @@ const ID_LINKS:[RegExp,(v:string)=>string|null,string,Kind][]=[
 export function outboundLinks(entity:{type?:string;name?:string;attributes:Record<string,unknown>;ids:Record<string,string>},max=3,prefer?:unknown):OutboundLink[]{
  const attrs=entity.attributes||{};
  const kind=entityKind(String(entity.type||''),attrs);
+ // A product links to every store that lists it (Amazon, JD, Tmall, Best Buy…): readers compare and buy there.
+ if(kind==='product')max=Math.max(max,10);
  const custom=Array.isArray(prefer)?prefer.filter((k):k is Kind=>KINDS.includes(k as Kind)):[];
  const order=custom.length?[...custom,...ORDER[kind].filter(k=>!custom.includes(k))]:ORDER[kind];
  const found:{kind:Kind;label:string;href:string;host:string}[]=[];
