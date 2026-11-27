@@ -137,7 +137,9 @@ export async function upsertEntities(db:EntityDb,rows:Row[],mapping:EntityMappin
  if(metricCols.length)await ensureObservedMetrics(db,metricCols.map(m=>({key:m.key,unit:m.unit})));
  for(let start=0;start<rows.length;start+=250){
   await db.tx(async q=>{
-   await q.query('select pg_advisory_xact_lock($1)',[UPSERT_LOCK]);
+   // One load per class at a time (two loads of one class would insert the same new entity twice); loads of
+   // different classes run side by side — a global lock queued every write of the site behind one slow load.
+   await q.query('select pg_advisory_xact_lock($1, hashtext($2::text))',[UPSERT_LOCK+1,type]);
    const obs:ObservationInput[]=[];const rels:RelationInput[]=[];
    for(const [i,row] of rows.slice(start,start+250).entries()){
     const name=cellText(row[mapping.nameColumn]);
