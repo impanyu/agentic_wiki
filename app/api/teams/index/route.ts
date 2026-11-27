@@ -63,6 +63,13 @@ export async function POST(request:Request){
    void importSiteMap(db,spec,{dryRun:false,log:e=>console.log('[site-map]',JSON.stringify(e))}).then(r=>console.log('[site-map]',JSON.stringify({event:'done',...r,problems:r.problems.slice(0,50)}))).catch(e=>console.error('[site-map] failed',(e as Error).message));
    return Response.json({started:true});
   }
+  if(b.action==='classspecs'){
+   // The researched class specifications (member sources and fields per class), from a file on this machine ({path, dryRun}).
+   const {readFile}=await import('node:fs/promises');const path=String((b as {path?:string}).path||'');
+   if(!/^\/home\/[a-z]+\/[a-z0-9_.-]+\.json$/.test(path))return Response.json({error:'path: /home/<user>/<file>.json'},{status:400});
+   const {importClassSpecs}=await import('@/app/entity-db/class-specs');
+   return Response.json(await importClassSpecs(db,JSON.parse(await readFile(path,'utf8')),{dryRun:(b as {dryRun?:boolean}).dryRun!==false}));
+  }
   if(b.action==='site_search'){const r=b as {site?:string;query?:string;count?:number};const {siteSearch}=await import('@/app/search/site-index');return Response.json(await siteSearch(db,String(r.site||''),String(r.query||''),Number(r.count)||10));}
   if(b.action==='tool'){
    // An entity tool as the crawler runs it ({name, args}): define_metric, compute_metric, metric_table, entity_get…
