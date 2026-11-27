@@ -350,6 +350,22 @@ export const MIGRATIONS:Migration[]=[
   'create index if not exists ranking_members_entity on ranking_members(entity_id)',
   'alter table rankings add column if not exists members_at timestamptz',
  ]},
+ // The work queue (app/work): every piece of agent work is one task of a kind, on one target (a class of the class
+ // tree or a page of the site map), done by one pool (collector, editor, reviewer, manager), by priority. Tasks are
+ // created by triggers, by other tasks finishing, or by an agent asking another pool; one open task per kind and target.
+ {version:29,name:'work queue',statements:()=>[
+  `create table if not exists work_tasks(id uuid primary key default gen_random_uuid(), kind text not null, pool text not null, target text not null default '',
+    priority integer not null default 50, status text not null default 'queued' check (status in ('queued','running','done','failed','returned','cancelled')),
+    payload jsonb not null default '{}'::jsonb, parent_id uuid references work_tasks(id) on delete set null, requested_by text not null default 'trigger',
+    attempts integer not null default 0, worker text, lease_until timestamptz, result jsonb, comments jsonb not null default '[]'::jsonb,
+    created_at timestamptz not null default now(), started_at timestamptz, finished_at timestamptz)`,
+  "create unique index if not exists work_tasks_open on work_tasks(kind, target) where status in ('queued','running')",
+  "create index if not exists work_tasks_next on work_tasks(pool, priority desc, created_at) where status = 'queued'",
+  'create index if not exists work_tasks_target on work_tasks(target, created_at desc)',
+  // Readers report a wrong value or a page problem, or ask for something to be taken down.
+  `create table if not exists reader_reports(id uuid primary key default gen_random_uuid(), path text not null, kind text not null check (kind in ('error','takedown','other')),
+    text text not null, class text, page text, status text not null default 'new', created_at timestamptz not null default now())`,
+ ]},
 ];
 export const SCHEMA_VERSION=MIGRATIONS[MIGRATIONS.length-1].version;
 

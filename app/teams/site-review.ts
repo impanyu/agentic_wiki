@@ -48,7 +48,7 @@ export async function siteReviewOnce(log:Log=()=>{}):Promise<{topic:string;issue
   for(const i of issues)await raiseIssue(db,{source:'site-review',topic:t.slug,severity:i.severity,title:`[${i.area}] ${i.target}: ${i.problem}`.slice(0,300),detail:'Fix: '+i.fix});
   // What the topic's team can fix (members, data, pages) goes to it as a review; the tree is the manager's.
   const team=issues.filter(i=>i.area!=='tree'&&i.severity!=='minor');
-  if(team.length){const {teamOf}=await import('./ownership');const {enqueueTeam}=await import('./manager');const owner=await teamOf(db,t.slug);
+  if(team.length&&process.env.WORK_TASKS!=='1'){const {teamOf}=await import('./ownership');const {enqueueTeam}=await import('./manager');const owner=await teamOf(db,t.slug);
    await enqueueTeam(db,{slug:owner,name:t.name,brief:t.description||t.name,priority:2,note:'review: site reviewer found '+team.map(i=>`${i.target}: ${i.problem} → ${i.fix}`).join(' | ').slice(0,1500)});}
   log({event:'site_review',topic:t.slug,issues:issues.length,summary:String(verdict?.summary||'').slice(0,300)});
   return {topic:t.slug,issues:issues.length};

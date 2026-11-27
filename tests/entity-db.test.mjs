@@ -16,6 +16,7 @@ for(const f of ['client','schema','metrics','embeddings','units','reserved','rep
 }
 {let js=ts.transpileModule(readFileSync(new URL('../app/teams/trunk.ts',import.meta.url),'utf8'),{compilerOptions:{module:ts.ModuleKind.ESNext,target:ts.ScriptTarget.ES2022}}).outputText;
  js=js.replace(/(from\s*|import\()\s*(['"])@\/app\/entity-db\/([a-z-]+)\2/g,(m,pre,q,f)=>`${pre}'./${f}.mjs'`);writeFileSync(new URL('trunk.mjs',out),js);}
+{let js=ts.transpileModule(readFileSync(new URL('../app/work/queue.ts',import.meta.url),'utf8'),{compilerOptions:{module:ts.ModuleKind.ESNext,target:ts.ScriptTarget.ES2022}}).outputText;writeFileSync(new URL('work-queue.mjs',out),js);}
 const client=await import(new URL('client.mjs',out));
 const schema=await import(new URL('schema.mjs',out));
 const repo=await import(new URL('repo.mjs',out));
@@ -578,4 +579,19 @@ test('importing the class tree: old types become their classes, view members car
  const et=(await db.query("select type, schema, template from entity_types where type in ('z_fp','z_pl')")).rows;
  const fp=et.find(x=>x.type==='z_fp');assert.ok(fp.schema.metrics.some(m=>m.key==='pl_goals'),'old types\' metrics kept');assert.deepEqual(fp.template.lead,['x']);
  assert.equal(et.find(x=>x.type==='z_pl').schema.kind,'retired');void k;
+});
+
+test('the work queue: one open task per kind and target (a second request joins it), highest priority first, leases',async()=>{
+ const q=await import(new URL('work-queue.mjs',out));
+ const a=await q.enqueue(db,{kind:'class_members',pool:'collector',target:'w_film',priority:40,payload:{why:'empty'}});
+ const b=await q.enqueue(db,{kind:'class_members',pool:'collector',target:'w_film',priority:70,payload:{why:'a page waits'},requestedBy:'editor'});
+ assert.equal(a.created,true);assert.equal(b.created,false);assert.equal(a.id,b.id);
+ const row=(await db.query('select priority, payload from work_tasks where id=$1',[a.id])).rows[0];assert.equal(row.priority,70);assert.equal(row.payload.requests.length,2);
+ await q.enqueue(db,{kind:'class_fields',pool:'collector',target:'w_film',priority:10});
+ await q.enqueue(db,{kind:'page_build',pool:'editor',target:'class:w_film',priority:99});
+ const t=await q.claim(db,'collector');assert.equal(t.kind,'class_members');assert.equal(t.attempts,1);
+ const t2=await q.claim(db,'collector');assert.equal(t2.kind,'class_fields');assert.equal(await q.claim(db,'collector'),null);
+ await q.finish(db,t.id,'done',{summary:'ok'});
+ assert.equal((await q.enqueue(db,{kind:'class_members',pool:'collector',target:'w_film'})).created,true,'a finished task does not block a new one');
+ await q.finish(db,t2.id,'queued',{requeued:'model busy'});assert.equal((await q.claim(db,'collector')).kind,'class_members');
 });

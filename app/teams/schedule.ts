@@ -77,11 +77,19 @@ export async function fillVectors(){
 
 // The manager's daily review and the team queue, on the same heartbeat (one review at a time).
 let reviewing=false,lastMaintenance=0,sweeping=false,lastSweep=0,lastSiteReview=0,lastLinkCheck=0,linkChecking=false;
+let lastTriggers=0,triggering=false;
+export const workQueueOn=()=>process.env.WORK_TASKS==='1';
 export async function manageTeams(){
  const {entityDb}=await import('@/app/entity-db/client');const {managerDue,runManagerDaily,runTeamQueue}=await import('./manager');
  const {llmSpend}=await import('@/app/llm');
  const db=await entityDb();
- if(!reviewing&&await managerDue(db)){reviewing=true;void runManagerDaily(e=>console.log('[manager]',JSON.stringify(e))).catch(e=>console.error('[manager] failed',(e as Error).message)).finally(()=>{reviewing=false;});}
+ // The work queue (app/work): triggers every 15 minutes, the pools on every heartbeat. It replaces the topic teams.
+ if(workQueueOn()){
+  if(!triggering&&Date.now()-lastTriggers>15*60_000){lastTriggers=Date.now();triggering=true;const {runTriggers}=await import('@/app/work/triggers');void runTriggers(db).catch(e=>console.error('[work:triggers] failed',(e as Error).message)).finally(()=>{triggering=false;});}
+  // The pools run in the team worker processes (rankwiki-teams@N); here only when WORK_IN_WORKER=1 (a single-process setup).
+  if(process.env.WORK_IN_WORKER==='1'){const {runWork}=await import('@/app/work/runner');const started=await runWork().catch(e=>{console.error('[work] failed',(e as Error).message);return [];});if(started.length)console.log('[work] started',started.join(', '));}
+ }
+ if(!workQueueOn()&&!reviewing&&await managerDue(db)){reviewing=true;void runManagerDaily(e=>console.log('[manager]',JSON.stringify(e))).catch(e=>console.error('[manager] failed',(e as Error).message)).finally(()=>{reviewing=false;});}
  // Every 15 minutes, one sweep at a time: the next nodes of the tree get their division judged (proposals only).
  if(!sweeping&&Date.now()-lastSweep>15*60_000){sweeping=true;lastSweep=Date.now();const {splitSweep}=await import('./trunk');void (process.env.SPLIT_SWEEP!=='1'?Promise.resolve({judged:0}):splitSweep(db,Number(process.env.SPLIT_SWEEP_NODES||12),e=>console.log('[tree]',JSON.stringify(e)))).then(async()=>{const {refreshMembers}=await import('@/app/entity-db/members');const m=await refreshMembers(db);if(m.refreshed)console.log('[members] refreshed',m.refreshed);}).catch(e=>console.error('[tree] sweep failed',(e as Error).message)).finally(()=>{sweeping=false;});}
  // Every link readers can click must open: a sample of pages and all their links, every hour.
@@ -91,16 +99,17 @@ export async function manageTeams(){
  {const every=Number(process.env.SITE_REVIEW_MINUTES??20);if(every>0&&Date.now()-lastSiteReview>every*60_000){lastSiteReview=Date.now();const {siteReviewOnce}=await import('./site-review');
   void siteReviewOnce(e=>console.log('[site-review]',JSON.stringify(e))).catch(e=>console.error('[site-review] failed',(e as Error).message));}}
  // Every few hours the manager tends one branch of the tree (missing subtopics, duplicates).
- if(!reviewing){const {tendTree}=await import('./manager');reviewing=true;void tendTree(e=>console.log('[manager]',JSON.stringify(e))).catch(e=>console.error('[manager] tend failed',(e as Error).message)).finally(()=>{reviewing=false;});}
+ if(!workQueueOn()&&!reviewing){const {tendTree}=await import('./manager');reviewing=true;void tendTree(e=>console.log('[manager]',JSON.stringify(e))).catch(e=>console.error('[manager] tend failed',(e as Error).message)).finally(()=>{reviewing=false;});}
  // At most hourly: teams return to topics that need them.
  const now=Date.now();if(now-lastMaintenance>3600_000){lastMaintenance=now;const {scheduleMaintenance}=await import('./manager');const {dedupSweep,findCandidates,resolveCandidates}=await import('@/app/entity-db/dedup');await dedupSweep(db,300).then(r=>r.merged&&console.log('[dedup] merged',r.merged)).catch(e=>console.error('[dedup] failed',(e as Error).message));
   await findCandidates(db,2000).then(n=>n&&console.log('[dedup] candidates',n)).catch(e=>console.error('[dedup] candidates failed',(e as Error).message));
-  void resolveCandidates(db,Number(process.env.DEDUP_RESOLVE_PER_HOUR||1500)).then(r=>r.judged&&console.log('[dedup] judged',r.judged,'merged',r.merged)).catch(e=>console.error('[dedup] resolve failed',(e as Error).message));{const cs=await import('@/app/entity-db/country-subsets');await cs.normalizeCountries(db).catch(e=>console.error('[subsets] countries failed',(e as Error).message));await cs.countrySubsets(db).then(r=>r.created&&console.log('[subsets] country rankings created',r.created)).catch(e=>console.error('[subsets] failed',(e as Error).message));}{const {rescaleComposites}=await import('@/app/entity-db/repo');await rescaleComposites(db).then(r=>r.recomputed.length&&console.log('[composites] rescaled to 0–100',r.recomputed.join(', '))).catch(e=>console.error('[composites] failed',(e as Error).message));}const {qaSweep}=await import('./qa');await qaSweep(db,e=>console.log('[qa]',JSON.stringify(e))).catch(e=>console.error('[qa] sweep failed',(e as Error).message));const q=await scheduleMaintenance(db).catch(e=>{console.error('[queue] maintenance failed',(e as Error).message);return [];});if(q.length)console.log('[queue] queued',q.join(', '));}
- if(Number(process.env.TEAM_CONCURRENCY||0)>0){const started=await runTeamQueue(async()=>(await llmSpend()).spentUsd,(slug,e)=>console.log('[team:'+slug+']',JSON.stringify(e)));
+  void resolveCandidates(db,Number(process.env.DEDUP_RESOLVE_PER_HOUR||1500)).then(r=>r.judged&&console.log('[dedup] judged',r.judged,'merged',r.merged)).catch(e=>console.error('[dedup] resolve failed',(e as Error).message));{const cs=await import('@/app/entity-db/country-subsets');await cs.normalizeCountries(db).catch(e=>console.error('[subsets] countries failed',(e as Error).message));await cs.countrySubsets(db).then(r=>r.created&&console.log('[subsets] country rankings created',r.created)).catch(e=>console.error('[subsets] failed',(e as Error).message));}{const {rescaleComposites}=await import('@/app/entity-db/repo');await rescaleComposites(db).then(r=>r.recomputed.length&&console.log('[composites] rescaled to 0–100',r.recomputed.join(', '))).catch(e=>console.error('[composites] failed',(e as Error).message));}const {qaSweep}=await import('./qa');await qaSweep(db,e=>console.log('[qa]',JSON.stringify(e))).catch(e=>console.error('[qa] sweep failed',(e as Error).message));const q=workQueueOn()?[]:await scheduleMaintenance(db).catch(e=>{console.error('[queue] maintenance failed',(e as Error).message);return [];});if(q.length)console.log('[queue] queued',q.join(', '));}
+ if(!workQueueOn()&&Number(process.env.TEAM_CONCURRENCY||0)>0){const started=await runTeamQueue(async()=>(await llmSpend()).spentUsd,(slug,e)=>console.log('[team:'+slug+']',JSON.stringify(e)));
   if(started.length)console.log('[queue] started',started.join(', '));}
 }
 // A team worker process (RANKWIKI_ROLE=teams): only runs teams from the shared queue; maintenance stays in the worker.
 export async function runTeams(){
+ if(workQueueOn()){const {runWork}=await import('@/app/work/runner');const started=await runWork().catch(e=>{console.error('[work] failed',(e as Error).message);return [];});if(started.length)console.log('[work] started',started.join(', '));return;}
  const {runTeamQueue}=await import('./manager');const {llmSpend}=await import('@/app/llm');
  const started=await runTeamQueue(async()=>(await llmSpend()).spentUsd,(slug,e)=>console.log('[team:'+slug+']',JSON.stringify(e)));
  if(started.length)console.log('[queue] started',started.join(', '));
