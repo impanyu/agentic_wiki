@@ -223,7 +223,7 @@ async function saveMetric(db:EntityDb,input:MetricInput,kind:'observed'|'derived
   const prev=latest?metricRow(latest):null;
   if(prev&&prev.kind!==kind)throw Error(`Metric "${key}" is ${prev.kind}; choose another key for a ${kind} metric.`);
   const next={label:labelOf(input.label?.trim()||prev?.label,key),unit:input.unit??prev?.unit??'',description:input.description??prev?.description??'',methodology:input.methodology??prev?.methodology??'',
-   order:input.order||prev?.order||'desc',format:input.format??prev?.format??'',createdBy:input.createdBy||prev?.createdBy||'system'};
+   order:/(^|_)year$|^year_|^year$/.test(key)?'asc' as const:input.order||prev?.order||'desc',format:input.format??prev?.format??'',createdBy:input.createdBy||prev?.createdBy||'system'};
   // A measured metric is shared by every type that has it (population of countries, of cities, of US states): once it
   // has data, its wording is not rewritten for one kind of entity. Notes about one type's data belong in that
   // ranking's about text and its sources.

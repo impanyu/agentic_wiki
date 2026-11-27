@@ -8,6 +8,8 @@ export type QaIssue={severity:'blocker'|'major';owner:'collector'|'editor';targe
 
 // The minimum a published ranking needs: enough entities to be a ranking, and each criterion measured for most of them.
 export const QA={minEntities:1,minCriterionCoverage:0.6,maxCountryShare:0.6};
+// A ranking compares its entities on several dimensions: at least this many measures with data.
+export const MIN_MEASURES=Number(process.env.RANKING_MIN_MEASURES||5);
 
 // Names a title may use for a country (a ranking limited to one country must say so in its title).
 const ALIASES:Record<string,string[]>={'United States':['US','U.S.','USA','American','America'],'United Kingdom':['UK','U.K.','British','Britain','England','Scotland','Wales'],
@@ -43,7 +45,7 @@ export async function checkRanking(db:Queryable,def:RankingDef):Promise<QaIssue[
   // A ranking compares its entities: at least 3 measures with data, and never a year or date as what it opens on
   // (when something began describes it; it does not rank it).
   {const {DESCRIPTIVE}=await import('@/app/work/triggers');const measured=keys.filter(k=>!DESCRIPTIVE.test(k)&&(cov.find(c=>c.metric===k)?.n||0)>0);
-   if(measured.length<3)out.push({severity:'major',owner:'collector',target:t,problem:`Only ${measured.length} measure(s) readers compare have data (${measured.join(', ')||'none'}); years and dates do not rank.`,fix:'The collector loads the class\'s declared measures (what readers compare); the editor then ranks by them.'});
+   if(measured.length<MIN_MEASURES)out.push({severity:'major',owner:'collector',target:t,problem:`Only ${measured.length} measure(s) readers compare have data (${measured.join(', ')||'none'}); a ranking needs at least ${MIN_MEASURES} dimensions (years and dates do not rank).`,fix:'The collector loads the class\'s declared measures (what readers compare — for products what buyers compare: price, user rating, the performance specs, durability, value for money); the editor then ranks by them.'});
    const opens=String(def.config?.default||keys[0]||'').split('@')[0];if(opens&&DESCRIPTIVE.test(opens))out.push({severity:'major',owner:'editor',target:t,problem:`The ranking opens on ${opens}, a date or year.`,fix:'Open it on a measure readers compare (config.default).'});}
   for(const k of keys){const have=cov.find(c=>c.metric===k)?.n||0;const share=have/n;
    // The criterion the ranking opens on, or one barely measured, leaves readers a list of "no data": a blocker.

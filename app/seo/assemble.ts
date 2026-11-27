@@ -33,7 +33,9 @@ export function criterionOf(d:MetricInfo,extra:{key?:string;year?:string}={}):Cr
  const unit=prettyUnit(String(d.unit||'').trim());const currency=isCurrencyCode(unit)?unit.toUpperCase():'';
  const dm=/^decimal:(\d)$/.exec(String(d.format||''));const asked=dm?'decimal':FORMAT_NAMES.includes(d.format as Format)?d.format as Format:null;
  const format:Format=asked==='currency'||(!asked&&currency)?'currency':asked||(unit==='%'?'percent':'number');
- return {key:extra.key||d.key,label:d.label||d.key,order:d.order==='asc'?'asc':'desc',format,
+ // A calendar year ranks earliest first (the oldest is first), whatever the definition says.
+ const year=/(^|_)year$|^year_|^year$/.test(String(d.key||''));
+ return {key:extra.key||d.key,label:d.label||d.key,order:year||d.order==='asc'?'asc':'desc',format:year?'number':format,
   ...(format==='currency'?{currency:currency||'USD'}:format==='percent'||!unit?{}:{unit}),...(dm?{decimals:Number(dm[1])}:{}),
   // A derived measure says how it is computed, shown with it ("Score from 0 to 100, higher is better: …").
   ...(d.formula||d.description?{description:[d.formula,d.description].filter(Boolean).join(' ')}:{}),...(extra.year?{year:extra.year}:{})};

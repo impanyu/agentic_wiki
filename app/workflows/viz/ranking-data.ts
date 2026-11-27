@@ -76,7 +76,13 @@ const intl=(locale:string,o:Intl.NumberFormatOptions)=>{try{return new Intl.Numb
 const unitGlue=(unit:string)=>/^[%°′″‰]/.test(unit)?unit:' '+unit;
 
 // A formatter for one criterion; values decide the default precision (0 when all are integers).
-export function makeFormatter(c:Pick<Criterion,'format'|'decimals'|'currency'|'unit'>,values:number[],locale:string,opts:{unit?:boolean;compact?:boolean}={}):(n:number|null)=>string{
+// A calendar year (release_year, founded_year, year_built): its key names a year, not a number of years.
+export const YEAR_KEY=/(^|_)year$|^year_|^year$/;
+export const isCalendarYear=(key:string|undefined)=>!!key&&YEAR_KEY.test(String(key).split('@')[0].replace(/_v\d+$/,''));
+// A year reads as the year itself ("2000", "2000年"), never as a quantity ("2K", "2,000").
+const yearText=(n:number,locale:string)=>{const y=String(Math.round(n));return /^(zh|ja)/i.test(locale)?y+'年':/^ko/i.test(locale)?y+'년':y;};
+export function makeFormatter(c:Pick<Criterion,'format'|'decimals'|'currency'|'unit'>&{key?:string},values:number[],locale:string,opts:{unit?:boolean;compact?:boolean}={}):(n:number|null)=>string{
+ if(isCalendarYear(c.key)&&values.every(v=>Number.isInteger(v)&&v>-5000&&v<3000))return n=>n==null||!Number.isFinite(n)?'—':yearText(n,locale);
  const ints=values.every(v=>Number.isInteger(v));
  const maxAbs=values.reduce((m,v)=>Math.max(m,Math.abs(v)),0);
  let f:Intl.NumberFormat;let suffix='';
