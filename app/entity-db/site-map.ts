@@ -28,6 +28,11 @@ export async function importSiteMap(db:EntityDb,spec:SiteMapSpec,{dryRun=true,lo
   return {...out,pagesCreated:created,pagesUpdated:okPages.length-created,retired:spec.retire.length,attributes:spec.attributes_needed.length,
    views:okPages.reduce((n,p)=>n+(p.views?.length||0),0),missingMetrics:[...new Set(okPages.flatMap(p=>[...(p.main?.criteria||[]),...(p.views||[]).flatMap(v=>v.criteria||[])]).filter(k=>!metrics.has(k)))].slice(0,200)};
  }
+ // The page-tree index (topic_closure) is rebuilt by a trigger after every statement on topics; thousands of page
+ // writes would rebuild it thousands of times. It is rebuilt once after the pages are written.
+ await db.query('alter table topics disable trigger topics_tree_ins, disable trigger topics_tree_upd, disable trigger topics_tree_del').catch(()=>
+  Promise.all(['topics_tree_ins','topics_tree_upd','topics_tree_del'].map(t=>db.query(`alter table topics disable trigger ${t}`).catch(()=>{}))));
+ try{
  // 1. Pages (two passes: create or update without parents, then parents).
  for(const p of okPages){
   const scope={shows:p.shows.hub?{hub:true,why:p.purpose||''}:{class:p.shows.class,filters:p.shows.filters||{}},purpose:p.purpose||'',related:(p.related||[]).slice(0,20)};
@@ -41,6 +46,11 @@ export async function importSiteMap(db:EntityDb,spec:SiteMapSpec,{dryRun=true,lo
  for(const p of okPages)if(p.parent&&existing.has(p.parent)&&p.parent!==p.slug)await db.query('update topics set parent_id=$2::uuid where slug=$1::text and parent_id is distinct from $2::uuid',[p.slug,existing.get(p.parent)]);
  // A class's own page: the page that shows it without filters.
  for(const p of okPages)if(p.shows.class&&!Object.keys(p.shows.filters||{}).length)await db.query('update entity_types set topic_id=$2::uuid where type=$1::text',[p.shows.class,existing.get(p.slug)]);
+ }finally{
+  for(const t of ['topics_tree_ins','topics_tree_upd','topics_tree_del'])await db.query(`alter table topics enable trigger ${t}`).catch(()=>{});
+  await db.query('select rebuild_topic_closure()').catch(()=>{});
+ }
+ log({event:'pages_done',created:out.pagesCreated,updated:out.pagesUpdated});
  // 2. Rankings: the main ranking (the page's existing main one keeps its address) and the views.
  const memberCount=async(cls:string,filters:Row)=>{const {entitySearchIds}=await import('./repo');return (await entitySearchIds(db,{type:cls,filters} as never,4).catch(()=>[])).length;};
  const upsertRanking=async(slug:string,title:string,topicId:string,cls:string,filters:Row,criteria:string[],def:string|undefined,extra:Row)=>{
@@ -72,7 +82,7 @@ export async function importSiteMap(db:EntityDb,spec:SiteMapSpec,{dryRun=true,lo
   await upsertRanking(main,p.main.title,topicId,p.shows.class,filters,criteria,def,{main:true});
   for(const v of p.views||[]){if(!SLUG.test(v.slug)){out.problems.push(v.slug+': bad view slug');continue;}
    await upsertRanking(v.slug,v.title,topicId,p.shows.class,{...filters,...(v.filters||{})},v.criteria?.length?v.criteria:criteria,def,{view:v.why||''});}
-  log({event:'page',slug:p.slug});
+  if((out.rankingsCreated+out.rankingsUpdated)%500<((p.views?.length||0)+1))log({event:'progress',rankings:out.rankingsCreated+out.rankingsUpdated});
  }
  // 3. Retired pages: archived, their address and rankings lead to the page they went into.
  for(const r of spec.retire){

@@ -60,7 +60,7 @@ export async function POST(request:Request){
    if(!/^\/home\/[a-z]+\/[a-z0-9_.-]+\.json$/.test(path))return Response.json({error:'path: /home/<user>/<file>.json'},{status:400});
    const spec=JSON.parse(await readFile(path,'utf8'));const {importSiteMap}=await import('@/app/entity-db/site-map');
    if((b as {dryRun?:boolean}).dryRun!==false)return Response.json(await importSiteMap(db,spec,{dryRun:true}));
-   void importSiteMap(db,spec,{dryRun:false,log:e=>{if(Math.random()<0.02)console.log('[site-map]',JSON.stringify(e));}}).then(r=>console.log('[site-map]',JSON.stringify({event:'done',...r,problems:r.problems.slice(0,50)}))).catch(e=>console.error('[site-map] failed',(e as Error).message));
+   void importSiteMap(db,spec,{dryRun:false,log:e=>console.log('[site-map]',JSON.stringify(e))}).then(r=>console.log('[site-map]',JSON.stringify({event:'done',...r,problems:r.problems.slice(0,50)}))).catch(e=>console.error('[site-map] failed',(e as Error).message));
    return Response.json({started:true});
   }
   if(b.action==='site_search'){const r=b as {site?:string;query?:string;count?:number};const {siteSearch}=await import('@/app/search/site-index');return Response.json(await siteSearch(db,String(r.site||''),String(r.query||''),Number(r.count)||10));}
