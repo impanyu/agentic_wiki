@@ -642,7 +642,7 @@ export async function refreshLatestRanks(q:Queryable,type:string,metric:{key:str
    where e.type = $1::text and o.metric = $2::text and o.metric_version = $3::int order by o.entity_id, o.period desc, o.retrieved_at desc),
   rk as (select entity_id, rank() over (order by value ${order==='asc'?'asc':'desc'}) as rk, count(*) over () as n from v),
   todo as (select rk.* from rk join entities e on e.id = rk.entity_id where e.latest->'metrics' ? $4::text
-   and ((e.latest->'metrics'->$4::text->>'rank') is distinct from rk.rk::text or (e.latest->'metrics'->$4::text->>'of') is distinct from rk.n::text) limit $5::int)
+   and ((e.latest->'metrics'->$4::text->>'rank') is distinct from rk.rk::text or (e.latest->'metrics'->$4::text->>'of') is distinct from rk.n::text) limit $5::int),
   locked as (select e.id from entities e where e.id in (select entity_id from todo) order by e.id for update)
   update entities e set latest = jsonb_set(e.latest, array['metrics', $4::text], (e.latest->'metrics'->$4::text) || jsonb_build_object('rank', todo.rk, 'of', todo.n))
   from todo join locked on locked.id = todo.entity_id where e.id = todo.entity_id returning e.id`,[type,metric.key,metric.version,slot,RANK_BATCH]).then(r=>r.rows.length);
