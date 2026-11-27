@@ -627,9 +627,10 @@ export async function refreshLatestValues(q:Queryable,entityIds:string[]):Promis
    from v join entities e on e.id = v.entity_id group by v.entity_id),
   rp as (select r.subject_id, r.predicate, jsonb_path_query_array(jsonb_agg(jsonb_build_object('id', o.id, 'name', o.name) order by r.period desc, o.name), '$[0 to ${SNAPSHOT_REL_LIMIT-1}]') as objs
    from relations r join entities o on o.id = r.object_id where r.subject_id = any($1::uuid[]) group by r.subject_id, r.predicate),
-  rl as (select subject_id, jsonb_object_agg(predicate, objs) as j from rp group by subject_id)
+  rl as (select subject_id, jsonb_object_agg(predicate, objs) as j from rp group by subject_id),
+  locked as (select id from entities where id = any($1::uuid[]) order by id for update)
   update entities e set latest = jsonb_build_object('metrics', coalesce(m.j, '{}'::jsonb), 'relations', coalesce(rl.j, '{}'::jsonb))
-  from ids left join m on m.entity_id = ids.id left join rl on rl.subject_id = ids.id where e.id = ids.id`,[ids]);
+  from ids join locked on locked.id = ids.id left join m on m.entity_id = ids.id left join rl on rl.subject_id = ids.id where e.id = ids.id`,[ids]);
  return ids.length;
 }
 const RANK_BATCH=Number(process.env.RANK_BATCH||3000);
@@ -642,8 +643,9 @@ export async function refreshLatestRanks(q:Queryable,type:string,metric:{key:str
   rk as (select entity_id, rank() over (order by value ${order==='asc'?'asc':'desc'}) as rk, count(*) over () as n from v),
   todo as (select rk.* from rk join entities e on e.id = rk.entity_id where e.latest->'metrics' ? $4::text
    and ((e.latest->'metrics'->$4::text->>'rank') is distinct from rk.rk::text or (e.latest->'metrics'->$4::text->>'of') is distinct from rk.n::text) limit $5::int)
+  locked as (select e.id from entities e where e.id in (select entity_id from todo) order by e.id for update)
   update entities e set latest = jsonb_set(e.latest, array['metrics', $4::text], (e.latest->'metrics'->$4::text) || jsonb_build_object('rank', todo.rk, 'of', todo.n))
-  from todo where e.id = todo.entity_id returning e.id`,[type,metric.key,metric.version,slot,RANK_BATCH]).then(r=>r.rows.length);
+  from todo join locked on locked.id = todo.entity_id where e.id = todo.entity_id returning e.id`,[type,metric.key,metric.version,slot,RANK_BATCH]).then(r=>r.rows.length);
  let n=await run();
  // In batches: a large type (100,000 entities) is updated a few thousand rows at a time, so no statement holds its rows
  // for long (one statement over the whole type once held the writers for over an hour).
