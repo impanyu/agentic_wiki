@@ -20,6 +20,19 @@ export function validateTemplate(t:unknown):Row{
   for(const s of o.sections){const k=obj(s).kind;if(!TEMPLATE_SECTIONS.includes(k as never))throw Error('Unknown section kind "'+String(k)+'"; use '+TEMPLATE_SECTIONS.join(', ')+'.');}}
  return o;
 }
+const TREE_KEYS=['kind','extends','splitBy','value','universe','area','retiredInto'];
+export function mergeSchema(cur:Row,next:Row):Row{
+ const out:Row={...cur,...next};
+ if(cur.kind==='class'||cur.kind==='retired')for(const k of TREE_KEYS)if(k in cur)out[k]=cur[k];else delete out[k];
+ for(const k of ['metrics','attributes','sources']){
+  // A field list written as an object ({key: {...}}) is read as the list it describes.
+  const list=(v:unknown):Row[]=>Array.isArray(v)?v as Row[]:v&&typeof v==='object'?Object.entries(v as Row).map(([key,x])=>({key,...(x&&typeof x==='object'?x as Row:{value:x})})):[];
+  const a=list(cur[k]),b=list(next[k]);if(!a.length&&!b.length)continue;
+  const id=(x:Row)=>String(x.key??x.name??x.url??JSON.stringify(x));const m=new Map(a.map(x=>[id(x),x]));
+  for(const x of b)m.set(id(x),{...(m.get(id(x))||{}),...x});out[k]=[...m.values()];
+ }
+ return out;
+}
 export async function saveEntityType(db:Queryable,input:{type:string;label?:string;plural?:string;description?:string;schema?:Row;template?:Row;topicId?:string|null;updatedBy:string;status?:string}):Promise<EntityType>{
  const type=normalizeType(input.type);
  // A type extends the type of the nearest topic above its own (inheritance follows the topic tree): recorded in
@@ -30,6 +43,11 @@ export async function saveEntityType(db:Queryable,input:{type:string;label?:stri
   if(!has){const {parentTypeFor}=await import('@/app/entity-db/inherit');const parent=await parentTypeFor(db,input.topicId,type);
    if(parent)input={...input,schema:{...(input.schema||(cur?.schema as Row)||{}),extends:parent}};}
  }
+ // A class's schema is merged, never replaced: its place in the class tree (kind, extends, splitBy, value, universe)
+ // stays as the tree defines it, and its fields only grow (metrics, attributes and sources are united by key; an entry
+ // given again updates that entry). A wholesale write once dropped classes out of the tree.
+ if(input.schema){const cur=(await db.query<{schema:Row}>('select schema from entity_types where type=$1::text',[type])).rows[0]?.schema;
+  if(cur&&Object.keys(cur).length)input={...input,schema:mergeSchema(cur,input.schema)};}
  const r=await db.query(`insert into entity_types(type,topic_id,label,plural,description,schema,template,status,updated_by)
   values ($1::text,$2::uuid,$3::text,$4::text,$5::text,coalesce($6::jsonb,'{}'::jsonb),coalesce($7::jsonb,'{}'::jsonb),coalesce($8::text,'draft'),$9::text)
   on conflict (type) do update set topic_id=coalesce(excluded.topic_id,entity_types.topic_id),
