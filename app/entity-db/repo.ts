@@ -115,7 +115,10 @@ export async function upsertEntity(q:Queryable,input:EntityInput):Promise<{id:st
  if(r.rows[0]?.tsv!==target.tsv)await q.query('update entities set embedding = null where id = $1::uuid',[target.id]);
  // The entity found under another type is also one of this type (a research university that is also an Asian
  // university): it joins this type's rankings without a second record.
- if(target.t&&target.t!==type&&!(await isAncestor(q,type,target.t)))await q.query(`update entities set also_types=array(select distinct unnest(also_types||$2::text[])) where id=$1::uuid`,[target.id,[type]]).catch(()=>{});
+ // An entity held under a broader class (an organization) loaded now as a more specific one (a university) moves
+ // down to that class: an entity is stored under its most specific class, its ancestors follow from the tree.
+ if(target.t&&target.t!==type&&await isAncestor(q,target.t,type))await q.query(`update entities set type=$2::text, also_types=array_remove(also_types,$2::text) where id=$1::uuid`,[target.id,type]).catch(()=>{});
+ else if(target.t&&target.t!==type&&!(await isAncestor(q,type,target.t)))await q.query(`update entities set also_types=array(select distinct unnest(also_types||$2::text[])) where id=$1::uuid`,[target.id,[type]]).catch(()=>{});
  return {id:target.id,action:'merged',idConflicts:conflicts};
 }
 
