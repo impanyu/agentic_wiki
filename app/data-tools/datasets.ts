@@ -34,7 +34,7 @@ export async function saveDataset(scope:string,input:{title:string;source:string
  return summarize(d);
 }
 export async function loadDataset(scope:string,id:string):Promise<Dataset>{
- if(!ID.test(id))throw Error('Unknown dataset '+id+'.');
+ if(!ID.test(id))throw Error('Unknown dataset '+id+(/^\$/.test(id)?' ($step references work only inside a recipe\'s steps; here use the datasetId, ds_…)':'')+'.');
  const o=await bucket().get(key(scope,id));if(!o)throw Error('Unknown dataset '+id+' (datasets last for this task only).');
  const d=JSON.parse(await o.text()) as Dataset;
  if(Date.now()-Date.parse(d.createdAt)>DATASET_LIMITS.ttlMs)throw Error('Dataset '+id+' has expired; fetch it again.');

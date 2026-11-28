@@ -102,7 +102,9 @@ test('JSONata query joins datasets, with errors that name position and inputs',a
  assert.deepEqual(query.resultRows(r,10).rows,[{name:'France',gdpPerCapita:44118},{name:'Chad',gdpPerCapita:722}]);
  await assert.rejects(query.evaluateJsonata('pop[name = ',scope,{},1000,()=>'pop (3 rows)'),/character \d+.*Available: pop/);
  await assert.rejects(query.evaluateJsonata('($f := function($n){ $f($n+1) }; $f(0))',{},{},2000),/too deep|longer/);
- assert.throws(()=>query.resultRows([1,2],10),/array of row objects/);
+ assert.deepEqual(query.resultRows([1,2],10).rows,[{value:1},{value:2}]);
+ assert.deepEqual(query.resultRows([['name','n'],['A',1]],10).rows,[{name:'A',n:1}]);
+ assert.throws(()=>query.resultRows([{a:1},[1]],10),/array of row objects/);
  assert.equal((await query.evaluateJsonata('$setParam($url,"page",2)',{}, {url:'https://a.example/x?page=1&q=1',setParam:paging.setParam})),'https://a.example/x?page=2&q=1');
  const wb=[{page:1,pages:2},[{country:{value:'France'},countryiso3code:'FRA',value:1}]];
  assert.deepEqual(await query.evaluateJsonata('$[1].{"name":country.value,"code":countryiso3code}',wb),{name:'France',code:'FRA'});

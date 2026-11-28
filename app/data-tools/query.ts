@@ -22,7 +22,10 @@ export async function evaluateJsonata(text:string,scope:unknown,bindings:Record<
 // The result as table rows: an array of objects (a single object becomes one row).
 export function resultRows(result:unknown,maxRows:number):{rows:Row[];truncated:boolean}{
  if(result===undefined||result===null)return {rows:[],truncated:false};
- const list=Array.isArray(result)?result:[result];
+ let list=Array.isArray(result)?result:[result];
+ // Rows written as arrays with a header row first, or plain values, are read as rows.
+ if(list.length>1&&list.every(x=>Array.isArray(x))&&(list[0] as unknown[]).every(h=>typeof h==='string'&&h)){const head=list[0] as string[];list=list.slice(1).map(r=>Object.fromEntries(head.map((h,i)=>[h,(r as unknown[])[i]])));}
+ else if(list.length&&list.every(x=>x===null||typeof x!=='object'))list=list.map(value=>({value}));
  const bad=list.find(x=>!x||typeof x!=='object'||Array.isArray(x));
  if(bad!==undefined)throw Error('The expression must return an array of row objects, e.g. data.{"name":name,"value":value}; it returned '+(Array.isArray(bad)?'an array of arrays':typeof bad)+' items.');
  return {rows:list.slice(0,maxRows) as Row[],truncated:list.length>maxRows};

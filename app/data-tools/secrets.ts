@@ -1,3 +1,4 @@
+import {looseJson} from './args';
 // Keys for data sources that need one (an API key, a token): the operators store each as SOURCE_KEY_<NAME> in the
 // server's environment when an agent asks for access; agents write {{secret:SOURCE_KEY_<NAME>}} in a URL or header
 // and the value is put in only when the request is sent. Agents never see a value: saved recipes, dataset sources,
@@ -24,7 +25,7 @@ export function secretNames():string[]{return Object.keys(process.env).filter(k=
 // Request headers an agent may set (with secrets): auth and API-key headers, Accept, a few API-specific ones.
 export function resolveHeaders(json:string):Record<string,string>|undefined{
  if(!json||!json.trim())return undefined;
- let o:unknown;try{o=JSON.parse(json);}catch{throw Error('headers: a JSON object string, e.g. \'{"Authorization":"Bearer {{secret:SOURCE_KEY_EXAMPLE}}"}\'.');}
+ let o:unknown;try{o=looseJson(json);if(o===undefined)return undefined;}catch{throw Error('headers: a JSON object string, e.g. \'{"Authorization":"Bearer {{secret:SOURCE_KEY_EXAMPLE}}"}\'.');}
  if(!o||typeof o!=='object'||Array.isArray(o))throw Error('headers: a JSON object string.');
  const out:Record<string,string>={};
  for(const [k,v] of Object.entries(o as Record<string,unknown>)){

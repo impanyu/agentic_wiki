@@ -112,7 +112,7 @@ export type Recipe={id:string;type:string;name:string;description:string;steps:R
 const recipeRow=(r:Row):Recipe=>({id:String(r.id),type:String(r.type),name:String(r.name),description:String(r.description),steps:(r.steps as Row[])||[],schedule:String(r.schedule),
  status:String(r.status),createdBy:String(r.created_by),lastRunAt:iso(r.last_run_at),lastResult:r.last_result??null});
 export async function saveRecipe(db:Queryable,input:{type:string;name:string;description?:string;steps:Row[];schedule?:string;createdBy:string}):Promise<Recipe>{
- const type=normalizeType(input.type),name=String(input.name||'').trim().toLowerCase();if(!/^[a-z0-9][a-z0-9-]{1,80}$/.test(name))throw Error('A recipe name is lower-case words joined by hyphens.');
+ const type=normalizeType(input.type),name=String(input.name||'').trim().toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,'').slice(0,80);if(!/^[a-z0-9][a-z0-9-]{1,80}$/.test(name))throw Error('A recipe name is lower-case words joined by hyphens.');
  if(!Array.isArray(input.steps)||!input.steps.length||input.steps.length>20)throw Error('A recipe has 1–20 steps.');
  const r=await db.query(`insert into recipes(type,name,description,steps,schedule,created_by) values ($1::text,$2::text,$3::text,$4::jsonb,$5::text,$6::text)
   on conflict (type,name) do update set description=excluded.description, steps=excluded.steps, schedule=excluded.schedule, created_by=excluded.created_by, status='active', updated_at=now() returning *`,

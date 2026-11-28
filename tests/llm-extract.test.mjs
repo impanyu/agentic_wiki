@@ -2,9 +2,10 @@ import test from 'node:test';import assert from 'node:assert/strict';import {rea
 // Model extraction (app/data-tools/llm-extract.ts): the program, not the model, decides what is kept.
 const cheerio=pathToFileURL(createRequire(import.meta.url).resolve('cheerio')).href;
 const load=async(file,prelude)=>import('data:text/javascript;base64,'+Buffer.from(prelude+ts.transpile(readFileSync(file,'utf8').replace(/^import .*;$/gm,''),{module:ts.ModuleKind.ESNext,target:ts.ScriptTarget.ES2022})).toString('base64'));
-const ef=await load('app/data-tools/extract-fields.ts',`import {load} from '${cheerio}';\n`);
+const argsJs=ts.transpile(readFileSync('app/data-tools/args.ts','utf8'),{module:ts.ModuleKind.ESNext,target:ts.ScriptTarget.ES2022}).replace(/^export /gm,'');
+const ef=await load('app/data-tools/extract-fields.ts',`import {load} from '${cheerio}';\n`+argsJs+'\n');
 globalThis.__numberOf=ef.numberOf;
-const m=await load('app/data-tools/llm-extract.ts',`import {load} from '${cheerio}';import {createHash} from 'node:crypto';const numberOf=globalThis.__numberOf;\n`);
+const m=await load('app/data-tools/llm-extract.ts',`import {load} from '${cheerio}';import {createHash} from 'node:crypto';const numberOf=globalThis.__numberOf;\n`+argsJs+'\n');
 
 const page=`Tsinghua University was established in 1911 in Beijing.
 It enrolls about 53,302 students. In 2023 its research income reached 5.2 billion yuan.

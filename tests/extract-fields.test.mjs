@@ -3,7 +3,8 @@ import test from 'node:test';import assert from 'node:assert/strict';import {rea
 const out=new URL('../node_modules/.cache/extract-fields-test/',import.meta.url);mkdirSync(out,{recursive:true});
 writeFileSync(new URL('stub.mjs',out),'export const fetchText=()=>{throw Error("no network")};export const publicUrl=u=>new URL(u);export const saveDataset=async()=>({});export const loadDataset=async()=>({columns:[],rows:[]});export const linkMatcher=p=>u=>u.includes(p);');
 let js=ts.transpileModule(readFileSync('app/data-tools/extract-fields.ts','utf8'),{compilerOptions:{module:ts.ModuleKind.ESNext,target:ts.ScriptTarget.ES2022}}).outputText;
-js=js.replace(/from\s*'\.\/(net|datasets|robots)'/g,"from './stub.mjs'");writeFileSync(new URL('extract-fields.mjs',out),js);
+js=js.replace(/from\s*'\.\/(net|datasets|robots)'/g,"from './stub.mjs'").replace(/from\s*'\.\/args'/g,"from './args.mjs'");
+writeFileSync(new URL('args.mjs',out),ts.transpileModule(readFileSync('app/data-tools/args.ts','utf8'),{compilerOptions:{module:ts.ModuleKind.ESNext,target:ts.ScriptTarget.ES2022}}).outputText);writeFileSync(new URL('extract-fields.mjs',out),js);
 const m=await import(new URL('extract-fields.mjs',out));
 const html=`<html><head><title>Chanel No 5 – Perfumes</title>
 <meta property="og:title" content="Chanel No 5"><meta name="description" content="A floral aldehyde.">

@@ -89,9 +89,13 @@ export const KINDS:Record<string,Kind>={
   instructions:CLASS_NOTE+' Task: a collection rule of this class failed or drifted (task.payload: the recipe and error). Inspect the source again, fix the recipe or move it to the best alternative source, run it until it succeeds, retract data from a source you abandon.',
   gate:(db,t)=>dataGate(db,t.target,{minShare:0})},
  source_review:{pool:'collector',title:'review the class\'s sources',target:'class',budget:{rounds:40,calls:90},
-  instructions:CLASS_NOTE+' Task: the periodic source review. Open every source of the class again (reachable, current, same format), replace dead or superseded ones, look for better or missing sources (markets not covered), and record each check (record_sources).'},
+  instructions:CLASS_NOTE+' Task: the periodic source review. Open every source of the class again (reachable, current, same format), replace dead or superseded ones, look for better or missing sources (markets not covered), and record each check (record_sources).',
+  // Accepted when this class's own data has no open problems (not the whole topic's).
+  gate:(db,t)=>dataGate(db,t.target,{minShare:0})},
  data_verify:{pool:'collector',title:'verify questioned data',target:'class',budget:{rounds:30,calls:70},
-  instructions:CLASS_NOTE+' Task: data of this class is questioned (task.payload: a reader report, a value that jumped or is out of range, two sources that disagree, a reviewer finding). Check it against the sources, correct the values or the recipe, retract wrong data, and say what you found.'},
+  instructions:CLASS_NOTE+' Task: data of this class is questioned (task.payload: a reader report, a value that jumped or is out of range, two sources that disagree, a reviewer finding). Check it against the sources, correct the values or the recipe, retract wrong data, and say what you found.',
+  // Accepted when this class's own data has no open problems (not the whole topic's).
+  gate:(db,t)=>dataGate(db,t.target,{minShare:0})},
  class_evolution:{pool:'collector',title:'propose how the class should change',target:'class',budget:{rounds:30,calls:60},
   instructions:CLASS_NOTE+' Task: the class has grown (task.payload: why). Judge whether it should split (one attribute, complete, non-overlapping subclasses that each help collection — their own registries or fields) or merge into its parent, and return the proposal in your summary with requests of kind "arbitrate" to the manager; never restructure the tree yourself.'},
  class_patrol:{pool:'collector',title:'patrol the class (scheduled full check)',target:'class',budget:{rounds:30,calls:60},

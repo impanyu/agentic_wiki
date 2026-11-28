@@ -1,3 +1,4 @@
+import {looseJson} from './args';
 import {createHash} from 'node:crypto';
 import {load} from 'cheerio';
 import {publicUrl} from './net';
@@ -20,7 +21,7 @@ const MAX_AGENT_PAGES=10,MAX_CRAWLER_PAGES=2000,CHUNK=12_000,MAX_CHUNKS=4;
 export const OWN_MODEL='local';
 
 export function parseSpec(raw:unknown):Record<string,FieldSpec>{
- const o=typeof raw==='string'?(()=>{try{return JSON.parse(raw);}catch{throw Error('fields must be a JSON object string: {"name": {"type": "number", "description": "…", "unit": "USD"}}.');}})():raw;
+ const o=typeof raw==='string'?(()=>{try{return looseJson(raw);}catch{throw Error('fields must be a JSON object string: {"name": {"type": "number", "description": "…", "unit": "USD"}}.');}})():raw;
  if(!o||typeof o!=='object'||Array.isArray(o))throw Error('fields must be an object {"name": {"type", "description", "unit"}}.');
  const entries=Object.entries(o as Record<string,unknown>);if(!entries.length||entries.length>30)throw Error('Give 1–30 fields.');
  return Object.fromEntries(entries.map(([k,v])=>{

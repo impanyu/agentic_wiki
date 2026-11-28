@@ -44,6 +44,8 @@ const datasetOf=(v:unknown):string|undefined=>{
  return undefined;
 };
 function resolveArgs(v:unknown,out:Map<string,unknown>):unknown{
+ // An argument written as JSON text ('{"pop":"$step1"}') has its references resolved inside.
+ if(typeof v==='string'&&/^\s*[[{]/.test(v)&&/"\$[a-z]/i.test(v)){try{return JSON.stringify(resolveArgs(JSON.parse(v),out));}catch{}}
  if(typeof v==='string'){const m=/^\$([a-z][a-z0-9_]*)((?:\.[A-Za-z0-9_]+)*)$/i.exec(v.trim());if(!m)return v;
   const prior=out.get(m[1]);if(prior===undefined)throw Error('No earlier step "'+m[1]+'".');
   if(!m[2])return datasetOf(prior)??(()=>{throw Error('Step '+m[1]+' returned no dataset.');})();

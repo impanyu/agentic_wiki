@@ -131,7 +131,9 @@ test('the fetcher caches GETs for 10 minutes, retries 429/5xx at most twice and 
 test('tool arguments are validated with clear errors; schemas and signatures come from the same declaration',async()=>{
  const sparql=tool('wikidata','sparql');
  assert.throws(()=>m.parseToolArgs('wikidata',sparql,{}),/Invalid arguments for wikidata\.sparql: query Required.*Expected sparql\(query, limit\?\)/);
- assert.throws(()=>m.parseToolArgs('wikidata',sparql,{query:'x',bogus:1}),/Unrecognized key/);
+ assert.deepEqual(m.parseToolArgs('wikidata',sparql,{query:'x',bogus:1}),{query:'x'});
+ assert.deepEqual(m.parseToolArgs('wikidata',sparql,{sparql:'SELECT'}),{query:'SELECT'});
+ assert.deepEqual(m.parseToolArgs('wikidata',sparql,{query:'SELECT',limit:''}),{query:'SELECT'});
  assert.deepEqual(m.parseToolArgs('wikidata',sparql,{query:'SELECT',limit:'20'}),{query:'SELECT',limit:20});
  assert.throws(()=>m.parseToolArgs('appstore',tool('appstore','top_charts'),{chart:'top-grossing'}),/chart/);
  assert.deepEqual(m.parseToolArgs('packages',tool('packages','npm_downloads'),{packages:'react, vue'}).packages,['react','vue']);

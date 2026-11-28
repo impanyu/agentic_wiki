@@ -57,7 +57,7 @@ export async function fetchSource(url:URL,signal:AbortSignal,options:FetchOption
    const req=(url.protocol==='https:'?httpsRequest:httpRequest)(url,{method:'GET',agent:false,family:4,signal:deadline,lookup:(_host,_options,callback)=>callback(null,addresses[0].address,4),headers:{Accept:options.accept||'text/html,application/pdf,text/plain,application/json','Accept-Encoding':'identity','User-Agent':'AgenticWiki/1.0 (page reader)',...(options.referer?{Referer:options.referer}:{}),...(options.headers||{})}},res=>{
     const status=res.statusCode||0;
     if(status>=300&&status<400){res.destroy();resolve({status,location:res.headers.location,type:'',bytes:Buffer.alloc(0)});return;}
-    if(status<200||status>=300){res.destroy();reject(Error('URL_UNAVAILABLE'));return;}
+    if(status<200||status>=300){res.destroy();reject(Object.assign(Error('URL_UNAVAILABLE'),{status}));return;}
     const contentType=String(res.headers['content-type']||'').toLowerCase(),type=contentType.split(';')[0].trim(),charset=contentType.match(/charset=["']?([a-z0-9_-]+)/)?.[1];
     if(!(options.allowType?options.allowType(type):documentTypes.includes(type))){res.destroy();reject(Error('URL_UNSUPPORTED'));return;}
     let size=0;const chunks:Buffer[]=[];

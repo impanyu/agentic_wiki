@@ -1,3 +1,4 @@
+import {looseJson} from './args';
 import {load,type CheerioAPI} from 'cheerio';
 import {fetchText,publicUrl} from './net';
 import {saveDataset,loadDataset,type Row} from './datasets';
@@ -28,7 +29,7 @@ export function parseRule(raw:unknown):FieldRule{
  return r;
 }
 export function parseFields(raw:unknown):Record<string,FieldRule>{
- const o=typeof raw==='string'?(()=>{try{return JSON.parse(raw);}catch{throw Error('fields must be a JSON object string: {"name": "css:h1", …}.');}})():raw;
+ const o=typeof raw==='string'?(()=>{try{return looseJson(raw);}catch{throw Error('fields must be a JSON object string: {"name": "css:h1", …}.');}})():raw;
  if(!o||typeof o!=='object'||Array.isArray(o))throw Error('fields must be an object: {"name": "css:h1", …}.');
  const entries=Object.entries(o as Record<string,unknown>);if(!entries.length||entries.length>60)throw Error('Give 1–60 fields.');
  return Object.fromEntries(entries.map(([k,v])=>{if(!/^[A-Za-z_][\w]{0,60}$/.test(k))throw Error('Field names are identifiers (got "'+k+'").');return [k,parseRule(v)];}));

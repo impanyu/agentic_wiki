@@ -13,6 +13,10 @@ export function publicUrl(input:string):URL{
 export function friendlyError(e:unknown,url:string):Error{
  const m=(e as Error)?.message||String(e);
  const known:Record<string,string>={URL_PRIVATE:'Only public internet addresses can be fetched.',URL_INVALID:'This is not a valid http(s) address.',URL_TOO_LARGE:'The response is too large (limit 20 MB); ask the API for fewer rows or columns.',URL_UNSUPPORTED:'The response is not a data format these tools read (JSON, CSV/TSV, XML, HTML).',URL_UNAVAILABLE:'The address could not be fetched (HTTP error, login wall, access challenge or too many redirects): '+url+'. Do not try to get around it: read its archived copy (call_public_source archive.wayback_fetch, or archive.commoncrawl_index + commoncrawl_fetch; extract_tables, browse_page and crawl_pages do this automatically), or use the platform\'s official API or a data dump.'};
+ // The HTTP status says what to do next: 4xx other than 429 = this address or these parameters are wrong (fix the
+ // query, or use the source's documented API / bulk download); 429/5xx = the server is busy (try later or elsewhere).
+ const st=(e as {status?:number})?.status;
+ if(m==='URL_UNAVAILABLE'&&st)return Error('HTTP '+st+(st===401||st===403?' (access denied: login wall or blocked automated access)':st===404?' (not found: check the address and parameters)':st===400?' (bad request: check the parameters)':st===429?' (rate limited: try later)':st>=500?' (server error: try later or another source)':'')+' from '+url+'. Prefer the source\'s documented API or bulk download over web pages; do not try to get around a block.');
  if(known[m])return Error(known[m]);
  if(/abort|timeout/i.test(m))return Error('The request timed out: '+url);
  if(/ENOTFOUND|EAI_AGAIN/.test(m))return Error('The host does not exist: '+new URL(url).hostname);

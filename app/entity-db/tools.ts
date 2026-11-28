@@ -1,3 +1,4 @@
+import {looseJson,normalizeArgs} from '@/app/data-tools/args';
 import {loadDataset,saveDataset,datasetScope} from '@/app/data-tools/datasets';
 import type {AgentContext} from '@/app/components-registry/registry';
 import {entityDb} from './client';
@@ -35,7 +36,7 @@ const str=(v:unknown,max=4000)=>typeof v==='string'?v.trim().slice(0,max):'';
 const list=(v:unknown)=>str(v).split(',').map(s=>s.trim()).filter(Boolean);
 function json<T>(v:unknown,what:string):T|undefined{
  const s=str(v,20_000);if(!s)return undefined;
- try{const o=JSON.parse(s);if(!o||typeof o!=='object'||Array.isArray(o))throw 0;return o as T;}catch{throw Error(what+' must be a JSON object string, e.g. '+(what==='filters'?'\'{"region":"Asia"}\'':'\'{"key":"value"}\'')+'.');}
+ try{const o=looseJson(s);if(o===undefined)return undefined;if(!o||typeof o!=='object'||Array.isArray(o))throw 0;return o as T;}catch{throw Error(what+' must be a JSON object string, e.g. '+(what==='filters'?'\'{"region":"Asia"}\'':'\'{"key":"value"}\'')+'.');}
 }
 // The column mapping shared by entity_upsert and bulk_import (columns: the dataset's, or null when not known yet).
 function mappingFrom(args:Record<string,unknown>,columns:string[]|null):EntityMapping{
@@ -52,6 +53,7 @@ function mappingFrom(args:Record<string,unknown>,columns:string[]|null):EntityMa
 }
 // Returns {data} like the other agent tools.
 export async function runEntityTool(name:string,args:Record<string,unknown>,ctx:AgentContext,signal?:AbortSignal):Promise<{data:unknown}>{
+ args=normalizeArgs(args);
  signal?.throwIfAborted();
  const db=await entityDb();
  switch(name){

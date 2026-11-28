@@ -29,7 +29,16 @@ export function toolSchema(t:ToolDef){
 export const toolSignature=(t:ToolDef)=>t.name+'('+Object.entries(t.args).map(([k,a])=>k+(a.optional?'?':'')).join(', ')+')';
 export function parseToolArgs(source:string,t:ToolDef,args:unknown){
  const shape=Object.fromEntries(Object.entries(t.args).map(([k,a])=>[k,a.zod]));
- const r=z.object(shape).strict().safeParse(args??{});
+ // Near-misses read as meant: "" / null for an optional argument is "not given"; a single unknown argument where a
+ // single required one is missing is that argument under another name (sparql {"sparql": …} → query); other unknown
+ // names are dropped (the reply notes them).
+ const given:Record<string,unknown>={...(args&&typeof args==='object'&&!Array.isArray(args)?args as Record<string,unknown>:{})};
+ for(const [k,v] of Object.entries(given))if((v===''||v===null)&&t.args[k]?.optional)delete given[k];
+ const unknown=Object.keys(given).filter(k=>!(k in t.args));
+ const missing=Object.keys(t.args).filter(k=>!t.args[k].optional&&!(k in given));
+ if(unknown.length===1&&missing.length===1){given[missing[0]]=given[unknown[0]];delete given[unknown[0]];}
+ else for(const k of unknown)delete given[k];
+ const r=z.object(shape).strict().safeParse(given);
  if(!r.success)throw Error('Invalid arguments for '+source+'.'+t.name+': '+r.error.issues.map(i=>(i.path.join('.')||'arguments')+' '+i.message).join('; ')+'. Expected '+toolSignature(t)+'.');
  return r.data as Record<string,any>;
 }

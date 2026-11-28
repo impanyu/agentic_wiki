@@ -31,10 +31,19 @@ export async function findSources(query:string,country:string,limit=30){
 export async function searchWeb(query:string,count:number,signal?:AbortSignal){
  // Free tiers first; Tavily (pay-as-you-go beyond its free monthly credits) last and capped per day
  // (TAVILY_DAILY_CAP, default 30 ≈ its free 1,000 a month).
+ // Half of the agents' searches repeat one made in the past days: answered from a 7-day cache, so the daily
+ // quotas go to new questions.
+ const {entityDb}=await import('@/app/entity-db/client');const cdb=await entityDb();
+ const ckey=query.trim().toLowerCase().replace(/\s+/g,' ')+'|'+(Number(count)||8);
+ try{await cdb.query('create table if not exists web_search_cache(q text primary key, result jsonb not null, at timestamptz not null default now())');
+  const hit=(await cdb.query<{result:unknown}>("select result from web_search_cache where q=$1::text and at>now()-interval '7 days'",[ckey])).rows[0];
+  if(hit)return hit.result as Awaited<ReturnType<typeof webSearch>>;}catch{}
  const {recordServiceCall,callsToday}=await import('@/app/ops/service-usage');
  const caps:Record<string,number>={tavily:Number(process.env.TAVILY_DAILY_CAP||30),exa:Number(process.env.EXA_DAILY_CAP||300)};
- try{return await webSearch(query,count,n=>process.env[n],fetch,signal,{order:['jina','exa','tavily'],
-  allow:async id=>!(id in caps)||await callsToday('search:'+id)<caps[id],done:(id,ok)=>void recordServiceCall('search:'+id,ok)});}
+ try{const r=await webSearch(query,count,n=>process.env[n],fetch,signal,{order:['jina','exa','tavily'],
+  allow:async id=>!(id in caps)||await callsToday('search:'+id)<caps[id],done:(id,ok)=>void recordServiceCall('search:'+id,ok)});
+  if(r.results.length)await cdb.query('insert into web_search_cache(q,result) values ($1::text,$2::jsonb) on conflict (q) do update set result=excluded.result, at=now()',[ckey,JSON.stringify(r)]).catch(()=>{});
+  return r;}
  catch(e){
   const m=(e as Error).message;
   if(m==='WEB_SEARCH_NOT_CONFIGURED'){

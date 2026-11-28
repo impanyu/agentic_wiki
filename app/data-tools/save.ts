@@ -1,5 +1,7 @@
+import {looseJson} from './args';
 import {loadDataset,saveDataset,summarize,DATASET_LIMITS} from './datasets';
 import {evaluateJsonata,resultRows} from './query';
+import {sqlQuery,looksLikeSql} from './sql-query';
 import {columnStats,rowRange,pickColumns,toCsv,fitRows} from './table-ops';
 import {setParam} from './paging';
 import type {AgentContext} from '@/app/components-registry/registry';
@@ -7,7 +9,7 @@ import type {AgentContext} from '@/app/components-registry/registry';
 const list=(s:string)=>s.split(',').map(x=>x.trim()).filter(Boolean);
 function parseObject(text:string,what:string):Record<string,string>{
  if(!text.trim())return {};
- let v:unknown;try{v=JSON.parse(text);}catch{throw Error(what+' must be a JSON object string, e.g. {"pop":"ds_…","gdp":"ds_…"}.');}
+ let v:unknown;try{v=looseJson(text);if(v===undefined)return {};}catch{throw Error(what+' must be a JSON object string, e.g. {"pop":"ds_…","gdp":"ds_…"}.');}
  if(!v||typeof v!=='object'||Array.isArray(v))throw Error(what+' must be a JSON object.');
  return Object.fromEntries(Object.entries(v as Record<string,unknown>).map(([k,x])=>[k,String(x)]));
 }
@@ -16,9 +18,14 @@ export async function queryData(args:{inputs:string;expression:string;title:stri
  if(!aliases.length)throw Error('inputs needs at least one alias, e.g. {"pop":"ds_…"}.');
  if(aliases.length>8)throw Error('Use at most 8 inputs.');
  const bad=aliases.find(a=>!/^[A-Za-z_][A-Za-z0-9_]*$/.test(a));if(bad)throw Error('Alias "'+bad+'" must be a simple name (letters, digits, _).');
- const data:Record<string,unknown[]>={},described:string[]=[];
- for(const a of aliases){const d=await loadDataset(scope,inputs[a]);data[a]=d.rows;described.push(a+' ('+d.rows.length+' rows; columns: '+d.columns.slice(0,40).map(c=>/^[A-Za-z_]\w*$/.test(c)?c:'`'+c+'`').join(', ')+')');}
- const result=await evaluateJsonata(args.expression,data,{setParam},15_000,()=>described.join('; ')+'. Refer to a dataset by its alias (e.g. '+aliases[0]+'[value > 0]) and to columns with spaces in backticks.');
+ const data:Record<string,unknown[]>={},tables:Record<string,{rows:Record<string,unknown>[];columns:string[]}>={},described:string[]=[];
+ const sql=looksLikeSql(args.expression);
+ for(const a of aliases){const d=await loadDataset(scope,inputs[a]);data[a]=d.rows;tables[a]={rows:d.rows as Record<string,unknown>[],columns:d.columns};described.push(a+' ('+d.rows.length+' rows; columns: '+d.columns.slice(0,40).map(c=>sql?(/^[a-z_][a-z0-9_]*$/.test(c)?c:'"'+c+'"'):/^[A-Za-z_]\w*$/.test(c)?c:'`'+c+'`').join(', ')+')');}
+ // SQL (SELECT / WITH): each alias is a table. Otherwise JSONata; an expression whose quotes were escaped once too
+ // often (\"name\") is read with plain quotes.
+ const result=sql?await sqlQuery(args.expression,tables,15_000)
+  :await evaluateJsonata(args.expression,data,{setParam},15_000,()=>described.join('; ')+'. Refer to a dataset by its alias (e.g. '+aliases[0]+'[value > 0]) and to columns with spaces in backticks. Or write SQL instead (SELECT … FROM '+aliases[0]+' …).')
+   .catch(async e=>{if(/\\"/.test(args.expression))return evaluateJsonata(args.expression.replace(/\\"/g,'"'),data,{setParam},15_000);throw e;});
  const {rows,truncated}=resultRows(result,DATASET_LIMITS.rows);
  if(!rows.length)throw Error('The expression returned no rows. Inputs: '+described.join('; '));
  const summary=await saveDataset(scope,{title:args.title||'Query result',source:'query_data over '+aliases.map(a=>a+'='+inputs[a]).join(', ')+': '+args.expression.slice(0,600),rows});

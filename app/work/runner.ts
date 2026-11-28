@@ -67,7 +67,9 @@ async function runTask(db:Queryable,t:Task,log:(e:Row)=>void){
  log({event:'task_started',id:t.id,kind:t.kind,target:t.target});
  let result:Row;
  try{
-  result=await ask(def.pool,agent,topicId,instructions,task,RESULT,e=>log({task:t.id,...e}),def.budget,def.gate?async()=>def.gate!(db,t):undefined) as Row;
+  // A task is judged by its own gate; a collector's task with none (a proposal) or a check's trial is not held to the
+  // role's topic-wide default; page reviews keep the reviewer's evidence rule (a broken recipe elsewhere in the topic used to fail unrelated tasks).
+  result=await ask(def.pool,agent,topicId,instructions,task,RESULT,e=>log({task:t.id,...e}),def.budget,def.gate?async()=>def.gate!(db,t):def.pool==='collector'||t.kind==='check_trial'?async()=>undefined:undefined) as Row;
  }catch(e){
   const {transientModelError}=await import('@/app/teams/run');
   if(transientModelError(e)){await finish(db,t.id,'queued',{requeued:String((e as Error).message).slice(0,200)});return;}
@@ -79,6 +81,8 @@ async function runTask(db:Queryable,t:Task,log:(e:Row)=>void){
     await finish(db,t.id,'done',{partial:true,missing:String(missing).slice(0,1000)});
     if(n<5)await enqueue(db,{kind:t.kind,pool:def.pool,target:t.target,priority:Math.max(10,(t.priority||50)-5),payload:{...t.payload,continuation:n+1,stillMissing:String(missing).slice(0,800)},requestedBy:'continuation'});
     log({event:'task_partial',id:t.id,kind:t.kind,target:t.target});return;}
+   // The gate passes now (the agent's last steps or a background run finished the work): the task is done.
+   await finish(db,t.id,'done',{note:'gate met after the agent\'s budget'});log({event:'task_done_late',id:t.id,kind:t.kind,target:t.target});return;
   }
   await finish(db,t.id,'failed',{error:String((e as Error).message).slice(0,1000)});
   if(t.attempts>=2)await enqueue(db,{kind:'arbitrate',pool:'manager',target:'task:'+t.id,priority:60,payload:{why:'failed repeatedly',task:{kind:t.kind,target:t.target},error:String((e as Error).message).slice(0,500)}});

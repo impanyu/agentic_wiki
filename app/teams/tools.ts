@@ -1,3 +1,4 @@
+import {looseJson,normalizeArgs} from '@/app/data-tools/args';
 import type {AgentContext} from '@/app/components-registry/registry';
 import {entityDb} from '@/app/entity-db/client';
 import {entityTools,entityToolNames,runEntityTool} from '@/app/entity-db/tools';
@@ -74,7 +75,8 @@ export function teamToolDefs(role:Role){
  return [...EXPLORE,...entity,...ROLE_TOOLS[role].map(n=>teamTools[n as keyof typeof teamTools])];
 }
 
-const json=(v:unknown,what:string)=>{try{const o=JSON.parse(String(v||''));return o;}catch{throw Error(what+' must be valid JSON.');}};
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const json=(v:unknown,what:string):any=>{try{const o=looseJson(v);if(o===undefined)throw 0;return o;}catch{throw Error(what+' must be valid JSON (a JSON '+(/steps|items/i.test(what)?'array':'object')+' written as text; inside strings, escape quotes as \\" and line breaks as \\n).');}};
 // The topic's editor record (owner of the plan and the inbox), created on first use.
 export async function topicEditorId(db:Queryable,topicId:string|null):Promise<string|null>{
  if(!topicId)return null;
@@ -216,6 +218,7 @@ async function previewPage(path:string){
 }
 
 export async function runTeamTool(role:Role,name:string,args:Record<string,unknown>,ctx:AgentContext,topicId:string|null,signal?:AbortSignal):Promise<{data:unknown}>{
+ args=normalizeArgs(args);
  if(!teamToolDefs(role).some(t=>t.name===name))throw Error(name+' is not one of the '+role+'\'s tools.');
  if(role==='editor'&&name==='define_metric'&&!String(args.definition||'').trim())throw Error('Measured metrics are the collector\'s: ask for the data (data check or save_plan). You define composite indices only (a derived definition).');
  const db=await entityDb(),who=role+':'+(ctx.agent?.id||'');

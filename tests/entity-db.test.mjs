@@ -3,7 +3,8 @@ process.env.RANKS_SYNC='1';import test from 'node:test';import assert from 'node
 // The TS modules are transpiled into node_modules/.cache so their package imports (pglite, zod) resolve;
 // '@/…' imports are replaced by small stubs.
 const out=new URL('../node_modules/.cache/entity-db-test/',import.meta.url);mkdirSync(out,{recursive:true});
-const stubs={'@/app/data-tools/datasets':'./stub-datasets.mjs','@/app/work/queue':'./work-queue.mjs'};
+const stubs={'@/app/data-tools/datasets':'./stub-datasets.mjs','@/app/work/queue':'./work-queue.mjs','@/app/data-tools/args':'./args.mjs'};
+writeFileSync(new URL('args.mjs',out),ts.transpileModule(readFileSync(new URL('../app/data-tools/args.ts',import.meta.url),'utf8'),{compilerOptions:{module:ts.ModuleKind.ESNext,target:ts.ScriptTarget.ES2022}}).outputText);
 writeFileSync(new URL('stub-datasets.mjs',out),`export const store=new Map();let n=0;
 export const datasetScope=ctx=>ctx.agent?.id||ctx.userId||'anonymous';
 export async function loadDataset(scope,id){const d=store.get(scope+'/'+id);if(!d)throw Error('Unknown dataset '+id);return d;}
