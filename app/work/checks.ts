@@ -43,6 +43,7 @@ export const BUILTIN:Omit<Check,'status'|'created_by'>[]=[
      where (c->>'at')::timestamptz > now() - interval '180 days' and (c->>'listed')::numeric > 0 and (c->>'matched')::numeric/(c->>'listed')::numeric >= 0.9) g on true
    where et.schema->>'kind'='class' and coalesce(g.n,0) < 2 and exists (select 1 from entities e where e.type=et.type)
    order by (et.topic_id is not null) desc, et.type`},
+ {id:'class-over-expected',object:'class',kind:'data_verify',title:'More members than the class can have (duplicates or members that do not belong)',severity:85,cooldown_days:1,sql:'fn:overExpected'},
  {id:'class-source-scales',object:'class',kind:'data_verify',title:'One measure in different units across sources (medians 100x apart)',severity:85,cooldown_days:3,sql:'fn:sourceScales'},
  {id:'ranking-top-sanity',object:'class',kind:'data_verify',title:'What a reader sees first: totals, duplicates or artifacts at the top of a ranking',severity:90,cooldown_days:1,sql:'fn:topSanity'},
  {id:'class-outliers',object:'class',kind:'data_verify',title:'Impossible values (far outside the rest of the class)',severity:75,cooldown_days:7,sql:'fn:outliers'},
@@ -133,6 +134,14 @@ async function runFn(db:Queryable,name:string,limit:number):Promise<{target:stri
    where v.value > 50*q.p99 or v.value < q.p01/50 group by 1,2 order by 3 desc limit $1::int`,[limit])).rows;
   const by=new Map<string,string[]>();for(const r of rows){const l=by.get(r.type)||[];l.push(`${r.metric}: ${r.n} value(s) far outside the class (${String(r.names).slice(0,300)})`);by.set(r.type,l);}
   return [...by].map(([target,l])=>({target,detail:'Values that cannot be right — check each against its source, fix the unit or parsing in the recipe, and retract what is wrong: '+l.join('; ')}));
+ }
+ if(name==='overExpected'){
+  // A class whose expected count is known (50 states and DC, 193 UN members) holding 20% more: a load created
+  // duplicates or took in things that do not belong (territories, cities, a "United States" row).
+  const rows=(await db.query<{type:string;n:number;expected:number}>(`select et.type, count(e.id)::int n, (et.schema->'universe'->>'expectedCount')::int expected
+    from entity_types et join entities e on e.type=et.type where et.schema->'universe'->>'expectedCount' ~ '^[0-9]+$' and (et.schema->'universe'->>'expectedCount')::int between 1 and 100000
+    group by et.type, et.schema having count(e.id) > 1.2*(et.schema->'universe'->>'expectedCount')::int + 2 order by count(e.id)::float/(et.schema->'universe'->>'expectedCount')::int desc limit $1::int`,[limit])).rows;
+  return rows.map(r=>({target:r.type,detail:`${r.n} members where about ${r.expected} exist: find the duplicates (the same thing under another id or spelling) and the members that do not meet the class's admission rule; merge or move them, and fix the load that created them.`}));
  }
  if(name==='sourceScales'){
   // One measure of one class whose sources' typical values are 100 times apart: one source gives millions or billions
