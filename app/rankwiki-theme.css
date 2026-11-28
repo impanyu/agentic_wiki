@@ -271,6 +271,11 @@ html,body{background:var(--rw-bg)}
 [data-theme=dark] .wf-rank-pills button.on,[data-theme=dark] .wf-rank-seg button.on{background:var(--rw-surface);color:var(--rw-ink);box-shadow:none}
 [data-theme=dark] .wf-rank .wf-rank-select select{color:var(--rw-ink);border-color:var(--rw-border-strong);background-color:var(--rw-surface-2)}
 [data-theme=dark] .wf-rank .wf-rank-select select option{background:#16161a;color:#f2f2f4}
+[data-theme=dark] .wf-rank .wf-crit-button{color:var(--rw-ink);border-color:var(--rw-border-strong);background:var(--rw-surface-2)}
+[data-theme=dark] .wf-crit-panel{background:#16161a;border-color:var(--rw-border-strong);box-shadow:0 12px 32px rgba(0,0,0,.5)}
+[data-theme=dark] .wf-crit-search{border-color:var(--rw-border-strong)}
+[data-theme=dark] .wf-rank .wf-crit-search input,[data-theme=dark] .wf-crit-option{color:#f2f2f4}
+[data-theme=dark] .wf-crit-option.active{background:rgba(79,124,255,.16)}
 [data-theme=dark] .wf-rank-crit,[data-theme=dark] .wf-ev-crit,[data-theme=dark] .wf-ev-meta b{color:#e4e4e8}
 [data-theme=dark] .wf-rank-order,[data-theme=dark] .wf-ev-order{background:var(--rw-surface-3);color:var(--rw-muted)}
 [data-theme=dark] .wf-rank-stat .ico{background:var(--rw-surface-3)}

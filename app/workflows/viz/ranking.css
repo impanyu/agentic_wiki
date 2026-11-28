@@ -255,7 +255,25 @@
  .wf-rank-table th.wf-rank-barcell,.wf-rank-table td.wf-rank-barcell{width:18%}
  .wf-rank-table th.wf-rank-share,.wf-rank-table td.wf-rank-share{width:84px}
 }
-/* Keyword search over a long "Rank by" list */
-.wf-rank-search.wf-rank-crit-search{flex:0 1 200px}
-.wf-rank-crit-count{font-size:11px;font-weight:600;color:var(--rk-muted);font-variant-numeric:tabular-nums}
-@media (max-width:640px){.wf-rank-search.wf-rank-crit-search{flex:1 1 100%}}
+/* Rank by: searchable select for long criteria lists (search box inside the dropdown) */
+.wf-crit{position:relative}
+.wf-rank .wf-crit-button{display:inline-flex;align-items:center;gap:8px;font:inherit;font-size:13.5px;font-weight:600;color:var(--rk-ink);min-width:0;max-width:340px;
+ padding:8px 12px;border-radius:11px;border:1px solid #dfe5ef;background:#fff;cursor:pointer;box-shadow:0 1px 2px rgba(15,23,42,.05);transition:border-color .2s,box-shadow .2s}
+.wf-rank .wf-crit-button svg{color:var(--rk-accent);flex:none}
+.wf-rank .wf-crit-button:hover{border-color:#b9c7e6}
+.wf-rank .wf-crit-button:focus-visible,.wf-rank .wf-crit-button[aria-expanded=true]{outline:none;border-color:var(--rk-accent);box-shadow:0 0 0 3px rgba(79,124,255,.18)}
+.wf-crit-value{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.wf-crit-panel{position:absolute;right:0;top:calc(100% + 6px);z-index:40;width:min(380px,calc(100vw - 32px));background:#fff;border:1px solid #dfe5ef;border-radius:12px;
+ box-shadow:0 12px 32px rgba(15,23,42,.14),0 2px 6px rgba(15,23,42,.06);overflow:hidden;font-weight:400}
+.wf-crit-panel[hidden]{display:none}
+.wf-crit-search{display:flex;align-items:center;gap:8px;padding:0 12px;border-bottom:1px solid var(--rk-line);color:var(--rk-soft)}
+.wf-rank .wf-crit-search input{flex:1;min-width:0;border:0;outline:0;background:transparent;font:inherit;font-size:13.5px;color:var(--rk-ink);padding:11px 0;box-shadow:none}
+.wf-crit-count{font-size:11px;font-weight:600;color:var(--rk-muted);font-variant-numeric:tabular-nums}
+.wf-crit-list{max-height:min(360px,60vh);overflow-y:auto;padding:4px 0;overscroll-behavior:contain}
+.wf-crit-group{padding:8px 14px 4px;font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--rk-soft)}
+.wf-crit-option{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:7px 14px;font-size:13.5px;color:var(--rk-ink);cursor:pointer;white-space:normal}
+.wf-crit-option.active{background:#f1f5ff}
+.wf-crit-option.on{font-weight:600;color:var(--rk-accent)}
+.wf-crit-option svg{flex:none}
+.wf-crit-empty{padding:14px;font-size:13px;color:var(--rk-muted)}
+@media (max-width:640px){.wf-rank .wf-crit-button{flex:1;max-width:none;justify-content:space-between}.wf-crit-panel{left:0;right:auto;width:100%}}
