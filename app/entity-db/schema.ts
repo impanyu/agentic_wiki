@@ -394,6 +394,18 @@ export const MIGRATIONS:Migration[]=[
     sources integer not null default 0, member_lists integer not null default 0, single_source_metrics integer not null default 0,
     open_problems integer not null default 0, problems text[] not null default '{}', updated_at timestamptz not null default now())`,
  ]},
+ // The Sources layer (app/sources): per-host health of every outside request, and the registry of sources — what
+ // each feeds, how it is reached, whether it is open, and the backups when it is not.
+ {version:33,name:'source registry',statements:()=>[
+  `create table if not exists source_health(host text not null, day date not null default current_date, calls integer not null default 0,
+    ok integer not null default 0, denied integer not null default 0, limited integer not null default 0, failed integer not null default 0,
+    last_status integer, last_error text not null default '', last_ok_at timestamptz, last_at timestamptz, primary key(host, day))`,
+  `create table if not exists source_registry(host text primary key, name text not null default '', access text not null default 'page',
+    status text not null default 'unknown', classes text[] not null default '{}', fields integer not null default 0, recipes integer not null default 0,
+    failing_recipes integer not null default 0, calls7 integer not null default 0, ok7 integer not null default 0, denied7 integer not null default 0,
+    limited7 integer not null default 0, failed7 integer not null default 0, last_ok_at timestamptz, last_error text not null default '',
+    backups jsonb not null default '[]'::jsonb, needs text not null default '', note text not null default '', updated_at timestamptz not null default now())`,
+ ]},
 ];
 export const SCHEMA_VERSION=MIGRATIONS[MIGRATIONS.length-1].version;
 

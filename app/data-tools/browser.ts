@@ -76,9 +76,11 @@ export async function renderPage(address:string,options:{waitFor?:string;scrolls
    const url=page.url(),title=await page.title().catch(()=>''),html=await page.content();
    const text=await page.evaluate(()=>(document.body?.innerText||'').replace(/[ \t]+/g,' ').replace(/\n{3,}/g,'\n\n').trim()).catch(()=>'');
    const challenge=detectChallenge({text,title,url,html});
+   {const {noteFetch}=await import('@/app/sources/health');noteFetch(start,challenge?'denied':'ok',{error:challenge?.reason||''});}
    return {url,title,html,text,json,blocked:challenge?.reason||null,challenge,blockedRequests};
   }catch(e){
    const m=(e as Error).message||'';
+   if(!signal?.aborted&&!/ERR_BLOCKED_BY_CLIENT/.test(m)){const {noteFetch}=await import('@/app/sources/health');noteFetch(start,'failed',{error:m.split('\n')[0]});}
    if(/Timeout|closed|Target page/i.test(m))throw Error('The page did not finish loading within '+HARD_TIMEOUT/1000+' s: '+start.href);
    if(/ERR_BLOCKED_BY_CLIENT/.test(m))throw Error('Only public internet addresses can be opened.');
    if(/ERR_NAME_NOT_RESOLVED/.test(m))throw Error('The host does not exist: '+start.hostname);

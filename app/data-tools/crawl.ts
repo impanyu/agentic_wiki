@@ -1,4 +1,5 @@
 import {saveDataset} from './datasets';
+import {renderIfShell,hostNeedsRender} from './page-load';
 import {fetchText,publicUrl} from './net';
 import {extractTables,htmlTitle,type ExtractedTable} from './html';
 import {detectChallenge} from './parse';
@@ -39,9 +40,12 @@ export async function crawlPages(args:CrawlArgs,scope:string,signal:AbortSignal)
   await politeWait(u.host,Math.max(MIN_GAP_MS,Math.min(10,rules?.crawlDelay||0)*1000),signal);
   let html='',finalUrl=url,title='',text='',blocked:string|null=null;
   try{
-   if(args.render){const {renderPage}=await import('./browser');const r=await renderPage(url,{captureJson:false},signal);if(r.blocked)blocked=r.blocked;else{html=r.html;finalUrl=r.url;title=r.title;text=r.text;}}
+   if(args.render||hostNeedsRender(url)){const {renderPage}=await import('./browser');const r=await renderPage(url,{captureJson:false},signal);if(r.blocked)blocked=r.blocked;else{html=r.html;finalUrl=r.url;title=r.title;text=r.text;}}
    else{const r=await fetchText(url,signal,{accept:'text/html,application/xhtml+xml'});if(!/html/.test(r.type)){skipped.push({url,reason:'not an HTML page ('+r.type+')'});continue;}html=r.text;finalUrl=r.url;title=htmlTitle(html);text=sourceText(mainHtml(html));
-    blocked=detectChallenge({text,title,url:finalUrl,html})?.reason||null;}
+    blocked=detectChallenge({text,title,url:finalUrl,html})?.reason||null;
+    if(blocked){const {noteFetch}=await import('@/app/sources/health');noteFetch(finalUrl,'denied',{error:blocked,reclassify:true});}
+    // Built by JavaScript: rendered in the headless browser without being asked (and the rest of the site with it).
+    else{const v=await renderIfShell(finalUrl,html,signal);if(v){if(v.challenge)blocked=v.challenge;else{html=v.html;finalUrl=v.url;title=v.title||title;text=v.text;}}}}
   }catch(e){const m=(e as Error).message;if(signal.aborted||!/could not be fetched/.test(m)){skipped.push({url,reason:m.slice(0,160)});continue;}blocked=m;}
   // Blocked live (login, CAPTCHA, challenge, HTTP error): read the latest Wayback capture instead.
   let mark:ReturnType<typeof archiveMark>|null=null;

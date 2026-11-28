@@ -9,7 +9,12 @@ import type {Transport} from '@/app/public-data/fetcher';
 // compressed bodies (Stack Exchange always compresses), raw bytes (Range requests for archive
 // records) and responses up to 8 MB.
 const MAX_BYTES=8*1024*1024;
-export const httpsTransport:Transport=async(input,{headers,signal,timeoutMs})=>{
+export const httpsTransport:Transport=async(input,opts)=>{
+ const health=await import('@/app/sources/health').catch(()=>null);
+ try{const r=await rawTransport(input,opts);health?.noteFetch(input,health.outcomeOf(r.status),{status:r.status,error:r.status>=400?'HTTP '+r.status:''});return r;}
+ catch(e){if(!opts.signal?.aborted)health?.noteFetch(input,'failed',{error:(e as Error).message});throw e;}
+};
+const rawTransport:Transport=async(input,{headers,signal,timeoutMs})=>{
  const deadline=AbortSignal.any([AbortSignal.timeout(timeoutMs),...(signal?[signal]:[])]);
  let url=new URL(input);const origin=url.origin;
  for(let redirects=0;redirects<=3;redirects++){

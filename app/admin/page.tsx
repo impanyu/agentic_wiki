@@ -11,7 +11,7 @@ import {IssueActions} from './issue-actions';
 export const dynamic='force-dynamic';
 export const metadata:Metadata={title:'Admin · RankWiki',robots:{index:false,follow:false}};
 type Props={searchParams:Promise<Record<string,string|string[]|undefined>>};
-const TABS=[['overview','Overview'],['progress','Progress'],['sitemap','Site map'],['classes','Classes'],['fields','Fields and sources'],['issues','Issues'],['traffic','Traffic'],['models','Models now'],['costs','Model costs'],['services','Services'],['teams','Teams and data'],['config','Configuration']] as const;
+const TABS=[['overview','Overview'],['progress','Progress'],['sitemap','Site map'],['classes','Classes'],['fields','Fields and sources'],['sources','Sources'],['issues','Issues'],['traffic','Traffic'],['models','Models now'],['costs','Model costs'],['services','Services'],['teams','Teams and data'],['config','Configuration']] as const;
 const fmt=(v:unknown)=>typeof v==='number'?v.toLocaleString('en'):String(v??'');
 const usd=(v:unknown)=>'$'+(Number(v)||0).toLocaleString('en',{minimumFractionDigits:2,maximumFractionDigits:2});
 
@@ -61,14 +61,14 @@ export default async function AdminPage({searchParams}:Props){
   const pct=(a:number,b:number)=>b?Math.round(a/b*100)+'%':'–';
   body=<>
    <div className="adm-stats">
-    <Stat label="Classes with a ranking" value={fmt(tot?.classes)}/>
+    <Stat label="Classes tracked" value={fmt(tot?.classes)} note={`${fmt(tot?.ranked)} with a published ranking`}/>
     <Stat label="Members (rows)" value={fmt(tot?.members)} note={tot?.expected?`expected ${fmt(tot.expected)} where known`:''}/>
     <Stat label="Classes with complete rows" value={fmt(tot?.complete_rows)} note="at least 90% of the expected members" tone={(tot?.complete_rows||0)<(tot?.classes||0)?'warn':'ok'}/>
     <Stat label="Measures collected (columns)" value={pct(tot?.covered||0,tot?.declared||0)} note={`${fmt(tot?.covered)} of ${fmt(tot?.declared)} declared, for most members`} tone="warn"/>
     <Stat label="Classes with 2+ sources" value={fmt(tot?.two_sources)} note="member lists and values" tone={(tot?.two_sources||0)<(tot?.classes||0)?'warn':'ok'}/>
    </div>
    <Table rows={rows as Record<string,unknown>[]} cols={[
-    ['label','Class',(v,r)=><a href={'/rankings/'+String(r.ranking)}>{String(v||r.type)}</a>],
+    ['label','Class',(v,r)=>r.ranking?<a href={'/rankings/'+String(r.ranking)}>{String(v||r.type)}</a>:<a href={'/admin?tab=classes&type='+String(r.type)}>{String(v||r.type)}</a>],
     ['members','Members',(v,r)=>fmt(v)+(r.expected?' / '+fmt(r.expected):'')],
     ['covered','Columns filled',(v,r)=>`${fmt(v)} / ${fmt(r.declared)} (${pct(Number(v),Number(r.declared))})`],
     ['sources','Sources',(v,r)=>`${fmt(v)} values · ${fmt(r.member_lists)} member lists`],
@@ -129,6 +129,32 @@ export default async function AdminPage({searchParams}:Props){
     <select name="problem" defaultValue={problem}><option value="">All fields</option><option value="one-source">Only one planned source</option><option value="no-source">No source yet</option></select><button>Show</button></form>
    <p className="adm-note">{fmt(rows.length)}{rows.length>=500?'+':''} fields (own fields of each class; open a class for inherited ones and what is loaded).</p>
    <Table rows={rows as unknown as Record<string,unknown>[]} cols={[['label','Class',(v,r)=><a href={'/admin?tab=classes&type='+String(r.type)}>{String(v||r.type)}</a>],['key','Field'],['kind','Kind'],['sources','Planned sources',(v,r)=>r.need?<span className="adm-bad">needed</span>:fmt(v)]]}/></>;
+ }else if(tab==='sources'){
+  // The Sources layer: every source host, how it is reached, whether it is open over the last 7 days, the classes it
+  // feeds, and the backups when it is stuck.
+  const sp=await searchParams;const status=String(sp.status||'');const q=String(sp.q||'');
+  const {listSources}=await import('@/app/sources/registry');const {rows,totals}=await listSources(await entityDb(),{status,q});
+  const t=(k:string)=>totals[k]||0;const stuckN=t('blocked')+t('down')+t('failing')+t('limited');
+  body=<>
+   <div className="adm-stats">
+    <Stat label="Sources" value={fmt(Object.values(totals).reduce((a,b)=>a+b,0))}/>
+    <Stat label="Open" value={fmt(t('ok'))} note={`${fmt(t('degraded'))} degraded · ${fmt(t('idle'))} not used this week`} tone="ok"/>
+    <Stat label="Stuck" value={fmt(stuckN)} note={`${t('blocked')} blocked · ${t('down')} down · ${t('failing')} failing · ${t('limited')} rate limited`} tone={stuckN?'warn':'ok'}/>
+   </div>
+   <p className="adm-note">Rebuilt hourly from collection rules, the fields' planned sources and every collector request of the last 7 days. A stuck source sends its classes' collectors to the backups (source review); one with no backup anywhere also opens an issue.</p>
+   <form className="adm-search"><input type="hidden" name="tab" value="sources"/><input name="q" defaultValue={q} placeholder="Host, name or class"/>
+    <select name="status" defaultValue={status}><option value="">All</option><option value="stuck">Stuck</option>{['ok','degraded','limited','blocked','down','failing','idle'].map(x=><option key={x} value={x}>{x}</option>)}</select><button>Filter</button></form>
+   <Table rows={rows as Record<string,unknown>[]} cols={[
+    ['host','Source',(v,r)=><span title={String(r.name||'')}>{String(v)}{r.name?<small className="adm-muted"> {String(r.name).slice(0,40)}</small>:null}</span>],
+    ['status','Status',(v)=><span className={v==='ok'?'':v==='degraded'||v==='idle'?'adm-muted':'adm-bad'}>{String(v)}</span>],
+    ['access','Access'],
+    ['classes','Feeds',(v)=>{const l=v as string[];return l.length?<span title={l.join(', ')}>{l.length} class{l.length>1?'es':''}: {l.slice(0,3).join(', ')}{l.length>3?' …':''}</span>:'–';}],
+    ['recipes','Rules',(v,r)=>fmt(v)+(Number(r.failing_recipes)?' ('+fmt(r.failing_recipes)+' failing)':'')],
+    ['calls7','7 days',(v,r)=>Number(v)?`${fmt(r.ok7)}/${fmt(v)} ok`+(Number(r.denied7)?` · ${fmt(r.denied7)} denied`:'')+(Number(r.limited7)?` · ${fmt(r.limited7)} limited`:'')+(Number(r.failed7)?` · ${fmt(r.failed7)} failed`:''):'–'],
+    ['backups','Backups',(v)=>{const l=(v as {class:string;hosts:string[]}[])||[];if(!l.length)return '';const none=l.filter(b=>!b.hosts.length).length;return <span title={l.map(b=>b.class+': '+(b.hosts.join(', ')||'none')).join('\n')}>{none?<span className="adm-bad">{none} class{none>1?'es':''} without</span>:'all classes covered'}</span>;}],
+    ['last_error','Last error',(v,r)=><span title={String(r.needs||'')}>{String(v||'').slice(0,80)}</span>],
+   ]}/>
+  </>;
  }else if(tab==='issues'){
   const status=String((await searchParams).status||'open') as 'open'|'resolved'|'ignored'|'all';
   const list=await listIssues(await entityDb(),{status});

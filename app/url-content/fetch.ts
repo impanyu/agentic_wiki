@@ -41,7 +41,15 @@ export function urlKeys(url:URL){
 }
 export type FetchOptions={accept?:string;allowType?:(type:string)=>boolean;maxBytes?:number;referer?:string;headers?:Record<string,string>;timeoutMs?:number};
 const documentTypes=['text/html','application/xhtml+xml','text/plain','text/markdown','application/json','application/pdf'];
+// Every outside request's outcome is counted per host (app/sources/health) for the source registry.
 export async function fetchSource(url:URL,signal:AbortSignal,options:FetchOptions={}){
+ const health=await import('@/app/sources/health').catch(()=>null);
+ try{const r=await fetchSourceRaw(url,signal,options);health?.noteFetch(url,'ok',{status:r.status});return r;}
+ catch(e){const st=(e as {status?:number}).status;const m=(e as Error).message||'';
+  if(health&&!/^URL_(PRIVATE|INVALID|UNSUPPORTED|TOO_LARGE)$/.test(m)&&!signal.aborted)health.noteFetch(url,st?health.outcomeOf(st):'failed',{status:st??null,error:st?'HTTP '+st:m});
+  throw e;}
+}
+async function fetchSourceRaw(url:URL,signal:AbortSignal,options:FetchOptions={}){
  const max=options.maxBytes||limit;
  const deadline=AbortSignal.any([signal,AbortSignal.timeout(options.timeoutMs||25000)]);
  for(let redirects=0;redirects<=5;redirects++){

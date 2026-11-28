@@ -152,8 +152,12 @@ export function inspectPage(p:PageData){
 
 // ───────────── fetch pages politely ─────────────
 export async function pageHtml(url:string,render:boolean,signal:AbortSignal):Promise<{url:string;html:string}>{
- if(render){const {renderPage}=await import('./browser');const r=await renderPage(url,{captureJson:false},signal);if(r.blocked||r.challenge)throw Error('Blocked: '+(r.blocked||'challenge'));return {url:r.url,html:r.html};}
- const r=await fetchText(url,signal,{accept:'text/html,application/xhtml+xml'});return {url:r.url,html:r.text};
+ const {hostNeedsRender,renderIfShell}=await import('./page-load');
+ if(render||hostNeedsRender(url)){const {renderPage}=await import('./browser');const r=await renderPage(url,{captureJson:false},signal);if(r.blocked||r.challenge)throw Error('Blocked: '+(r.blocked||'challenge'));return {url:r.url,html:r.html};}
+ const r=await fetchText(url,signal,{accept:'text/html,application/xhtml+xml'});
+ // Built by JavaScript: rendered in the headless browser without being asked.
+ const v=await renderIfShell(r.url,r.text,signal);if(v){if(v.challenge)throw Error('Blocked: '+v.challenge);return {url:v.url,html:v.html};}
+ return {url:r.url,html:r.text};
 }
 export async function inspectPageTool(args:{url:string;render:boolean},signal:AbortSignal){
  const r=await pageHtml(publicUrl(args.url).href,args.render,signal);return inspectPage(readPage(r.url,r.html));

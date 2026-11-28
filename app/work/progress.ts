@@ -3,12 +3,17 @@ import type {Queryable} from '@/app/entity-db/client';
 // the expected count), columns (declared measures collected for at least half the members), sources (independent
 // sources behind the values; measures that rest on one source), member lists the planner found, open problems the
 // Auditor's checks reported. Recomputed hourly by the worker, a few hundred classes per pass.
-type Row={type:string;label:string;ranking:string};
-export async function refreshClassProgress(db:Queryable,{limit=400}:{limit?:number}={}):Promise<number>{
- const classes=(await db.query<Row>(`select distinct on (r.scope->>'type') r.scope->>'type' as type, coalesce(et.label,'') label, r.slug ranking
-   from rankings r join entity_types et on et.type=r.scope->>'type'
-   where r.status='published' and r.slug is not null and coalesce(r.scope->'filters','{}'::jsonb)='{}'::jsonb and coalesce(r.config->>'auto','')=''
-   order by r.scope->>'type', (r.config ? 'main') desc, r.updated_at desc`)).rows;
+type Row={type:string;label:string;ranking:string|null};
+// Every class that has members or a published ranking (not only the ranked ones), so the whole tree's progress shows.
+export async function refreshClassProgress(db:Queryable,{limit=600}:{limit?:number}={}):Promise<number>{
+ const classes=(await db.query<Row>(`with main as (select distinct on (r.scope->>'type') r.scope->>'type' as type, r.slug
+     from rankings r where r.status='published' and r.slug is not null and coalesce(r.scope->'filters','{}'::jsonb)='{}'::jsonb and coalesce(r.config->>'auto','')=''
+     order by r.scope->>'type', (r.config ? 'main') desc, r.updated_at desc),
+   populated as (select distinct type from entities)
+   select et.type, coalesce(et.label,'') label, main.slug ranking from entity_types et left join main on main.type=et.type
+   where et.schema->>'kind'='class' and coalesce(et.schema->>'retiredInto','')='' and (main.slug is not null or et.type in (select type from populated))`)).rows;
+ // Classes that were dropped (retired, emptied) leave the view.
+ await db.query(`delete from class_progress where not (type = any($1::text[]))`,[classes.map(c=>c.type)]);
  const done=new Map((await db.query<{type:string;at:string}>(`select type, updated_at::text at from class_progress`)).rows.map(r=>[r.type,r.at]));
  // Never computed first, then the oldest.
  classes.sort((a,b)=>String(done.get(a.type)||'').localeCompare(String(done.get(b.type)||'')));
@@ -43,7 +48,7 @@ export async function refreshClassProgress(db:Queryable,{limit=400}:{limit?:numb
 // The operators' view: every class, with the summary over all of them.
 export async function classProgress(db:Queryable){
  const rows=(await db.query(`select * from class_progress order by (members>0) desc, (covered::float/greatest(declared,1)) asc, members desc`)).rows;
- const tot=(await db.query<{classes:number;members:number;expected:number;declared:number;covered:number;two_sources:number;complete_rows:number}>(`select count(*)::int classes, sum(members)::int members, sum(expected)::int expected,
+ const tot=(await db.query<{classes:number;ranked:number;members:number;expected:number;declared:number;covered:number;two_sources:number;complete_rows:number}>(`select count(*)::int classes, count(ranking)::int ranked, sum(members)::int members, sum(expected)::int expected,
    sum(declared)::int declared, sum(covered)::int covered, count(*) filter (where sources >= 2 and member_lists >= 2)::int two_sources,
    count(*) filter (where expected is not null and members >= 0.9*expected)::int complete_rows from class_progress`)).rows[0];
  return {rows,tot};
