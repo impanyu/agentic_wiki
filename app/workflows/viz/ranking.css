@@ -255,3 +255,7 @@
  .wf-rank-table th.wf-rank-barcell,.wf-rank-table td.wf-rank-barcell{width:18%}
  .wf-rank-table th.wf-rank-share,.wf-rank-table td.wf-rank-share{width:84px}
 }
+/* Keyword search over a long "Rank by" list */
+.wf-rank-search.wf-rank-crit-search{flex:0 1 200px}
+.wf-rank-crit-count{font-size:11px;font-weight:600;color:var(--rk-muted);font-variant-numeric:tabular-nums}
+@media (max-width:640px){.wf-rank-search.wf-rank-crit-search{flex:1 1 100%}}

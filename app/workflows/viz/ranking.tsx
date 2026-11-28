@@ -9,6 +9,7 @@ import {useTheme} from '@/app/theme';
 import {themeOption} from './chart-theme';
 import './viz.css';
 import './ranking.css';
+const CRIT_SEARCH_OVER=10;
 
 type ECharts=typeof import('echarts');
 type Chart=ReturnType<ECharts['init']>;
@@ -180,6 +181,11 @@ export default function Ranking({props,setValue,fire,ctx}:VizProps){
  const yC=others.find(x=>x.key===yKey)??others[0];
 
  const pick=(e:Entry|undefined)=>{if(e)fire('select',e.row);};
+ // Long criteria lists get a keyword search over label, theme, unit and key ("gdp", "health", "per capita").
+ const [critQuery,setCritQuery]=useState('');
+ const critMatches=(x:Criterion)=>{const words=critQuery.toLowerCase().split(/\s+/).filter(Boolean);if(!words.length)return true;
+  const hay=[x.label,x.theme,x.unit,x.key.replace(/_/g,' '),x.description].filter(Boolean).join(' ').toLowerCase();return words.every(w=>hay.includes(w));};
+ const critShown=useMemo(()=>allCriteria.filter(x=>x.key===c?.key||critMatches(x)),[allCriteria,critQuery,c?.key]);// eslint-disable-line react-hooks/exhaustive-deps
  const choose=(key:string)=>{if(key===critKey)return;
   // A criterion of another theme is not on this page: open its own address (the server loads that theme).
   if(allCriteria.find(x=>x.key===key)?.remote){try{location.assign(view.rankHref?view.rankHref(key):'?rank='+encodeURIComponent(key));}catch{}return;}setCritKey(key);setValue(key);fire('change',key);view.onRank?.(key);try{const u=new URL(location.href);u.searchParams.set('rank',key);history.replaceState(history.state,'',u);}catch{}};
@@ -257,13 +263,18 @@ export default function Ranking({props,setValue,fire,ctx}:VizProps){
      {periods.map(p=><option key={p} value={p}>{p}</option>)}</select></label>}
     {allCriteria.length>1&&(pills
      ?<div className="wf-rank-pills" role="radiogroup" aria-label={t('Rank by')}>{allCriteria.map(x=><button key={x.key} type="button" role="radio" aria-checked={x.key===c.key} className={x.key===c.key?'on':''} onClick={()=>choose(x.key)}>{x.label}</button>)}</div>
-     :<label className="wf-rank-select"><span>{t('Rank by')}</span><select value={c.key} onChange={ev=>choose(ev.target.value)}>{(()=>{
-      // Grouped by theme when the ranking has themes (the main criteria first, ungrouped).
+     :<>{allCriteria.length>CRIT_SEARCH_OVER&&<label className="wf-rank-search wf-rank-crit-search"><Search size={14}/><input type="search" value={critQuery} placeholder={t('Search criteria…')} aria-label={t('Search ranking criteria')}
+       onChange={ev=>setCritQuery(ev.target.value)}
+       onKeyDown={ev=>{if(ev.key==='Enter'){ev.preventDefault();const first=critShown.find(x=>x.key!==c.key)??critShown[0];if(first){choose(first.key);setCritQuery('');}}}}/>
+       {critQuery.trim()&&<span className="wf-rank-crit-count">{Math.max(0,critShown.length-(critMatches(c)?0:1))}</span>}</label>}
+      <label className="wf-rank-select"><span>{t('Rank by')}</span><select value={c.key} onChange={ev=>{choose(ev.target.value);setCritQuery('');}}>{(()=>{
+      // Grouped by theme when the ranking has themes (the main criteria first, ungrouped); a search keeps the matches
+      // (and the criterion in view, so the menu still shows it).
       const opt=(x:Criterion)=><option key={x.key} value={x.key}>{x.label}</option>;
-      if(!allCriteria.some(x=>x.theme))return allCriteria.map(opt);
-      const themes=[...new Set(allCriteria.map(x=>x.theme||''))];
-      return themes.map(th=>th?<optgroup key={th} label={th}>{allCriteria.filter(x=>x.theme===th).map(opt)}</optgroup>:allCriteria.filter(x=>!x.theme).map(opt));
-     })()}</select></label>)}
+      if(!critShown.some(x=>x.theme))return critShown.map(opt);
+      const themes=[...new Set(critShown.map(x=>x.theme||''))];
+      return themes.map(th=>th?<optgroup key={th} label={th}>{critShown.filter(x=>x.theme===th).map(opt)}</optgroup>:critShown.filter(x=>!x.theme).map(opt));
+     })()}</select></label></>)}
    </div>
   </header>
   <div className="wf-rank-meta">
